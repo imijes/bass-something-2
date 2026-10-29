@@ -1,0 +1,40 @@
+# The factory patches (bs2/presets: factory.syx's first 32 dumps, read at first power-on through the bank's import):
+# P01 GHOST MACHINE I, P32 DATA RAIN, each with the default sequence; they play.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/presets.txt bs2/build/host
+wait 600
+expect slot 0
+expect cutoff 60
+expect filter 2
+expect wave 2
+expect reso 67
+expect seq_len 8
+expect seq0 48
+peakreset
+midi 90 30 64
+wait 600
+expect peak_db_min -50
+expect peak_db_max -0.5
+midi 80 30 00
+wait 1500
+tap EDIT
+wait 30
+turn PRESET 31
+wait 30
+expect slot 31
+expect cutoff 127
+expect wave 0
+peakreset
+midi 90 30 64
+wait 600
+expect peak_db_min -50
+expect peak_db_max -0.5
+midi 80 30 00
+wait 300
+# kept through power-off as they are (the bank written at the first SAVE, read back the same)
+tap SAVE
+wait 30
+reboot
+wait 600
+expect slot 31
+expect cutoff 127

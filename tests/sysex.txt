@@ -1,0 +1,362 @@
+# Bass Station II patch dumps (bs2_sysex.c): tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/sysex.txt bs2/build/host
+wait 600
+listen
+tap HOME
+wait 30
+# Analog Beast 24 (firmware 2.5's dump, named): Acid, the ring at full, triangles, a little noise, the glide, the mod
+# envelope on the cutoff, LFO 1 S&H
+sysex_in bs2/tests/syx/Analog_Beast_24.syx
+wait 30
+said SYSEX LOADED Analog Beast 24
+expect dirty 1
+expect filter 6
+expect cutoff 47
+expect reso 83
+expect drive 0
+expect ring 127
+expect wave 3
+expect wave2 3
+expect noise 2
+expect glide 37
+expect rhythm 32
+expect swing 50
+expect coarse2 0
+expect fine2 0
+expect sub 1
+expect sync 0
+expect arp 0
+expect lvl1 0
+expect lvl2 0
+expect lvl_sub 0
+expect sub_wave 1
+expect range1 1
+expect range2 1
+expect dist 70
+# its velocity on the mod envelope at full (a soft note's depths a quarter), none on the amp; tracking full
+expect vel_menv 63
+expect vel_amp 0
+expect key_trk 7
+midi 90 30 20
+wait 100
+expect menv_gain >240
+expect menv_gain <265
+midi 80 30 00
+midi 90 30 7F
+wait 100
+expect menv_gain 1000
+midi 80 30 00
+wait 300
+tap ENV
+wait 30
+expect FILTER 18
+expect OSC1 0
+expect OSC2 0
+expect ATTACK 55
+expect DECAY 73
+expect SUSTAIN 74
+expect RELEASE 78
+tap ENV
+wait 30
+expect page 8
+expect ATTACK 18
+expect DECAY 0
+expect SUSTAIN 127
+expect RELEASE 21
+tap LFO
+wait 30
+expect WAVE 4
+expect RATE 0
+tap LFO
+wait 30
+expect DEST 0
+expect WAVE 0
+expect RATE 34
+# 47 Sub Bass (the older dump, no name): a sine and a saw, Classic 24 dB low pass, nearly shut
+sysex_in bs2/tests/syx/47_Sub_Bass-JM.syx
+wait 30
+said SYSEX LOADED
+expect wave 2
+expect wave2 0
+expect noise 0
+expect glide 0
+expect filter 0
+expect cutoff 11
+expect reso 57
+expect ring 0
+expect lvl1 127
+expect lvl2 127
+expect lvl_sub 0
+expect sub_wave 0
+expect range1 0
+expect range2 0
+expect dist 0
+expect amp_r 17
+tap ENV
+wait 30
+expect FILTER 22
+expect ATTACK 0
+expect DECAY 33
+# the Bass Station II's own fields it had dropped: its filter tracking full (a dump before firmware 2.5), no
+# velocity on either envelope, oscillator 1 in tune, no PW from the mod envelope
+expect key_trk 7
+expect vel_amp 0
+expect vel_menv 0
+expect coarse1 0
+expect fine1 0
+expect menv_pw1 0
+expect menv_pw2 0
+# held, its cutoff about 110 Hz at C3 (the dial's 21 with the mod envelope's sustain), and at C4 an octave up with
+# the tracking: about 225 Hz, under C4's 16' but heard
+midi 90 3C 64
+wait 300
+expect cut_now >34
+expect cut_now <37
+expect fc_now >210
+expect fc_now <240
+peakreset
+wait 300
+expect peak_db_min -52
+midi 80 3C 00
+wait 300
+# Deep ORGAN: pulses of their own widths, oscillator 1 at 16' and 2 at 4', the levels (the louder at 127, the rest
+# in proportion), the drive, the amp envelope
+sysex_in bs2/tests/syx/Deep_ORGAN.syx
+wait 30
+said SYSEX LOADED Deep ORGAN
+expect wave 4
+expect wave2 4
+expect pw1 71
+expect pw2 34
+expect coarse2 0
+expect range1 0
+expect range2 2
+expect cutoff 54
+expect reso 36
+expect drive 30
+expect filter 0
+expect ring 0
+expect lvl1 127
+expect lvl2 84
+expect lvl_sub 76
+expect sub_wave 0
+tap FX
+wait 30
+expect page 9
+expect RANGE1 0
+expect RANGE2 2
+expect SUB 76
+tap ENV
+tap ENV
+wait 30
+expect page 8
+expect ATTACK 27
+expect DECAY 16
+expect SUSTAIN 127
+expect RELEASE 17
+# out: FX on the PATCH page sends the sound; changed, and the dump read back, it is the sound again (with what Deep
+# ORGAN does not have set too: the glide, the noise, LFO 2 on the widths, the mod envelope's pitch depths, the rhythm
+# and swing, the sub's wave and level, the distortion, the amp envelope's attack)
+tap HOME
+tap HOME
+wait 30
+expect page 1
+turn PRESET 90
+turn K2 40
+tap LFO
+tap LFO
+wait 30
+expect page 4
+turn K3 30
+turn K4 -12
+tap ENV
+wait 30
+turn SELECT -25
+turn PRESET 17
+tap ARP
+wait 30
+turn K4 -9
+turn K2 16
+tap FX
+turn SELECT 2
+turn K3 20
+turn K4 50
+tap ENV
+tap ENV
+turn K1 10
+# the fields the FM-1 had dropped, set to go out in the dump: the velocities (AMP ENV's top), OSC TUNE (HOME thrice)
+turn SELECT 40
+turn ALGO -25
+tap HOME
+tap HOME
+tap HOME
+wait 30
+expect page 10
+turn SELECT 3
+turn K1 25
+turn K2 -20
+turn K3 15
+turn ALGO -3
+wait 30
+expect vel_amp 40
+expect vel_menv -25
+expect coarse1 3
+expect fine1 25
+expect menv_pw1 -20
+expect menv_pw2 15
+expect key_trk 4
+expect glide 90
+expect noise 40
+expect rhythm 23
+expect swing 66
+tap EDIT
+wait 30
+tap FX
+wait 30
+said SYSEX SENT Bass Smth 2 01
+sysex_out bs2/build/host/sysex_rt.syx
+tap HOME
+wait 30
+turn K1 -20
+turn K2 30
+turn ALGO 3
+turn SELECT -5
+turn PRESET -2
+tap HOME
+turn PRESET -50
+turn K2 -40
+spin K3 50
+tap ENV
+turn SELECT 10
+tap ARP
+turn K2 -10
+tap FX
+turn SELECT -2
+turn ALGO 2
+turn K4 -50
+tap HOME
+tap HOME
+tap HOME
+turn SELECT -6
+turn K2 30
+turn ALGO 3
+tap ENV
+tap ENV
+turn SELECT -30
+wait 300
+sysex_in bs2/build/host/sysex_rt.syx
+wait 30
+said SYSEX LOADED Bass Smth 2 01
+expect vel_amp 40
+expect vel_menv -25
+expect coarse1 3
+expect fine1 25
+expect menv_pw1 -20
+expect menv_pw2 15
+expect key_trk 4
+expect wave 4
+expect wave2 4
+expect pw1 71
+expect pw2 34
+expect glide 90
+expect noise 40
+expect rhythm 23
+expect swing 66
+expect coarse2 0
+expect range1 0
+expect range2 2
+expect lvl1 127
+expect lvl2 84
+expect lvl_sub 96
+expect sub_wave 2
+expect dist 50
+expect amp_a 37
+expect amp_s 127
+expect cutoff 54
+expect reso 36
+expect drive 30
+expect filter 0
+tap LFO
+tap LFO
+wait 30
+expect PWM1 30
+expect PWM2 -12
+tap ENV
+wait 30
+expect OSC1 -25
+expect OSC2 17
+tap HOME
+wait 30
+# a computer asks for the sound (F0 7D 42 53 32 01 F7)
+sysex_in bs2/tests/syx/ask.syx
+wait 30
+said SYSEX SENT
+# not a whole dump: not taken, the sound as it was
+turn K1 -10
+wait 300
+sysex_in bs2/tests/syx/short.syx
+wait 30
+expect cutoff 44
+# a bank (bank3.syx: each dump a "store into patch N", as a whole bank's file is; Analog Beast 24 into patch 2, Deep
+# ORGAN into 31, 47 Sub Bass into 40): into the slots P03 and P32, not the sound; 40 past the FM-1's 32, left. Written
+# once it has ended; each slot keeps its own sequence
+expect slot 0
+sysex_in bs2/tests/syx/bank3.syx
+wait 30
+said BANK IN P03 Analog Beast 24
+expect cutoff 44
+expect kept_tempo 120
+wait 1100
+said BANK LOADED 2 IN, 1 LEFT
+reboot
+wait 600
+tap EDIT
+wait 30
+turn PRESET 2
+wait 30
+expect slot 2
+expect filter 6
+expect cutoff 47
+expect ring 127
+turn PRESET 29
+wait 30
+expect slot 31
+expect cutoff 54
+expect drive 30
+expect seq_len 8
+expect seq0 48
+# GLO DUMP: every slot as a bank's dump; P03 changed, the bank sent back: P03 as it was
+tap GLO
+wait 30
+tap GLO
+wait 30
+tap GLO
+wait 30
+expect page 13
+tap FX
+wait 30
+said SYSEX SENT ALL 32
+sysex_bank_out bs2/build/host/bank_rt.syx
+tap EDIT
+wait 30
+turn PRESET -29
+wait 30
+expect slot 2
+tap HOME
+wait 30
+turn K1 30
+wait 30
+expect cutoff 77
+tap SAVE
+wait 30
+sysex_in bs2/build/host/bank_rt.syx
+wait 30
+said BANK IN P01 Bass Smth 2 01
+expect cutoff 47
+wait 1100
+said BANK LOADED 32 PATCHES
+expect dirty 0
+# a computer asks for every slot (F0 7D 42 53 32 03 F7)
+sysex_in bs2/tests/syx/ask_all.syx
+wait 30
+said SYSEX SENT ALL 32

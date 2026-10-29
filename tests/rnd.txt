@@ -1,0 +1,147 @@
+# RND seeds (bs2_rnd.c): the RND Synth's seeds captured, kept in their own table through power-off, sent back; the
+# sound and the patches untouched by them. Its notes (tracks on channels 1..4) play on GLO MIDI's channel.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/rnd.txt bs2/build/host
+# (from the INIT patch in every slot, as before the factory patches)
+bank_init
+wait 600
+listen
+# GLO alone: MIDI, SYS, DUMP, MIDI (never RND)
+tap GLO
+tap GLO
+tap GLO
+tap GLO
+wait 30
+expect page 11
+# GLO + OCT+: GLOBAL RND, the octave as it was; no seed yet, none to send or keep
+press GLO
+wait 30
+tap OCT+
+wait 30
+release GLO
+wait 30
+expect page 14
+said GLOBAL RND
+expect octave 0
+unsaid OCTAVE
+expect seed_hi 65535
+expect seed_src 0
+tap FX
+wait 30
+said NONE YET
+tap SAVE
+wait 30
+said NONE YET
+# a seed from the RND Synth: captured and shown, the sound as it was
+expect cutoff 100
+expect dirty 0
+sysex_in bs2/tests/syx/rnd_seed.syx
+wait 30
+said RND SEED IN 12345678
+expect seed_hi 4660
+expect seed_lo 22136
+expect seed_src 1
+expect cutoff 100
+expect dirty 0
+# its repeats ignored; its tempo frame after it (120 BPM) becomes TEMPO, said with the seed
+sysex_in bs2/tests/syx/rnd_seed.syx
+sysex_in bs2/tests/syx/rnd_key.syx
+wait 30
+said RND SEED IN 12345678 120 BPM
+expect tempo 120
+# the tempo frame again: TEMPO is the player's between seeds
+sysex_in bs2/tests/syx/rnd_key.syx
+wait 30
+said_none
+# SAVE here keeps the seed in its slot (S01), not the patch
+tap SAVE
+wait 30
+said SEED SAVED S01 12345678
+expect dirty 1
+# another seed, kept in S02
+sysex_in bs2/tests/syx/rnd_seed2.syx
+wait 30
+said RND SEED IN CAFEF00D
+turn PRESET 1
+wait 300
+said RND SEED S02 EMPTY
+expect seed_slot 1
+expect seed_hi 51966
+tap SAVE
+wait 30
+said SEED SAVED S02 CAFEF00D
+# the RND Synth's own frames (captured from it): a new seed and its tempo, 132 BPM; the sound otherwise untouched
+sysex_in bs2/tests/syx/rnd_real_seed.syx
+sysex_in bs2/tests/syx/rnd_real_tempo132.syx
+wait 30
+said RND SEED IN F9AD8856 132 BPM
+expect tempo 132
+expect cutoff 100
+# its tempo changed with no new seed (147): taken; the same again: not
+sysex_in bs2/tests/syx/rnd_real_tempo147.syx
+wait 30
+said RND TEMPO 147 BPM
+expect tempo 147
+sysex_in bs2/tests/syx/rnd_real_tempo147.syx
+wait 30
+said_none
+# beyond TEMPO's 240: held there; none (0): TEMPO as it was
+sysex_in bs2/tests/syx/rnd_tempo300.syx
+wait 30
+expect tempo 240
+sysex_in bs2/tests/syx/rnd_tempo0.syx
+wait 30
+expect tempo 240
+# PRESET back to S01: its seed shown; FX sends it in the RND Synth's frame
+turn PRESET -1
+wait 300
+said RND SEED S01 12345678
+expect seed_src 2
+tap FX
+wait 30
+said RND SEED SENT 12345678
+rnd_out bs2/build/host/rnd_out.syx
+# a computer asks for the seed shown (F0 7D 42 53 32 02 F7)
+sysex_in bs2/tests/syx/rnd_ask.syx
+wait 30
+said RND SEED SENT
+# the sound untouched all along; REC still a random sound
+expect cutoff 100
+tap HOME
+wait 30
+tap REC
+wait 30
+said SOUND RANDOMIZED
+# the RND Synth's tracks: GLO MIDI's channel at 3, track 3's notes play, track 1's don't
+tap GLO
+wait 30
+spin K1 -14
+wait 30
+expect chan 3
+midi 90 40 64
+wait 30
+expect note -1
+midi 92 43 64
+wait 30
+expect note 67
+midi 82 43 00
+wait 30
+expect note -1
+# the seed table kept through power-off
+reboot
+wait 600
+press GLO
+wait 30
+tap OCT+
+wait 30
+release GLO
+wait 30
+wait 30
+expect page 14
+expect seed_hi 65535
+turn PRESET 1
+wait 300
+said RND SEED S02 CAFEF00D
+turn PRESET -1
+wait 300
+said RND SEED S01 12345678

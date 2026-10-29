@@ -1,0 +1,32 @@
+# The keys light for the notes held (app.c notes_lit): MIDI in's too, so a note stuck on (its note-off lost) is found
+# and let go by pressing its key; OCT- or OCT+ lit for one held out of the keys' reach, pressed lets every note go.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/lit.txt bs2/build/host
+wait 600
+expect lit 0
+# C4 from MIDI in (channel ALL): key 7 lit, the voice on it
+midi 90 3C 64
+wait 30
+expect lit 128
+expect note 60
+leds
+# its note-off lost: still lit; pressed and let go, it's off
+key 7 down
+wait 50
+key 7 up
+wait 50
+expect lit 0
+expect note -1
+# a note under the keys (C2) and one over (C7): none lit on the keys, OCT- and OCT+ lit
+midi 90 24 64
+midi 90 60 64
+wait 30
+expect lit 0
+leds
+# a lit OCT button pressed: the octave changes and every held note is let go (no key's note-off would find it)
+tap OCT-
+wait 30
+expect octave -1
+expect lit 0
+expect note -1
+leds

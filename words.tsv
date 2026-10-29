@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: MPL-2.0
+# Bass Something 2's words for a screen reader (fm1-reader): the text on the screen <TAB> what to say.
+# url: https://charlesvestal.github.io/fm1-base/words/
+BASS SOMETHING 2	Bass Something 2
+K1 OCTAVE	knob 1, octave
+K2 WAVE	knob 2, wave
+OSC2	oscillator 2
+LP24	low pass 24
+LP12	low pass 12
+BP24	band pass 24
+BP12	band pass 12
+HP24	high pass 24
+HP12	high pass 12
+-1 OCT	minus 1 octave
+-2 OCT	minus 2 octaves
+MOD ENV	mod envelope
+OSC FILTER	oscillators and filter
+LFO 1	L F O 1
+LFO 2	L F O 2
+S&H	sample and hold
+TRI	triangle
+OSC MIX	oscillator mix
+WAVE2	wave 2
+RING	ring mod
+SEQ RETRIG	sequence retrigger
+SEQ FULL	sequence full
+SEQ	sequencer
+UP/DN2	up down 2
+UP/DN	up down
+SYSEX	sys ex
+OSC1	oscillator 1
+PW1	pulse width 1
+PW2	pulse width 2
+PWM1	pulse width mod 1
+PWM2	pulse width mod 2
+AMP ENV	amp envelope
+MIX FX	mixer and effects
+SUBWAVE	sub wave
+RANGE1	range 1
+RANGE2	range 2
+16'	16 foot
+8'	8 foot
+4'	4 foot
+2'	2 foot
+ARP/SEQ	arp and sequencer
+AFX	A F X
+RND	R N D
+CC CHANNEL	C C channel
+CC CHAN	C C channel
+CC	C C
+OSC TUNE	oscillator tune
+AMP ENV VELOCITY	amp envelope velocity
+MOD ENV VELOCITY	mod envelope velocity
+AMP VEL	amp velocity
+MOD VEL	mod velocity
+OSC 1 COARSE	oscillator 1 coarse
+OSC 1 FINE	oscillator 1 fine
+FINE1	fine 1
+FILTER KEY TRACKING	filter key tracking
+KEY TRK	key tracking
+MOD ENV OSC 1 PW	mod envelope, oscillator 1 pulse width
+MOD ENV OSC 2 PW	mod envelope, oscillator 2 pulse width
+PW1 ENV	pulse width 1 envelope
+PW2 ENV	pulse width 2 envelope

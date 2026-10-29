@@ -1,0 +1,93 @@
+# The sequence kept without SAVE (app.c seq_keep): its steps and the SEQ page's settings into the slot's saved patch
+# 2 s after the last change once the FM-1 is quiet, and before PRESET leaves the slot; the rest of the sound still
+# waits for SAVE.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/seqkeep.txt bs2/build/host
+# (from the INIT patch in every slot, as before the factory patches)
+bank_init
+wait 600
+# a step recorded and the tempo turned; the cutoff turned too (not the sequence's)
+expect page 0
+turn K1 -10
+wait 300
+expect cutoff 90
+tap SEQ
+wait 30
+expect page 7
+turn K4 5
+wait 300
+expect TEMPO 125
+tap SEQ
+wait 30
+expect rec 1
+key 0 down
+wait 50
+key 0 up
+wait 30
+tap SEQ
+wait 30
+expect rec 0
+expect seq0 53
+# 2 s on, no SAVE: power off and on
+wait 2500
+reboot
+wait 600
+expect seq0 53
+expect seq_len 1
+expect mem1 1
+expect TEMPO 125
+expect cutoff 100
+# a new recording (G3, a sequence of one), then at once another patch: kept in P01, P02 as it was
+expect rec 0
+tap SEQ
+wait 30
+expect rec 1
+key 2 down
+wait 50
+key 2 up
+wait 30
+tap SEQ
+wait 30
+expect seq0 55
+tap EDIT
+wait 30
+turn PRESET 1
+wait 300
+expect slot 1
+expect seq0 48
+expect seq_len 8
+turn PRESET -1
+wait 300
+expect slot 0
+expect seq0 55
+reboot
+wait 600
+expect seq0 55
+expect seq_len 1
+# the tempo turned while the sequence plays: not kept while it plays (a flash write stops the audio), kept once it
+# has stopped and the FM-1 is quiet
+tap SEQ
+wait 30
+expect page 7
+tap PLAY
+wait 300
+expect seq_run 1
+turn K4 5
+wait 3000
+expect TEMPO 130
+expect hushed 0
+expect kept_tempo 125
+tap PLAY
+wait 300
+expect seq_run 0
+wait 1500
+expect hushed 1
+expect kept_tempo 130
+# the settings as the firmware before the sequences kept them (16 bytes, the last padding): the four sequences from
+# the defaults, sequence 1 the line whole (not its length from the padding)
+set_v2
+reboot
+wait 600
+expect mem1 8
+expect mem2 0
+expect mem4 0

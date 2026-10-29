@@ -1,0 +1,335 @@
+# The global settings: GLO's pages (MIDI, SYS, DUMP), what each setting does, and their keeping across a reboot.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/glo.txt bs2/build/host
+wait 600
+listen
+# GLO: MIDI, again SYS, again DUMP, again MIDI (RND: GLO + OCT+, tests/rnd.txt)
+tap GLO
+wait 30
+expect page 11
+said GLOBAL MIDI
+tap GLO
+wait 30
+expect page 12
+tap GLO
+wait 30
+expect page 13
+tap GLO
+wait 30
+expect page 11
+# the defaults: any channel in, out on 1, the keys playing, aftertouch out, no clock out
+expect chan 17
+expect local 1
+expect at_out 1
+expect clk_out 0
+out
+key 7 down
+wait 50
+key 7 up
+wait 50
+expect_out USB 90 3C 64
+expect_out USB 80 3C 00
+# channel 5: the keys out on it, MIDI in on another not played
+spin K1 -12
+wait 30
+expect chan 5
+said CHANNEL 5
+out
+key 7 down
+wait 50
+expect note 60
+key 7 up
+wait 50
+expect_out USB 94 3C 64
+expect_out USB 84 3C 00
+expect_no_out USB 90 3C 64
+midi 90 40 64
+wait 30
+expect note -1
+midi 94 40 64
+wait 30
+expect note 64
+midi 84 40 00
+wait 30
+expect note -1
+# a key held while the channel changes: its note-off on the channel its note-on went out on
+out
+key 7 down
+wait 30
+spin K1 1
+wait 30
+key 7 up
+wait 50
+expect_out USB 84 3C 00
+expect_no_out USB 85 3C 00
+spin K1 -1
+# LOCAL off: the keys out alone, not played; MIDI in still plays
+spin K2 -1
+wait 30
+expect local 0
+said LOCAL CONTROL OFF
+out
+key 7 down
+wait 50
+expect note -1
+key 7 up
+wait 50
+expect_out USB 94 3C 64
+midi 94 40 64
+wait 30
+expect note 64
+midi 84 40 00
+wait 30
+spin K2 1
+wait 30
+expect local 1
+# channel OFF: nothing out, nothing in
+spin K1 -10
+wait 30
+expect chan 0
+out
+key 7 down
+wait 50
+key 7 up
+wait 50
+expect_no_out USB 90 3C 64
+midi 90 40 64
+wait 30
+expect note -1
+midi 80 40 00
+spin K1 40
+wait 30
+expect chan 17
+# CC CHAN (SELECT): the sound's knobs by the BS2's CC numbers, on their own channel; OFF by default, the notes apart
+expect cc_chan 0
+midi B0 10 00
+wait 30
+expect cutoff >0
+spin SELECT 3
+wait 30
+expect cc_chan 3
+said CC CHANNEL 3
+midi B0 10 00
+wait 30
+expect cutoff >0
+midi B2 10 00
+wait 30
+expect cutoff 0
+midi B2 52 7F
+wait 30
+expect reso 127
+midi B2 1D 40
+wait 30
+expect fine2 0
+midi B2 1D 00
+wait 30
+expect fine2 -100
+midi B2 6E 7F
+wait 30
+expect sync 1
+midi B2 6E 00
+wait 30
+expect sync 0
+midi B2 05 00
+wait 30
+expect glide 0
+# the arp's by the Bass Station II's numbers: 118 its mode (6 PLAY, 7 REC), 108 on, 116 the swing
+midi B2 76 06
+wait 30
+expect arp_mode 6
+midi B2 76 07
+wait 30
+expect arp_mode 7
+midi B2 76 00
+midi B2 6C 01
+wait 30
+expect arp 1
+midi B2 6C 00
+midi B2 74 7F
+wait 30
+expect arp 0
+expect swing 97
+midi B2 74 40
+wait 30
+expect swing 50
+midi 92 40 64
+wait 30
+expect note 64
+midi 82 40 00
+wait 30
+expect note -1
+spin SELECT 20
+wait 30
+expect cc_chan 17
+said CC CHANNEL ALL
+midi B9 10 7F
+wait 30
+expect cutoff 127
+spin SELECT -14
+wait 30
+expect cc_chan 3
+spin K3 -1
+wait 30
+expect at_out 0
+said AFTER TOUCH OUT OFF
+# SYS's CLK OUT: the tempo out as MIDI clock, PLAY a start and a stop
+tap GLO
+wait 30
+expect page 12
+spin K2 1
+wait 30
+expect clk_out 1
+said MIDI CLOCK OUT ON
+out
+wait 500
+expect_out USB F8 00 00
+tap PLAY
+wait 30
+expect_out USB FA 00 00
+tap PLAY
+wait 30
+expect_out USB FC 00 00
+spin K2 -1
+wait 30
+out
+wait 500
+expect_no_out USB F8 00 00
+# SYS: the tune, the keys' velocity, Bluetooth
+expect tune 0
+spin K1 80
+wait 30
+expect tune 50
+said TUNE +50
+spin K1 -75
+wait 30
+expect tune -25
+expect clock 0
+expect vcurve 1
+key 7 down 100
+wait 50
+expect vel 100
+key 7 up
+wait 30
+spin K3 -1
+wait 30
+said VELOCITY SOFT
+key 7 down 100
+wait 50
+expect vel >100
+key 7 up
+wait 30
+spin K3 2
+wait 30
+said VELOCITY HARD
+key 7 down 100
+wait 50
+expect vel <100
+key 7 up
+wait 30
+spin K3 -1
+wait 30
+expect vcurve 1
+# the clock: INT keeps the arp on its tempo though MIDI clock comes; EXT follows it alone (none: it stands still)
+tap ARP
+wait 30
+tap ARP
+wait 30
+expect arp 1
+tap GLO
+wait 30
+expect page 11
+spin K4 1
+wait 30
+expect clock 1
+said ARP/SEQ CLOCK INT
+midi 90 3C 64
+wait 30
+clock 24 1
+wait 10
+expect rpos 0
+midi 80 3C 00
+wait 300
+spin K4 1
+wait 30
+expect clock 2
+midi 90 3C 64
+wait 1000
+expect rpos 0
+clock 24 1
+wait 10
+expect rpos 4
+midi 80 3C 00
+wait 300
+spin K4 -2
+wait 30
+expect clock 0
+tap ARP
+wait 30
+tap ARP
+wait 30
+expect arp 0
+# Bluetooth off and on again
+tap GLO
+wait 30
+tap GLO
+wait 30
+expect page 12
+spin K4 1
+wait 30
+expect ble_off 1
+said BLUETOOTH MIDI OFF
+spin K4 -1
+wait 30
+expect ble_off 0
+# DUMP: FX sends every slot
+tap GLO
+wait 30
+expect page 13
+tap FX
+wait 30
+said SYSEX SENT ALL 32
+# SAVE keeps them: a reboot reads them back (the tune at -25, the channel any, CC CHAN 3)
+tap SAVE
+wait 30
+reboot
+wait 600
+tap GLO
+wait 30
+tap GLO
+wait 30
+expect page 12
+expect tune -25
+expect clock 0
+expect cc_chan 3
+# recording's legato: SEL now (GLO is the settings), on the step just recorded (none yet: nothing), not the sub
+tap SEQ
+wait 30
+tap SEQ
+wait 30
+expect rec 1
+tap SEL
+wait 30
+expect seq0 48
+expect leg0 0
+expect sub 1
+tap SEQ
+wait 30
+expect rec 0
+# the GLO pages keep themselves: two seconds after a change it's in the store, through a reboot without SAVE (which
+# would write the sound over its slot); SAVE isn't lit by them
+tap GLO
+wait 30
+expect page 11
+tap SAVE
+wait 30
+expect dirty 0
+spin SELECT 2
+wait 30
+expect cc_chan 5
+expect dirty 0
+spin K1 -10
+wait 2500
+reboot
+wait 600
+expect cc_chan 5
+expect chan 7

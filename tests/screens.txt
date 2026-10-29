@@ -1,0 +1,94 @@
+# The manual's screenshots (bs2/docs/img), from the INIT patch (bank_init: the factory patches set aside, as the
+# manual's text describes the INIT sound): tools/build.py bs2 --host, then
+#   bs2/build/host/bass-something-2_host bs2/tests/screens.txt bs2/docs/img
+bank_init
+wait 900
+shot screen-ready.png
+key 7 down 90 50
+turn K3 3
+wait 1400
+shot screen-playing.png
+key 7 up
+tap OCT+
+wait 30
+turn PRESET 1
+wait 30
+shot screen-settings.png
+# each section's panel: OSC's second page (the mix), its third (the tune), the mod envelope with a key held (its stage lit), the amp
+# envelope, LFO 1 running, FX (the mixer), the arp playing its rhythm, the sequencer playing, the patch
+turn PRESET -1
+tap OCT-
+tap HOME
+wait 30
+turn K3 -20
+wait 400
+shot screen-osc-mix.png
+tap HOME
+wait 30
+turn SELECT -2
+turn K2 30
+wait 400
+shot screen-osc-tune.png
+tap ENV
+wait 30
+turn K1 30
+turn K3 80
+turn ALGO 40
+key 7 down 100 0
+wait 600
+shot screen-env.png
+key 7 up
+wait 30
+tap ENV
+wait 400
+shot screen-amp-env.png
+tap LFO
+wait 30
+turn K1 60
+turn K2 40
+wait 400
+shot screen-lfo.png
+tap FX
+wait 30
+turn K4 50
+wait 400
+shot screen-fx.png
+tap ARP
+wait 30
+tap ARP
+wait 30
+turn K4 -20
+key 7 down 100 0
+wait 900
+shot screen-arp.png
+key 7 up
+tap ARP
+wait 30
+tap SEQ
+wait 30
+tap PLAY
+wait 700
+shot screen-seq.png
+tap PLAY
+wait 30
+tap EDIT
+wait 400
+shot screen-patch.png
+tap GLO
+wait 400
+shot screen-glo-midi.png
+tap GLO
+wait 400
+shot screen-glo-sys.png
+tap GLO
+wait 400
+shot screen-glo-dump.png
+press GLO
+wait 30
+tap OCT+
+wait 30
+release GLO
+wait 30
+sysex_in bs2/tests/syx/rnd_seed.syx
+wait 400
+shot screen-glo-rnd.png

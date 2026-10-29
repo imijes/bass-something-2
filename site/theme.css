@@ -1,0 +1,41 @@
+@import url("https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap");
+/* Bass Something 2's site in the firmware's own colours (app.c P_*): matte black, dark grey cards, grey names, white values,
+ * Novation's cyan for what is live. Laid over fm1-base's pages by bs2/site/make_site.py: the manual and front page
+ * (tools/manual_html.py's --paper, --ink ...) and the installer (web/installer.html's --bg, --fg ...) */
+:root, :root:not([data-theme="light"]), :root[data-theme] {
+  --paper: #121212; --sheet: #262628; --rule: #404044; --ink: #ffffff; --muted: #a2a2a8;
+  --hot: #00b4d8; --hot-t: #004250; --cool: #00b4d8; --cool-t: #1a2a2e; --hot-ink: #00b4d8;
+  --bg: #121212; --fg: #ffffff; --dim: #a2a2a8; --accent: #00b4d8; --on-accent: #00141a; --bad: #ff7a6b;
+  --focus: #00b4d8;
+  color-scheme: dark;
+}
+body { background: #121212; color: #ffffff; font-family: "Barlow", "Helvetica Neue", Arial, sans-serif; }
+h1, h2, h3, th, .bs2-tabs a, button { font-family: "Barlow Semi Condensed", "Barlow", "Arial Narrow", sans-serif; }
+h1 { color: var(--hot); letter-spacing: .03em; }
+h2 { border-top: 2px solid var(--rule); letter-spacing: .03em; }
+h2 .num { color: var(--hot); }
+th { color: var(--muted); border-bottom: 2px solid var(--hot); }
+td strong, p strong { color: #fff; }
+a { color: #fff; text-decoration-color: var(--hot); }
+a:hover { background: var(--hot-t); }
+code, pre { background: var(--sheet); color: #e8e8ea; }
+/* the screenshots: the FM-1's screen in a dark bezel */
+figure.shot img { box-shadow: 0 0 0 1px var(--rule), 0 0 0 6px #000; border-radius: 2px; }
+figcaption { color: var(--muted); }
+/* the installer's buttons and boxes */
+button { letter-spacing: .05em; text-transform: uppercase; border-radius: 4px; font-weight: 600; }
+button.plain { border-color: var(--rule); }
+.backup, #log, textarea { border-color: var(--rule); }
+.backup { background: #1a1a1c; }
+dialog { background: #1a1a1c; border: 1px solid var(--rule); }
+/* the section tabs, as on the screen: grey cards, the page you're on lit cyan */
+.bs2-tabs { max-width: 46rem; margin: 0 auto 1.6rem; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px; }
+.bs2-tabs.narrow { max-width: 520px; margin: 0 auto; padding: 24px 16px 0; box-sizing: border-box; }
+.bs2-tabs a { display: block; padding: .2em .75em; background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px;
+              color: var(--muted); text-decoration: none; font-weight: 600; font-size: .95rem; letter-spacing: .06em;
+              text-transform: uppercase; }
+.bs2-tabs a:hover { color: #fff; border-color: var(--hot); background: var(--sheet); }
+.bs2-tabs a[aria-current] { background: var(--hot); border-color: var(--hot); color: #00141a; }
+.bs2-sub { color: var(--muted); margin: -.2rem 0 1.2rem; letter-spacing: .02em; }
+/* the tabs take the place of fm1-base's own header (the name and its links) */
+.page > .site { display: none; }

@@ -1,0 +1,365 @@
+# Bass Something 2's side of the Bass Station II test kit (written by make_kit.py: edit that, not this)
+# from the repository's root:
+#   bs2/build/host/bass-something-2_host bs2/testkit/fm1_sim.txt bs2/build/testkit
+wait 600
+listen
+# take 1: the key tracking's pivot and slope: the filter ringing alone, its pitch at each C
+sysex_in bs2/testkit/syx/TK01_RESO_TRACK.syx
+wait 30
+said SYSEX LOADED TK01 RESO TRACK
+wait 270
+wav TK01.wav
+midi 90 18 64
+wait 3000
+midi 80 18 00
+wait 1000
+midi 90 24 64
+wait 3000
+midi 80 24 00
+wait 1000
+midi 90 30 64
+wait 3000
+midi 80 30 00
+wait 1000
+midi 90 3C 64
+wait 3000
+midi 80 3C 00
+wait 1000
+midi 90 48 64
+wait 3000
+midi 80 48 00
+wait 1000
+wavstop
+wait 300
+# take 2: the same with noise through it (if take 1 is silent: the filter does not ring alone)
+sysex_in bs2/testkit/syx/TK02_RESO_NOISE.syx
+wait 30
+said SYSEX LOADED TK02 RESO NOISE
+wait 270
+wav TK02.wav
+midi 90 18 64
+wait 3000
+midi 80 18 00
+wait 1000
+midi 90 24 64
+wait 3000
+midi 80 24 00
+wait 1000
+midi 90 30 64
+wait 3000
+midi 80 30 00
+wait 1000
+midi 90 3C 64
+wait 3000
+midi 80 3C 00
+wait 1000
+midi 90 48 64
+wait 3000
+midi 80 48 00
+wait 1000
+wavstop
+wait 300
+# take 3: no tracking: the ring's pitch the same on every key (the cutoff as set)
+sysex_in bs2/testkit/syx/TK03_RESO_NO_TRK.syx
+wait 30
+said SYSEX LOADED TK03 RESO NO TRK
+wait 270
+wav TK03.wav
+midi 90 24 64
+wait 3000
+midi 80 24 00
+wait 1000
+midi 90 3C 64
+wait 3000
+midi 80 3C 00
+wait 1000
+wavstop
+wait 300
+# take 4: the cutoff's curve: noise through a resonant filter, the dial at 0 (of 255 in the dump)
+sysex_in bs2/testkit/syx/TK04_CUT_0.syx
+wait 30
+said SYSEX LOADED TK04 CUT 0
+wait 270
+wav TK04.wav
+midi 90 30 64
+wait 3000
+midi 80 30 00
+wait 1000
+wavstop
+wait 300
+# take 5: the same, the dial at a quarter
+sysex_in bs2/testkit/syx/TK05_CUT_64.syx
+wait 30
+said SYSEX LOADED TK05 CUT 64
+wait 270
+wav TK05.wav
+midi 90 30 64
+wait 3000
+midi 80 30 00
+wait 1000
+wavstop
+wait 300
+# take 6: the same, at half
+sysex_in bs2/testkit/syx/TK06_CUT_128.syx
+wait 30
+said SYSEX LOADED TK06 CUT 128
+wait 270
+wav TK06.wav
+midi 90 30 64
+wait 3000
+midi 80 30 00
+wait 1000
+wavstop
+wait 300
+# take 7: the same, at three quarters
+sysex_in bs2/testkit/syx/TK07_CUT_192.syx
+wait 30
+said SYSEX LOADED TK07 CUT 192
+wait 270
+wav TK07.wav
+midi 90 30 64
+wait 3000
+midi 80 30 00
+wait 1000
+wavstop
+wait 300
+# take 8: the same, fully open
+sysex_in bs2/testkit/syx/TK08_CUT_255.syx
+wait 30
+said SYSEX LOADED TK08 CUT 255
+wait 270
+wav TK08.wav
+midi 90 30 64
+wait 3000
+midi 80 30 00
+wait 1000
+wavstop
+wait 300
+# take 9: the level reference: oscillator 1's saw, the filter open
+sysex_in bs2/testkit/syx/TK09_SAW_OPEN.syx
+wait 30
+said SYSEX LOADED TK09 SAW OPEN
+wait 270
+wav TK09.wav
+midi 90 24 64
+wait 3000
+midi 80 24 00
+wait 1000
+midi 90 3C 64
+wait 3000
+midi 80 3C 00
+wait 1000
+wavstop
+wait 300
+# take 10: the filter's slope and tone: the saw under a low cutoff
+sysex_in bs2/testkit/syx/TK10_SAW_CUT.syx
+wait 30
+said SYSEX LOADED TK10 SAW CUT
+wait 270
+wav TK10.wav
+midi 90 24 64
+wait 3000
+midi 80 24 00
+wait 1000
+wavstop
+wait 300
+# take 11: the sub's level and shape: its square alone, an octave down
+sysex_in bs2/testkit/syx/TK11_SUB_SQUARE.syx
+wait 30
+said SYSEX LOADED TK11 SUB SQUARE
+wait 270
+wav TK11.wav
+midi 90 24 64
+wait 3000
+midi 80 24 00
+wait 1000
+wavstop
+wait 300
+# take 12: its sine alone
+sysex_in bs2/testkit/syx/TK12_SUB_SINE.syx
+wait 30
+said SYSEX LOADED TK12 SUB SINE
+wait 270
+wav TK12.wav
+midi 90 24 64
+wait 3000
+midi 80 24 00
+wait 1000
+wavstop
+wait 300
+# take 13: both saws, oscillator 2 seven cents up: their level together, their beating
+sysex_in bs2/testkit/syx/TK13_TWO_SAWS.syx
+wait 30
+said SYSEX LOADED TK13 TWO SAWS
+wait 270
+wav TK13.wav
+midi 90 24 64
+wait 6000
+midi 80 24 00
+wait 1000
+wavstop
+wait 300
+# take 14: the filter's drive at half, the saw
+sysex_in bs2/testkit/syx/TK14_DRIVE_64.syx
+wait 30
+said SYSEX LOADED TK14 DRIVE 64
+wait 270
+wav TK14.wav
+midi 90 24 64
+wait 3000
+midi 80 24 00
+wait 1000
+wavstop
+wait 300
+# take 15: and at full
+sysex_in bs2/testkit/syx/TK15_DRIVE_127.syx
+wait 30
+said SYSEX LOADED TK15 DRIVE 127
+wait 270
+wav TK15.wav
+midi 90 24 64
+wait 3000
+midi 80 24 00
+wait 1000
+wavstop
+wait 300
+# take 16: the distortion at half
+sysex_in bs2/testkit/syx/TK16_DIST_64.syx
+wait 30
+said SYSEX LOADED TK16 DIST 64
+wait 270
+wav TK16.wav
+midi 90 24 64
+wait 3000
+midi 80 24 00
+wait 1000
+wavstop
+wait 300
+# take 17: and at full
+sysex_in bs2/testkit/syx/TK17_DIST_127.syx
+wait 30
+said SYSEX LOADED TK17 DIST 127
+wait 270
+wav TK17.wav
+midi 90 24 64
+wait 3000
+midi 80 24 00
+wait 1000
+wavstop
+wait 300
+# take 18: the amp envelope's times: every knob at half, a note held 4 s
+sysex_in bs2/testkit/syx/TK18_AMP_ENV_MID.syx
+wait 30
+said SYSEX LOADED TK18 AMP ENV MID
+wait 270
+wav TK18.wav
+midi 90 24 64
+wait 4000
+midi 80 24 00
+wait 4000
+wavstop
+wait 300
+# take 19: a short envelope's snap: four short notes
+sysex_in bs2/testkit/syx/TK19_AMP_SNAP.syx
+wait 30
+said SYSEX LOADED TK19 AMP SNAP
+wait 270
+wav TK19.wav
+midi 90 24 64
+wait 300
+midi 80 24 00
+wait 1000
+midi 90 24 64
+wait 300
+midi 80 24 00
+wait 1000
+midi 90 24 64
+wait 300
+midi 80 24 00
+wait 1000
+midi 90 24 64
+wait 300
+midi 80 24 00
+wait 1000
+wavstop
+wait 300
+# take 20: the mod envelope on the cutoff: its sweep and times
+sysex_in bs2/testkit/syx/TK20_FILTER_ENV.syx
+wait 30
+said SYSEX LOADED TK20 FILTER ENV
+wait 270
+wav TK20.wav
+midi 90 24 64
+wait 3000
+midi 80 24 00
+wait 1000
+midi 90 24 64
+wait 3000
+midi 80 24 00
+wait 1000
+wavstop
+wait 300
+# take 21: the glide's time: C2 held, C4 pressed while it is, then C4 let go, then C2
+sysex_in bs2/testkit/syx/TK21_GLIDE_64.syx
+wait 30
+said SYSEX LOADED TK21 GLIDE 64
+wait 270
+wav TK21.wav
+midi 90 24 64
+wait 1500
+midi 90 3C 64
+wait 2000
+midi 80 3C 00
+wait 2000
+midi 80 24 00
+wait 1500
+wavstop
+wait 300
+# take 22: LFO 1's rate at half: a wide vibrato on oscillator 1
+sysex_in bs2/testkit/syx/TK22_LFO_SLOW.syx
+wait 30
+said SYSEX LOADED TK22 LFO SLOW
+wait 270
+wav TK22.wav
+midi 90 30 64
+wait 6000
+midi 80 30 00
+wait 1000
+wavstop
+wait 300
+# take 23: and faster
+sysex_in bs2/testkit/syx/TK23_LFO_FAST.syx
+wait 30
+said SYSEX LOADED TK23 LFO FAST
+wait 270
+wav TK23.wav
+midi 90 30 64
+wait 4000
+midi 80 30 00
+wait 1000
+wavstop
+wait 300
+# take 24: the Acid filter under resonance, the saw
+sysex_in bs2/testkit/syx/TK24_ACID_RESO.syx
+wait 30
+said SYSEX LOADED TK24 ACID RESO
+wait 270
+wav TK24.wav
+midi 90 24 64
+wait 3000
+midi 80 24 00
+wait 1000
+wavstop
+wait 300
+# take 25: the ring modulator alone: the saws a fifth apart
+sysex_in bs2/testkit/syx/TK25_RING.syx
+wait 30
+said SYSEX LOADED TK25 RING
+wait 270
+wav TK25.wav
+midi 90 30 64
+wait 3000
+midi 80 30 00
+wait 1000
+wavstop
+wait 300

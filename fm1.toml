@@ -1,0 +1,15 @@
+# Bass Something 2's build settings (tools/build.py)
+name = "Bass-Something-2"      # APP_NAME is in app.h; this names the build's files (bass-something-2.fwsc,
+                               # bass-something-2_host); bs2/site/make_site.py shows it as "Bass Something 2"
+id_prefix = "FM-1_62"          # package identity (each firmware its own): dev FM-1_6200, releases FM-1_62XXYYZZ
+usb_manufacturer = "imijes"
+usb_product = "Bass Something 2 FM-1"   # "fm-1" in it: the installer and fm1_install.py find the port by that
+o2 = []                        # separate units compiled at -O2 (an app's DSP)
+words = "words.tsv"
+ble = true                     # Bluetooth MIDI (--no-ble builds without it)
+ble_central = true             # and the FM-1 connects to Bluetooth MIDI devices too
+# the site (tools/make_site.py, tools/publish_site.sh)
+tagline = "a Bass Station 2-style monosynth for the M-VAVE FM-1"
+repo = "https://github.com/imijes/bass-something-2"   # the source
+licence = "MPL-2.0"
+credits = ""                   # (the installer's footer: bs2/site/make_site.py FOOTER, pointing to the manual's Credits)

@@ -1,0 +1,509 @@
+# The voice's Bass Station II parity: the waves, the pulses' widths and LFO 2 on them, the noise, the glide, the mod
+# envelope's three depths, the arp's rhythms and swing, the amp envelope, the mixer's levels, the sub's waves, the
+# ranges, the distortion, older banks read, the cutoff's map and the output's coupling. tools/build.py bs2 --host,
+# then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/voice.txt bs2/build/host
+# (from the INIT patch in every slot, as before the factory patches)
+bank_init
+wait 600
+expect page 0
+# every wave of oscillator 1 plays, in range (saw, square, sine, triangle, pulse)
+expect wave 0
+peakreset
+midi 90 30 7F
+wait 300
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+turn PRESET 1
+wait 30
+expect wave 1
+peakreset
+midi 90 30 7F
+wait 300
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+turn PRESET 1
+wait 30
+expect wave 2
+peakreset
+midi 90 30 7F
+wait 300
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+turn PRESET 1
+wait 30
+expect wave 3
+peakreset
+midi 90 30 7F
+wait 300
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+turn PRESET 1
+wait 30
+expect wave 4
+turn PRESET 1
+wait 30
+expect wave 4
+# the mix page: the glide, the noise, the widths (each held to 5..95 %), the pulse at both ends and swept by LFO 2
+tap HOME
+wait 30
+expect page 1
+expect GLIDE 0
+expect NOISE 0
+expect PW1 50
+expect PW2 50
+turn ALGO 4
+spin K3 -100
+wait 30
+expect WAVE2 4
+expect pw1 5
+peakreset
+midi 90 30 7F
+wait 300
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+spin K3 100
+wait 30
+expect pw1 95
+turn K3 -45
+wait 30
+expect pw1 50
+tap LFO
+tap LFO
+wait 30
+expect page 4
+spin K1 127
+turn K3 63
+turn K4 -63
+wait 30
+expect PWM1 63
+expect PWM2 -63
+peakreset
+midi 90 30 7F
+wait 600
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+# the noise at full: it plays, in range
+tap HOME
+wait 30
+expect page 0
+tap HOME
+wait 30
+spin K2 127
+wait 30
+expect noise 127
+peakreset
+midi 90 30 7F
+wait 300
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+# the glide: off, a note's pitch at once; on, the next note's on its way, then there
+expect pitch_now 4800
+midi 90 48 64
+wait 30
+expect pitch_now 7200
+midi 80 48 00
+wait 300
+turn PRESET 100
+wait 30
+expect glide 100
+midi 90 30 64
+wait 100
+expect pitch_now <7100
+expect pitch_now >4900
+wait 2000
+expect pitch_now >4795
+expect pitch_now <4805
+midi 80 30 00
+turn PRESET -100
+wait 400
+# the mod envelope: its depths at once and apart. Sustain at the top: oscillator 1 an octave up while held, the
+# cutoff by its own depth; oscillator 2's own (the pitch shown is oscillator 1's)
+tap ENV
+wait 30
+expect page 2
+expect OSC1 0
+expect FILTER 0
+expect OSC2 0
+turn SELECT 63
+turn ALGO -30
+turn PRESET 20
+turn K3 127
+wait 30
+expect OSC1 63
+expect FILTER -30
+expect OSC2 20
+midi 90 30 64
+wait 200
+expect menv 3
+expect cents_abs 1200
+expect cut_now 39
+peakreset
+wait 200
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 1500
+expect cents_abs 0
+turn SELECT -63
+turn ALGO 30
+turn PRESET -20
+wait 30
+# the arp's rhythm: the 2nd, a quaver and a quaver's rest (500 ms the pair at 120 BPM; the quaver held to its last
+# 16th's gate, 50 %: 187 ms)
+tap ARP
+wait 30
+tap ARP
+wait 30
+expect arp 1
+expect RHYTHM 32
+turn K4 -30
+wait 30
+expect RHYTHM 2
+expect rhythm 2
+midi 90 3C 64
+wait 100
+expect note 60
+wait 150
+expect note -1
+wait 200
+expect note -1
+wait 100
+expect note 60
+midi 80 3C 00
+wait 600
+# the swing (the arp's, and so its sequencer's): 75 %, rhythm 32's 16ths a pair 187 ms then 62 ms
+turn K4 30
+wait 30
+expect RHYTHM 32
+expect SWING 50
+turn K2 25
+wait 30
+expect swing 75
+midi 90 3C 64
+wait 50
+expect note 60
+wait 70
+expect note -1
+wait 80
+expect note 60
+wait 30
+expect note -1
+wait 40
+expect note 60
+midi 80 3C 00
+wait 600
+tap ARP
+wait 30
+expect arp 0
+# an older bank (version 3: the mod envelope to one destination) read at power-on: its depths, the rest the defaults
+bank_v3
+reboot
+wait 600
+expect slot 0
+tap ENV
+wait 30
+expect OSC1 40
+expect OSC2 40
+expect FILTER 0
+expect rhythm 32
+expect swing 50
+expect pw1 50
+expect glide 0
+tap EDIT
+wait 30
+turn PRESET 1
+wait 30
+expect slot 1
+expect cutoff 33
+tap ENV
+wait 30
+expect OSC1 0
+expect OSC2 -20
+expect FILTER 0
+# the amp envelope (ENV again): its defaults (version 4's fixed one), a slow attack still rising, a long release
+tap HOME
+wait 30
+tap ENV
+wait 30
+tap ENV
+wait 30
+expect page 8
+expect ATTACK 14
+expect DECAY 75
+expect SUSTAIN 89
+expect RELEASE 64
+spin K1 113
+spin K4 36
+wait 30
+expect amp_a 127
+midi 90 30 64
+wait 1000
+expect env 1
+# the attack charges as a capacitor: a tenth of its 10 s in, about 18 % up (a straight line's 10 %)
+expect amp_lvl >160
+expect amp_lvl <195
+midi 80 30 00
+wait 30
+expect env 4
+spin K1 -113
+wait 2000
+expect env 4
+spin K4 -36
+wait 1000
+expect env 0
+# the sustain at the top: held, it stays in sustain at full
+spin K3 38
+wait 30
+expect amp_s 127
+midi 90 30 64
+wait 400
+expect env 3
+midi 80 30 00
+wait 400
+# FX: the mixer (the levels, the sub's waves), the ranges, the distortion; each plays, in range
+tap FX
+wait 30
+expect page 9
+expect OSC1 127
+expect OSC2 127
+expect SUB 89
+expect SUBWAVE 2
+expect RANGE1 1
+expect RANGE2 1
+expect DIST 0
+spin K1 -127
+spin K2 -127
+spin K3 38
+wait 30
+expect lvl1 0
+expect lvl2 0
+expect lvl_sub 127
+turn SELECT -2
+wait 30
+expect sub_wave 0
+peakreset
+midi 90 30 7F
+wait 300
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+turn SELECT 1
+wait 30
+expect sub_wave 1
+peakreset
+midi 90 30 7F
+wait 300
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+spin K1 127
+spin K2 127
+spin K3 -127
+turn ALGO 5
+turn PRESET -5
+wait 30
+expect range1 3
+expect range2 0
+expect RANGE1 3
+peakreset
+midi 90 30 7F
+wait 300
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+turn ALGO -2
+turn PRESET 1
+spin K4 127
+wait 30
+expect dist 127
+peakreset
+midi 90 30 7F
+wait 300
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+spin K4 -60
+wait 30
+expect dist 67
+peakreset
+midi 90 30 7F
+wait 300
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+# a version 4 bank read at power-on: its fields kept, what it lacks the defaults (version 4's sound)
+bank_v4
+reboot
+wait 600
+expect slot 0
+expect swing 70
+expect lvl1 127
+expect lvl2 127
+expect lvl_sub 89
+expect sub_wave 2
+expect range1 1
+expect range2 1
+expect amp_a 14
+expect amp_d 75
+expect amp_s 89
+expect amp_r 64
+expect dist 0
+tap HOME
+wait 30
+tap ENV
+wait 30
+expect page 2
+expect OSC2 -30
+expect OSC1 0
+# a version 5 bank read at power-on: its arp modes after UP/DN one on (UP/DN2 before them now), retrig on
+bank_v5
+reboot
+wait 600
+expect slot 0
+tap ARP
+wait 30
+expect MODE 4
+expect RETRIG 1
+tap EDIT
+wait 30
+turn PRESET 1
+wait 30
+expect slot 1
+tap ARP
+wait 30
+expect MODE 5
+tap EDIT
+wait 30
+turn PRESET -1
+wait 30
+expect slot 0
+# the cutoff's map: 40 Hz at the bottom of the dial, 17.8 kHz at the top, the filter singing at both
+tap HOME
+wait 30
+expect page 0
+spin K1 -127
+spin K2 127
+wait 30
+expect cutoff 0
+expect reso 127
+midi 90 30 64
+wait 300
+expect cut_now 0
+expect fc_now 40
+peakreset
+wait 300
+expect peak_db_min -50
+midi 80 30 00
+wait 400
+spin K1 127
+wait 30
+midi 90 30 64
+wait 300
+expect cut_now 127
+expect fc_now >17800
+expect fc_now <17860
+midi 80 30 00
+wait 400
+spin K2 -127
+wait 30
+# the output's coupling: two sines' ring modulation (half of it DC) through the open filter, none of its DC out
+spin PRESET -4
+turn PRESET 2
+wait 30
+expect wave 2
+tap HOME
+wait 30
+expect page 1
+spin ALGO -4
+turn ALGO 2
+spin K1 127
+wait 30
+expect wave2 2
+expect ring 127
+midi 90 30 7F
+wait 400
+expect dc_now <100
+peakreset
+wait 100
+expect peak_db_min -40
+midi 80 30 00
+wait 400
+# the filter warms as it works: a note held loud heats it (its cutoff trimmed down), let go it cools
+midi 90 30 7F
+wait 20000
+expect heat_now >200
+expect trim_now <9980
+midi 80 30 00
+wait 40000
+expect heat_now <120
+# a version 6 bank read at power-on: no key tracking (as it sounded), velocity on the volume as before, none on
+# the mod envelope, oscillator 1 in tune; its arp mode kept (UP/DN2 already)
+bank_v6
+reboot
+wait 600
+expect slot 0
+expect key_trk 0
+expect vel_amp 63
+expect vel_menv 0
+expect coarse1 0
+expect fine1 0
+expect menv_pw1 0
+tap ARP
+wait 30
+expect MODE 3
+# the mod envelope on oscillator 1's width: a pulse at 50 %, the envelope near its peak about 85 %, back as it decays
+tap HOME
+wait 30
+expect page 0
+spin PRESET 4
+expect wave 4
+tap HOME
+tap HOME
+wait 30
+expect page 10
+spin K2 63
+expect menv_pw1 63
+midi 90 30 7F
+wait 20
+expect pw1_now >750
+wait 2000
+expect pw1_now 500
+midi 80 30 00
+wait 400
+# a version 7 bank read at power-on: 16 steps a tie a step of its own; now 32, the tie the step before legato (step
+# 6's on D#3: 5 legato, 6 D#3), a tie with nothing to hold a rest, the steps after 16 rests; its tracking kept
+bank_v7
+reboot
+wait 600
+expect slot 0
+expect key_trk 3
+expect seq_len 8
+expect seq0 128
+expect seq1 128
+expect seq4 51
+expect seq5 51
+expect leg4 1
+expect leg5 0
+expect seq6 55
+expect seq16 128
+expect seq31 128
