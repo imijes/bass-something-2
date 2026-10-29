@@ -329,10 +329,13 @@ turning PRESET write at once, so pressing SAVE mid-performance gives a short gap
 
 ## 6. Patches and saving
 
-Bass Something 2 holds 32 patches, P01 to P32. Each one is a whole sound: every control in The sound, and the arp and the
-sequence. A new Bass Something 2 starts with 32 factory patches: the first 32 of the ULTIMATE PATCHES Volume 2 bank
-for the Bass Station II (see Credits) (GHOST MACHINE I in P01 to DATA RAIN in P32), each with the default sequence. Updating the
-firmware keeps the patches you have; to get the factory ones back, send the factory bank, `bs2/presets/factory.syx` in the source (see SysEx).
+Bass Something 2 holds 32 patches, P01 to P32. Each patch is a complete sound: the settings of every control described
+in [section 4](#s4), plus the arp and the sequence.
+
+A new Bass Something 2 starts with 32 factory patches, GHOST MACHINE I in P01 to DATA RAIN in P32. They are the first 32
+of the ULTIMATE PATCHES Volume 2 bank for the Bass Station II (see [Credits](#s12)), each with the default sequence.
+Updating the firmware keeps the patches you have. To get the factory ones back, send the factory bank,
+`bs2/presets/factory.syx` in the source (see [SysEx](#s7)).
 
 ![The patch page: P01 large, PATCH 01, what PRESET, SAVE and FX do here](img/screen-patch.png "EDIT: the patch")
 
