@@ -13,7 +13,7 @@ Version {{VERSION}}. Installing is at your own risk; the installer can put M-VAV
 - [Install](install/): from Chrome or Edge, with the FM-1 connected by USB.
 - [Manual](manual/): every page and control, the arp and the sequencer, patches, SysEx, MIDI.
 - [Download {{PKG}}](firmware/{{PKG}}): for the command-line installer, `python3 tools/fm1_install.py {{PKG}}`.
-- [Source](https://github.com/imijes/bass-something-2): MPL-2.0. It builds inside an [fm1-base](https://github.com/charlesvestal/fm1-base) checkout, at bs2/.
+- [Source](https://github.com/imijes/bass-something-2): [MPL-2.0](https://github.com/imijes/bass-something-2/blob/main/LICENSE). It builds inside an [fm1-base](https://github.com/charlesvestal/fm1-base) checkout, at bs2/.
 - [Credits](manual/#s12): Bass Something 2 by John Brown ([@imijes](https://github.com/imijes)), built on the work of others;
   everyone is listed there.
 

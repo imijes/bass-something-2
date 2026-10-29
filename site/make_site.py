@@ -26,10 +26,11 @@ def tabs(here, up, cls=""):
     return f'<nav aria-label="Site"><ul class="bs2-tabs {cls}">{items}</ul></nav>\n'
 
 
-# the installer's footer, fm1-base's (its own credits, a licence link to the repo Bass Something 2 doesn't have yet), as the
-# front page's: who made it, and the credits in one place, the manual's section 12
+# the installer's footer, fm1-base's (its own credits and licence link), as the front page's: who made it, the licence
+# (this repo's LICENSE), and the credits in one place, the manual's section 12
 FOOTER = ('<footer>\n  <p class="small">Bass Something 2 by John Brown (<a href="https://github.com/imijes" target="_blank" '
-          'rel="noopener">@imijes<span class="sr" data-t="newtab"> (opens in a new tab)</span></a>), MPL-2.0, built on '
+          'rel="noopener">@imijes<span class="sr" data-t="newtab"> (opens in a new tab)</span></a>), <a href="https://github.com/imijes/bass-something-2/blob/main/LICENSE" '
+          'target="_blank" rel="noopener">MPL-2.0<span class="sr" data-t="newtab"> (opens in a new tab)</span></a>, built on '
           'the work of others: see <a href="{up}manual/#s12">Credits</a> in the manual.<br>\n'
           '    M-VAVE and FM-1 are trademarks of their respective owners; Novation and Bass Station of Focusrite Audio '
           'Engineering Ltd. Bass Something 2 is not affiliated with M-VAVE or Novation.</p>\n</footer>')
