@@ -4,8 +4,10 @@
 bank_init
 wait 900
 shot screen-ready.png
-key 7 down 90 50
 tap EDIT
+wait 900
+shot screen-osc.png
+key 7 down 90 50
 turn K3 3
 wait 1400
 shot screen-playing.png

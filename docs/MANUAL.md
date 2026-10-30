@@ -155,7 +155,7 @@ Like an analog synth, the engine is never quite still. These behaviours are alwa
 
 ### OSCILLATORS (EDIT)
 
-![The OSCILLATORS panel, the pitch's view: Coarse, Fine, the Mod Env and LFO 1 depths (Pitch), the pulse width dimmed; Range and Waveform with their LEDs, Osc Select, Sync 1-2](img/screen-ready.png "HOME: the OSCILLATORS")
+![The OSCILLATORS panel, the pitch's view: Coarse, Fine, the Mod Env and LFO 1 depths (Pitch), the pulse width dimmed; Range and Waveform with their LEDs, Osc Select, Sync 1-2](img/screen-osc.png "EDIT: the OSCILLATORS")
 
 The Bass Station II's Oscillators section, with its five knobs, the Range and Waveform LEDs, Osc Select, Sync 1-2 and
 the pulse width's switch. The sub oscillator, beside them on a Bass Station II, is on MIX FX. The section has two
@@ -176,7 +176,7 @@ SEL is Osc Select: it switches every knob, the Range and the Waveform between os
 
 #### The pulse width's view (EDIT again)
 
-![The OSCILLATORS panel, the pulse width's view: its knob and the Mod Env / Manual / LFO 2 switch lit, the rest dimmed](img/screen-osc-pw.png "HOME, again: the pulse width")
+![The OSCILLATORS panel, the pulse width's view: its knob and the Mod Env / Manual / LFO 2 switch lit, the rest dimmed](img/screen-osc-pw.png "EDIT, again: the pulse width")
 
 | Control | Setting |
 | --- | --- |
@@ -185,7 +185,7 @@ SEL is Osc Select: it switches every knob, the Range and the Waveform between os
 
 ### FILTERS (FX)
 
-![The FILTERS panel: the Type, Slope and Shape switches with their LEDs, Overdrive and Resonance, the Mod Env and LFO 2 depths bracketed to the big Frequency knob](img/screen-filter.png "HOME, a third time: the FILTERS")
+![The FILTERS panel: the Type, Slope and Shape switches with their LEDs, Overdrive and Resonance, the Mod Env and LFO 2 depths bracketed to the big Frequency knob](img/screen-filter.png "FX: the FILTERS")
 
 The Bass Station II's Filters section: the Type, Slope and Shape switches (Slope and Shape belong to the Classic
 filter: the line from Classic joins them), Overdrive and Resonance, the Mod Env and LFO 2 depths bracketed to the big
@@ -204,7 +204,7 @@ II, is on the group's mods (FX a fourth time).
 
 #### LFO 2's view (FX again)
 
-![The FILTERS panel, LFO 2's view: the LFO 2 depth lit, the rest dimmed](img/screen-filter-mod.png "HOME, a fourth time: LFO 2 on the filters")
+![The FILTERS panel, LFO 2's view: the LFO 2 depth lit, the rest dimmed](img/screen-filter-mod.png "FX, again: LFO 2 on the filters")
 
 | Control | Setting |
 | --- | --- |
@@ -304,7 +304,7 @@ II LFOs have none) becomes a triangle.
 
 ### MIX FX (HOME again)
 
-![FX as the Bass Station II's panel: the Sub Osc's octave and wave switches with their LEDs, then the MIXER: Osc 1, Osc 2, Sub Osc and the Ext / Ring / Noise switch with its knob](img/screen-fx.png "FX: the sub osc and the mixer")
+![MIX FX as the Bass Station II's panel: the Sub Osc's octave and wave switches with their LEDs, then the MIXER: Osc 1, Osc 2, Sub Osc and the Ext / Ring / Noise switch with its knob](img/screen-fx.png "HOME, again: the sub osc and the mixer")
 
 The page is laid out as that part of the Bass Station II's panel: the end of the oscillators' section, the Sub Osc with
 its octave and wave switches (a red LED at what each is set to), then the MIXER, its four knobs with the switch that
@@ -323,7 +323,7 @@ changes to its value, in cyan, while it turns.
 
 ### EFFECTS (FX a third time)
 
-![The EFFECTS panel: the Distortion and Osc Filter Mod knobs](img/screen-effects.png "FX, again: the effects")
+![The EFFECTS panel: the Distortion and Osc Filter Mod knobs](img/screen-effects.png "FX, a third time: the effects")
 
 The Bass Station II's Effects section.
 
@@ -599,7 +599,7 @@ is heard.
 
 ![GLO MIDI: the channel ALL on the display, the Channel knob, where notes go out, CC and the clock, then CC Chan, the Local and AT Out switches and Arp Clock](img/screen-glo-midi.png "GLO: MIDI")
 ![GLO SYS: the tempo 120 on the display, Bluetooth and the firmware, then Tune, the Clock Out switch, Velocity and the Bluetooth switch](img/screen-glo-sys.png "GLO, again: SYS")
-![GLO DUMP: P01 on the display, then the Sound button (SEL) and the All 32 button (FX)](img/screen-glo-dump.png "GLO, again: DUMP")
+![GLO DUMP: P01 on the display, then the All 32 button (FX) and the Sound button (SEL)](img/screen-glo-dump.png "GLO, again: DUMP")
 
 GLO + OCT+ (hold GLO, press OCT+) opens one more page, GLOBAL RND, for the RND Synth's seeds: see RND seeds.
 
