@@ -96,7 +96,7 @@ the keys' reach lights OCT-, one above lights OCT+.
 | --- | --- |
 | Keys | Play the voice, louder the harder they land. The last key pressed sounds, and the pitch glides to it if GLIDE is up. Each key also goes out as MIDI (see MIDI and audio). |
 | OCT− · OCT+ | The octave, from −2 to +2. |
-| SEL | On the OSCILLATORS pages, Osc Select: which oscillator their knobs set, 1 or 2. On the MASTER page, the sound out as a SysEx dump. While the sequencer records, the step's legato (see SEQ). |
+| SEL | On the OSCILLATORS pages, Osc Select: which oscillator their knobs set, 1 or 2. On GLOBAL DUMP, the sound out as a SysEx dump. While the sequencer records, the step's legato (see SEQ). |
 | MASTER | The volume. |
 | REC | A random sound (see below). On GLOBAL SYSTEM it finds a Bluetooth MIDI device instead. |
 | REC + OCT+ | Hold REC and press OCT+: AFX mode on or off. |
@@ -451,9 +451,9 @@ saved, the Save button and the Patch buttons.
 
 | Control | What it does |
 | --- | --- |
-| PRESET | The Patch buttons: picks a patch, P01 to P32, and plays it at once. Changes you haven't saved to the patch you leave are lost. |
+| PRESET | The Patch buttons: picks a patch, P01 to P32, and plays it at once; the button the way you turned lights. Changes you haven't saved to the patch you leave are lost. An arp or a sequence that is playing keeps playing, in the new sound. |
 | SAVE | Stores the sound into the patch shown. |
-| SEL | Sends the sound out over USB as a Bass Station II SysEx dump. See SysEx. |
+| SEL | Nothing here. The sound goes out as a SysEx dump from GLOBAL DUMP (see SysEx). |
 
 **SAVE** works on every page but GLOBAL RND (where it keeps a seed). It stores the sound into its patch and keeps the
 settings: the octave and the patch you're on (the FM-1 starts on it next time). While something isn't saved, SAVE is
@@ -475,13 +475,13 @@ its sounds, and Bass Station II patches (`.syx` files) can play on the FM-1. Sys
 
 **From the FM-1 to an editor:**
 
-- On the MASTER page (HOME), press SEL: the sound goes out as one dump, named Bass Smth 2 and its number (Bass Smth 2 01: a patch name holds 16 characters).
+- On GLOBAL DUMP (GLO three times), press SEL: the sound goes out as one dump, named Bass Smth 2 and its number (Bass Smth 2 01: a patch name holds 16 characters).
   The screen says SYSEX SENT.
 - On GLOBAL DUMP (GLO three times), press FX: all 32 patches go out as a bank, Bass Smth 2 01 to Bass Smth 2 32, each
   addressed to its own patch number (0 to 31), as a Bass Station II bank file is. Record them into one `.syx` file
   and it's a backup: sent back, each patch returns to its own slot. The patch you're on goes as it sounds now, with
   changes not yet saved.
-- A computer can ask for the sound: SysEx `F0 7D 42 53 32 01 F7` sends the same dump as SEL on the MASTER page.
+- A computer can ask for the sound: SysEx `F0 7D 42 53 32 01 F7` sends the same dump as SEL on GLOBAL DUMP.
   `F0 7D 42 53 32 03 F7` sends the whole bank, as FX on GLOBAL DUMP. `F0 7D 42 53 32 02 F7` asks for the RND seed
   shown instead (see RND seeds).
 
@@ -588,7 +588,7 @@ is heard.
 
 ![GLO MIDI: CC CHAN, the channel in and out, the clock, then CHANNEL, LOCAL, AT OUT and CLOCK](img/screen-glo-midi.png "GLO: MIDI")
 ![GLO SYS: the tempo's source, Bluetooth, then TUNE, CLK OUT, VELOCITY and BLE](img/screen-glo-sys.png "GLO, again: SYS")
-![GLO DUMP: the bank, what FX does here, and that the GLO settings save themselves](img/screen-glo-dump.png "GLO, again: DUMP")
+![GLO DUMP: the bank, what SEL and FX do here, and that the GLO settings save themselves](img/screen-glo-dump.png "GLO, again: DUMP")
 
 GLO + OCT+ (hold GLO, press OCT+) opens one more page, GLOBAL RND, for the RND Synth's seeds: see RND seeds.
 

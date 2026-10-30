@@ -1353,6 +1353,7 @@ static struct {
     uint8_t rec_held;                    /* REC down, its release still to act (REC + OCT+ took it: none) */
     int32_t turns[NE];                   /* detents since boot, per encoder */
     uint32_t turned_at[NE];              /* when each was last turned: it shows lit for a moment */
+    int8_t pdir;                         /* the MASTER's Patch buttons: the way PRESET last went, -1 down, +1 up */
     uint8_t page;                        /* PG_*: what the encoders set */
     uint8_t step;                        /* the sequencer's cursor: the step PRESET picks, recording writes */
     uint8_t rec_n;                       /* the steps recorded since REC (0: the next note starts a new sequence) */
@@ -1940,10 +1941,18 @@ static int knob_turn(uint32_t k, int32_t e)
     const param_t *q = knob_param(k);
     if (ui.page == PG_PATCH && k == EN_PRESET) {   /* a slot: its sound at once (what was not saved is left) */
         uint32_t s = (uint32_t)clamp((int32_t)set.slot + e, 0, NSLOTS - 1);
+        ui.pdir = (int8_t)(e < 0 ? -1 : 1);
         if (s != set.slot) {
+            uint8_t on = patch.arp_on, mode = patch.arp_mode, latch = patch.latch;
             seq_keep(1);                     /* (the sequence made here, kept before it goes) */
             set.slot = (uint8_t)s;
             patch = bank.p[s];
+            if (on) {                        /* the arp or the sequencer playing: on still, as it was (the new
+                                              * sound's own notes, sequence and tempo; not kept into its slot) */
+                patch.arp_on = on;
+                patch.arp_mode = mode;
+                patch.latch = latch;
+            }
             set_dirty = 1;
         }
         return 1;
@@ -2517,8 +2526,10 @@ static void input(void)
             ui.osc_sel ^= 1u;
             ui.redraw = 1;
             app_say("OSC SELECT", ui.osc_sel ? "2" : "1");
-        } else if (k == B_SEL && ui.page == PG_PATCH)   /* the MASTER's: the sound out as a Bass Station II patch dump */
+        } else if (k == B_SEL && ui.page == PG_GDUMP)   /* GLO DUMP's: the sound out as a Bass Station II patch dump */
             sysex_send();
+        else if (k == B_SEL && ui.page == PG_PATCH)
+            ;                                /* (the MASTER's: nothing) */
         else if (k == B_REC)
             ui.rec_held = 1;                 /* on release (unless OCT+ comes first) */
         else if (k == B_SAVE && ui.page == PG_GRND)   /* the seed shown into its slot */
@@ -3202,7 +3213,7 @@ static void seg7(int32_t x, int32_t y, char c)
 }
 /* the MASTER (the Bass Station II's, the first page): the Volume (the FM-1's MASTER knob, shown), the name; the display
  * (the patch, P01..P32, its dot lit while it has changes not saved), the Save button and the Patch buttons (PRESET
- * picks; SAVE keeps; SEL sends the sound out as a Bass Station II dump) */
+ * picks; SAVE keeps) */
 static void master_draw(void)
 {
     static const int32_t EDGE[1] = {2};
@@ -3237,9 +3248,9 @@ static void master_draw(void)
     cv_rect(96, 92, 34, 16, P_KSHADOW);      /* the buttons: Save, Patch down, Patch up */
     cv_rect(98, 94, 30, 12, set_dirty ? RGB(90, 18, 34) : grey(34));
     cv_rect(140, 92, 40, 30, P_KSHADOW);
-    cv_rect(142, 94, 36, 26, knob_lit(EN_PRESET) ? RGB(0, 70, 86) : grey(34));
+    cv_rect(142, 94, 36, 26, knob_lit(EN_PRESET) && ui.pdir < 0 ? RGB(0, 70, 86) : grey(34));   /* (lit: the way it went) */
     cv_rect(188, 92, 40, 30, P_KSHADOW);
-    cv_rect(190, 94, 36, 26, knob_lit(EN_PRESET) ? RGB(0, 70, 86) : grey(34));
+    cv_rect(190, 94, 36, 26, knob_lit(EN_PRESET) && ui.pdir > 0 ? RGB(0, 70, 86) : grey(34));
     cv_line(151, 107, 167, 101, P_SILK);     /* their arrows */
     cv_line(151, 107, 167, 113, P_SILK);
     cv_line(167, 101, 167, 113, P_SILK);
@@ -3250,7 +3261,6 @@ static void master_draw(void)
     cv_rect(140, 134, 88, 1, P_SILK);        /* Value: the line under them, the name in it */
     cv_rect(170, 130, 28, 9, grey(25));
     print_c(184, 128, "Value", P_SILK);
-    cv_text(96, 144, &FONT_T, "SEL: the sound out as SysEx", P_DIM);
 }
 /* a panel button at x, y (w x h): its shadow, its face (lit: red, as the Bass Station II's are), its name on it */
 static void panel_button(int32_t x, int32_t y, int32_t w, int32_t h, const char *name, int lit, int turning)
@@ -3712,7 +3722,7 @@ static void panel_draw(void)                 /* the section's card: its picture,
         if (knob_name(i))
             chip(120, 2 + (int32_t)i * 21, 116, i);
     if (ui.page == PG_GDUMP) {
-        cv_text(6, 76, &FONT_XS, "FX  sends every patch, 01 to 32,", P_LABEL);
+        cv_text(6, 76, &FONT_XS, "SEL  sends the sound, FX every patch", P_LABEL);
         cv_text(6, 94, &FONT_XS, "     as BS2 SysEx dumps over USB", P_LABEL);
         cv_text(6, 112, &FONT_XS, "GLO settings save themselves", P_LABEL);
     } else if (ui.page == PG_GRND) {         /* no knobs: what the buttons do here */
@@ -4103,6 +4113,8 @@ int app_expect(const char *what, int *got)
         *got = ui.page;
     else if (!strcmp(what, "slot"))
         *got = set.slot;
+    else if (!strcmp(what, "pdir"))          /* the MASTER's Patch button lit: -1 down, +1 up */
+        *got = ui.pdir;
     else if (!strcmp(what, "chan"))          /* the GLO pages' settings */
         *got = set.chan;
     else if (!strcmp(what, "local"))

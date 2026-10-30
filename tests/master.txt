@@ -1,0 +1,63 @@
+# The MASTER page (HOME): a patch change leaves the arp and the sequencer playing; the Patch button lit is the way
+# PRESET went; SEL does nothing here (the sound's dump is GLO DUMP's SEL).
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/master.txt bs2/build/host
+bank_init
+wait 600
+expect page 5
+expect slot 0
+# the arrows: down lit only after a turn down, up only after a turn up, however fast or back and forth
+turn PRESET 1
+expect pdir 1
+spin PRESET 3
+expect pdir 1
+turn PRESET -1
+expect pdir -1
+spin PRESET -2
+expect pdir -1
+turn PRESET 1
+expect pdir 1
+spin PRESET -9
+expect pdir -1
+expect slot 0
+# SEL: nothing (no dump said)
+tap SEL
+wait 30
+expect page 5
+expect slot 0
+# the sequencer playing (PLAY): a patch change up and back keeps it playing
+tap PLAY
+wait 30
+expect seq_run 1
+expect arp 1
+tap HOME
+tap HOME
+wait 30
+expect page 5
+turn PRESET 1
+wait 30
+expect slot 1
+expect seq_run 1
+expect arp 1
+turn PRESET -1
+wait 30
+expect slot 0
+expect seq_run 1
+expect arp 1
+tap PLAY
+wait 30
+expect seq_run 0
+expect arp 0
+# the arp on (ARP's SELECT), a key held: still on in the next patch
+tap ARP
+wait 30
+turn SELECT 1
+wait 30
+expect arp 1
+tap HOME
+wait 30
+expect page 5
+turn PRESET 1
+wait 30
+expect slot 1
+expect arp 1

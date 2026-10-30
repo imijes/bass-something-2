@@ -164,7 +164,7 @@ expect ATTACK 27
 expect DECAY 16
 expect SUSTAIN 127
 expect RELEASE 17
-# out: FX on the PATCH page sends the sound; changed, and the dump read back, it is the sound again (with what Deep
+# out: SEL on GLO DUMP sends the sound; changed, and the dump read back, it is the sound again (with what Deep
 # ORGAN does not have set too: the glide, the noise, LFO 2 on the widths, the mod envelope's pitch depths, the rhythm
 # and swing, the sub's wave and level, the distortion, the amp envelope's attack)
 tap EDIT
@@ -248,8 +248,11 @@ expect glide 90
 expect noise 40
 expect rhythm 23
 expect swing 66
-tap HOME
+tap GLO
+tap GLO
+tap GLO
 wait 30
+expect page 18
 tap SEL
 wait 30
 said SYSEX SENT Bass Smth 2 01
@@ -437,7 +440,9 @@ expect trigA 1
 expect trigM 2
 expect loopA 1
 expect loopM 0
-tap HOME
+tap GLO
+tap GLO
+tap GLO
 wait 30
 tap SEL
 wait 30
@@ -523,7 +528,9 @@ expect lfo2_sync 0
 expect lfo1_slew 50
 expect lfo2_slew 20
 expect lfo1_syncv 12
-tap HOME
+tap GLO
+tap GLO
+tap GLO
 wait 30
 tap SEL
 wait 30
@@ -571,7 +578,9 @@ wait 30
 spin K2 77
 wait 30
 expect ofm 77
-tap HOME
+tap GLO
+tap GLO
+tap GLO
 wait 30
 tap SEL
 wait 30
