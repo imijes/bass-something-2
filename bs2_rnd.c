@@ -134,7 +134,7 @@ static void rnd_send(void)                   /* FX on GLO RND: the seed shown ou
 static void rnd_tempo(uint32_t bpm, int seed_new)   /* the synth's tempo as the FM-1's TEMPO (held to its range) */
 {
     char t[24], v[8];
-    const param_t *q = &PARAMS[PG_ARP][EN_K3];
+    const param_t *q = &PARAMS[PG_ARP][EN_K1];
     patch.tempo = (uint8_t)clamp((int32_t)bpm, q->lo, q->hi);
     set_dirty = 1;
     ui.redraw = 1;

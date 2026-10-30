@@ -38,24 +38,40 @@ typedef struct {
     float att;                           /* attack: a one-pole coefficient toward ATT_AIM (a capacitor's charge) */
     float dec, rel;                      /* decay and release: one-pole coefficients (exponential) */
     float sus;                           /* sustain level, 0..1 */
+    uint8_t loop, count, fixed;          /* the Bass Station II's retriggering (again at its decay's end, count times:
+                                          * 0 for ever), its fixed-duration sustain (no decay: the sustain held this
+                                          * many steps, then the release, the key held or not) */
+    float hold;
 } adsr_t;
 typedef struct {
     float lvl;                           /* the level, 0..1 */
     uint8_t stage;                       /* ENV_* */
+    uint8_t loops;                       /* retriggered since the note began */
+    float held;                          /* a fixed-duration sustain: steps left */
 } env_t;
-/* what an LFO moves: the cutoff, both oscillators' pitch, or oscillator 2's alone */
+/* the envelopes' Triggering, the Bass Station II's (its NRPN and dump values): every note starts them; only a note not
+ * played legato does (no key still held); Single's with the glide on legato notes alone */
+enum { ENVT_MULTI, ENVT_SINGLE, ENVT_AUTOGLIDE, NENVT };
+/* the modulation's destinations (app.c mod[]): the cutoff, oscillator 1's pitch, oscillator 2's. (Version 8's LFOs
+ * each had one of these, an LFO's DEST, PITCH then both oscillators: bank_load converts them) */
 enum { DEST_CUTOFF, DEST_PITCH, DEST_OSC2, NDEST };
-enum { LFO_TRI, LFO_SINE, LFO_SAW, LFO_SQUARE, LFO_SH, NLFOW };
+/* an LFO's wave, the Bass Station II's (its dump's values): triangle, (falling) saw, square, sample and hold */
+enum { LFO_TRI, LFO_SAW, LFO_SQUARE, LFO_SH, NLFOW };
+#define NSYNCV 35u                       /* an LFO's sync values: its cycle in clock ticks, 64 beats .. a 32nd triplet */
 #define NLFO 2u
 typedef struct {
     uint8_t wave;                        /* LFO_* */
-    uint8_t rate;                        /* 0..127: 0.05 .. 30 Hz */
-    uint8_t dest;                        /* DEST_* */
-    int8_t amt;                          /* -63..+63: full, the whole cutoff's range or 12 semitones */
+    uint8_t rate;                        /* its speed, the Bass Station II's 8 bits: 0..255, 0.21 .. 190 Hz (BANK_VERSION
+                                          * 11's 0..127) */
+    int8_t depth[2];                     /* where it goes, the Bass Station II's: LFO 1 oscillator 1's pitch and 2's,
+                                          * LFO 2 the cutoff (and nothing); -63..+63, full 12 semitones or the
+                                          * cutoff's whole range (BANK_VERSION 9's: a DEST_* and an amount) */
 } lfo_patch_t;
 typedef struct {
-    float ph;                            /* 0..1, free-running */
+    float ph;                            /* 0..1, free-running (keysync: from 0 at a note) */
     float hold;                          /* S&H: the value held since the last wrap */
+    float out;                           /* what it gives, slewed */
+    float fade;                          /* its delay's fade-in since the note: 0..1 */
 } lfo_t;
 /* the filter: Classic (a ladder: low, band or high pass at 24 or 12 dB) or Acid (a diode ladder, low pass);
  * the drive before it */
@@ -120,6 +136,21 @@ typedef struct {                         /* the sound's settings: the main loop 
                                           * depths): -63..+63, 0 none, +63 a soft note quiet (as before), - inverted */
     uint8_t key_trk;                     /* the cutoff following the keys: 0 none .. 7 full (an octave an octave, from
                                           * C3; the Bass Station II's 7 .. 0) */
+    uint8_t lvl_ext;                     /* the mixer's Ext: the computer's USB audio in, 0..127 (BANK_VERSION 9's) */
+    uint8_t env_trig[2];                 /* the amp and the mod envelope's Triggering, ENVT_* (from here on
+                                          * BANK_VERSION 11's) */
+    uint8_t env_loop[2];                 /* their retriggering: 0 or 1 */
+    uint8_t env_count[2];                /* its count: 0 for ever, 1..16 */
+    uint8_t env_fixed[2];                /* fixed-duration sustain: 0 or 1 */
+    uint8_t lfo_delay[2];                /* the LFOs' fade-in at a note: 0 (none) .. 127 (from here on BANK_VERSION
+                                          * 12's) */
+    uint8_t lfo_slew[2];                 /* their edges softened: 0 .. 127 */
+    uint8_t lfo_keysync[2];              /* from the wave's start at a note: 0 or 1 */
+    uint8_t lfo_sync[2];                 /* their speed the clock's (Speed/Sync at Sync): 0 or 1 */
+    uint8_t lfo_syncv[2];                /* then their cycle: 0..NSYNCV-1 (64 beats .. a 32nd triplet) */
+    uint8_t ofm;                         /* Osc Filter Mod: oscillator 2 on the cutoff at audio rate, 0..127 (from here
+                                          * on BANK_VERSION 13's) */
+    uint8_t lim;                         /* the VCA limiter: 0 (off) .. 127 */
 } patch_t;
 typedef struct {
     float x1, F1;                        /* a tanh's last input, and its antiderivative there (ADAA) */
@@ -136,6 +167,7 @@ typedef struct {
     ladder_t flt;
     env_t amp, menv;                     /* the amplitude envelope, the mod envelope */
     adaa_t dist;                         /* the distortion */
+    float lim_e;                         /* the VCA limiter's level followed */
     float dc_x, dc_y;                    /* the output's coupling: the filter's last sample, and its own */
     float vel;                           /* the note's level from its velocity (VELOCITY AMP), 0..1 */
     float vm;                            /* and the mod envelope's depths' (VELOCITY MOD), 0..1 */
@@ -159,8 +191,8 @@ int app_sysex(const uint8_t *p, uint32_t n);
 
 /* the host simulator's checks (host/plat_host.c "expect"): octave, wave, wave2, note (-1 none), dirty, turnsN,
  * env and menv (the envelopes' stages, ENV_*), the patch: filter, cutoff, reso, drive, coarse2, fine2, sub, sync,
- * ring, noise, glide, pw1, pw2, rhythm, swing, lvl1, lvl2, lvl_sub, sub_wave, range1, range2, amp_a, amp_d, amp_s,
- * amp_r, dist, coarse1, fine1, menv_pw1, menv_pw2, vel_amp, vel_menv, key_trk, arp, arp_mode, the page, the slot, seq_run, rec, step (the sequencer's cursor),
+ * ring, noise, glide, pw1, pw2, rhythm, swing, latch, retrig, lvl1, lvl2, lvl_sub, sub_wave, range1, range2, amp_a, amp_d, amp_s,
+ * amp_r, dist, coarse1, fine1, menv_a, trigA, trigM, loopA, loopM, countA, countM, fixedA, fixedM (the envelopes' modes), eloopA, eloopM (the times each retriggered), cents (oscillator 1's pitch's offset, signed), ofm, lim, lfo1_wave .. lfo2_syncv (lfoN_wave, _rate, _delay, _slew, _keysync, _sync, _syncv), menv_o1, menv_o2, menv_cut, pwm1, pwm2, menv_pw1, menv_pw2, vel_amp, vel_menv, key_trk, lvl_ext, lfo1_o1, lfo1_o2, lfo2_cut, arp, arp_mode, the page, the slot, seq_run, rec, step (the sequencer's cursor),
  * seqN (step N), legN (its legato), seq_len, memN (sequence N's length, 1..4), held (the notes the arp has), what the modulation made of the last block (cut_now: the cutoff,
  * fc_now: it in Hz, sag_now: the supply's sag, 1/1000 of the gain, hushed: 1 when quiet long enough for the keepers' flash writes, kept_tempo: the slot's
  * saved tempo,

@@ -6,17 +6,17 @@ listen
 # GLO: MIDI, again SYS, again DUMP, again MIDI (RND: GLO + OCT+, tests/rnd.txt)
 tap GLO
 wait 30
-expect page 11
+expect page 16
 said GLOBAL MIDI
 tap GLO
 wait 30
-expect page 12
+expect page 17
 tap GLO
 wait 30
-expect page 13
+expect page 18
 tap GLO
 wait 30
-expect page 11
+expect page 16
 # the defaults: any channel in, out on 1, the keys playing, aftertouch out, no clock out
 expect chan 17
 expect local 1
@@ -175,7 +175,7 @@ said AFTER TOUCH OUT OFF
 # SYS's CLK OUT: the tempo out as MIDI clock, PLAY a start and a stop
 tap GLO
 wait 30
-expect page 12
+expect page 17
 spin K2 1
 wait 30
 expect clk_out 1
@@ -232,12 +232,12 @@ expect vcurve 1
 # the clock: INT keeps the arp on its tempo though MIDI clock comes; EXT follows it alone (none: it stands still)
 tap ARP
 wait 30
-tap ARP
+turn SELECT 1
 wait 30
 expect arp 1
 tap GLO
 wait 30
-expect page 11
+expect page 16
 spin K4 1
 wait 30
 expect clock 1
@@ -265,7 +265,7 @@ wait 30
 expect clock 0
 tap ARP
 wait 30
-tap ARP
+turn SELECT -1
 wait 30
 expect arp 0
 # Bluetooth off and on again
@@ -273,7 +273,7 @@ tap GLO
 wait 30
 tap GLO
 wait 30
-expect page 12
+expect page 17
 spin K4 1
 wait 30
 expect ble_off 1
@@ -284,7 +284,7 @@ expect ble_off 0
 # DUMP: FX sends every slot
 tap GLO
 wait 30
-expect page 13
+expect page 18
 tap FX
 wait 30
 said SYSEX SENT ALL 32
@@ -297,7 +297,7 @@ tap GLO
 wait 30
 tap GLO
 wait 30
-expect page 12
+expect page 17
 expect tune -25
 expect clock 0
 expect cc_chan 3
@@ -319,7 +319,7 @@ expect rec 0
 # would write the sound over its slot); SAVE isn't lit by them
 tap GLO
 wait 30
-expect page 11
+expect page 16
 tap SAVE
 wait 30
 expect dirty 0

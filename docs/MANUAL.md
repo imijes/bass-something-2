@@ -7,7 +7,7 @@ arp rhythms with its 32-step sequencer (four sequences) and 32 patches. Patches 
 shows on the FM-1's screen as a small Bass Station II front panel, and MIDI goes in and out over USB, Bluetooth and
 TRS.
 
-![The Bass Something 2 screen at rest: the section tabs with OSC lit cyan, OSC FILTER, a saw and the filter's curve, the switches OSC2, FILTER LP24, WAVE SAW, the knobs CUTOFF, RESO, DRIVE, FINE with their sliders, the keys, then OCT +0, P01, VOL 50%](img/screen-ready.png "Bass Something 2 at rest")
+![The Bass Something 2 screen at rest: the section tabs with HOME lit cyan, the MASTER panel (Volume, the red P01 display, Save and the Patch buttons), the keys, then OCT +0, P01, VOL 50%](img/screen-ready.png "Bass Something 2 at rest")
 
 ---
 
@@ -50,13 +50,16 @@ on.
 
 ## 2. The screen
 
-![Bass Something 2 while a key is held: C4 with V 90 P 64 beside OSC FILTER, DRIVE at 3, the key filled cyan on the keyboard](img/screen-playing.png "A key held, DRIVE turned")
+![Bass Something 2 while a key is held: the OSCILLATORS panel, its Mod Env depth turned, the key filled cyan on the keyboard](img/screen-playing.png "A key held, a knob turned")
 
-The screen is a small Bass Station II front panel: matte black with dark grey cards, and whatever is live in cyan.
+The screen is a small Bass Station II front panel. The pages being rebuilt as its sections (MASTER, OSCILLATORS, MIX FX,
+FILTERS, ENVELOPES, PORTA, LFOS and EFFECTS so far, and the mods) are drawn as the panel itself: its blue bar with the section's name, its knobs, switches and red LEDs, the print
+white. On these, the panel starts right under the tabs, and a knob shows its value, in cyan, in place of its name while
+it turns. The other pages are matte black with dark grey cards, and whatever is live in cyan.
 
 | Part | What it shows |
 | --- | --- |
-| Section tabs | OSC, ENV, LFO, FX, ARP, SEQ, EDIT and GLO. The section you're in is lit cyan. ARP and SEQ are written in cyan while they play. |
+| Section tabs | HOME, ENV, LFO, FX, ARP, SEQ, EDIT and GLO, the buttons. The section you're in has its name in white, the others grey. ARP and SEQ are written in cyan while they play. |
 | Title line | The page's name and, while a note plays, its name, its velocity (V) and how hard the key is pressed (P). For a moment after a change, what changed: turning a knob shows its whole name, such as RESONANCE for RESO. |
 | Picture | The section's sound: the waves, the filter's curve, the envelope (the stage it's in lit), the LFO (where it is now), the arp's rhythm, the sequencer's steps or the mixer's levels. |
 | Switches | What SELECT, ALGO and PRESET set on this page, and their settings. |
@@ -70,13 +73,13 @@ Each section button opens its section's page. Press it again for its next page, 
 
 | Button | Page | Again |
 | --- | --- | --- |
-| HOME | OSC FILTER: the oscillators and the filter | OSC MIX: sync, oscillator 2's wave, glide, ring, noise, pulse widths; then OSC TUNE: oscillator 1's tuning, key tracking, the mod envelope on the pulse widths |
-| ENV | MOD ENV: the mod envelope and its depths | AMP ENV: the amp envelope and the velocities |
-| LFO | LFO 1 | LFO 2, with the pulse width modulation |
-| FX | MIX FX: the mixer, the sub's wave, the ranges, distortion | |
-| ARP | ARP: the arpeggiator | switches the arp on or off |
+| HOME | MASTER: the patch, picked, saved and sent (the page after the splash) | MIX FX: the sub oscillator and the mixer |
+| ENV | ENVELOPES: Env Select (SELECT) and the four faders | TRIGGERING; then the group's mods (velocity, retriggering, fixed sustain) |
+| LFO | PORTA and LFOS: the glide, both LFOs' waves and knobs, the Delay/Speed switch | the group's mods (keysync, Speed/Sync, slew) |
+| FX | FILTERS | LFO 2 on the filters; then EFFECTS: distortion and Osc Filter Mod; then the group's mods (key tracking, the VCA limiter) |
+| ARP | ARPEGGIATOR: tempo, rhythm, mode, octaves, the On and Latch buttons | the group's mods (Seq Retrig, swing), then back |
 | SEQ | SEQ: the sequencer | recording on or off (the arp's REC) |
-| EDIT | PATCH: pick, save and send patches | |
+| EDIT | OSCILLATORS: the pitch's view | the pulse width's view |
 | GLO | GLOBAL MIDI | GLOBAL SYSTEM, then GLOBAL DUMP |
 
 The buttons' lights: SAVE is lit while there's something to save, ARP while the arp is on, SEQ while recording,
@@ -93,7 +96,7 @@ the keys' reach lights OCT-, one above lights OCT+.
 | --- | --- |
 | Keys | Play the voice, louder the harder they land. The last key pressed sounds, and the pitch glides to it if GLIDE is up. Each key also goes out as MIDI (see MIDI and audio). |
 | OCT− · OCT+ | The octave, from −2 to +2. |
-| SEL | The sub oscillator: one octave under oscillator 1, or two. |
+| SEL | On the OSCILLATORS pages, Osc Select: which oscillator their knobs set, 1 or 2. On the MASTER page, the sound out as a SysEx dump. While the sequencer records, the step's legato (see SEQ). |
 | MASTER | The volume. |
 | REC | A random sound (see below). On GLOBAL SYSTEM it finds a Bluetooth MIDI device instead. |
 | REC + OCT+ | Hold REC and press OCT+: AFX mode on or off. |
@@ -107,9 +110,11 @@ touch), NORMAL or HARD.
 
 ### A random sound
 
-Press REC and let go: every control on OSC FILTER, OSC MIX, MOD ENV, AMP ENV, LFO 1 and LFO 2 is set at random. The
-filter is kept a little open and the attack under a second, so the result is heard at once. The screen says SOUND
-RANDOMIZED. The mixer, the arp and the sequencer are left as they were. Press REC again for another, or SAVE to keep
+Press REC and let go: the oscillators' waves, oscillator 2's tuning, the sync, the pitches' and pulse widths'
+modulation, the widths, the filter (its type, frequency, resonance, overdrive and depths), the glide, the ring and the noise, both envelopes and both LFOs are set at
+random. The filter is kept a little open and the attack under a second, so the result is heard at once. The screen
+says SOUND RANDOMIZED. Oscillator 1's tuning and the ranges, the mixer's other levels, the arp and the sequencer are
+left as they were. Press REC again for another, or SAVE to keep
 it.
 
 ### AFX mode
@@ -126,11 +131,15 @@ time the FM-1 starts.
 ## 4. The sound
 
 The signal goes: oscillators 1 and 2, the sub and noise → the mixer (or the ring modulator) → the filter, with its
-drive in front → the amp envelope → distortion → MASTER. The mod envelope and the two LFOs move the pitch, the cutoff
-and the pulse widths. Everything on these pages belongs to the patch, and SAVE keeps it.
+drive in front (oscillator 2 moving its cutoff with Osc Filter Mod) → distortion → the amp envelope (the VCA) → the
+limiter → MASTER. The mod envelope moves the pitches, the cutoff and the pulse
+widths; LFO 1 the pitches, LFO 2 the cutoff and the pulse widths, as on a Bass Station II. Everything on these pages
+belongs to the patch, and SAVE keeps it (but not the panels' switches that only pick what a knob sets: Osc Select, the
+pulse width's switch, the mixer's).
 
-Times on the envelopes go from 2 ms (0) to 10 s (127). A depth of ±63 on an envelope or an LFO moves the cutoff over
-its whole range, or the pitch by 12 semitones.
+The envelopes' times are the Bass Station II's: the attack from at once (0) through about 250 ms (64) to 5.5 s (127),
+the decay through about 150 ms at the middle to 4.3 s, the release through about 360 ms at the middle to 10.5 s. A
+depth of ±63 on an envelope or an LFO moves the cutoff over its whole range, or the pitch by 12 semitones.
 
 Like an analog synth, the engine is never quite still. These behaviours are always on and have no controls:
 
@@ -147,98 +156,184 @@ Like an analog synth, the engine is never quite still. These behaviours are alwa
   A note held loud warms the filter over about half a minute, more with high resonance, and its cutoff drifts down by
   up to 2 %. It cools again over a minute or so once you stop.
 
-### OSC FILTER (HOME)
+### OSCILLATORS (EDIT)
+
+![The OSCILLATORS panel, the pitch's view: Coarse, Fine, the Mod Env and LFO 1 depths (Pitch), the pulse width dimmed; Range and Waveform with their LEDs, Osc Select, Sync 1-2](img/screen-ready.png "HOME: the OSCILLATORS")
+
+The Bass Station II's Oscillators section, with its five knobs, the Range and Waveform LEDs, Osc Select, Sync 1-2 and
+the pulse width's switch. The sub oscillator, beside them on a Bass Station II, is on MIX FX. The section has two
+views, EDIT and EDIT again: the pitch's and the pulse width's. Each shows the whole section, the controls the
+encoders don't set in that view dimmed.
+
+SEL is Osc Select: it switches every knob, the Range and the Waveform between oscillator 1 and oscillator 2.
 
 | Control | Setting |
 | --- | --- |
-| SELECT · OSC2 | Oscillator 2's tuning in semitones, −12 to +12, from oscillator 1. |
-| ALGO · FILTER | LP24, LP12, BP24, BP12, HP24, HP12: the Classic filter, low, band or high pass at 24 or 12 dB. ACID: a diode ladder's low pass, thinner, with its bass kept under the resonance, like a 303. |
-| PRESET · WAVE | Oscillator 1's wave: SAW, SQUARE, SINE, TRI or PULSE. |
-| K1 · CUTOFF | The filter's cutoff, 0 to 127: about 40 Hz to 17.8 kHz. |
-| K2 · RESO | The resonance, 0 to 127. Near the top the filter sings on its own, a clean sine at the cutoff. |
-| K3 · DRIVE | Overdrive into the filter, 0 to 127. |
-| K4 · FINE | Oscillator 2's fine tuning in cents, −100 to +100. A few cents apart, the two oscillators beat. |
+| SELECT · RANGE | The oscillator's footage: 16', 8' (the note played), 4' or 2', its LED lit. |
+| ALGO · WAVE | Its wave: sine, triangle, saw, square or pulse, its LED lit. |
+| PRESET · SYNC | Sync 1-2: oscillator 2 hard-synced to oscillator 1, its LED lit. Sweep oscillator 2's Coarse or its Mod Env depth for the classic sync sound. |
+| K1 · COARSE | The tuning, −12 to +12 semitones. The sub oscillator follows oscillator 1's. |
+| K2 · FINE | The fine tuning in cents, −100 to +100. A few cents apart, the two oscillators beat. |
+| K3 · MOD ENV | The mod envelope's depth on the pitch, −63 to +63 (12 semitones at full). |
+| K4 · LFO 1 | LFO 1's depth on the pitch, −63 to +63 (12 semitones at full). |
 
-### OSC MIX (HOME again)
+#### The pulse width's view (EDIT again)
 
-![The OSC mix page: two saws, SYNC, WAVE2, GLIDE, then RING, NOISE, PW1 and PW2](img/screen-osc-mix.png "OSC, again: the mix")
-
-| Control | Setting |
-| --- | --- |
-| SELECT · SYNC | Oscillator 2 hard-synced to oscillator 1: OFF or ON. Sweep OSC2's tuning or its mod envelope depth for the classic sync sound. |
-| ALGO · WAVE2 | Oscillator 2's wave: SAW, SQUARE, SINE, TRI or PULSE. |
-| PRESET · GLIDE | Portamento: 0 jumps to each note; 1 to 127 glides, from 3 ms to 2.5 s. |
-| K1 · RING | From the two oscillators mixed (0) to their ring modulation (127). |
-| K2 · NOISE | White noise in the mix, 0 to 127. |
-| K3 · PW1 | Oscillator 1's pulse width, 5 to 95 %, when its wave is PULSE. |
-| K4 · PW2 | Oscillator 2's pulse width, the same. |
-
-### OSC TUNE (HOME a third time)
-
-![OSC TUNE: the cutoff's line over the keys, OSC1 and KEY TRK, then FINE1, PW1 ENV and PW2 ENV](img/screen-osc-tune.png "OSC, a third time: the tune")
+![The OSCILLATORS panel, the pulse width's view: its knob and the Mod Env / Manual / LFO 2 switch lit, the rest dimmed](img/screen-osc-pw.png "HOME, again: the pulse width")
 
 | Control | Setting |
 | --- | --- |
-| SELECT · OSC1 | Oscillator 1's coarse tuning, −12 to +12 semitones. The sub oscillator follows it. |
-| ALGO · KEY TRK | How far the cutoff follows the keys, 0 (not at all) to 7 (fully: an octave higher for each octave up). The cutoff is as set at C3; the picture draws its line across the keys. New patches start at 7, as on a Bass Station II. Patches saved before this version start at 0, so they sound as they did. |
-| K1 · FINE1 | Oscillator 1's fine tuning in cents, −100 to +100. |
-| K2 · PW1 ENV | How far the mod envelope moves oscillator 1's pulse width, −63 to +63 (±45 % at full), when its wave is PULSE. |
-| K3 · PW2 ENV | The same for oscillator 2. |
+| PRESET · PW SOURCE | The pulse width's switch, as on a Bass Station II: what the Pulse Width knob sets. Manual (the start) is the width, Mod Env the mod envelope's depth on it, LFO 2 LFO 2's. |
+| K4 · PULSE WIDTH | Manual: the width, 5 to 95 %. Mod Env and LFO 2: their depth, −63 to +63 (±45 % at full). Each oscillator has its own three; the width counts when its wave is the pulse. |
 
-### MOD ENV (ENV)
+### FILTERS (FX)
 
-![The mod envelope with a key held: its shape, the sustain lit cyan, the depths OSC1, FILTER +40, OSC2](img/screen-env.png "ENV: the mod envelope")
+![The FILTERS panel: the Type, Slope and Shape switches with their LEDs, Overdrive and Resonance, the Mod Env and LFO 2 depths bracketed to the big Frequency knob](img/screen-filter.png "HOME, a third time: the FILTERS")
 
-| Control | Setting |
-| --- | --- |
-| SELECT · OSC1 | How far the envelope moves oscillator 1's pitch, −63 to +63. |
-| ALGO · FILTER | How far it moves the cutoff, −63 to +63. |
-| PRESET · OSC2 | How far it moves oscillator 2's pitch, −63 to +63. |
-| K1 to K4 | ATTACK, DECAY, SUSTAIN, RELEASE, 0 to 127. |
-
-### AMP ENV (ENV again)
-
-![The amp envelope: its shape, AMP VEL and MOD VEL, then ATTACK, DECAY, SUSTAIN, RELEASE](img/screen-amp-env.png "ENV, again: the amp envelope")
+The Bass Station II's Filters section: the Type, Slope and Shape switches (Slope and Shape belong to the Classic
+filter: the line from Classic joins them), Overdrive and Resonance, the Mod Env and LFO 2 depths bracketed to the big
+Frequency knob. Two views: the filter's (FX) and LFO 2's on it (FX again). Key tracking, a setting on a Bass Station
+II, is on the group's mods (FX a fourth time).
 
 | Control | Setting |
 | --- | --- |
-| SELECT · AMP VEL | How much a key's velocity sets the volume, −63 to +63. At +63 a soft note is quiet and a hard one loud; at 0 every note is as loud; below 0 it's reversed. |
-| ALGO · MOD VEL | The same for the mod envelope's depths (on the pitch, the cutoff and the pulse widths): at +63 a hard note opens the filter further. |
-| K1 to K4 | ATTACK, DECAY, SUSTAIN and RELEASE of the volume, 0 to 127. |
+| SELECT · TYPE | Classic: a ladder filter, low, band or high pass. Acid: a diode ladder's low pass, thinner, with its bass kept under the resonance, like a 303; its Slope and Shape go dark. Back to Classic, it's as it was. |
+| ALGO · SLOPE | The Classic filter's slope: 12 or 24 dB an octave. |
+| PRESET · SHAPE | The Classic filter's shape: low pass (LP), band pass (BP) or high pass (HP). |
+| K1 · OVERDRIVE | Drive into the filter, 0 to 127. |
+| K2 · RESONANCE | 0 to 127. Near the top the filter sings on its own, a clean sine at the cutoff. |
+| K3 · MOD ENV DEPTH | How far the mod envelope moves the cutoff, −63 to +63 (its whole range at full). |
+| K4 · FREQUENCY | The cutoff, 0 to 127: about 40 Hz to 17.8 kHz. |
 
-Each stage moves on from where the last one got to, so a quick retrigger or an early release doesn't click. New patches
-start with AMP VEL at +63 and MOD VEL at 0, as the FM-1 always played. A Bass Station II patch brings its own.
+#### LFO 2's view (FX again)
 
-### LFO 1 and LFO 2 (LFO)
-
-![LFO 1: two triangles with where it is now, DEST, WAVE, RATE and AMOUNT](img/screen-lfo.png "LFO 1")
-
-| Control | Setting |
-| --- | --- |
-| SELECT · DEST | What it moves: CUTOFF, PITCH (both oscillators) or OSC2 (oscillator 2 alone). |
-| ALGO · WAVE | TRI, SINE, SAW, SQUARE or S&H (a new random level each cycle). |
-| K1 · RATE | 0 to 127: about 0.05 Hz to 30 Hz. |
-| K2 · AMOUNT | −63 to +63. 0 is off. |
-| K3 · PWM1 | LFO 2 only: how far LFO 2 moves oscillator 1's pulse width, −63 to +63 (±45 % at full). |
-| K4 · PWM2 | LFO 2 only: the same for oscillator 2. |
-
-The LFOs run freely: a note doesn't restart them. Both can move the same destination; their amounts add.
-
-### MIX FX (FX)
-
-![FX: the sub's wave, the mixer's four levels, SUBWAVE, RANGE1, RANGE2, then OSC1, OSC2, SUB, DIST](img/screen-fx.png "FX: the mixer")
+![The FILTERS panel, LFO 2's view: the LFO 2 depth lit, the rest dimmed](img/screen-filter-mod.png "HOME, a fourth time: LFO 2 on the filters")
 
 | Control | Setting |
 | --- | --- |
-| SELECT · SUBWAVE | The sub oscillator's wave: SINE, PULSE (narrow) or SQUARE. SEL sets its octave. |
-| ALGO · RANGE1 | Oscillator 1's footage: 16', 8' (the note played), 4' or 2'. |
-| PRESET · RANGE2 | Oscillator 2's footage, the same. |
+| K1 · LFO 2 DEPTH | How far LFO 2 moves the cutoff, −63 to +63 (its whole range at full). |
+
+### The mods
+
+What Bass Something 2 has that a Bass Station II's panel doesn't, a setting there (its Function and On-Key settings)
+or nothing at all, is on its own page: a plate screwed onto the panel, as a modification to a real one would be, brushed metal with Dymo-tape labels.
+Each group has its mods as its last page, a press of its button after the others. Its knobs are K1 on.
+
+![The ENV group's mods: a brushed plate, ENV MOD for the envelope Env Select picks, its Velocity, Retrigger, Count and Fixed Sus knobs](img/screen-env-mod.png "ENV, a third time: the envelopes' mods")
+
+| Group | Page | Control | Setting |
+| --- | --- | --- | --- |
+| FX | FX MODS (fourth) | K1 · KEY TRACK | How far the cutoff follows the keys, 0 (not at all) to 7 (fully: an octave higher for each octave up). The cutoff is as set at C3. New patches start at 7, as on a Bass Station II. Patches saved before key tracking start at 0, so they sound as they did. |
+| ENV | ENV MOD (third) | SELECT · ENV SELECT | Which envelope the plate sets (its title says): Amp Env, Mod Env, or Amp+Mod (both, the amp's shown). |
+| ENV | | K1 · VELOCITY | How much a key's velocity sets it, −63 to +63. The amp envelope's: the volume, at +63 a soft note quiet and a hard one loud, at 0 every note as loud, below 0 reversed. The mod envelope's: its depths (on the pitches, the cutoff and the pulse widths), at +63 a hard note opening the filter further. |
+| ENV | | K2 · RETRIGGER | On: the envelope starts again from its attack when its decay ends, a loop while the key is held. |
+| ENV | | K3 · COUNT | How many times it retriggers: ENDLESS, or 1 to 16, then it stays in its sustain. |
+| ENV | | K4 · FIXED SUS | Fixed-duration sustain, for drums: no decay, the sustain held for the Decay fader's time, then the release, whether the key is held or not. It overrides the retriggering. |
+| LFO | LFO MOD (second) | SELECT · LFO | Which LFO the plate sets (its title says): LFO 1 or LFO 2. |
+| LFO | | K1 · KEYSYNC | On: a note played on its own starts the LFO from its wave's start, so every note begins the same. |
+| LFO | | K2 · SPEED/SYNC | Speed: its knob sets its speed. Sync: its knob sets a sync value instead, the LFO following the tempo. |
+| LFO | | K3 · SLEW | 0 to 127: its edges softened, a square gliding from one level to the next (at the top, over about 2 s). |
+| FX | | K2 · LIMITER | 0 (off) to 127: the Bass Station II's VCA limiter. The output's level held to a threshold that comes down as it goes up (to 24 dB under full), so a loud, resonant sound is kept in check: more compressed, and quieter. |
+
+New patches start with the amp's velocity at +63 and the mod's at 0, as the FM-1 always played. A Bass Station II
+patch brings its own.
+
+The ARP group's mods (SEQ RETRIG and SWING) are with the arpeggiator, in section 5.
+
+### ENVELOPES (ENV)
+
+![The ENVELOPES panel: Env Select at the left at Amp Env, then the Attack, Decay, Sustain and Release faders](img/screen-amp-env.png "ENV: the envelopes")
+
+The Bass Station II's Envelopes section: Env Select and the four faders. Env Select picks which envelope the faders
+set, as on a Bass Station II: Amp Env, Mod Env, or Amp+Mod Env, where a fader sets both envelopes to the same place
+(and shows the amp's). It only picks what they set: the envelopes play as they are. It's on each of the section's
+pages (the triggering and the mods set the envelope it picks too), SELECT moving it; ENV leaves it as it is, going on
+to the section's other pages.
+
+| Control | Setting |
+| --- | --- |
+| SELECT · ENV SELECT | Amp Env, Mod Env or Amp+Mod Env. |
+| K1 to K4 | ATTACK, DECAY, SUSTAIN and RELEASE, 0 to 127. |
+
+![The ENVELOPES panel at Mod Env with a key held](img/screen-env.png "Env Select at Mod Env")
+
+Each stage moves on from where the last one got to, so a quick retrigger or an early release doesn't click. The
+velocities, the retriggering and the fixed sustain are on the group's mods (ENV a third time). The mod envelope's depths are where a Bass Station II has them:
+on the pitches on the OSCILLATORS, on the pulse widths on their view, on the cutoff on the FILTERS.
+
+#### TRIGGERING (ENV again)
+
+![The Triggering page: Env Select, its line to the Triggering switch, Autoglide, Single and Multi with their LEDs](img/screen-trig.png "ENV, again: the triggering")
+
+The Bass Station II's Triggering switch, for the envelope Env Select picks (each envelope has its own, kept with the
+patch; Amp+Mod sets both):
+
+| Control | Setting |
+| --- | --- |
+| SELECT · ENV SELECT | Amp Env, Mod Env or Amp+Mod Env. |
+| ALGO · TRIGGER | Multi: every note starts the envelope again, legato or not. Single: a note played on its own starts it; a note played legato (another key still held) doesn't, the envelope going on. Autoglide: as Single, and the glide is on legato notes only, a note on its own going straight to its pitch (either envelope at Autoglide does this). With Multi and Single the glide is on every note. New patches start at Multi. |
+
+The arp's and the sequencer's notes each start the envelopes as their own notes (the sequencer's legato steps don't).
+
+### PORTA and LFOS (LFO)
+
+![PORTA's Glide Time, then the LFOS: each LFO's wave LEDs and knob, its speed under it, the Delay/Speed switch between them](img/screen-lfo.png "LFO: porta and the LFOs")
+
+The Bass Station II's Porta and LFOs sections, side by side as on its panel. Each LFO has its wave button (four LEDs:
+triangle, falling saw, square, sample and hold; the lit one blinks with the LFO) and one knob, which the Delay/Speed
+switch sets: its speed or its delay. Under each knob is what it sets now.
+
+| Control | Setting |
+| --- | --- |
+| SELECT · GLIDE TIME | PORTA's portamento: 0 jumps to each note; 1 to 127 glides, from 3 ms to 2.5 s. |
+| ALGO · DELAY/SPEED | The switch: Speed (down) or Delay (up), for both knobs. It only picks what they set: both settings are kept. |
+| K1 · WAVE 1 | LFO 1's wave: triangle, saw (falling, as the Bass Station II's), square or S&H (a new random level each cycle). |
+| K2 · LFO 1 | At Speed, its speed, 0 to 255 as the Bass Station II's (about 0.2 Hz to 190 Hz: 3 Hz at 52, 7.9 Hz at 75; shown in Hz); with Speed/Sync at Sync (the mods), its sync value instead, a cycle from 64 beats (64b) to a 32nd-note triplet (32t), as the Bass Station II's display shows them. At Delay, its fade-in from a note, 0 (none) to 127. |
+| K3 · LFO 2 | The same for LFO 2. |
+| K4 · WAVE 2 | LFO 2's wave, the same. |
+
+Synced, an LFO follows the tempo, or MIDI clock when it's followed (GLOBAL MIDI's CLOCK). A note played on its own
+starts the delay's fade-in and, with keysync, the wave from its start; a note played legato doesn't. New patches start
+as the Bass Station II's INIT PATCH: LFO 1 at 75 (7.9 Hz), LFO 2 at 52 (3 Hz) with keysync.
+
+As on a Bass Station II, where each LFO goes is fixed, and its depths are set where it goes: LFO 1 moves the
+oscillators' pitches (the OSCILLATORS' LFO 1 depth, one for each oscillator), LFO 2 the cutoff (the FILTERS' LFO 2
+depth) and the pulse widths (the pulse width's switch at LFO 2).
+
+Patches saved before this version had each LFO on a destination of its own. They're converted: an LFO 1 on the
+pitch is on both oscillators, one on oscillator 2 on that one, and an LFO 2 on the cutoff is on the filter. An LFO 1
+on the cutoff, or an LFO 2 on the pitch, has no place on a Bass Station II and is set to 0. A sine LFO (Bass Station
+II LFOs have none) becomes a triangle.
+
+### MIX FX (HOME again)
+
+![FX as the Bass Station II's panel: the Sub Osc's octave and wave switches with their LEDs, then the MIXER: Osc 1, Osc 2, Sub Osc and the Ext / Ring / Noise switch with its knob](img/screen-fx.png "FX: the sub osc and the mixer")
+
+The page is laid out as that part of the Bass Station II's panel: the end of the oscillators' section, the Sub Osc with
+its octave and wave switches (a red LED at what each is set to), then the MIXER, its four knobs with the switch that
+picks what the fourth one sets. It starts right under the tabs, with no row for the page's name, so a knob's name
+changes to its value, in cyan, while it turns.
+
+| Control | Setting |
+| --- | --- |
+| SELECT · OCTAVE | The sub oscillator's octave, −1 or −2 below oscillator 1. |
+| ALGO · SUBWAVE | The sub oscillator's wave: sine, narrow pulse or square. |
+| PRESET · SUB | The sub's level, 0 to 127 (the mixer's Sub Osc knob). |
 | K1 · OSC1 | Oscillator 1's level, 0 to 127. |
 | K2 · OSC2 | Oscillator 2's level. |
-| K3 · SUB | The sub's level. |
-| K4 · DIST | Distortion after the amp, 0 (none) to 127, made up so it stays about as loud. |
+| K3 · SOURCE | The mixer's switch: what K4 sets, Noise, Ring or Ext. It isn't saved with the patch, like the switch on a Bass Station II. |
+| K4 · Noise, Ring or Ext | The level the switch picks: the noise or the ring modulator (both kept by the patch), or Ext: the computer's sound over USB, through the filter and the amp (see USB audio in [section 9](#s9)). Ext is saved with the patch. |
 
-The picture shows the four levels: oscillator 1, oscillator 2, the sub and the noise (set on OSC MIX).
+### EFFECTS (FX a third time)
+
+![The EFFECTS panel: the Distortion and Osc Filter Mod knobs](img/screen-effects.png "FX, again: the effects")
+
+The Bass Station II's Effects section.
+
+| Control | Setting |
+| --- | --- |
+| K1 · DISTORTION | 0 (none) to 127, made up so it stays about as loud. As on a Bass Station II it comes before the VCA, so its character doesn't change as the amp envelope fades. |
+| K2 · OSC FILTER MOD | 0 (off) to 127: oscillator 2 moves the filter's frequency directly, at audio rate, up to 3 octaves either way at full. What it does depends on everything about oscillator 2 (its range, pitch, wave, pulse width and modulation) but not its level in the mixer: try it while sweeping oscillator 2's tuning. |
 
 ---
 
@@ -250,25 +345,35 @@ or to MIDI clock when it comes in (see GLO MIDI's CLOCK).
 
 ### ARP
 
-![The arp playing: its rhythm's two bars of 16ths, a held note's joined, the one playing lit, MODE, RETRIG, LATCH, OCTAVES, SWING, TEMPO, RHYTHM](img/screen-arp.png "ARP")
+![The ARPEGGIATOR panel playing: TEMPO and RHYTHM, MODE with its eight positions around it, the OCTAVES switch with its four positions, ON's LED lit beside it over LEGATO, LATCH over REST](img/screen-arp.png "ARP")
 
-Press ARP to open its page, and ARP again to switch it on or off (ARP lights). While it's on, the notes you hold are
-played one at a time over the octaves you set and in the rhythm you pick. It holds up to 16 notes, from the keys and
-from MIDI in.
+Press ARP to open its page. As on the Bass Station II's panel, the arp has its On and Latch buttons: turn SELECT up
+to switch it on (the LED beside ON lights, and so does ARP), down to switch it off. While it's on, the notes you hold are played one
+at a time over the octaves you set and in the rhythm you pick. It holds up to 16 notes, from the keys and from MIDI
+in.
 
 | Control | Setting |
 | --- | --- |
-| SELECT · MODE (ARP MODE) | UP, DOWN, UP/DN (the top and bottom notes once each), UP/DN2 (twice each), PLAYED (in the order played), RANDOM, PLAY (the sequencer plays) or REC (the sequencer records). |
-| ALGO · RETRIG (SEQ RETRIG) | ON: the arp's notes, or the sequence, start again from the first every two bars, at the start of the rhythm. OFF: they run on across it. |
-| PRESET · LATCH | ON: the notes keep playing after you let go, until you play a new chord, which replaces them. With the arp off, LATCH is the Bass Station II's key hold: the last note you played keeps sounding until you play another. |
-| K1 · OCTAVES | 1 to 4 octaves. In PLAY and REC it's SEQ instead: which of the four sequences, as on the Bass Station II's switch. |
+| SELECT · ON | The arp on (turn up) or off (turn down). While the sequencer records, it's LEGATO instead (see SEQ). |
+| ALGO · LATCH | Turn up for on (the LED beside LATCH lights): the notes keep playing after you let go, until you play a new chord, which replaces them. With the arp off, LATCH is the Bass Station II's key hold: the last note you played keeps sounding until you play another. While the sequencer records, it's REST instead. |
+| K1 · TEMPO | 40 to 240 BPM. |
+| K2 · RHYTHM | The Bass Station II's 32 arp rhythms. Each is two bars of 16ths with rests and held notes. Rhythm 1 is two bars of quarter notes, and 32 plays every 16th. |
+| K3 · MODE (ARP MODE) | UP, DOWN, UP/DN (the top and bottom notes once each), UP/DN2 (twice each), PLAYED (in the order played), RANDOM, PLAY (the sequencer plays) or REC (the sequencer records), named around the knob as on the panel. |
+| K4 · OCTAVES | A four-position switch, 1 to 4 octaves, its positions on its left as on the panel. In PLAY and REC it's SEQ instead: which of the four sequences, as on the Bass Station II's switch. |
+
+Press ARP again for the group's mods, two Bass Station II settings that aren't on its panel, and once more to come
+back.
+
+![ARP MODS: a brushed plate with the SEQ RETRIG and SWING knobs](img/screen-arp-mod.png "ARP again: the arp's mods")
+
+| Control | Setting |
+| --- | --- |
+| K1 · SEQ RETRIG | ON: the arp's notes, or the sequence, start again from the first every two bars, at the start of the rhythm. OFF: they run on across it. |
 | K2 · SWING (ARP SWING) | 3 to 97 %. 50 is straight. Above it, the first 16th of each pair is longer and the second shorter. Below it, the reverse. |
-| K3 · TEMPO | 40 to 240 BPM. |
-| K4 · RHYTHM | The Bass Station II's 32 arp rhythms. Each is two bars of 16ths with rests and held notes. Rhythm 1 is two bars of quarter notes, and 32 plays every 16th. The picture shows the rhythm, with the 16th playing lit. |
 
 ### SEQ
 
-![The sequencer: SEQ 1, its 32 steps in four rows, the one playing cyan, the cursor white](img/screen-seq.png "SEQ")
+![The SEQUENCER plate playing: SEQ 1, LEN 8, STEP 1 over the rhythm's lights and the 32 steps' bars, the step playing marked, then the cursor's note, LEGATO, GATE and RHYTHM](img/screen-seq.png "SEQ")
 
 The sequencer plays a recorded sequence of up to 32 steps. Each step is a note or a rest, and a note can be legato.
 The steps have no length of their own: **the arp's rhythm gives the timing**. Each note in the rhythm plays the next
@@ -285,8 +390,8 @@ arp on in PLAY and plays the sequence at its own key, and PLAY again stops it (a
 pressed while it plays transposes it.
 
 **The length and the rhythm:** a sequence is as long as the number of steps recorded, and a rhythm is 8 to 32 notes
-long, so they often differ. With RETRIG ON, the sequence starts again from its first step every two bars, even if it
-hasn't finished. With RETRIG OFF, it plays all the way through and wraps around the rhythm. An 8-step sequence on a
+long, so they often differ. With SEQ RETRIG ON, the sequence starts again from its first step every two bars, even if it
+hasn't finished. With SEQ RETRIG OFF, it plays all the way through and wraps around the rhythm. An 8-step sequence on a
 16-note rhythm plays twice in the two bars. That's how a short sequence fills a longer pattern, as on the Bass
 Station II: the sequencer has no empty steps to fill.
 
@@ -296,8 +401,8 @@ starts a new sequence from step 1. Each key, or each note from MIDI in, is the n
 
 | Button | While recording |
 | --- | --- |
-| FX | A rest (the Bass Station II's REST). |
-| SEL | Makes the step just recorded legato (the Bass Station II's LEGATO). That note is held into the next one, which plays without a new attack. The same note on both sides makes a tie: one note held over both steps. SEL again cancels it. A rest can't be tied. |
+| FX, or ALGO turned up on the ARP page | A rest (the Bass Station II's REST). |
+| SEL, or SELECT turned up on the ARP page | Makes the step just recorded legato (the Bass Station II's LEGATO). That note is held into the next one, which plays without a new attack. The same note on both sides makes a tie: one note held over both steps. Again cancels it. A rest can't be tied. |
 
 Recording stops at 32 steps (SEQ FULL). Press SEQ again to stop: MODE goes to PLAY. Leaving REC before playing a note
 keeps the sequence as it was.
@@ -310,10 +415,11 @@ keeps the sequence as it was.
 | K1 · NOTE | The step's note, from REST up through the notes. |
 | K2 · LEGATO | The step's legato, ON or OFF. |
 | K3 · GATE | How long each note sounds, 5 to 100 % of its 16th (an FM-1 extra; the arp's notes too). |
-| K4 · TEMPO | 40 to 240 BPM, the same as ARP's. |
+| K4 · RHYTHM | The arp's rhythm, the same as ARP's K2: the sequence plays in it. (TEMPO is on the ARP page.) |
 
-The picture shows the 32 steps in four rows of eight. Each note's height is its pitch, a legato note is joined to
-the next, the step playing is cyan and the cursor is white. Steps past the length are dark.
+The plate's display shows the rhythm as a row of lights over the 32 steps: a lit light is a 16th that plays a note.
+Under it each step is a bar, its height the note's pitch, a legato note joined to the next. A mark under the bars
+shows the step playing, and the cursor's step is white. Steps past the length are dark.
 
 **The sequences are kept by themselves:** two seconds after you last change one, once the FM-1 is quiet, the four
 sequences and the patch's copy are written to memory (with which of the four it plays, the gate, the tempo and the
@@ -337,15 +443,17 @@ of the ULTIMATE PATCHES Volume 2 bank for the Bass Station II (see [Credits](#s1
 Updating the firmware keeps the patches you have. To get the factory ones back, send the factory bank,
 `bs2/presets/factory.syx` in the source (see [SysEx](#s7)).
 
-![The patch page: P01 large, PATCH 01, what PRESET, SAVE and FX do here](img/screen-patch.png "EDIT: the patch")
+![The MASTER panel: the Volume, the red display showing P01, the Save and Patch buttons](img/screen-patch.png "HOME: the MASTER")
 
-Press EDIT for the PATCH page.
+The MASTER page (HOME) is the Bass Station II's Master section, and the page Bass Something 2 starts on: the Volume
+(the FM-1's MASTER knob, as it's set), the display with the patch in red, its dot lit while there are changes not
+saved, the Save button and the Patch buttons.
 
 | Control | What it does |
 | --- | --- |
-| PRESET | Picks a patch, P01 to P32, and plays it at once. Changes you haven't saved to the patch you leave are lost. |
+| PRESET | The Patch buttons: picks a patch, P01 to P32, and plays it at once. Changes you haven't saved to the patch you leave are lost. |
 | SAVE | Stores the sound into the patch shown. |
-| FX | Sends the sound out over USB as a Bass Station II SysEx dump. See SysEx. |
+| SEL | Sends the sound out over USB as a Bass Station II SysEx dump. See SysEx. |
 
 **SAVE** works on every page but GLOBAL RND (where it keeps a seed). It stores the sound into its patch and keeps the
 settings: the octave and the patch you're on (the FM-1 starts on it next time). While something isn't saved, SAVE is
@@ -367,13 +475,13 @@ its sounds, and Bass Station II patches (`.syx` files) can play on the FM-1. Sys
 
 **From the FM-1 to an editor:**
 
-- On the PATCH page (EDIT), press FX: the sound goes out as one dump, named Bass Smth 2 and its number (Bass Smth 2 01: a patch name holds 16 characters).
+- On the MASTER page (HOME), press SEL: the sound goes out as one dump, named Bass Smth 2 and its number (Bass Smth 2 01: a patch name holds 16 characters).
   The screen says SYSEX SENT.
 - On GLOBAL DUMP (GLO three times), press FX: all 32 patches go out as a bank, Bass Smth 2 01 to Bass Smth 2 32, each
   addressed to its own patch number (0 to 31), as a Bass Station II bank file is. Record them into one `.syx` file
   and it's a backup: sent back, each patch returns to its own slot. The patch you're on goes as it sounds now, with
   changes not yet saved.
-- A computer can ask for the sound: SysEx `F0 7D 42 53 32 01 F7` sends the same dump as FX on the PATCH page.
+- A computer can ask for the sound: SysEx `F0 7D 42 53 32 01 F7` sends the same dump as SEL on the MASTER page.
   `F0 7D 42 53 32 03 F7` sends the whole bank, as FX on GLOBAL DUMP. `F0 7D 42 53 32 02 F7` asks for the RND seed
   shown instead (see RND seeds).
 
@@ -381,7 +489,7 @@ its sounds, and Bass Station II patches (`.syx` files) can play on the FM-1. Sys
 usually called Send or Send to synth). Any Bass Station II patch dump works, with a name (firmware 2.5 and later) or
 without one. A dump sent as the current sound loads into the sound you're playing now, and the screen says SYSEX
 LOADED and the patch's name. Press SAVE to keep it in the patch you're on. To keep it in another patch, pick that
-patch on the PATCH page first.
+patch on the MASTER page first.
 
 **A whole bank:** a Bass Station II bank file (a `.syx` of up to 128 patches, each addressed to its patch number, as
 sound packs and librarians save them) loads straight into the FM-1's patches: patch 0 into P01, 1 into P02 and on to
@@ -396,9 +504,11 @@ macOS among them) have a setting for the delay between messages. If BANK LOADED 
 again with a longer pause.
 
 A dump carries what the two synths share, including both oscillators' tuning, the mod envelope's pulse width depths,
-the two velocities and the filter's key tracking (firmware 2.5's; a dump from before it tracks fully, as those
-Bass Station IIs did). It doesn't carry what the FM-1 lacks: the LFOs' delay and slew, the envelopes' retriggering,
-paraphonic mode, the oscillator error and the external input. The arp's mode (PLAY and REC too), octaves, rhythm and swing come and go with it. The FM-1's own extras (the sequence, the tempo, the gate) stay as
+the two velocities, the envelopes' triggering and retriggering, and the filter's key tracking (firmware 2.5's; a dump
+from before it tracks fully, as those Bass Station IIs did). It carries the LFOs' speed (all 8 bits), delay, slew, keysync and
+sync too, and Osc Filter Mod. It doesn't carry what the FM-1 lacks (paraphonic mode, the oscillator error), or what nobody has yet found the place of in a dump: the envelopes'
+retrigger count and fixed sustain (later firmware's), the VCA limiter and the external input's level. Those come in as a Bass Station
+II's initial patch has them. The arp's mode (PLAY and REC too), octaves, rhythm and swing come and go with it. The FM-1's own extras (the sequence, the tempo, the gate) stay as
 they were when one comes in. Settings the FM-1 doesn't have go out as a Bass Station II's initial patch has them.
 Values beyond what an FM-1 control can reach are brought to its nearest.
 
@@ -510,47 +620,50 @@ Station II uses two CCs for one knob (cutoff 16 and 48, for example), the FM-1 r
 
 | CC | Page | Knob |
 | --- | --- | --- |
-| 5 | OSC MIX | GLIDE |
-| 16 | OSC FILTER | CUTOFF |
-| 18 | LFO 1 | RATE |
-| 19 | LFO 2 | RATE |
+| 5 | PORTA | GLIDE TIME |
+| 16 | FILTERS | FREQUENCY |
+| 18 | LFOS | LFO 1 speed |
+| 19 | LFOS | LFO 2 speed |
 | 20 | MIX FX | OSC1 level |
 | 21 | MIX FX | OSC2 level |
 | 22 | MIX FX | SUB level |
-| 23 | OSC MIX | NOISE |
-| 24 | OSC MIX | RING |
-| 26 | OSC TUNE | FINE1 |
-| 27 | OSC TUNE | OSC1 (coarse) |
-| 29 | OSC FILTER | FINE (osc 2) |
-| 30 | OSC FILTER | OSC2 (coarse) |
-| 70 | MIX FX | RANGE1 |
-| 71 | MOD ENV | OSC1 depth |
-| 72 | OSC TUNE | PW1 ENV |
-| 73 | LFO 2 | PWM1 |
-| 74 | OSC MIX | PW1 |
-| 75 | MIX FX | RANGE2 |
-| 76 | MOD ENV | OSC2 depth |
-| 77 | OSC TUNE | PW2 ENV |
-| 78 | LFO 2 | PWM2 |
-| 79 | OSC MIX | PW2 |
+| 23 | MIX FX | NOISE level |
+| 24 | MIX FX | RING level |
+| 26 | OSCILLATORS (Osc 1) | FINE |
+| 27 | OSCILLATORS (Osc 1) | COARSE |
+| 29 | OSCILLATORS (Osc 2) | FINE |
+| 30 | OSCILLATORS (Osc 2) | COARSE |
+| 70 | OSCILLATORS (Osc 1) | RANGE |
+| 71 | OSCILLATORS (Osc 1) | MOD ENV depth |
+| 72 | PULSE WIDTH (Osc 1) | Mod Env |
+| 73 | PULSE WIDTH (Osc 1) | LFO 2 |
+| 74 | PULSE WIDTH (Osc 1) | Manual |
+| 75 | OSCILLATORS (Osc 2) | RANGE |
+| 76 | OSCILLATORS (Osc 2) | MOD ENV depth |
+| 77 | PULSE WIDTH (Osc 2) | Mod Env |
+| 78 | PULSE WIDTH (Osc 2) | LFO 2 |
+| 79 | PULSE WIDTH (Osc 2) | Manual |
 | 80 | MIX FX | SUBWAVE |
-| 82 | OSC FILTER | RESO |
-| 85 | MOD ENV | FILTER depth |
-| 88 | LFO 1 | WAVE |
-| 89 | LFO 2 | WAVE |
-| 90 to 93 | AMP ENV | ATTACK, DECAY, SUSTAIN, RELEASE |
-| 94 | MIX FX | DIST |
-| 102 to 105 | MOD ENV | ATTACK, DECAY, SUSTAIN, RELEASE |
+| 82 | FILTERS | RESONANCE |
+| 85 | FILTERS | MOD ENV depth |
+| 86 | LFOS | LFO 1 delay |
+| 87 | LFOS | LFO 2 delay |
+| 88 | LFOS | LFO 1 wave |
+| 89 | LFOS | LFO 2 wave |
+| 90 to 93 | ENVELOPES (Amp Env) | ATTACK, DECAY, SUSTAIN, RELEASE |
+| 94 | EFFECTS | DISTORTION |
+| 102 to 105 | ENVELOPES (Mod Env) | ATTACK, DECAY, SUSTAIN, RELEASE |
 | 108 | ARP | on or off |
 | 109 | ARP | LATCH |
-| 110 | OSC MIX | SYNC |
-| 111 | ARP | OCTAVES (SEQ in PLAY and REC) |
-| 112 | AMP ENV | AMP VEL |
-| 113 | AMP ENV | MOD VEL |
-| 114 | OSC FILTER | DRIVE |
-| 116 | ARP | SWING |
-| 118 | ARP | MODE (6 PLAY, 7 REC, as the Bass Station II sends them) |
-| 119 | ARP | RHYTHM |
+| 110 | OSCILLATORS | SYNC 1-2 |
+| 111 | ARP | OCTAVES, K4 (SEQ in PLAY and REC) |
+| 112 | ENV MOD (Amp Env) | VELOCITY |
+| 113 | ENV MOD (Mod Env) | VELOCITY |
+| 114 | FILTERS | OVERDRIVE |
+| 115 | EFFECTS | OSC FILTER MOD |
+| 116 | ARP MODS | SWING |
+| 118 | ARP | MODE, K3 (6 PLAY, 7 REC, as the Bass Station II sends them) |
+| 119 | ARP | RHYTHM, K2 |
 
 **The RND Synth:** its notes come in on channels 1 to 4. Keep CC CHAN on another channel, or OFF, and its messages
 can't change the sound.
@@ -576,6 +689,12 @@ Over the USB cable the FM-1 is also a sound card. A computer can record what it 
 and can play through it: choose "Bass Something 2 FM-1" as the output, and its sound comes out of the FM-1's speaker and
 headphones, mixed with the FM-1's own, at MASTER's volume.
 
+That output is also the FM-1's Ext input, as the Bass Station II's Ext In socket is: turn the mixer's Ext up (MIX FX,
+K3 to Ext, then K4) and the computer's sound goes through the synth instead, into the mixer with the oscillators, then
+the filter, the amp envelope and the distortion. Like the Bass Station II's, you hear it only while a note plays (the
+amp envelope opens it), so hold a key, use LATCH, or let the arp or the sequencer play the envelope. Its two sides are
+mixed into one, as the synth is mono. With Ext at 0 the computer's sound plays straight through, as above.
+
 ---
 
 ## 10. The screen reader
@@ -589,7 +708,7 @@ emulator does the same, with your own screen reader or with its built-in voice.
 
 ## 11. Troubleshooting
 
-**No sound:** turn MASTER up. Check the mixer's levels on MIX FX and the cutoff on OSC FILTER; a random sound can be
+**No sound:** turn MASTER up. Check the mixer's levels on MIX FX (HOME twice) and the Frequency on the FILTERS (FX); a random sound can be
 quiet. On GLOBAL MIDI, LOCAL must be ON for the keys to play.
 
 **A key plays the wrong sound, a different one on each key:** AFX mode is on (AFX at the bottom right). Hold REC and
@@ -601,7 +720,7 @@ the lit OCT button. Changing the octave lets every held note go.
 
 **The arp or the sequencer doesn't move:** on GLOBAL MIDI, CLOCK is EXT and no MIDI clock is coming in. Set it to AUTO.
 
-**My change is gone:** picking another patch on the PATCH page drops what wasn't saved. Press SAVE before you move.
+**My change is gone:** picking another patch on the MASTER page drops what wasn't saved. Press SAVE before you move.
 
 **An editor doesn't receive or send dumps:** SysEx goes over USB only. Choose the FM-1 as the editor's MIDI input to
 receive and as its MIDI output to send.

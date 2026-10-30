@@ -6,8 +6,10 @@
  * places are as BS2-Web (github.com/francoisgeorgy/BS2-Web, src/bass-station-2/cc.js, nrpn.js) found them, checked
  * against dumps from a Bass Station II. The parameters are one bit stream from byte 13 on, 7 bits a byte (the MSB
  * first), each field its own width; firmware 2.5 and later add a 16-character name at byte 137 (154 bytes in all,
- * 122 before). What the FM-1's voice does not have (the external input, the LFOs' delay and slew, the envelopes'
- * retriggering, paraphony ...) is left out of an import and goes out of an export as the INIT PATCH has it. The
+ * 122 before). What the FM-1's voice does not have (paraphony, the oscillator error ...), and what's place in a
+ * dump is not known (the external input's level, the envelopes' retriggering count and fixed sustain, the VCA
+ * limiter), is left out of
+ * an import and goes out of an export as the INIT PATCH has it. The
  * velocities and the mod envelope's PW depths: BS2-Web's places (cc.js); oscillator 1's PW depth there is 6 bits from
  * 713, read here as 7 from 712 (its neighbours' 7 bits each 8 apart, the field ending where theirs says). The
  * filter's tracking: firmware 2.5's (0 full .. 7 none; before it always full, those dumps' bits 0) */
@@ -23,7 +25,9 @@ enum {                                   /* the fields the FM-1 has: (the first 
     BX_MA, BX_MD, BX_MS, BX_MR, BX_L1WAVE, BX_L1SPEED, BX_L2WAVE, BX_L2SPEED,
     BX_LATCH, BX_ARP, BX_ARPOCT, BX_ARPMODE, BX_L1OSC1, BX_L1OSC2, BX_L2FILT, BX_MEOSC1, BX_MEOSC2, BX_MEFILT,
     BX_GLIDE, BX_PW1, BX_PW2, BX_NOISE, BX_RHYTHM, BX_SWING, BX_PWM1, BX_PWM2,
-    BX_SUBWAVE, BX_LVLSUB, BX_AA, BX_AD, BX_AS, BX_AR, BX_DIST, BX_MEPW1, BX_MEPW2, BX_VAMP, BX_VMOD, BX_TRACK, NBX
+    BX_SUBWAVE, BX_LVLSUB, BX_AA, BX_AD, BX_AS, BX_AR, BX_DIST, BX_MEPW1, BX_MEPW2, BX_VAMP, BX_VMOD, BX_TRACK, BX_ATRIG, BX_MTRIG, BX_ALOOP, BX_MLOOP,
+    BX_L1DELAY, BX_L1SLEW, BX_L1KSYNC, BX_L1SSYNC, BX_L1SYNCV, BX_L2DELAY, BX_L2SLEW, BX_L2KSYNC, BX_L2SSYNC, BX_L2SYNCV,
+    BX_OFM, NBX
 };
 static const struct { uint16_t pos; uint8_t w; } BX[NBX] = {
     [BX_SYNC] = {126, 1},   [BX_W1] = {133, 2},     [BX_RANGE1] = {144, 7},  [BX_COARSE1] = {151, 8},
@@ -41,6 +45,14 @@ static const struct { uint16_t pos; uint8_t w; } BX[NBX] = {
     [BX_AD] = {360, 7},     [BX_AS] = {368, 7},     [BX_AR] = {376, 7},      [BX_DIST] = {752, 7},
     [BX_MEPW1] = {712, 7},  [BX_MEPW2] = {720, 7},  [BX_VAMP] = {344, 7},    [BX_VMOD] = {392, 7},
     [BX_TRACK] = {788, 3},
+    /* the envelopes' Triggering (0 Multi, 1 Single, 2 Autoglide) and retriggering (firmware 2.5's): BS2-Web's
+     * nrpn.js, its byte and mask as a bit here (byte x 7 + 6 - the mask's top bit) */
+    [BX_ATRIG] = {389, 2},  [BX_MTRIG] = {437, 2},  [BX_ALOOP] = {798, 1},  [BX_MLOOP] = {806, 1},
+    /* the LFOs' delay and slew, keysync, Speed/Sync and sync value: BS2-Web's (cc.js, nrpn.js), as the above */
+    [BX_L1DELAY] = {448, 7}, [BX_L1SLEW] = {456, 7}, [BX_L1KSYNC] = {485, 1}, [BX_L1SSYNC] = {486, 1},
+    [BX_L1SYNCV] = {473, 6}, [BX_L2DELAY] = {496, 7}, [BX_L2SLEW] = {504, 7}, [BX_L2KSYNC] = {533, 1},
+    [BX_L2SSYNC] = {534, 1}, [BX_L2SYNCV] = {521, 6},
+    [BX_OFM] = {744, 7},                 /* Osc Filter Mod (cc.js's fx_osc_filter_mod) */
 };
 
 /* the factory INIT PATCH (Bass Station II 70-127, as BS2-Web's notes have it): what an export starts from */
@@ -93,8 +105,7 @@ static uint32_t bsx_pw_raw(uint32_t pc) { return ((pc - 5u) * 127u + 45u) / 90u;
 static const uint8_t BSX_ARP_IN[8] = {ARP_UP, ARP_DOWN, ARP_UPDOWN, ARP_UPDOWN2, ARP_PLAYED, ARP_RANDOM, ARP_PLAY,
                                       ARP_REC};   /* (the sequencer's play and record: BS2-Web's 6 and 7) */
 static const uint8_t BSX_ARP_OUT[NARPM] = {0, 1, 2, 3, 4, 5, 6, 7};
-static const uint8_t BSX_LFO_IN[4] = {LFO_TRI, LFO_SAW, LFO_SQUARE, LFO_SH};
-static const uint8_t BSX_LFO_OUT[NLFOW] = {0, 0, 1, 2, 3};   /* (the sine as the triangle) */
+
 static const uint8_t BSX_WAVE_IN[4] = {WAVE_SINE, WAVE_TRI, WAVE_SAW, WAVE_PULSE};
 static const uint8_t BSX_WAVE_OUT[NWAVES] = {2, 3, 0, 1, 3};   /* (the square a pulse at 50 %) */
 
@@ -114,7 +125,6 @@ static int bsx_import(const uint8_t *p, uint32_t n, patch_t *o, char *name)
     static const uint8_t HDR[5] = {0x00, 0x20, 0x29, 0x00, 0x33};
     uint8_t d[BSX_LEN];
     uint32_t i, r, l1, l2, m, t;
-    int32_t a;
     if (n + 2u != BSX_MIN && n + 2u != BSX_LEN)
         return 0;
     for (i = 0; i < 5u; i++)
@@ -141,6 +151,14 @@ static int bsx_import(const uint8_t *p, uint32_t n, patch_t *o, char *name)
     o->menv_pw2 = (int8_t)bsx_c7(bsx_get(d, BX_MEPW2));
     o->vel_amp = (int8_t)bsx_c7(bsx_get(d, BX_VAMP));
     o->vel_menv = (int8_t)bsx_c7(bsx_get(d, BX_VMOD));
+    o->env_trig[0] = (uint8_t)bsx_get(d, BX_ATRIG);   /* the envelopes' Triggering and retriggering; the retriggering's
+                                                       * count and the fixed sustain (firmware 4's: their places not
+                                                       * known) as the INIT PATCH has them */
+    o->env_trig[1] = (uint8_t)bsx_get(d, BX_MTRIG);
+    o->env_loop[0] = (uint8_t)bsx_get(d, BX_ALOOP);
+    o->env_loop[1] = (uint8_t)bsx_get(d, BX_MLOOP);
+    o->env_count[0] = o->env_count[1] = 0;
+    o->env_fixed[0] = o->env_fixed[1] = 0;
     o->key_trk = (uint8_t)(7u - bsx_get(d, BX_TRACK));
     o->sub_oct = bsx_get(d, BX_SUBOCT) ? 1u : 2u;
     o->sub_wave = (uint8_t)bsx_get(d, BX_SUBWAVE);   /* (held to its range by the caller) */
@@ -159,20 +177,25 @@ static int bsx_import(const uint8_t *p, uint32_t n, patch_t *o, char *name)
     o->amp_s = (uint8_t)bsx_get(d, BX_AS);
     o->amp_r = (uint8_t)bsx_get(d, BX_AR);
     o->dist = (uint8_t)bsx_get(d, BX_DIST);
+    o->ofm = (uint8_t)bsx_get(d, BX_OFM);
+    o->lim = 0;                          /* (the VCA limiter: its place in a dump not known) */
     o->menv_cut = (int8_t)bsx_c7(bsx_get(d, BX_MEFILT));   /* the mod envelope's three depths */
     o->menv_o1 = (int8_t)bsx_c7(bsx_get(d, BX_MEOSC1));
     o->menv_o2 = (int8_t)bsx_c7(bsx_get(d, BX_MEOSC2));
-    o->lfo[0].wave = BSX_LFO_IN[bsx_get(d, BX_L1WAVE)];   /* LFO 1 moves the pitch, LFO 2 the cutoff */
-    o->lfo[0].rate = (uint8_t)(bsx_get(d, BX_L1SPEED) >> 1);
-    a = bsx_c8(bsx_get(d, BX_L1OSC1));
-    o->lfo[0].dest = a ? DEST_PITCH : DEST_OSC2;
-    if (!a)
-        a = bsx_c8(bsx_get(d, BX_L1OSC2));
-    o->lfo[0].amt = (int8_t)clamp(a / 2, -63, 63);
-    o->lfo[1].wave = BSX_LFO_IN[bsx_get(d, BX_L2WAVE)];
-    o->lfo[1].rate = (uint8_t)(bsx_get(d, BX_L2SPEED) >> 1);
-    o->lfo[1].dest = DEST_CUTOFF;
-    o->lfo[1].amt = (int8_t)clamp(bsx_c8(bsx_get(d, BX_L2FILT)) / 2, -63, 63);
+    for (i = 0; i < NLFO; i++) {             /* LFO 1 on the oscillators' pitches, LFO 2 the cutoff; each its wave, its
+                                              * speed's 8 bits, delay, slew, keysync and sync */
+        o->lfo[i].wave = (uint8_t)bsx_get(d, i ? BX_L2WAVE : BX_L1WAVE);
+        o->lfo[i].rate = (uint8_t)bsx_get(d, i ? BX_L2SPEED : BX_L1SPEED);
+        o->lfo_delay[i] = (uint8_t)bsx_get(d, i ? BX_L2DELAY : BX_L1DELAY);
+        o->lfo_slew[i] = (uint8_t)bsx_get(d, i ? BX_L2SLEW : BX_L1SLEW);
+        o->lfo_keysync[i] = (uint8_t)bsx_get(d, i ? BX_L2KSYNC : BX_L1KSYNC);
+        o->lfo_sync[i] = (uint8_t)bsx_get(d, i ? BX_L2SSYNC : BX_L1SSYNC);
+        o->lfo_syncv[i] = (uint8_t)bsx_get(d, i ? BX_L2SYNCV : BX_L1SYNCV);
+    }
+    o->lfo[0].depth[0] = (int8_t)clamp(bsx_c8(bsx_get(d, BX_L1OSC1)) / 2, -63, 63);
+    o->lfo[0].depth[1] = (int8_t)clamp(bsx_c8(bsx_get(d, BX_L1OSC2)) / 2, -63, 63);
+    o->lfo[1].depth[0] = (int8_t)clamp(bsx_c8(bsx_get(d, BX_L2FILT)) / 2, -63, 63);
+    o->lfo[1].depth[1] = 0;
     /* the mixer: the ring's share of it and the louder oscillator's (the FM-1's ring a fade between them), that
      * oscillator at 127 and the rest in proportion; without either, the sub as it is */
     r = bsx_get(d, BX_RING);
@@ -229,6 +252,10 @@ static void bsx_export(const patch_t *p, const char *name, int32_t slot, uint8_t
     bsx_put(d, BX_MEPW2, bsx_u7(p->menv_pw2));
     bsx_put(d, BX_VAMP, bsx_u7(p->vel_amp));
     bsx_put(d, BX_VMOD, bsx_u7(p->vel_menv));
+    bsx_put(d, BX_ATRIG, p->env_trig[0]);
+    bsx_put(d, BX_MTRIG, p->env_trig[1]);
+    bsx_put(d, BX_ALOOP, p->env_loop[0]);
+    bsx_put(d, BX_MLOOP, p->env_loop[1]);
     bsx_put(d, BX_TRACK, 7u - p->key_trk);
     bsx_put(d, BX_COARSE2, bsx_coarse(p->coarse2));
     bsx_put(d, BX_FINE2, bsx_u8(p->fine2));
@@ -250,16 +277,24 @@ static void bsx_export(const patch_t *p, const char *name, int32_t slot, uint8_t
     bsx_put(d, BX_AS, p->amp_s);
     bsx_put(d, BX_AR, p->amp_r);
     bsx_put(d, BX_DIST, p->dist);
+    bsx_put(d, BX_OFM, p->ofm);
     bsx_put(d, BX_MEFILT, bsx_u7(p->menv_cut));
     bsx_put(d, BX_MEOSC1, bsx_u7(p->menv_o1));
     bsx_put(d, BX_MEOSC2, bsx_u7(p->menv_o2));
-    bsx_put(d, BX_L1WAVE, BSX_LFO_OUT[p->lfo[0].wave]);   /* (an LFO 1 on the cutoff, an LFO 2 on the pitch: none) */
-    bsx_put(d, BX_L1SPEED, bsx_wide(p->lfo[0].rate));
-    bsx_put(d, BX_L1OSC1, bsx_u8(p->lfo[0].dest == DEST_PITCH ? p->lfo[0].amt * 2 : 0));
-    bsx_put(d, BX_L1OSC2, bsx_u8(p->lfo[0].dest != DEST_CUTOFF ? p->lfo[0].amt * 2 : 0));
-    bsx_put(d, BX_L2WAVE, BSX_LFO_OUT[p->lfo[1].wave]);
-    bsx_put(d, BX_L2SPEED, bsx_wide(p->lfo[1].rate));
-    bsx_put(d, BX_L2FILT, bsx_u8(p->lfo[1].dest == DEST_CUTOFF ? p->lfo[1].amt * 2 : 0));
+    for (i = 0; i < NLFO; i++) {
+        bsx_put(d, i ? BX_L2DELAY : BX_L1DELAY, p->lfo_delay[i]);
+        bsx_put(d, i ? BX_L2SLEW : BX_L1SLEW, p->lfo_slew[i]);
+        bsx_put(d, i ? BX_L2KSYNC : BX_L1KSYNC, p->lfo_keysync[i]);
+        bsx_put(d, i ? BX_L2SSYNC : BX_L1SSYNC, p->lfo_sync[i]);
+        bsx_put(d, i ? BX_L2SYNCV : BX_L1SYNCV, p->lfo_syncv[i]);
+    }
+    bsx_put(d, BX_L1WAVE, p->lfo[0].wave);
+    bsx_put(d, BX_L1SPEED, p->lfo[0].rate);
+    bsx_put(d, BX_L1OSC1, bsx_u8(p->lfo[0].depth[0] * 2));
+    bsx_put(d, BX_L1OSC2, bsx_u8(p->lfo[0].depth[1] * 2));
+    bsx_put(d, BX_L2WAVE, p->lfo[1].wave);
+    bsx_put(d, BX_L2SPEED, p->lfo[1].rate);
+    bsx_put(d, BX_L2FILT, bsx_u8(p->lfo[1].depth[0] * 2));
     /* the oscillators' levels faded by the ring, the ring's, the sub's on the same scale (as an import reads them) */
     l1 = (p->lvl1 * (127u - p->ring) * 255u + 8064u) / 16129u;
     l2 = (p->lvl2 * (127u - p->ring) * 255u + 8064u) / 16129u;

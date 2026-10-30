@@ -5,6 +5,7 @@ bank_init
 wait 900
 shot screen-ready.png
 key 7 down 90 50
+tap EDIT
 turn K3 3
 wait 1400
 shot screen-playing.png
@@ -14,26 +15,34 @@ wait 30
 turn PRESET 1
 wait 30
 shot screen-settings.png
-# each section's panel: OSC's second page (the mix), its third (the tune), the mod envelope with a key held (its stage lit), the amp
-# envelope, LFO 1 running, FX (the mixer), the arp playing its rhythm, the sequencer playing, the patch
+# each section's panel: the OSCILLATORS' second view (the pulse width), the FILTERS and their modulation, the amp
+# envelope, the mod envelope (Env Select) with a key held, the triggering, LFO 1 running, FX (the mixer), the arp playing its
+# rhythm and its mods, the sequencer playing, the patch
 turn PRESET -1
 tap OCT-
-tap HOME
+turn K3 -3
+tap EDIT
 wait 30
-turn K3 -20
+turn K4 -20
 wait 400
-shot screen-osc-mix.png
-tap HOME
+shot screen-osc-pw.png
+tap FX
 wait 30
-turn SELECT -2
 turn K2 30
 wait 400
-shot screen-osc-tune.png
+shot screen-filter.png
+tap FX
+wait 30
+turn K1 20
+wait 400
+shot screen-filter-mod.png
 tap ENV
+wait 400
+shot screen-amp-env.png
+turn SELECT 1
 wait 30
 turn K1 30
 turn K3 80
-turn ALGO 40
 key 7 down 100 0
 wait 600
 shot screen-env.png
@@ -41,29 +50,51 @@ key 7 up
 wait 30
 tap ENV
 wait 400
-shot screen-amp-env.png
+shot screen-trig.png
+tap ENV
+wait 30
+turn K1 20
+wait 400
+shot screen-env-mod.png
 tap LFO
 wait 30
-turn K1 60
-turn K2 40
+turn SELECT 60
+turn K2 10
 wait 400
 shot screen-lfo.png
-tap FX
+tap LFO
+wait 30
+turn K3 30
+wait 400
+shot screen-lfo-mod.png
+tap HOME
+tap HOME
 wait 30
 turn K4 50
 wait 400
 shot screen-fx.png
+tap FX
+tap FX
+tap FX
+wait 30
+turn K1 30
+turn K2 20
+wait 400
+shot screen-effects.png
 tap ARP
 wait 30
-tap ARP
+turn SELECT 1
 wait 30
-turn K4 -20
+turn K2 -20
 key 7 down 100 0
 wait 900
 shot screen-arp.png
 key 7 up
-tap ARP
+turn SELECT -1
 wait 30
+tap ARP
+wait 400
+shot screen-arp-mod.png
 tap SEQ
 wait 30
 tap PLAY
@@ -71,7 +102,7 @@ wait 700
 shot screen-seq.png
 tap PLAY
 wait 30
-tap EDIT
+tap HOME
 wait 400
 shot screen-patch.png
 tap GLO

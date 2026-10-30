@@ -16,16 +16,19 @@ tap OCT+
 wait 30
 expect octave 1
 expect dirty 1
-turn PRESET 1
+tap EDIT
+turn ALGO 1
 wait 30
 expect wave 1
 turn K3 3
 wait 300
 expect turns5 3
-press FX
+turn K3 -3
+tap HOME
+press HOME
 wait 30
 shot controls.png
-release FX
+release HOME
 tap SAVE
 wait 30
 expect dirty 0
@@ -45,19 +48,24 @@ expect peak_db_min -30
 midi 80 3C 00
 wait 20
 expect env 4
-wait 400
+# (the release the Bass Station II's: at its middle about 360 ms, its tail to silence about 900. Waits added before the
+# sequencer below are 125 ms steps, its 16ths', so its clock's phase there is as it was)
+wait 900
 expect env 0
 listen
 wait 100
 said BASS SOMETHING 2. OCTAVE +1. WAVE SQUARE
+# (FX again from the mixer, held for the shot before the reboot: the effects)
+tap FX
+tap FX
 tap FX
 wait 30
-said MIX FX
+said EFFECTS
 tap ARP
 wait 30
 said ARP
 expect page 6
-tap HOME
+tap EDIT
 wait 30
 expect page 0
 # MASTER turned while a note plays: the gain glides, so no sample jumps further than the wave itself does
@@ -89,13 +97,13 @@ wait 50
 listen
 wait 1200
 expect ble 2
-tap HOME
+tap EDIT
 wait 30
 tap GLO
 wait 30
 tap GLO
 wait 30
-expect page 12
+expect page 17
 press REC
 wait 1100
 release REC
@@ -107,13 +115,13 @@ expect ble_off 0
 tap REC
 wait 30
 # REC on GLO SYS: look for Bluetooth MIDI devices, connect to the one found, let it go (lib/btdev)
-tap HOME
+tap EDIT
 wait 30
 tap GLO
 wait 30
 tap GLO
 wait 30
-expect page 12
+expect page 17
 tap REC
 said BLE SCANNING
 wait 700
@@ -179,33 +187,50 @@ tap REC
 wait 100
 expect ble_dev 0
 expect room_ble_dev 0
-tap HOME
+tap EDIT
 wait 30
 expect page 0
-# the patch: oscillator 2, the sub and the filter (Classic's modes, then Acid), each loud enough and none running away
-expect filter 0
-expect cutoff 100
-turn ALGO 3
+# the patch: oscillator 2 (OSCILLATORS, SEL its Osc Select), the sub and the filter (HOME twice more: Classic's modes,
+# then Acid), each loud enough and none running away
+tap SEL
 wait 30
-expect filter 3
-turn ALGO 10
-wait 30
-expect filter 6
-turn ALGO -10
-wait 30
-expect filter 0
-turn SELECT 7
-turn K4 -20
+said OSC SELECT 2
+turn K1 7
+turn K2 -20
 wait 30
 expect coarse2 7
 expect fine2 -13
 tap SEL
 wait 30
-expect sub 2
-said SUB -2 OCT
-turn K1 -40
+tap EDIT
+tap FX
+wait 30
+expect page 10
+expect filter 0
+expect cutoff 100
+# (Shape to BP, Slope to 12 dB: BP12; Type to Acid, back to Classic: BP12 again; back to LP24. As long as the three
+# turns of the filter's one switch were: the sequencer's clock below runs on from here)
+turn PRESET 1
+turn ALGO -1
+wait 30
+expect filter 3
+turn SELECT 10
+wait 30
+expect filter 6
+turn SELECT -10
+wait 30
+expect filter 3
+spin PRESET -1
+spin ALGO 1
+wait 78
+expect filter 0
+# SEL here sets nothing (the OSCILLATORS' Osc Select; the sub's octave is the mixer's SELECT)
+tap SEL
+wait 30
+expect sub 1
+turn K4 -40
 turn K2 107
-turn K3 60
+turn K1 63
 wait 30
 expect cutoff 60
 expect reso 127
@@ -215,7 +240,7 @@ midi 90 30 7F
 wait 400
 expect peak_db_min -40
 expect peak_db_max -0.5
-turn ALGO 6
+turn SELECT 6
 wait 30
 expect filter 6
 peakreset
@@ -223,20 +248,18 @@ wait 400
 expect peak_db_min -40
 expect peak_db_max -0.5
 midi 80 30 00
-wait 400
+wait 900
 expect env 0
-# Phase 3: the pages. ENV, the mod envelope: full on the cutoff, sustain at the top, so the cutoff sits at 127 while
+# Phase 3: the pages. The mod envelope (its depth the FILTERS' K3; its stages ENV's faders, Env Select at Mod): full on the cutoff, sustain at the top, so the cutoff sits at 127 while
 # the note is held and comes back after the release
+turn K3 63
 tap ENV
-wait 30
-expect page 2
-turn ALGO 63
+turn SELECT 1
+expect page 8
 turn K3 127
 wait 30
-expect FILTER 63
+expect menv_cut 63
 expect SUSTAIN 127
-expect OSC1 0
-expect OSC2 0
 expect dirty 1
 midi 90 30 7F
 wait 100
@@ -246,16 +269,20 @@ midi 80 30 00
 wait 1500
 expect menv 0
 expect cut_now 60
-# LFO 1 on the pitch (its default), a square at full: an octave either way; LFO again, LFO 2
+# LFO 1 a square (its wave button, SELECT: tri, saw, square), at full on oscillator 1's pitch (the OSCILLATORS' LFO 1 depth): an octave either way; LFO again,
+# LFO 2
 tap LFO
 wait 30
 expect page 3
-turn ALGO 3
-turn K2 63
+turn K1 2
+wait 110
+expect lfo1_wave 2
+tap EDIT
 wait 30
-expect DEST 1
-expect WAVE 3
-expect AMOUNT 63
+expect page 0
+turn K4 63
+wait 30
+expect lfo1_o1 63
 peakreset
 midi 90 30 7F
 wait 200
@@ -266,8 +293,10 @@ midi 80 30 00
 wait 400
 tap LFO
 wait 30
+tap LFO
+wait 30
 expect page 4
-expect AMOUNT 0
+expect lfo2_cut 0
 # a page's empty places set nothing (LFO 2: PRESET)
 turn PRESET 5
 wait 30
@@ -280,13 +309,13 @@ reboot
 wait 600
 expect slot 0
 tap ENV
-wait 30
-expect FILTER 63
+spin SELECT -2
+spin SELECT 1
+wait 78
+expect menv_cut 63
 expect SUSTAIN 127
-tap LFO
-wait 30
-expect AMOUNT 63
-tap EDIT
+expect lfo1_o1 63
+tap HOME
 wait 30
 expect page 5
 turn PRESET 1
@@ -295,11 +324,13 @@ expect slot 1
 expect cutoff 100
 tap ENV
 wait 30
-expect FILTER 0
-tap HOME
+expect menv_cut 0
+tap EDIT
+tap EDIT
+tap FX
 wait 30
-expect page 0
-turn K1 -50
+expect page 10
+turn K4 -50
 wait 30
 expect cutoff 50
 tap SAVE
@@ -308,7 +339,6 @@ reboot
 wait 600
 expect slot 1
 expect cutoff 50
-tap EDIT
 turn PRESET -1
 wait 30
 expect slot 0
@@ -320,27 +350,35 @@ tap SAVE
 wait 30
 expect dirty 1
 flash_fail 0
-# Phase 4: HOME again, the oscillators' mix: sync, oscillator 2's wave, the ring
-tap HOME
+# Phase 4: the OSCILLATORS: sync (PRESET), oscillator 2's wave (SEL, then ALGO); the mixer's ring (FX: K3 to Ring,
+# K4 its level)
+tap EDIT
 wait 30
 expect page 0
-tap HOME
+turn PRESET 1
+tap SEL
 wait 30
-expect page 1
-turn SELECT 1
 turn ALGO 1
-spin K1 127
 wait 30
 expect sync 1
-expect WAVE2 1
+expect wave2 1
+tap HOME
+tap HOME
+wait 30
+turn K3 1
+spin K4 127
+wait 30
 expect ring 127
 expect dirty 1
-# synced, ring modulated, oscillator 2 swept by the mod envelope: it plays, in range
-tap ENV
+# synced, ring modulated, oscillator 2 swept by the mod envelope (its depth: the OSCILLATORS' Mod Env, oscillator 2
+# selected): it plays, in range
+tap EDIT
 wait 30
-turn PRESET 63
+turn K3 63
 wait 30
-expect OSC2 63
+expect menv_o2 63
+tap SEL
+wait 30
 midi 90 30 64
 peakreset
 wait 400
@@ -349,11 +387,12 @@ expect peak_db_max -0.5
 midi 80 30 00
 wait 400
 # the filter at full resonance, both kinds, with and without drive: it sings, in range
-tap HOME
+tap EDIT
+tap FX
 wait 30
-expect page 0
+expect page 10
 spin K2 127
-spin K1 -60
+spin K4 -60
 wait 30
 expect reso 127
 midi 90 24 64
@@ -361,25 +400,25 @@ peakreset
 wait 400
 expect peak_db_min -40
 expect peak_db_max -0.5
-spin K3 127
+spin K1 127
 peakreset
 wait 400
 expect peak_db_min -40
 expect peak_db_max -0.5
-spin ALGO 6
+spin SELECT 6
 wait 30
 expect filter 6
 peakreset
 wait 400
 expect peak_db_min -40
 expect peak_db_max -0.5
-spin K3 -127
+spin K1 -127
 peakreset
 wait 400
 expect peak_db_min -40
 expect peak_db_max -0.5
 midi 80 24 00
-wait 400
+wait 300
 # kept: saved, then the power cycled
 tap SAVE
 wait 30
@@ -390,25 +429,24 @@ expect sync 1
 expect ring 127
 expect reso 127
 expect filter 6
-# Phase 5: the arpeggiator. ARP, the page; again, on. Up over one octave, rhythm 1 (two bars of quarter notes: 500 ms
+# Phase 5: the arpeggiator. ARP, the page; SELECT (its On button) up, on. Up over one octave, rhythm 1 (two bars of quarter notes: 500 ms
 # at 120 BPM, each held to its last 16th's gate, 50 %: 437 ms)
 tap ARP
 wait 30
 expect page 6
-tap ARP
+turn SELECT 1
 wait 30
 expect arp 1
 said ARP ON
-spin K3 -100
-spin K3 80
-spin K2 -100
-spin K2 47
-spin K4 -40
+spin K1 -100
+spin K1 80
+wait 2
+spin K2 -40
 wait 30
-expect RETRIG 1
+expect retrig 1
 expect RHYTHM 1
 expect TEMPO 120
-expect SWING 50
+expect swing 50
 expect MODE 0
 expect OCTAVES 1
 midi 90 3C 64
@@ -430,8 +468,8 @@ midi 80 40 00
 wait 300
 expect held 0
 expect note -1
-turn SELECT 1
-turn K1 1
+turn K3 1
+turn K4 1
 wait 30
 expect MODE 1
 expect OCTAVES 2
@@ -444,7 +482,7 @@ expect note 72
 wait 500
 expect note 64
 # up/down: 60 64 72 76 72 64 60
-turn SELECT 1
+turn K3 1
 wait 600
 expect MODE 2
 midi 80 3C 00
@@ -464,7 +502,7 @@ midi 80 3C 00
 midi 80 40 00
 wait 300
 # up/down 2: the ends twice, 60 64 72 76 76 72 64 60 60
-turn SELECT 1
+turn K3 1
 wait 600
 expect MODE 3
 midi 90 3C 64
@@ -483,11 +521,11 @@ midi 80 3C 00
 midi 80 40 00
 wait 300
 # latch: the notes kept after the keys let go; a new chord replaces them; latch off, they go
-turn SELECT -3
-turn K1 -1
-turn PRESET 1
+turn K3 -3
+turn K4 -1
+turn ALGO 1
 wait 30
-expect LATCH 1
+expect latch 1
 midi 90 3C 64
 midi 90 43 64
 wait 50
@@ -502,7 +540,7 @@ midi 80 45 00
 wait 100
 expect held 1
 expect note 69
-turn PRESET -1
+turn ALGO -1
 wait 600
 expect held 0
 expect note -1
@@ -517,10 +555,12 @@ expect note 60
 midi 80 3C 00
 midi 80 40 00
 midi 80 43 00
-wait 600
-turn ALGO -1
+wait 440
+tap ARP
+turn K1 -1
+tap ARP
 wait 30
-expect RETRIG 0
+expect retrig 0
 midi 90 3C 64
 midi 90 40 64
 midi 90 43 64
@@ -529,10 +569,12 @@ expect note 67
 midi 80 3C 00
 midi 80 40 00
 midi 80 43 00
-wait 600
-turn ALGO 1
+wait 440
+tap ARP
+turn K1 1
+tap ARP
 # MIDI clock: followed instead of the tempo (24 a quarter note: rhythm 32's 16ths a step of 6 clocks, its gate 3)
-spin K4 40
+spin K2 40
 wait 30
 expect RHYTHM 32
 clock 2 50
@@ -549,8 +591,8 @@ midi 80 3C 00
 midi 80 40 00
 wait 600
 # the arp's notes in range at full: a peak check over the busiest rhythm, random over four octaves
-turn SELECT 5
-turn K1 3
+turn K3 5
+turn K4 3
 wait 30
 expect MODE 5
 expect OCTAVES 4
@@ -563,7 +605,7 @@ expect peak_db_max -0.5
 midi 80 3C 00
 midi 80 43 00
 wait 300
-tap ARP
+turn SELECT -1
 wait 30
 expect arp 0
 said ARP OFF
@@ -627,7 +669,7 @@ wait 300
 expect note -1
 tap ARP
 wait 30
-spin K4 -40
+spin K2 -40
 wait 30
 expect RHYTHM 1
 tap PLAY
@@ -691,7 +733,7 @@ expect rec 0
 # two bars (on: C3 at 4 s, D3 at 4.5), on round (off: the rest, then C3)
 tap ARP
 wait 30
-tap ARP
+turn SELECT 1
 wait 30
 expect arp 1
 midi 90 30 64
@@ -700,18 +742,22 @@ expect note 48
 wait 500
 expect note 50
 midi 80 30 00
-wait 600
-turn ALGO -1
+wait 440
+tap ARP
+turn K1 -1
+tap ARP
 wait 30
-expect RETRIG 0
+expect retrig 0
 midi 90 30 64
 wait 4100
 expect note -1
 wait 500
 expect note 48
 midi 80 30 00
-wait 600
-turn ALGO 1
+wait 440
+tap ARP
+turn K1 1
+tap ARP
 tap SEQ
 wait 30
 # the four sequences: 2 empty; back to 1, the new one (kept apart from the patch's)
@@ -739,7 +785,7 @@ wait 30
 expect dirty 0
 reboot
 wait 600
-tap HOME
+tap EDIT
 tap SEQ
 wait 30
 expect rec 0
@@ -751,9 +797,9 @@ expect mem1 3
 # the arp off, LATCH: the Bass Station II's key hold, a key's note held after it lets go, until the next
 tap ARP
 wait 30
-turn PRESET 1
+turn ALGO 1
 wait 30
-expect LATCH 1
+expect latch 1
 midi 90 3C 64
 midi 80 3C 00
 wait 300
@@ -762,13 +808,13 @@ midi 90 3E 64
 midi 80 3E 00
 wait 300
 expect note 62
-turn PRESET -1
+turn ALGO -1
 midi 90 3E 64
 midi 80 3E 00
 wait 100
 expect note -1
 # REC on any other page: a random sound (unsaved), no Bluetooth scanning; the filter open enough and the attack short
-tap HOME
+tap EDIT
 wait 30
 tap SAVE
 wait 30
@@ -779,17 +825,19 @@ said SOUND RANDOMIZED
 unsaid BLE SCANNING
 expect dirty 1
 # the saved sound back (the random one left), its cutoff at 64
-tap EDIT
+tap HOME
 wait 30
 spin PRESET 1
 wait 30
 spin PRESET -1
 wait 30
-tap HOME
+tap EDIT
+tap EDIT
+tap FX
 wait 30
-expect page 0
-spin K1 -127
-spin K1 64
+expect page 10
+spin K4 -127
+spin K4 64
 wait 30
 expect CUTOFF 64
 # REC + OCT+: AFX on (the octave left, no random sound at REC's release), each key its own sound; again: off

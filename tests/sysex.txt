@@ -2,7 +2,8 @@
 #   bs2/build/host/bass-something-2_host bs2/tests/sysex.txt bs2/build/host
 wait 600
 listen
-tap HOME
+tap EDIT
+tap EDIT
 wait 30
 # Analog Beast 24 (firmware 2.5's dump, named): Acid, the ring at full, triangles, a little noise, the glide, the mod
 # envelope on the cutoff, LFO 1 S&H
@@ -49,29 +50,29 @@ midi 80 30 00
 wait 300
 tap ENV
 wait 30
-expect FILTER 18
-expect OSC1 0
-expect OSC2 0
-expect ATTACK 55
-expect DECAY 73
-expect SUSTAIN 74
-expect RELEASE 78
-tap ENV
-wait 30
 expect page 8
 expect ATTACK 18
 expect DECAY 0
 expect SUSTAIN 127
 expect RELEASE 21
+turn SELECT 1
+wait 30
+expect page 8
+expect menv_cut 18
+expect menv_o1 0
+expect menv_o2 0
+expect ATTACK 55
+expect DECAY 73
+expect SUSTAIN 74
+expect RELEASE 78
 tap LFO
 wait 30
-expect WAVE 4
-expect RATE 0
+expect lfo1_wave 3
+expect lfo1_rate 0
 tap LFO
 wait 30
-expect DEST 0
-expect WAVE 0
-expect RATE 34
+expect lfo2_wave 0
+expect lfo2_rate 69
 # 47 Sub Bass (the older dump, no name): a sine and a saw, Classic 24 dB low pass, nearly shut
 sysex_in bs2/tests/syx/47_Sub_Bass-JM.syx
 wait 30
@@ -94,7 +95,7 @@ expect dist 0
 expect amp_r 17
 tap ENV
 wait 30
-expect FILTER 22
+expect menv_cut 22
 expect ATTACK 0
 expect DECAY 33
 # the Bass Station II's own fields it had dropped: its filter tracking full (a dump before firmware 2.5), no
@@ -140,14 +141,23 @@ expect lvl1 127
 expect lvl2 84
 expect lvl_sub 76
 expect sub_wave 0
-tap FX
+tap HOME
+tap HOME
 wait 30
 expect page 9
-expect RANGE1 0
-expect RANGE2 2
 expect SUB 76
+expect dist 0
+tap EDIT
+wait 30
+expect page 0
+expect RANGE 0
+tap SEL
+wait 30
+expect RANGE 2
+tap SEL
 tap ENV
-tap ENV
+wait 30
+turn SELECT -1
 wait 30
 expect page 8
 expect ATTACK 27
@@ -157,46 +167,75 @@ expect RELEASE 17
 # out: FX on the PATCH page sends the sound; changed, and the dump read back, it is the sound again (with what Deep
 # ORGAN does not have set too: the glide, the noise, LFO 2 on the widths, the mod envelope's pitch depths, the rhythm
 # and swing, the sub's wave and level, the distortion, the amp envelope's attack)
-tap HOME
-tap HOME
+tap EDIT
+tap EDIT
 wait 30
 expect page 1
-turn PRESET 90
-turn K2 40
-tap LFO
-tap LFO
-wait 30
-expect page 4
-turn K3 30
+turn PRESET 1
+turn K4 30
+tap SEL
 turn K4 -12
-tap ENV
-wait 30
-turn SELECT -25
-turn PRESET 17
-tap ARP
-wait 30
-turn K4 -9
-turn K2 16
+turn PRESET -2
+turn K4 15
+tap SEL
+turn K4 -20
 tap FX
-turn SELECT 2
-turn K3 20
-turn K4 50
-tap ENV
-tap ENV
-turn K1 10
-# the fields the FM-1 had dropped, set to go out in the dump: the velocities (AMP ENV's top), OSC TUNE (HOME thrice)
-turn SELECT 40
-turn ALGO -25
-tap HOME
-tap HOME
-tap HOME
 wait 30
 expect page 10
-turn SELECT 3
-turn K1 25
-turn K2 -20
-turn K3 15
-turn ALGO -3
+tap FX
+wait 30
+expect page 11
+tap FX
+tap FX
+wait 30
+expect page 14
+turn K1 -3
+tap LFO
+wait 30
+turn SELECT 90
+tap EDIT
+wait 30
+expect page 0
+turn K3 -25
+turn K1 3
+turn K2 25
+tap SEL
+turn K3 17
+tap SEL
+tap ARP
+wait 30
+turn K2 -9
+tap ARP
+wait 30
+turn K2 16
+tap HOME
+tap HOME
+wait 30
+turn ALGO 2
+turn PRESET 20
+spin K3 -2
+turn K4 40
+# the distortion by its CC (no control on MIX FX until an EFFECTS page): CC CHAN to ANY
+tap GLO
+wait 30
+expect page 16
+spin SELECT 17
+wait 30
+midi B0 5E 32
+tap ENV
+wait 30
+turn K1 10
+# the fields the FM-1 had dropped, set to go out in the dump: the velocities (the ENV group's mods: ENV after the
+# envelopes, the triggering)
+tap ENV
+tap ENV
+wait 30
+expect page 12
+spin SELECT -2
+turn K1 40
+turn SELECT 1
+turn K1 -25
+turn SELECT -1
 wait 30
 expect vel_amp 40
 expect vel_menv -25
@@ -209,37 +248,41 @@ expect glide 90
 expect noise 40
 expect rhythm 23
 expect swing 66
-tap EDIT
+tap HOME
 wait 30
-tap FX
+tap SEL
 wait 30
 said SYSEX SENT Bass Smth 2 01
 sysex_out bs2/build/host/sysex_rt.syx
-tap HOME
+tap EDIT
 wait 30
 turn K1 -20
 turn K2 30
 turn ALGO 3
 turn SELECT -5
 turn PRESET -2
-tap HOME
+tap EDIT
+turn K4 -40
+tap FX
 turn PRESET -50
 turn K2 -40
 spin K3 50
 tap ENV
-turn SELECT 10
+turn PRESET -50
+tap ARP
 tap ARP
 turn K2 -10
-tap FX
-turn SELECT -2
-turn ALGO 2
-turn K4 -50
 tap HOME
 tap HOME
-tap HOME
-turn SELECT -6
+turn ALGO -2
+midi B0 5E 00
+tap EDIT
+tap SEL
+turn SELECT 2
+turn K1 -6
 turn K2 30
 turn ALGO 3
+tap SEL
 tap ENV
 tap ENV
 turn SELECT -30
@@ -276,23 +319,21 @@ expect cutoff 54
 expect reso 36
 expect drive 30
 expect filter 0
-tap LFO
-tap LFO
+expect pwm1 30
+expect pwm2 -12
+expect menv_o1 -25
+expect menv_o2 17
+tap EDIT
+tap EDIT
+tap FX
 wait 30
-expect PWM1 30
-expect PWM2 -12
-tap ENV
-wait 30
-expect OSC1 -25
-expect OSC2 17
-tap HOME
-wait 30
+expect page 10
 # a computer asks for the sound (F0 7D 42 53 32 01 F7)
 sysex_in bs2/tests/syx/ask.syx
 wait 30
 said SYSEX SENT
 # not a whole dump: not taken, the sound as it was
-turn K1 -10
+turn K4 -10
 wait 300
 sysex_in bs2/tests/syx/short.syx
 wait 30
@@ -310,7 +351,6 @@ wait 1100
 said BANK LOADED 2 IN, 1 LEFT
 reboot
 wait 600
-tap EDIT
 wait 30
 turn PRESET 2
 wait 30
@@ -332,19 +372,22 @@ tap GLO
 wait 30
 tap GLO
 wait 30
-expect page 13
+expect page 18
 tap FX
 wait 30
 said SYSEX SENT ALL 32
 sysex_bank_out bs2/build/host/bank_rt.syx
-tap EDIT
+tap HOME
 wait 30
 turn PRESET -29
 wait 30
 expect slot 2
-tap HOME
+tap EDIT
+tap EDIT
+tap FX
 wait 30
-turn K1 30
+expect page 10
+turn K4 30
 wait 30
 expect cutoff 77
 tap SAVE
@@ -360,3 +403,192 @@ expect dirty 0
 sysex_in bs2/tests/syx/ask_all.syx
 wait 30
 said SYSEX SENT ALL 32
+# the envelopes' Triggering and retriggering go out in a dump and come back (the amp envelope Single, retriggering;
+# the mod envelope Autoglide; both first at Multi, no retriggering: the dump this sound came from had its own)
+tap ENV
+wait 30
+tap ENV
+wait 30
+expect page 2
+spin SELECT 2
+wait 30
+spin ALGO -2
+wait 30
+spin SELECT -2
+wait 30
+spin ALGO 1
+wait 30
+spin SELECT 1
+wait 30
+spin ALGO 2
+wait 30
+tap ENV
+wait 30
+expect page 12
+spin SELECT 2
+wait 30
+spin K2 -1
+wait 30
+spin SELECT -2
+wait 30
+spin K2 1
+wait 30
+expect trigA 1
+expect trigM 2
+expect loopA 1
+expect loopM 0
+tap HOME
+wait 30
+tap SEL
+wait 30
+sysex_out bs2/build/host/sysex_env.syx
+tap ENV
+tap ENV
+wait 30
+expect page 2
+spin SELECT 2
+wait 30
+spin ALGO -2
+wait 30
+tap ENV
+wait 30
+spin K2 -1
+wait 30
+expect trigA 0
+expect trigM 0
+expect loopA 0
+sysex_in bs2/build/host/sysex_env.syx
+wait 30
+expect trigA 1
+expect trigM 2
+expect loopA 1
+expect loopM 0
+# the LFOs' speed (8 bits), delay, slew, keysync, Speed/Sync and sync value go out in a dump and come back
+tap LFO
+wait 30
+expect page 3
+spin K2 -255
+wait 30
+spin K2 200
+wait 30
+spin K3 -255
+wait 30
+spin K3 31
+wait 30
+turn ALGO -1
+spin K2 -127
+wait 30
+spin K2 40
+wait 30
+spin K3 -127
+wait 30
+turn ALGO 1
+tap LFO
+wait 30
+expect page 4
+spin SELECT -1
+wait 30
+spin K1 1
+wait 30
+spin K2 1
+wait 30
+spin K3 -127
+wait 30
+spin K3 50
+wait 30
+spin SELECT 1
+wait 30
+spin K1 -1
+wait 30
+spin K2 -1
+wait 30
+spin K3 -127
+wait 30
+spin K3 20
+wait 30
+tap LFO
+wait 30
+spin K2 -40
+wait 30
+spin K2 12
+wait 30
+expect lfo1_rate 200
+expect lfo2_rate 31
+expect lfo1_delay 40
+expect lfo2_delay 0
+expect lfo1_keysync 1
+expect lfo2_keysync 0
+expect lfo1_sync 1
+expect lfo2_sync 0
+expect lfo1_slew 50
+expect lfo2_slew 20
+expect lfo1_syncv 12
+tap HOME
+wait 30
+tap SEL
+wait 30
+sysex_out bs2/build/host/sysex_lfo.syx
+tap LFO
+wait 30
+spin K2 -40
+wait 30
+spin K3 9
+wait 30
+tap LFO
+wait 30
+spin SELECT -1
+wait 30
+spin K1 -1
+wait 30
+spin K3 -127
+wait 30
+expect lfo1_slew 0
+expect lfo1_keysync 0
+sysex_in bs2/build/host/sysex_lfo.syx
+wait 30
+expect lfo1_rate 200
+expect lfo2_rate 31
+expect lfo1_delay 40
+expect lfo1_keysync 1
+expect lfo2_keysync 0
+expect lfo1_sync 1
+expect lfo1_slew 50
+expect lfo2_slew 20
+expect lfo1_syncv 12
+# Osc Filter Mod goes out in a dump and comes back
+tap EDIT
+wait 30
+tap HOME
+tap HOME
+wait 30
+tap FX
+tap FX
+tap FX
+wait 30
+expect page 13
+spin K2 -127
+wait 30
+spin K2 77
+wait 30
+expect ofm 77
+tap HOME
+wait 30
+tap SEL
+wait 30
+sysex_out bs2/build/host/sysex_ofm.syx
+tap EDIT
+wait 30
+tap HOME
+tap HOME
+wait 30
+tap FX
+tap FX
+tap FX
+wait 30
+expect page 13
+spin K2 -127
+wait 30
+expect ofm 0
+sysex_in bs2/build/host/sysex_ofm.syx
+wait 30
+expect ofm 77

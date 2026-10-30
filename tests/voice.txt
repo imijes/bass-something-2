@@ -6,6 +6,7 @@
 # (from the INIT patch in every slot, as before the factory patches)
 bank_init
 wait 600
+tap EDIT
 expect page 0
 # every wave of oscillator 1 plays, in range (saw, square, sine, triangle, pulse)
 expect wave 0
@@ -16,7 +17,7 @@ expect peak_db_min -40
 expect peak_db_max -0.5
 midi 80 30 00
 wait 400
-turn PRESET 1
+turn ALGO 1
 wait 30
 expect wave 1
 peakreset
@@ -26,7 +27,7 @@ expect peak_db_min -40
 expect peak_db_max -0.5
 midi 80 30 00
 wait 400
-turn PRESET 1
+turn ALGO 1
 wait 30
 expect wave 2
 peakreset
@@ -36,7 +37,7 @@ expect peak_db_min -40
 expect peak_db_max -0.5
 midi 80 30 00
 wait 400
-turn PRESET 1
+turn ALGO 1
 wait 30
 expect wave 3
 peakreset
@@ -46,24 +47,29 @@ expect peak_db_min -40
 expect peak_db_max -0.5
 midi 80 30 00
 wait 400
-turn PRESET 1
+turn ALGO 1
 wait 30
 expect wave 4
-turn PRESET 1
+turn ALGO 1
 wait 30
 expect wave 4
-# the mix page: the glide, the noise, the widths (each held to 5..95 %), the pulse at both ends and swept by LFO 2
-tap HOME
+# the pulse widths (the OSCILLATORS' second view: its switch at Manual, K4 the width; each held to 5..95 %), the pulse
+# at both ends and swept by LFO 2 (the switch at LFO 2: K4 its depth); oscillator 2's wave the pulse too (SEL, ALGO)
+tap SEL
+wait 30
+turn ALGO 4
+tap SEL
+wait 30
+expect wave2 4
+tap EDIT
 wait 30
 expect page 1
-expect GLIDE 0
-expect NOISE 0
-expect PW1 50
-expect PW2 50
-turn ALGO 4
-spin K3 -100
+expect glide 0
+expect noise 0
+expect PW 50
+expect pw2 50
+spin K4 -100
 wait 30
-expect WAVE2 4
 expect pw1 5
 peakreset
 midi 90 30 7F
@@ -72,22 +78,26 @@ expect peak_db_min -40
 expect peak_db_max -0.5
 midi 80 30 00
 wait 400
-spin K3 100
+spin K4 100
 wait 30
 expect pw1 95
-turn K3 -45
+turn K4 -45
 wait 30
 expect pw1 50
-tap LFO
-tap LFO
-wait 30
-expect page 4
-spin K1 127
-turn K3 63
+turn PRESET 1
+turn K4 63
+tap SEL
 turn K4 -63
+tap SEL
+turn PRESET -1
 wait 30
-expect PWM1 63
-expect PWM2 -63
+expect pwm1 63
+expect pwm2 -63
+tap LFO
+wait 30
+wait 30
+expect page 3
+spin K3 255
 peakreset
 midi 90 30 7F
 wait 600
@@ -95,13 +105,11 @@ expect peak_db_min -40
 expect peak_db_max -0.5
 midi 80 30 00
 wait 400
-# the noise at full: it plays, in range
+# the noise at full (the mixer's switch at Noise, K4): it plays, in range
+tap HOME
 tap HOME
 wait 30
-expect page 0
-tap HOME
-wait 30
-spin K2 127
+spin K4 127
 wait 30
 expect noise 127
 peakreset
@@ -111,14 +119,18 @@ expect peak_db_min -40
 expect peak_db_max -0.5
 midi 80 30 00
 wait 400
-# the glide: off, a note's pitch at once; on, the next note's on its way, then there
+tap LFO
+wait 30
+expect page 3
+# the glide (PORTA's Glide Time, on the LFOS page): off, a note's pitch at once; on, the next note's on its way, then
+# there
 expect pitch_now 4800
 midi 90 48 64
 wait 30
 expect pitch_now 7200
 midi 80 48 00
 wait 300
-turn PRESET 100
+turn SELECT 100
 wait 30
 expect glide 100
 midi 90 30 64
@@ -129,24 +141,34 @@ wait 2000
 expect pitch_now >4795
 expect pitch_now <4805
 midi 80 30 00
-turn PRESET -100
+turn SELECT -100
 wait 400
-# the mod envelope: its depths at once and apart. Sustain at the top: oscillator 1 an octave up while held, the
-# cutoff by its own depth; oscillator 2's own (the pitch shown is oscillator 1's)
+# the mod envelope: its depths at once and apart (the pitches' on the OSCILLATORS, oscillator 2's with SEL; the
+# cutoff's on the FILTERS). Sustain at the top: oscillator 1 an octave up while held, the cutoff by its own depth;
+# oscillator 2's own (the pitch shown is oscillator 1's)
+expect menv_o1 0
+expect menv_cut 0
+expect menv_o2 0
 tap ENV
+turn SELECT 1
 wait 30
-expect page 2
-expect OSC1 0
-expect FILTER 0
-expect OSC2 0
-turn SELECT 63
-turn ALGO -30
-turn PRESET 20
+expect page 8
 turn K3 127
+tap EDIT
 wait 30
-expect OSC1 63
-expect FILTER -30
-expect OSC2 20
+turn K3 63
+tap SEL
+turn K3 20
+tap SEL
+tap EDIT
+tap FX
+wait 30
+expect page 10
+turn K3 -30
+wait 30
+expect menv_o1 63
+expect menv_cut -30
+expect menv_o2 20
 midi 90 30 64
 wait 200
 expect menv 3
@@ -159,19 +181,27 @@ expect peak_db_max -0.5
 midi 80 30 00
 wait 1500
 expect cents_abs 0
-turn SELECT -63
-turn ALGO 30
-turn PRESET -20
+turn K3 30
+tap FX
+tap FX
+tap FX
+tap EDIT
+wait 30
+expect page 0
+turn K3 -63
+tap SEL
+turn K3 -20
+tap SEL
 wait 30
 # the arp's rhythm: the 2nd, a quaver and a quaver's rest (500 ms the pair at 120 BPM; the quaver held to its last
 # 16th's gate, 50 %: 187 ms)
 tap ARP
 wait 30
-tap ARP
+turn SELECT 1
 wait 30
 expect arp 1
 expect RHYTHM 32
-turn K4 -30
+turn K2 -30
 wait 30
 expect RHYTHM 2
 expect rhythm 2
@@ -187,9 +217,11 @@ expect note 60
 midi 80 3C 00
 wait 600
 # the swing (the arp's, and so its sequencer's): 75 %, rhythm 32's 16ths a pair 187 ms then 62 ms
-turn K4 30
+turn K2 30
 wait 30
 expect RHYTHM 32
+tap ARP
+wait 30
 expect SWING 50
 turn K2 25
 wait 30
@@ -209,6 +241,8 @@ midi 80 3C 00
 wait 600
 tap ARP
 wait 30
+turn SELECT -1
+wait 30
 expect arp 0
 # an older bank (version 3: the mod envelope to one destination) read at power-on: its depths, the rest the defaults
 bank_v3
@@ -217,14 +251,14 @@ wait 600
 expect slot 0
 tap ENV
 wait 30
-expect OSC1 40
-expect OSC2 40
-expect FILTER 0
+expect menv_o1 40
+expect menv_o2 40
+expect menv_cut 0
 expect rhythm 32
 expect swing 50
 expect pw1 50
 expect glide 0
-tap EDIT
+tap HOME
 wait 30
 turn PRESET 1
 wait 30
@@ -232,15 +266,15 @@ expect slot 1
 expect cutoff 33
 tap ENV
 wait 30
-expect OSC1 0
-expect OSC2 -20
-expect FILTER 0
+expect menv_o1 0
+expect menv_o2 -20
+expect menv_cut 0
 # the amp envelope (ENV again): its defaults (version 4's fixed one), a slow attack still rising, a long release
-tap HOME
+tap EDIT
 wait 30
 tap ENV
 wait 30
-tap ENV
+spin SELECT -2
 wait 30
 expect page 8
 expect ATTACK 14
@@ -254,9 +288,10 @@ expect amp_a 127
 midi 90 30 64
 wait 1000
 expect env 1
-# the attack charges as a capacitor: a tenth of its 10 s in, about 18 % up (a straight line's 10 %)
-expect amp_lvl >160
-expect amp_lvl <195
+# the attack charges as a capacitor: a second of its 5.5 s (the Bass Station II's top) in, about 30 % up (a straight
+# line's 18 %)
+expect amp_lvl >285
+expect amp_lvl <320
 midi 80 30 00
 wait 30
 expect env 4
@@ -275,25 +310,24 @@ wait 400
 expect env 3
 midi 80 30 00
 wait 400
-# FX: the mixer (the levels, the sub's waves), the ranges, the distortion; each plays, in range
-tap FX
+# FX: the mixer (the levels, the sub's waves); the ranges (OSC TUNE); the distortion (CC 94); each plays, in range
+tap HOME
+tap HOME
 wait 30
 expect page 9
 expect OSC1 127
 expect OSC2 127
 expect SUB 89
 expect SUBWAVE 2
-expect RANGE1 1
-expect RANGE2 1
-expect DIST 0
+expect dist 0
 spin K1 -127
 spin K2 -127
-spin K3 38
+spin PRESET 38
 wait 30
 expect lvl1 0
 expect lvl2 0
 expect lvl_sub 127
-turn SELECT -2
+turn ALGO -2
 wait 30
 expect sub_wave 0
 peakreset
@@ -303,7 +337,7 @@ expect peak_db_min -40
 expect peak_db_max -0.5
 midi 80 30 00
 wait 400
-turn SELECT 1
+turn ALGO 1
 wait 30
 expect sub_wave 1
 peakreset
@@ -315,13 +349,21 @@ midi 80 30 00
 wait 400
 spin K1 127
 spin K2 127
-spin K3 -127
-turn ALGO 5
-turn PRESET -5
+spin PRESET -127
+tap EDIT
+wait 30
+expect page 0
+expect RANGE 1
+turn SELECT 5
+tap SEL
+wait 30
+expect RANGE 1
+turn SELECT -5
+tap SEL
 wait 30
 expect range1 3
 expect range2 0
-expect RANGE1 3
+expect RANGE 3
 peakreset
 midi 90 30 7F
 wait 300
@@ -329,9 +371,21 @@ expect peak_db_min -40
 expect peak_db_max -0.5
 midi 80 30 00
 wait 400
-turn ALGO -2
-turn PRESET 1
-spin K4 127
+turn SELECT -2
+tap SEL
+turn SELECT 1
+tap SEL
+tap HOME
+tap HOME
+wait 30
+expect page 9
+# the distortion by its CC (no control on MIX FX until an EFFECTS page): CC CHAN to ANY
+tap GLO
+wait 30
+expect page 16
+spin SELECT 17
+wait 30
+midi B0 5E 7F
 wait 30
 expect dist 127
 peakreset
@@ -341,7 +395,7 @@ expect peak_db_min -40
 expect peak_db_max -0.5
 midi 80 30 00
 wait 400
-spin K4 -60
+midi B0 5E 43
 wait 30
 expect dist 67
 peakreset
@@ -351,6 +405,9 @@ expect peak_db_min -40
 expect peak_db_max -0.5
 midi 80 30 00
 wait 400
+spin SELECT -17
+wait 30
+expect cc_chan 0
 # a version 4 bank read at power-on: its fields kept, what it lacks the defaults (version 4's sound)
 bank_v4
 reboot
@@ -368,13 +425,14 @@ expect amp_d 75
 expect amp_s 89
 expect amp_r 64
 expect dist 0
-tap HOME
+tap EDIT
 wait 30
 tap ENV
+turn SELECT 1
 wait 30
-expect page 2
-expect OSC2 -30
-expect OSC1 0
+expect page 8
+expect menv_o2 -30
+expect menv_o1 0
 # a version 5 bank read at power-on: its arp modes after UP/DN one on (UP/DN2 before them now), retrig on
 bank_v5
 reboot
@@ -383,8 +441,10 @@ expect slot 0
 tap ARP
 wait 30
 expect MODE 4
+tap ARP
+wait 30
 expect RETRIG 1
-tap EDIT
+tap HOME
 wait 30
 turn PRESET 1
 wait 30
@@ -392,16 +452,18 @@ expect slot 1
 tap ARP
 wait 30
 expect MODE 5
-tap EDIT
+tap HOME
 wait 30
 turn PRESET -1
 wait 30
 expect slot 0
 # the cutoff's map: 40 Hz at the bottom of the dial, 17.8 kHz at the top, the filter singing at both
-tap HOME
+tap EDIT
+tap EDIT
+tap FX
 wait 30
-expect page 0
-spin K1 -127
+expect page 10
+spin K4 -127
 spin K2 127
 wait 30
 expect cutoff 0
@@ -415,7 +477,7 @@ wait 300
 expect peak_db_min -50
 midi 80 30 00
 wait 400
-spin K1 127
+spin K4 127
 wait 30
 midi 90 30 64
 wait 300
@@ -426,23 +488,33 @@ midi 80 30 00
 wait 400
 spin K2 -127
 wait 30
-# the output's coupling: two sines' ring modulation (half of it DC) through the open filter, none of its DC out
-spin PRESET -4
-turn PRESET 2
+# the output's coupling: two sines' ring modulation (half of it DC) through the open filter, none of its DC out. (What
+# is left wanders, 60 to 150: the oscillators' drift beats slowly, under the coupling's 5 Hz)
+tap FX
+tap FX
+tap FX
+tap EDIT
 wait 30
-expect wave 2
-tap HOME
-wait 30
-expect page 1
+expect page 0
 spin ALGO -4
 turn ALGO 2
-spin K1 127
+tap SEL
+spin ALGO -4
+turn ALGO 2
+tap SEL
 wait 30
+expect wave 2
 expect wave2 2
+tap HOME
+tap HOME
+wait 30
+turn K3 1
+spin K4 127
+wait 30
 expect ring 127
 midi 90 30 7F
 wait 400
-expect dc_now <100
+expect dc_now <250
 peakreset
 wait 100
 expect peak_db_min -40
@@ -472,16 +544,16 @@ tap ARP
 wait 30
 expect MODE 3
 # the mod envelope on oscillator 1's width: a pulse at 50 %, the envelope near its peak about 85 %, back as it decays
-tap HOME
+tap EDIT
 wait 30
 expect page 0
-spin PRESET 4
+spin ALGO 4
 expect wave 4
-tap HOME
-tap HOME
+tap EDIT
 wait 30
-expect page 10
-spin K2 63
+expect page 1
+turn PRESET -1
+spin K4 63
 expect menv_pw1 63
 midi 90 30 7F
 wait 20
@@ -507,3 +579,385 @@ expect leg5 0
 expect seq6 55
 expect seq16 128
 expect seq31 128
+# a version 8 bank read at power-on: each patch as it was (its 32 steps already), the Ext's level 0
+bank_v8
+reboot
+wait 600
+expect slot 0
+expect dist 33
+expect leg2 1
+expect seq_len 8
+expect seq4 51
+expect lvl_ext 0
+# Ext (MIX FX, K3 to Ext, K4 its level): the computer's USB audio through the mixer, the filter and the amp: silent
+# with no note (the amp closed), heard while one plays, alone (the oscillators, the sub, the noise down; the tone at
+# half of full level, 6 dB under an oscillator at full); at 0, none
+bank_init
+reboot
+wait 600
+tap HOME
+wait 30
+spin K1 -127
+spin K2 -127
+spin PRESET -127
+turn K3 2
+wait 30
+expect lvl_ext 0
+usbtone 220
+wait 100
+midi 90 30 7F
+wait 300
+peakreset
+wait 200
+expect peak_db_max -80
+midi 80 30 00
+wait 400
+spin K4 127
+wait 30
+expect lvl_ext 127
+wait 100
+peakreset
+wait 300
+expect peak_db_max -80
+midi 90 30 7F
+wait 300
+peakreset
+wait 200
+expect peak_db_min -48
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+usbtone 0
+# ENVELOPES: Env Select (SELECT) at Amp+Mod: a fader sets both envelopes, to the amp envelope's; up one, Mod. ENV
+# leaves it as it is: the triggering, the mods, the envelopes again
+tap ENV
+wait 30
+expect page 8
+spin SELECT 2
+wait 30
+spin K1 -127
+spin K1 20
+wait 30
+expect amp_a 20
+expect menv_a 20
+turn SELECT -1
+wait 30
+spin K1 10
+wait 30
+expect menv_a 30
+expect amp_a 20
+tap ENV
+wait 30
+expect page 2
+tap ENV
+wait 30
+expect page 12
+tap ENV
+wait 30
+expect page 8
+expect ATTACK 30
+# the sub's octave: the mixer's SELECT (SEL is Osc Select on the OSCILLATORS, nothing elsewhere)
+tap HOME
+tap HOME
+wait 30
+expect sub 1
+tap SEL
+wait 30
+expect sub 1
+turn SELECT 1
+wait 30
+expect sub 2
+turn SELECT -1
+wait 30
+expect sub 1
+# ENVELOPES' Triggering (ENV again, ALGO; Env Select at Amp+Mod: both envelopes'). Single: a note played legato (a
+# key still held) does not start them again, one on its own does; Multi: every note does. (The attack at the faders'
+# middle, 250 ms: a start caught while it rises)
+tap ENV
+wait 30
+expect page 8
+spin SELECT 2
+spin K1 -127
+spin K1 64
+wait 30
+expect amp_a 64
+expect menv_a 64
+tap ENV
+wait 30
+expect page 2
+expect trigA 0
+expect trigM 0
+spin ALGO 1
+wait 30
+expect trigA 1
+expect trigM 1
+midi 90 30 64
+wait 2000
+expect env 3
+midi 90 34 64
+wait 30
+expect note 52
+expect env 3
+midi 80 30 00
+midi 80 34 00
+wait 1500
+expect env 0
+midi 90 30 64
+wait 30
+expect env 1
+midi 80 30 00
+wait 1500
+spin ALGO -2
+wait 30
+expect trigA 0
+midi 90 30 64
+wait 2000
+midi 90 34 64
+wait 30
+expect env 1
+midi 80 30 00
+midi 80 34 00
+wait 1500
+# Autoglide: the glide (PORTA's, on the LFOS page) on legato notes alone: a note on its own there at once
+spin ALGO 2
+wait 30
+expect trigA 2
+tap LFO
+wait 30
+spin SELECT 100
+wait 30
+expect glide 100
+midi 90 30 64
+wait 300
+midi 80 30 00
+wait 50
+midi 90 48 64
+wait 30
+expect pitch_now 7200
+midi 90 30 64
+wait 30
+expect pitch_now <7100
+expect pitch_now >4900
+midi 80 30 00
+midi 80 48 00
+wait 1500
+spin SELECT -127
+tap ENV
+tap ENV
+wait 30
+expect page 2
+spin ALGO -2
+wait 30
+expect trigA 0
+# the mods (ENV after the triggering): the amp envelope's retriggering, twice, then its sustain; endless, it goes on
+tap ENV
+wait 30
+expect page 12
+spin SELECT -2
+spin K2 1
+spin K3 2
+wait 30
+expect loopA 1
+expect countA 2
+expect loopM 0
+tap ENV
+wait 30
+expect page 8
+spin K1 -127
+spin K2 -127
+spin K2 30
+spin K3 -127
+wait 30
+midi 90 30 64
+wait 300
+expect env 3
+expect eloopA 2
+midi 80 30 00
+wait 900
+tap ENV
+tap ENV
+wait 30
+expect page 12
+spin K3 -16
+wait 30
+expect countA 0
+midi 90 30 64
+wait 300
+expect eloopA >5
+midi 80 30 00
+wait 900
+spin K2 -1
+# fixed-duration sustain: the Decay fader its time (at the middle 150 ms), then the release with the key held
+spin K4 1
+wait 30
+expect fixedA 1
+tap ENV
+wait 30
+expect page 8
+spin K2 34
+spin K3 127
+wait 30
+midi 90 30 64
+wait 80
+expect env 3
+wait 200
+expect env 4
+midi 80 30 00
+wait 900
+# LFOS (LFO): LFO 1 a square, at full on oscillator 1's pitch (the OSCILLATORS' LFO 1 depth); its knob (K2) at Speed
+# its speed (the INIT PATCH's 75, 7.9 Hz). Delay (the switch, ALGO, up): the knob its fade-in from a note
+bank_init
+reboot
+wait 600
+tap EDIT
+wait 30
+expect page 0
+spin K4 63
+wait 30
+expect lfo1_o1 63
+tap LFO
+wait 30
+expect page 3
+spin K1 2
+wait 30
+expect lfo1_wave 2
+expect lfo1_rate 75
+turn ALGO -1
+spin K2 64
+wait 30
+expect lfo1_delay 64
+expect lfo1_rate 75
+midi 90 30 64
+wait 20
+expect cents_abs <400
+wait 600
+expect cents_abs 1200
+midi 80 30 00
+wait 900
+spin K2 -127
+turn ALGO 1
+wait 30
+expect lfo1_delay 0
+# keysync (the LFO group's mods, LFO again: K1): from the wave's start at each note, the square's top
+tap LFO
+wait 30
+expect page 4
+spin K1 1
+wait 30
+expect lfo1_keysync 1
+midi 90 30 64
+wait 8
+expect cents 1200
+midi 80 30 00
+wait 337
+midi 90 30 64
+wait 8
+expect cents 1200
+midi 80 30 00
+wait 300
+# sync (K2: Speed/Sync at Sync): the knob its sync value, 4n a quarter note: at 120 BPM a cycle each 500 ms, the
+# square up for 250 ms, then down
+spin K2 1
+wait 30
+expect lfo1_sync 1
+tap LFO
+wait 30
+expect page 3
+spin K2 -127
+spin K2 25
+wait 30
+expect lfo1_syncv 25
+midi 90 30 64
+wait 100
+expect cents 1200
+wait 250
+expect cents -1200
+midi 80 30 00
+wait 300
+# slew (K3): the square's edges rounded, at its most about 2 s: the 2 Hz square, settled, all but flat (unslewed it
+# is the octave up or down)
+tap LFO
+wait 30
+spin K3 127
+wait 30
+expect lfo1_slew 127
+midi 90 30 64
+wait 8000
+expect cents_abs <200
+midi 80 30 00
+wait 300
+# EFFECTS (FX again): Osc Filter Mod (K2), oscillator 2 on the cutoff at audio rate: with the filter shut (its
+# frequency 0) the note all but gone, and with it full opened in time with oscillator 2, louder (measured: -57, -46 dB)
+bank_init
+reboot
+wait 600
+tap ENV
+tap EDIT
+tap EDIT
+tap FX
+wait 30
+expect page 10
+spin K4 -127
+wait 30
+expect cutoff 0
+midi 90 30 7F
+wait 300
+peakreset
+wait 300
+expect peak_db_max -53
+midi 80 30 00
+wait 900
+tap HOME
+tap HOME
+tap FX
+tap FX
+tap FX
+wait 30
+expect page 13
+spin K2 127
+wait 30
+expect ofm 127
+midi 90 30 7F
+wait 300
+peakreset
+wait 300
+expect peak_db_min -50
+expect peak_db_max -0.5
+midi 80 30 00
+wait 900
+spin K2 -127
+# the VCA limiter (the FX group's mods, FX again: K1): at its most, held 24 dB under full; at the filter's 30, the note
+# from about -34 to -47 dB
+tap EDIT
+tap EDIT
+tap FX
+wait 30
+expect page 10
+spin K4 30
+wait 30
+midi 90 30 7F
+wait 300
+peakreset
+wait 300
+expect peak_db_min -38
+midi 80 30 00
+wait 900
+tap HOME
+tap HOME
+tap FX
+tap FX
+tap FX
+tap FX
+wait 30
+expect page 14
+spin K2 127
+wait 30
+expect lim 127
+midi 90 30 7F
+wait 300
+peakreset
+wait 300
+expect peak_db_max -43
+midi 80 30 00
+wait 900
+spin K2 -127

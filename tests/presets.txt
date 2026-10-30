@@ -17,7 +17,6 @@ expect peak_db_min -50
 expect peak_db_max -0.5
 midi 80 30 00
 wait 1500
-tap EDIT
 wait 30
 turn PRESET 31
 wait 30
