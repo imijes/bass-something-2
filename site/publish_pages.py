@@ -6,7 +6,7 @@ gh-pages branch, pushed to origin, as fm1-base's own site is published. The work
 
   python3 bs2/site/publish_pages.py VERSION [SITE_DIR]   (SITE_DIR: bs2/build/site)
 
-Then https://imijes.github.io/bass-something-2/ (emu/, install/, manual/)."""
+Then https://imijes.github.io/bass-something-2/ (emu/, install/, sysex/, manual/)."""
 import os
 import subprocess
 import sys

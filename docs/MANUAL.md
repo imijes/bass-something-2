@@ -52,18 +52,15 @@ on.
 
 ![Bass Something 2 while a key is held: the OSCILLATORS panel, its Mod Env depth turned, the key filled cyan on the keyboard](img/screen-playing.png "A key held, a knob turned")
 
-The screen is a small Bass Station II front panel. The pages being rebuilt as its sections (MASTER, OSCILLATORS, MIX FX,
-FILTERS, ENVELOPES, PORTA, LFOS and EFFECTS so far, and the mods) are drawn as the panel itself: its blue bar with the section's name, its knobs, switches and red LEDs, the print
-white. On these, the panel starts right under the tabs, and a knob shows its value, in cyan, in place of its name while
-it turns. The other pages are matte black with dark grey cards, and whatever is live in cyan.
+The screen is a small Bass Station II front panel. Every page is drawn as one of its sections (MASTER, OSCILLATORS,
+MIX FX, FILTERS, ENVELOPES, PORTA, LFOS, EFFECTS, ARPEGGIATOR, the sequencer, GLOBAL, and the mods): its cyan bar with
+the section's name, its knobs, switches and red LEDs, the print white. The panel starts right under the tabs, and a
+knob shows its value, in cyan, in place of its name while it turns.
 
 | Part | What it shows |
 | --- | --- |
-| Section tabs | HOME, ENV, LFO, FX, ARP, SEQ, EDIT and GLO, the buttons. The section you're in has its name in white, the others grey. ARP and SEQ are written in cyan while they play. |
-| Title line | The page's name and, while a note plays, its name, its velocity (V) and how hard the key is pressed (P). For a moment after a change, what changed: turning a knob shows its whole name, such as RESONANCE for RESO. |
-| Picture | The section's sound: the waves, the filter's curve, the envelope (the stage it's in lit), the LFO (where it is now), the arp's rhythm, the sequencer's steps or the mixer's levels. |
-| Switches | What SELECT, ALGO and PRESET set on this page, and their settings. |
-| Knobs | K1 to K4: what each sets, its value and a slider. A knob lights cyan for a moment as it turns. |
+| Section tabs | HOME, ENV, LFO, FX, ARP, SEQ, EDIT and GLO, the buttons. The section you're in is lit in the panel's cyan, its name white; the others are grey. ARP and SEQ are written in cyan while they play. |
+| Panel | The section: its knobs, switches, LEDs and print, where the Bass Station II has them. A knob's line turns cyan, and its value shows in place of its name, for a moment as it turns. |
 | Keys | The 27 keys, black above white. A held key fills cyan to its velocity, and white over that shows its pressure. A key whose note is held from MIDI in is all cyan. |
 | Bottom lines | OCT, the octave. P01 to P32, the patch, with * while it has changes that aren't saved. BLE, lit while a computer or phone is connected over Bluetooth, and DEV, lit while a Bluetooth MIDI device is. VOL, MASTER's volume. MIDI IN, where the last message came from (USB, BLE or TRS) and its bytes. ARP, SEQ or REC while one of them plays the voice, and AFX while AFX mode is on. |
 
@@ -292,7 +289,7 @@ switch sets: its speed or its delay. Under each knob is what it sets now.
 | K3 · LFO 2 | The same for LFO 2. |
 | K4 · WAVE 2 | LFO 2's wave, the same. |
 
-Synced, an LFO follows the tempo, or MIDI clock when it's followed (GLOBAL MIDI's CLOCK). A note played on its own
+Synced, an LFO follows the tempo, or MIDI clock when it's followed (GLOBAL MIDI's ARP CLOCK). A note played on its own
 starts the delay's fade-in and, with keysync, the wave from its start; a note played legato doesn't. New patches start
 as the Bass Station II's INIT PATCH: LFO 1 at 75 (7.9 Hz), LFO 2 at 52 (3 Hz) with keysync.
 
@@ -341,7 +338,7 @@ The Bass Station II's Effects section.
 
 As on the Bass Station II, the sequencer is part of the arpeggiator. The arp's MODE has the Bass Station II's eight
 positions: six arp modes, then PLAY and REC for the sequencer. Both play in the arp's RHYTHM, at its TEMPO and SWING,
-or to MIDI clock when it comes in (see GLO MIDI's CLOCK).
+or to MIDI clock when it comes in (see GLO MIDI's ARP CLOCK).
 
 ### ARP
 
@@ -447,7 +444,13 @@ Updating the firmware keeps the patches you have. To get the factory ones back, 
 
 The MASTER page (HOME) is the Bass Station II's Master section, and the page Bass Something 2 starts on: the Volume
 (the FM-1's MASTER knob, as it's set), the display with the patch in red, its dot lit while there are changes not
-saved, the Save button and the Patch buttons.
+saved, the Org. Value arrows, the Save button and the Patch buttons.
+
+The Org. Value arrows, right of the display, work as the Bass Station II's: after you change a control of the sound
+(a knob, or a control change from MIDI), the LED beside one arrow lights to show which way to turn that control to
+get back to the value saved in the patch. Neither lights when it's there, after SAVE, or after a patch change. They
+follow the control changed last, on whichever page. The display shows that control's value (0 to 127, or -63 to
+63) for a moment and a half after the change, then the patch number again.
 
 | Control | What it does |
 | --- | --- |
@@ -472,6 +475,10 @@ mode (off at each start) and whether the sequencer is playing.
 
 Bass Something 2 reads and writes Novation Bass Station II patch dumps, so a Bass Station II editor or librarian can store
 its sounds, and Bass Station II patches (`.syx` files) can play on the FM-1. SysEx goes over the USB cable only.
+
+The website's [SysEx page](https://imijes.github.io/bass-something-2/sysex/) does all of this from Chrome or Edge, with
+no other software: it gets the sound or all 32 patches and saves them as a `.syx` file, and sends `.syx` files to the
+FM-1 with the pause between messages set for you.
 
 **From the FM-1 to an editor:**
 
@@ -527,8 +534,9 @@ saving a patch or loading a Bass Station II dump doesn't touch it.
 ![GLO RND: seed 12345678 from the RND Synth, slot S01, and what the buttons do](img/screen-glo-rnd.png "GLO + OCT+: RND")
 
 Hold GLO and press OCT+ for GLOBAL RND. It's kept off GLO's own pages, as only RND Synth owners need it;
-press GLO to leave it. The card shows the seed in cyan, and under it FROM RND (the RND Synth's latest)
-or FROM SLOT (a kept one), and SAVED when it's the one kept in the slot shown.
+press GLO to leave it. Its display shows the seed on eight red digits (dashes until there is one), and under it
+FROM THE RND SYNTH (its latest), FROM ITS SLOT (a kept one), or SAVED IN ITS SLOT when it's the one kept in the slot
+shown. The knob under it is PRESET, the slot; the Save and Send buttons are SAVE and FX.
 
 | Control | What it does |
 | --- | --- |
@@ -575,20 +583,23 @@ The keys go out over USB and Bluetooth: their notes with velocity, and their pre
 GLO opens the global settings; press it again for the next page. They belong to the FM-1, not to a patch, and they
 save themselves: two seconds after you change one, once the FM-1 is quiet (see SEQ), it's kept through power-off,
 without SAVE (so a GLO change never
-writes over your patch), and SAVE doesn't light for them. GLOBAL SYSTEM's card also shows the tempo's source, Bluetooth's state, and
-the firmware with its version (FIRMWARE BASS SOMETHING 2 v0.1).
+writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar (MIDI, System,
+SysEx Dump, RND Seed) and a red display: GLOBAL MIDI's shows the MIDI channel (ALL, OFF or the number), GLOBAL
+SYSTEM's the tempo (dashes while MIDI clock leads), with Bluetooth's state and the firmware's version (FIRMWARE v0.1)
+beside it, GLOBAL DUMP's the patch. The on/off settings are slide switches.
 
-On every GLO page, the top right corner shows the audio's load, for example **CPU 34/41**. The first number is the
+On every GLO page, the right of the page's own bar shows the audio's load (for a moment after a change, what changed
+instead), for example **CPU 34/41**. The first number is the
 load now, as a percentage of the time the FM-1 has to make each block of sound. The second is the highest it reached
 in the last five seconds. If the sound ever misses its deadline (a dropout, heard as a click), a count follows in
-blue, for example **CPU 97/100 !2**, and stays until the FM-1 is switched off. A click without the count going up came
+cyan, for example **CPU 97/100 !2**, and stays until the FM-1 is switched off. A click without the count going up came
 from something else. Every write to memory (SAVE, a patch change, and the sequence and GLO settings keeping
 themselves) also adds one, because the write holds up the sound for a moment. When those happen in silence, nothing
 is heard.
 
-![GLO MIDI: CC CHAN, the channel in and out, the clock, then CHANNEL, LOCAL, AT OUT and CLOCK](img/screen-glo-midi.png "GLO: MIDI")
-![GLO SYS: the tempo's source, Bluetooth, then TUNE, CLK OUT, VELOCITY and BLE](img/screen-glo-sys.png "GLO, again: SYS")
-![GLO DUMP: the bank, what SEL and FX do here, and that the GLO settings save themselves](img/screen-glo-dump.png "GLO, again: DUMP")
+![GLO MIDI: the channel ALL on the display, the Channel knob, where notes go out, CC and the clock, then CC Chan, the Local and AT Out switches and Arp Clock](img/screen-glo-midi.png "GLO: MIDI")
+![GLO SYS: the tempo 120 on the display, Bluetooth and the firmware, then Tune, the Clock Out switch, Velocity and the Bluetooth switch](img/screen-glo-sys.png "GLO, again: SYS")
+![GLO DUMP: P01 on the display, then the Sound button (SEL) and the All 32 button (FX)](img/screen-glo-dump.png "GLO, again: DUMP")
 
 GLO + OCT+ (hold GLO, press OCT+) opens one more page, GLOBAL RND, for the RND Synth's seeds: see RND seeds.
 
@@ -598,13 +609,14 @@ GLO + OCT+ (hold GLO, press OCT+) opens one more page, GLOBAL RND, for the RND S
 | MIDI | K1 CHANNEL | OFF, 1 to 16, or ALL (the default). In: notes on that channel play (ALL: any channel; OFF: none). Out: the keys' notes on it (ALL: channel 1; OFF: none). |
 | MIDI | K2 LOCAL (LOCAL CONTROL) | ON: the keys play the voice. OFF: they only send MIDI, for a computer that plays it back. The sequencer, the arp from MIDI notes, and MIDI in still play. |
 | MIDI | K3 AT OUT (AFTER TOUCH OUT) | The keys' pressure out as poly aftertouch: ON or OFF. |
-| MIDI | K4 CLOCK (ARP/SEQ CLOCK) | What the arp and the sequencer follow. AUTO: MIDI clock while it comes in, else the tempo. INT: the tempo only. EXT: MIDI clock only (without it they wait). While following, a MIDI start begins again from the first step. |
+| MIDI | K4 ARP CLOCK (ARP/SEQ CLOCK) | What the arp and the sequencer follow. AUTO: MIDI clock while it comes in, else the tempo. INT: the tempo only. EXT: MIDI clock only (without it they wait). While following, a MIDI start begins again from the first step. |
 | SYS | K1 TUNE | The master tune, −50 to +50 cents. |
-| SYS | K2 CLK OUT (MIDI CLOCK OUT) | ON: MIDI clock goes out at the tempo, and PLAY sends start and stop. Not while following MIDI clock. |
+| SYS | K2 CLOCK OUT (MIDI CLOCK OUT) | ON: MIDI clock goes out at the tempo, and PLAY sends start and stop. Not while following MIDI clock. |
 | SYS | K3 VELOCITY | The keys' velocity curve: SOFT (louder for a light touch), NORMAL or HARD. |
-| SYS | K4 BLE (BLUETOOTH MIDI) | Bluetooth on or off, at once. |
+| SYS | K4 BLUETOOTH (BLUETOOTH MIDI) | Bluetooth on or off, at once. |
 | SYS | REC | Finds and connects a Bluetooth MIDI device (below). |
-| DUMP | FX | Sends all 32 patches as a Bass Station II bank (SysEx), which loads back into the same patches. See SysEx. |
+| DUMP | SEL (Sound) | Sends the sound as one Bass Station II patch dump (SysEx). See SysEx. |
+| DUMP | FX (All 32) | Sends all 32 patches as a Bass Station II bank (SysEx), which loads back into the same patches. See SysEx. |
 | RND (GLO + OCT+) | PRESET, SAVE, FX | Picks, keeps and sends the RND Synth's seeds. See RND seeds. |
 
 ### Control changes
@@ -675,7 +687,7 @@ be told apart. On a Mac, open Audio MIDI Setup, choose Window > Show MIDI Studio
 Connect next to the FM-1. On an iPad or iPhone, connect from a music app's Bluetooth MIDI settings. BLE at the bottom
 of the screen lights while connected.
 
-To switch Bluetooth off, press GLO until GLOBAL SYSTEM shows and turn K4 (BLE) to OFF: the FM-1 stops advertising and
+To switch Bluetooth off, press GLO until GLOBAL SYSTEM shows and turn K4 (BLUETOOTH) to OFF: the FM-1 stops advertising and
 drops any connection. Turn it back to ON to switch it on again. Press SAVE to keep the choice for the next start.
 
 To connect to a Bluetooth MIDI device, such as a keyboard or a controller, put the device in its pairing or
@@ -718,7 +730,7 @@ press OCT+.
 lit: press it and let go, and the note stops. If OCT- or OCT+ is lit instead, the note is out of the keys' reach: press
 the lit OCT button. Changing the octave lets every held note go.
 
-**The arp or the sequencer doesn't move:** on GLOBAL MIDI, CLOCK is EXT and no MIDI clock is coming in. Set it to AUTO.
+**The arp or the sequencer doesn't move:** on GLOBAL MIDI, ARP CLOCK is EXT and no MIDI clock is coming in. Set it to AUTO.
 
 **My change is gone:** picking another patch on the MASTER page drops what wasn't saved. Press SAVE before you move.
 

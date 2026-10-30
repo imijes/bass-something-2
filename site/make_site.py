@@ -3,20 +3,22 @@
 # Copyright (C) 2026 Charles Vestal
 # Copyright (C) 2026 John Brown
 """Bass Something 2's site: fm1-base's tools/make_site.py, then each page in the firmware's own colours (bs2/site/theme.css)
-with the section tabs on top (Home, Emulator, Install, Manual). The emulator brings its own (bs2/web/emu/index.html).
+with the section tabs on top (Home, Emulator, Install, SysEx, Manual). The emulator and the SysEx page bring their own
+(bs2/web/emu/index.html, bs2/web/sysex/index.html).
 
   python3 bs2/site/make_site.py bs2/build/bass-something-2-VERSION.fwsc VERSION [OUT_DIR]   (OUT_DIR: bs2/build/site)
 
 The package must be a release build: tools/build.py bs2 --release VERSION; and the emulator built: tools/build.py bs2
 --web."""
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1]
 SRC = APP.parent
-PAGES = (("", "Home"), ("emu/", "Emulator"), ("install/", "Install"), ("manual/", "Manual"))
+PAGES = (("", "Home"), ("emu/", "Emulator"), ("install/", "Install"), ("sysex/", "SysEx"), ("manual/", "Manual"))
 
 
 def tabs(here, up, cls=""):
@@ -56,6 +58,7 @@ def theme(page, here, css):
 def main(pkg, version, out=None):
     out = Path(out) if out else APP / "build" / "site"
     subprocess.run([sys.executable, str(SRC / "tools" / "make_site.py"), str(APP), pkg, version, str(out)], check=True)
+    shutil.copytree(APP / "web" / "sysex", out / "sysex", dirs_exist_ok=True)   # patches to and from the FM-1 (Web MIDI)
     css = (APP / "site" / "theme.css").read_text(encoding="utf-8")
     for here in ("", "install/", "manual/"):
         if (out / here / "index.html").exists():

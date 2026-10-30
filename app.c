@@ -1354,6 +1354,9 @@ static struct {
     int32_t turns[NE];                   /* detents since boot, per encoder */
     uint32_t turned_at[NE];              /* when each was last turned: it shows lit for a moment */
     int8_t pdir;                         /* the MASTER's Patch buttons: the way PRESET last went, -1 down, +1 up */
+    const void *org;                     /* (a param_t) the sound's control last changed (0: none since the patch came): the
+                                          * MASTER's Value arrows, the way back to its saved value */
+    uint32_t org_at;                     /* when it changed (0: its value no longer on the MASTER's display) */
     uint8_t page;                        /* PG_*: what the encoders set */
     uint8_t step;                        /* the sequencer's cursor: the step PRESET picks, recording writes */
     uint8_t rec_n;                       /* the steps recorded since REC (0: the next note starts a new sequence) */
@@ -1369,6 +1372,12 @@ static struct {
                                           * 1 the mod envelope, 2 both (Amp+Mod) */
     uint32_t lit;                        /* the keys whose notes are held (notes_lit): lit, on the keys and on screen */
 } ui;
+#define ORG_SHOW_MS 1500u                    /* a control's value on the MASTER's display, after its change */
+static void org_set(const void *q)           /* a control of the sound changed: the Org. Value arrows', the display's */
+{
+    ui.org = q;
+    ui.org_at = plat_ms() | 1u;
+}
 
 static void text_cat(char *d, const char *s)
 {
@@ -1776,6 +1785,7 @@ static void cc_apply(uint32_t cc, uint32_t v)   /* the main loop's: a CC on CC C
         else if (!q->names)
             x = q->lo + (x * span + 63) / 127;
         param_put(q, &patch, q->names ? q->lo + x : x);
+        org_set(q);
         set_dirty = 1;
         ui.redraw = 1;
     }
@@ -1947,6 +1957,8 @@ static int knob_turn(uint32_t k, int32_t e)
             seq_keep(1);                     /* (the sequence made here, kept before it goes) */
             set.slot = (uint8_t)s;
             patch = bank.p[s];
+            ui.org = 0;
+            ui.org_at = 0;
             if (on) {                        /* the arp or the sequencer playing: on still, as it was (the new
                                               * sound's own notes, sequence and tempo; not kept into its slot) */
                 patch.arp_on = on;
@@ -2018,6 +2030,7 @@ static int knob_turn(uint32_t k, int32_t e)
         int32_t v = param_get(q, &patch) + e;
         param_put(q, &patch, v);
         param_put(&env_mod_p()[k], &patch, v);
+        org_set(q);
         set_dirty = 1;
         return 1;
     }
@@ -2047,8 +2060,10 @@ static int knob_turn(uint32_t k, int32_t e)
     if (!q->name)
         return 0;
     param_put(q, page_rec(ui.page), param_get(q, page_rec(ui.page)) + e);
-    if (ui.page < PG_GMIDI)                  /* (the GLO pages' keep themselves: glo_keep) */
+    if (ui.page < PG_GMIDI) {                /* (the GLO pages' keep themselves: glo_keep) */
+        org_set(q);
         set_dirty = 1;
+    }
     if (ui.page == PG_SEQ && k == EN_ALGO)   /* (the length: into the one picked too) */
         seq_changed();
     if (ui.page == PG_GSYS && k == EN_K4)    /* Bluetooth: at once */
@@ -2639,17 +2654,16 @@ void app_input_only(void) { input(); }
  * and SEQ in cyan while they play), then the page's name (or a message for a moment) and the note. The section's
  * card: a picture of its sound (the waves, the filter's curve, the envelope, the LFO, the rhythm, the steps, the
  * mixer) beside its switches (SELECT, ALGO, PRESET), its knobs K1-K4 under them, each with its value and a slider;
- * what was just turned lit cyan. The keys and the status under it. Matte black, grey cards, Novation's cyan */
+ * what was just turned lit cyan. The keys and the status under it. Matte black, grey cards, Novation's cyan (the
+ * Bass Station II panel's own, #3aadec: its bars, the tab you're on, what is live) */
 #define P_BG RGB(18, 18, 18)                 /* the panel: matte black */
 #define P_CARD RGB(38, 38, 40)               /* a section's card */
 #define P_EDGE RGB(64, 64, 68)               /* its edge, a slider's notches */
-#define P_TRACK RGB(54, 54, 58)              /* a slider's track */
 #define P_LABEL RGB(150, 150, 156)           /* names */
 #define P_TEXT RGB(255, 255, 255)            /* values */
-#define P_CYAN RGB(0, 180, 216)              /* live: the page, a knob just turned, a curve, a level */
-#define P_AFX RGB(0, 168, 204)               /* AFX on: its mark */
-#define P_RND P_AFX                          /* GLO RND: the seed (#00a8cc) */
-#define P_CDIM RGB(0, 66, 80)                /* under a curve, the steps that play */
+#define P_CYAN RGB(58, 173, 236)             /* live: the page, a knob just turned, a curve, a level (#3aadec) */
+#define P_AFX P_CYAN                         /* AFX on: its mark */
+#define P_CDIM RGB(18, 54, 74)               /* under a curve; a button lit (#12364a) */
 #define P_KEYW RGB(206, 206, 210)
 #define P_KEYB RGB(10, 10, 10)
 /* the firmware's version as shown (the splash, GLO SYS): a release's "v0.1", a development build's "DEV" */
@@ -2667,14 +2681,10 @@ static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDI
                                          [PG_EMOD] = SEC_ENV, [PG_EFX] = SEC_FX, [PG_XMOD] = SEC_FX, [PG_AMOD] = SEC_ARP,
                                          [PG_GMIDI] = SEC_GLO, [PG_GSYS] = SEC_GLO, [PG_GDUMP] = SEC_GLO,
                                          [PG_GRND] = SEC_GLO};
-#define TAB_W 29                             /* a section's tab, and its step */
+/* the tabs span the panel's bar (x 2..235), a pixel between each; they end 3 rows over it, as its gaps are wide */
+#define TAB_X(i) (2 + (int32_t)(i) * 235 / NSEC)
 static uint8_t ycol[232];                    /* a picture's curve: each column's row */
 
-static void card(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t edge)
-{
-    cv_rect(x, y, w, h, edge);
-    cv_rect(x + 1, y + 1, w - 2, h - 2, P_CARD);
-}
 static int knob_lit(uint32_t k) { return ui.turned_at[k] && plat_ms() - ui.turned_at[k] < 300u; }
 
 #define P_KSHADOW RGB(6, 6, 6)               /* a knob's drop shadow, a slot's black */
@@ -2701,18 +2711,11 @@ static void pt_at(int32_t cx, int32_t cy, int32_t r, float a, int32_t *x, int32_
  * the sections' blue bar with their names, a gap where one meets the next and a blue line down its side, a blue line
  * along the bottom; the print white, the LEDs red */
 #define P_SILK RGB(240, 240, 240)
-#define P_BAR RGB(58, 173, 236)                /* #3aadec */
+#define P_BAR P_CYAN                           /* the sections' bars */
 #define P_LEDON RGB(169, 18, 25)               /* #a91219, #340d17 */
 #define P_LEDOFF_R RGB(52, 13, 23)
 #define TALL_H 160                             /* a panel page's height: the header's second row too (screen rows
                                                 * 20..179) */
-static int tall_page(void)                   /* drawn as a panel */
-{
-    return ui.page == PG_FX || ui.page == PG_OSC || ui.page == PG_MIX || ui.page == PG_TUNE || ui.page == PG_FMOD
-           || ui.page == PG_PATCH || ui.page == PG_EMOD || ui.page == PG_LFO1 || ui.page == PG_LFO2 || ui.page == PG_EFX
-           || ui.page == PG_XMOD || ui.page == PG_ARP || ui.page == PG_SEQ || ui.page == PG_AMOD
-           || ui.page == PG_AENV || ui.page == PG_MENV;
-}
 static int32_t chord(int32_t r, int32_t d)   /* a circle's half height d from its middle (-1: outside) */
 {
     int32_t e = r;
@@ -2923,7 +2926,7 @@ static void print_knob(int32_t cx, int32_t cy, int32_t r, const param_t *q, uint
     char t[12];
     uint32_t lit = mine && knob_lit(k);
     int32_t ly = cy + r + 4;
-    bs2_knob(cx, cy, r, param_get(q, &patch) - q->lo, q->hi - q->lo,
+    bs2_knob(cx, cy, r, param_get(q, page_rec(ui.page)) - q->lo, q->hi - q->lo,
              (lit ? KF_LIT : 0u) | (q->lo < 0 ? KF_BIP : 0u) | (mine ? 0u : KF_DIM));
     if (lit) {
         knob_text(k, t);
@@ -3124,7 +3127,7 @@ static void mod_draw(void)
                  KF_PLATE | (lit ? KF_LIT : 0u) | (q->lo < 0 ? KF_BIP : 0u));
         dymo(cx, 101, LBL[env][i], RGB(235, 235, 235));
         knob_text(EN_K1 + i, t);
-        print_c(cx, 117, t, lit ? RGB(0, 110, 140) : grey(36));
+        print_c(cx, 117, t, lit ? RGB(20, 96, 140) : grey(36));   /* (the cyan darker on the metal) */
     }
 }
 static void osc_wave_icon(int32_t x, int32_t y, uint32_t w, uint16_t c);
@@ -3194,14 +3197,20 @@ static void effects_draw(void)
     print_knob(72, 72, 24, CCP(PG_EFX, EN_K1), EN_K1, 1, "Distortion", 0);
     print_knob(168, 72, 24, CCP(PG_EFX, EN_K2), EN_K2, 1, "Osc Filter Mod", 0);
 }
-/* a seven-segment digit at x, y (16 x 28), the Bass Station II display's red: c a character (0..9, P, -, space);
- * its segments' ghosts (all 8s) dim under it, its lit ones glowing */
+/* a seven-segment digit at x, y (16 x 28), the Bass Station II display's red: c a character (0..9, A..F, a few
+ * letters more, -, space); its segments' ghosts (all 8s) dim under it, its lit ones glowing */
 static void seg7(int32_t x, int32_t y, char c)
 {
-    static const uint8_t SEG[12] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F, 0x73, 0x40};   /* gfedcba */
+    static const char CH[] = "0123456789ABCDEFP-LnOtS";
+    static const uint8_t SEG[sizeof CH - 1] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F, 0x77, 0x7C,
+                                               0x39, 0x5E, 0x79, 0x71, 0x73, 0x40, 0x38, 0x54, 0x3F, 0x78,
+                                               0x6D};   /* gfedcba */
     static const int8_t R[7][4] = {{3, 0, 10, 3}, {13, 2, 3, 11}, {13, 15, 3, 11}, {3, 25, 10, 3},
                                    {0, 15, 3, 11}, {0, 2, 3, 11}, {3, 12, 10, 3}};   /* a..g: x, y, w, h */
-    uint32_t m = c >= '0' && c <= '9' ? SEG[c - '0'] : c == 'P' ? SEG[10] : c == '-' ? SEG[11] : 0u, i;
+    uint32_t m = 0, i;
+    for (i = 0; CH[i]; i++)
+        if (CH[i] == c)
+            m = SEG[i];
     for (i = 0; i < 7u; i++) {
         const int8_t *r = R[i];
         if (m >> i & 1u) {
@@ -3211,9 +3220,22 @@ static void seg7(int32_t x, int32_t y, char c)
             cv_rect(x + r[0], y + r[1], r[2], r[3], RGB(34, 22, 26));
     }
 }
+static void panel_button(int32_t x, int32_t y, int32_t w, int32_t h, const char *name, int lit, int turning);
+/* the Bass Station II's Org. Value arrows: the way the control last changed must turn to its value saved in the
+ * patch, +1 right (up), -1 left (down); 0 when it is there, or none changed */
+static int org_dir(void)
+{
+    const param_t *q = ui.org;
+    int32_t v, o;
+    if (!q)
+        return 0;
+    v = param_get(q, &patch);
+    o = param_get(q, &bank.p[set.slot]);
+    return v < o ? 1 : v > o ? -1 : 0;
+}
 /* the MASTER (the Bass Station II's, the first page): the Volume (the FM-1's MASTER knob, shown), the name; the display
  * (the patch, P01..P32, its dot lit while it has changes not saved), the Save button and the Patch buttons (PRESET
- * picks; SAVE keeps) */
+ * picks; SAVE keeps), the Org. Value LEDs and their arrows (org_dir) */
 static void master_draw(void)
 {
     static const int32_t EDGE[1] = {2};
@@ -3231,33 +3253,42 @@ static void master_draw(void)
     cv_rect(100, 26, 72, 42, RGB(20, 16, 20));
     t[0] = 'P';
     slot_text(t + 1);
+    if (ui.org_at) {                         /* (a control just changed: its value, as the Bass Station II's, -63..127) */
+        const param_t *q = ui.org;
+        int32_t v = param_get(q, &patch), j = 3;
+        uint32_t a = (uint32_t)(v < 0 ? -v : v);
+        t[0] = t[1] = t[2] = ' ';
+        do
+            t[--j] = (char)('0' + a % 10u);
+        while ((a /= 10u) && j);
+        if (v < 0 && j)
+            t[j - 1] = '-';
+    }
     seg7(104, 33, t[0]);
     seg7(126, 33, t[1]);
     seg7(148, 33, t[2]);
     if (set_dirty)                           /* (changes not saved: its dot) */
         disc(168, 62, 2, RGB(252, 78, 112));
-    led(198, 36, 0);                         /* (the value arrows' lights, up and down: not this synth's) */
-    led(198, 56, 0);
-    for (i = 0; i < 5; i++) {
-        cv_rect(214 - i, 33 + i, 1 + 2 * i, 1, P_DIM);
-        cv_rect(214 - i, 59 - i, 1 + 2 * i, 1, P_DIM);
+    for (i = 0; i < 5; i++) {                /* the arrows, right over left, each its LED beside it */
+        cv_rect(194 + i, 32 + i, 1, 9 - 2 * i, P_DIM);
+        cv_rect(194 + i, 56 - i, 1, 1 + 2 * i, P_DIM);
     }
+    led(214, 36, org_dir() > 0);
+    led(214, 56, org_dir() < 0);
     cv_rect(140, 82, 88, 1, P_SILK);         /* Patch: its line over its buttons, the name in it */
     cv_rect(170, 78, 28, 9, grey(25));
     print_c(184, 76, "Patch", P_SILK);
-    cv_rect(96, 92, 34, 16, P_KSHADOW);      /* the buttons: Save, Patch down, Patch up */
-    cv_rect(98, 94, 30, 12, set_dirty ? RGB(90, 18, 34) : grey(34));
+    panel_button(96, 92, 36, 30, "Save", 0, 0);   /* the buttons: Save (unlit: the display's dot says), Patch down, up */
     cv_rect(140, 92, 40, 30, P_KSHADOW);
-    cv_rect(142, 94, 36, 26, knob_lit(EN_PRESET) && ui.pdir < 0 ? RGB(0, 70, 86) : grey(34));   /* (lit: the way it went) */
+    cv_rect(142, 94, 36, 26, knob_lit(EN_PRESET) && ui.pdir < 0 ? P_CDIM : grey(34));   /* (lit: the way it went) */
     cv_rect(188, 92, 40, 30, P_KSHADOW);
-    cv_rect(190, 94, 36, 26, knob_lit(EN_PRESET) && ui.pdir > 0 ? RGB(0, 70, 86) : grey(34));
+    cv_rect(190, 94, 36, 26, knob_lit(EN_PRESET) && ui.pdir > 0 ? P_CDIM : grey(34));
     cv_line(151, 107, 167, 101, P_SILK);     /* their arrows */
     cv_line(151, 107, 167, 113, P_SILK);
     cv_line(167, 101, 167, 113, P_SILK);
     cv_line(217, 107, 201, 101, P_SILK);
     cv_line(217, 107, 201, 113, P_SILK);
     cv_line(201, 101, 201, 113, P_SILK);
-    print_c(113, 112, "Save", P_SILK);
     cv_rect(140, 134, 88, 1, P_SILK);        /* Value: the line under them, the name in it */
     cv_rect(170, 130, 28, 9, grey(25));
     print_c(184, 128, "Value", P_SILK);
@@ -3266,8 +3297,153 @@ static void master_draw(void)
 static void panel_button(int32_t x, int32_t y, int32_t w, int32_t h, const char *name, int lit, int turning)
 {
     cv_rect(x, y, w, h, P_KSHADOW);
-    cv_rect(x + 2, y + 2, w - 4, h - 4, lit ? RGB(150, 26, 44) : turning ? RGB(0, 70, 86) : grey(34));
+    cv_rect(x + 2, y + 2, w - 4, h - 4, lit ? RGB(150, 26, 44) : turning ? P_CDIM : grey(34));
     print_c(x + w / 2, y + (h - 12) / 2, name, P_SILK);
+}
+/* a display of n digits at x, y (22n + 18 x 50): black, its window, the digits of t */
+static void seg_display(int32_t x, int32_t y, const char *t, uint32_t n)
+{
+    uint32_t i;
+    cv_rect(x, y, 22 * (int32_t)n + 18, 50, RGB(4, 4, 4));
+    cv_rect(x + 4, y + 4, 22 * (int32_t)n + 10, 42, RGB(20, 16, 20));
+    for (i = 0; i < n; i++)
+        seg7(x + 9 + 22 * (int32_t)i, y + 11, t[i]);
+}
+static void seg_num(int32_t v, char *t)      /* v in three digits, right to left: "  5", "-12", "120" */
+{
+    int32_t j = 3;
+    uint32_t a = (uint32_t)(v < 0 ? -v : v);
+    t[0] = t[1] = t[2] = ' ';
+    do
+        t[--j] = (char)('0' + a % 10u);
+    while ((a /= 10u) && j);
+    if (v < 0 && j)
+        t[j - 1] = '-';
+}
+static void cpu_text(char *t);
+/* GLOBAL: the Bass Station II's Function settings, on the FM-1 a section of their own. Its bar, the page's own bar
+ * under it at the left; at the right the audio's load (cpu_text: for testing), or what was just done while it's said */
+static void glo_frame(const char *name)
+{
+    static const int32_t EDGE[1] = {2};
+    char t[24];
+    int32_t x;
+    panel_bg();
+    panel_bars(2, 236, EDGE, 1);
+    bar_text((10 + 236 - text_w(&FONT_B, "GLOBAL")) / 2, 1, "GLOBAL");
+    cv_rect(4, 19, text_w(&FONT_XS, name) + 12, 15, P_BAR);
+    cv_text(10, 19, &FONT_XS, name, P_SILK);
+    if (plat_ms() < ui.msg_until) {
+        x = 232 - text_w(&FONT_XS, ui.msg[1]);
+        cv_text(x, 20, &FONT_XS, ui.msg[1], P_CYAN);
+        cv_text(x - 6 - text_w(&FONT_XS, ui.msg[0]), 20, &FONT_XS, ui.msg[0], P_SILK);
+        return;
+    }
+    cpu_text(t);
+    cv_text(232 - text_w(&FONT_XS, t), 20, &FONT_XS, t, plat_xruns() ? P_CYAN : P_DIM);
+}
+/* a setting's two-way switch lying down at cx, cy (its middle): its ends' names over it (the one set white), its name
+ * under it (its setting instead, cyan, while it moves) */
+static void print_switch(int32_t cx, int32_t cy, uint32_t k, const char *n0, const char *n1, const char *name)
+{
+    const param_t *q = knob_param(k);
+    int32_t v = param_get(q, page_rec(ui.page)) - q->lo;
+    int lit = knob_lit(k);
+    char t[12];
+    cv_text(cx - 16, cy - 20, &FONT_T, n0, v ? P_DIM : P_SILK);
+    cv_text(cx + 17 - text_w(&FONT_T, n1), cy - 20, &FONT_T, n1, v ? P_SILK : P_DIM);
+    slide_h(cx - 16, cy - 9, 2, v, lit ? KF_LIT : 0u);
+    knob_text(k, t);
+    print_c(cx, cy + 13, lit ? t : name, lit ? P_CYAN : P_SILK);
+}
+/* "Bluetooth  Connected": its name at x, what it is at x + w */
+static void info(int32_t x, int32_t w, int32_t y, const char *name, const char *v, uint16_t c)
+{
+    cv_text(x, y, &FONT_T, name, P_SILK);
+    cv_text(x + w, y, &FONT_T, v, c);
+}
+#define GLO_ROW 124                          /* the knobs' and switches' row */
+/* GLOBAL MIDI: the channel on the display, its knob (K1); what goes out and the clock; CC Chan (SELECT), Local, AT Out
+ * (K2, K3: switches) and the arp's clock (K4) along the bottom */
+static void glo_midi_draw(void)
+{
+    char t[4], o[8] = "Ch ";
+    glo_frame("MIDI");
+    text_cat(o, CHAN_NAME[set.chan == CH_ALL || set.chan == CH_OFF ? 1u : set.chan]);
+    if (set.chan == CH_OFF || set.chan == CH_ALL)
+        memcpy(t, set.chan ? "ALL" : "OFF", 3);
+    else
+        seg_num(set.chan, t);
+    seg_display(8, 40, t, 3);
+    print_knob(118, 60, 15, knob_param(EN_K1), EN_K1, 1, "Channel", 0);
+    info(146, 42, 46, "Out", o, P_CYAN);
+    info(146, 42, 58, "CC", set.cc_chan == CH_ALL ? "Any" : set.cc_chan ? CHAN_NAME[set.cc_chan] : "Off", P_CYAN);
+    info(146, 42, 70, "Clock", ext_clock() ? "MIDI in" : set.clk_out ? "Sending" : "Internal",
+         ext_clock() || set.clk_out ? P_CYAN : P_SILK);
+    print_knob(34, GLO_ROW, 14, knob_param(EN_SELECT), EN_SELECT, 1, "CC Chan", 0);
+    print_switch(92, GLO_ROW, EN_K2, "Off", "On", "Local");
+    print_switch(150, GLO_ROW, EN_K3, "Off", "On", "AT Out");
+    print_knob(208, GLO_ROW, 14, knob_param(EN_K4), EN_K4, 1, "Arp Clock", 0);
+}
+/* GLOBAL SYSTEM: the tempo on the display (dashes while MIDI clock leads), Bluetooth and the firmware; Tune, Clock Out,
+ * the keys' Velocity curve and Bluetooth (K1-K4) along the bottom */
+static void glo_sys_draw(void)
+{
+    char t[4];
+    if (ext_clock())
+        memcpy(t, "---", 3);
+    else
+        seg_num(patch.tempo, t);
+    glo_frame("System");
+    seg_display(8, 40, t, 3);
+    print_c(50, 92, ext_clock() ? (eng.ext_age < EXT_HOLD ? "MIDI clock" : "Waiting for clock") : "Tempo", P_SILK);
+    info(118, 52, 46, "Bluetooth", set.ble_off ? "Off" : plat_ble_connected() ? "Connected" : "On",
+         !set.ble_off && plat_ble_connected() ? P_CYAN : P_SILK);
+    info(118, 52, 58, "Firmware", VERSION_TEXT, P_CYAN);
+    print_knob(34, GLO_ROW, 14, knob_param(EN_K1), EN_K1, 1, "Tune", 0);
+    print_switch(92, GLO_ROW, EN_K2, "Off", "On", "Clock Out");
+    print_knob(150, GLO_ROW, 14, knob_param(EN_K3), EN_K3, 1, "Velocity", 0);
+    print_switch(208, GLO_ROW, EN_K4, "On", "Off", "Bluetooth");
+}
+/* GLOBAL DUMP: the patch on the display; SEL sends it, FX all 32, as the Bass Station II's SysEx (two buttons, as
+ * the FM-1's are: FX at the left, SEL at the right) */
+static void glo_dump_draw(void)
+{
+    char t[4];
+    t[0] = 'P';
+    slot_text(t + 1);
+    glo_frame("SysEx Dump");
+    seg_display(8, 40, t, 3);
+    print_c(50, 92, "Patch", P_SILK);
+    cv_text(118, 44, &FONT_T, "Bass Station II", P_SILK);
+    cv_text(118, 54, &FONT_T, "patch dumps, over USB", P_SILK);
+    cv_text(118, 70, &FONT_T, "GLO settings save", P_DIM);
+    cv_text(118, 80, &FONT_T, "themselves", P_DIM);
+    panel_button(30, 108, 72, 28, "All 32", 0, 0);
+    print_c(66, 139, "FX", P_SILK);
+    panel_button(138, 108, 72, 28, "Sound", 0, 0);
+    print_c(174, 139, "SEL", P_SILK);
+}
+/* GLOBAL RND: the seed shown on an eight-digit display (dashes: none), where it came from; the slot (PRESET), Save
+ * (SAVE: the seed into the slot) and Send (FX: to the RND Synth) */
+static void glo_rnd_draw(void)
+{
+    char s[12];
+    seed_text(rnd_cur, s);
+    if (rnd_cur == RND_EMPTY)
+        memcpy(s, "--------", 8);
+    glo_frame("RND Seed");
+    seg_display(8, 40, s, 8);
+    print_c(110, 92, rnd_cur != RND_EMPTY && seeds.seed[rnd_slot] == rnd_cur ? "Saved in its slot"
+                     : rnd_src == RS_SYNTH ? "From the RND Synth" : rnd_src == RS_SLOT ? "From its slot" : "No seed yet",
+            P_SILK);
+    bs2_knob(34, GLO_ROW, 14, rnd_slot, NSEEDS - 1, knob_lit(EN_PRESET) ? KF_LIT : 0u);
+    seed_slot_text(s);
+    print_c(34, GLO_ROW + 18, s, knob_lit(EN_PRESET) ? P_CYAN : P_SILK);
+    panel_button(70, 110, 72, 28, "Save", 0, 0);
+    print_c(106, 141, "SAVE", P_SILK);
+    panel_button(156, 110, 72, 28, "Send", 0, 0);
+    print_c(192, 141, "FX", P_SILK);
 }
 /* the ARPEGGIATOR (the Bass Station II's): Tempo (its LED on the beat) and Rhythm, the Note Mode knob with its modes
  * round it, Octaves (Arp Octaves, or the sequence: Seq); the On/Legato and Latch/Rest buttons (SELECT, ALGO), their
@@ -3481,118 +3657,7 @@ static void level_col(int32_t i, float v, int32_t h)   /* -1..1 to the column's 
 {
     ycol[i] = (uint8_t)((1.0f - fm_clampf(v, -1.0f, 1.0f)) * 0.5f * (float)(h - 1) + 0.5f);
 }
-static void wave_pic(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t wave, float pw)   /* two cycles */
-{
-    int32_t i;
-    for (i = 0; i < w; i++) {
-        float ph = (float)i * 2.0f / (float)w;
-        level_col(i, osc_naive(ph - fm_floorf(ph), wave, pw), h);
-    }
-    trace(x, y, w, h, P_CYAN, 0);
-}
-/* the section's picture in the card at x, y, w wide: its name, then the picture under it */
-static void chan_row(int32_t x, int32_t y, const char *name, uint32_t ch)   /* GLO MIDI's: "IN  CH 5" */
-{
-    cv_text(x, y, &FONT_XS, name, P_LABEL);
-    cv_text(x + 40, y, &FONT_XS, ch == CH_ALL ? "ANY" : ch ? "CH" : "OFF", P_TEXT);
-    if (ch && ch != CH_ALL)
-        cv_text(x + 62, y, &FONT_XS, CHAN_NAME[ch], P_CYAN);
-}
-static void picture(int32_t x, int32_t y, int32_t w)
-{
-    const int32_t py = y + 18;
-    char t[8];
-    switch (ui.page) {
-    case PG_GMIDI:                           /* where the knobs' CCs, the notes come from and go, and the clock */
-        chan_row(x, y, "CC", set.cc_chan);
-        chan_row(x, py, "IN", set.chan);
-        chan_row(x, py + 13, "OUT", set.chan == CH_ALL ? 1u : set.chan);
-        cv_text(x, py + 26, &FONT_XS, "CLOCK", P_LABEL);
-        cv_text(x + 40, py + 26, &FONT_XS, ext_clock() ? "MIDI IN" : set.clk_out ? "SENDING" : "INTERNAL",
-                ext_clock() || set.clk_out ? P_CYAN : P_TEXT);
-        break;
-    case PG_GSYS:                            /* the tempo's source, Bluetooth */
-        cv_text(x, y, &FONT_XS, "SYSTEM", P_LABEL);
-        cv_text(x, py, &FONT_XS, "TEMPO", P_LABEL);
-        if (ext_clock()) {
-            cv_text(x + 58, py, &FONT_XS, eng.ext_age < EXT_HOLD ? "MIDI CLOCK" : "WAITING FOR CLOCK", P_CYAN);
-        } else {
-            int_text(patch.tempo, t);
-            text_cat(t, " BPM");
-            cv_text(x + 58, py, &FONT_XS, t, P_TEXT);
-        }
-        cv_text(x, py + 13, &FONT_XS, "BLE", P_LABEL);
-        cv_text(x + 58, py + 13, &FONT_XS, set.ble_off ? "OFF" : plat_ble_connected() ? "CONNECTED" : "ON",
-                !set.ble_off && plat_ble_connected() ? P_CYAN : P_TEXT);
-        cv_text(x, py + 26, &FONT_XS, "FIRMWARE", P_LABEL);
-        cv_text(cv_text(x + 58, py + 26, &FONT_XS, APP_NAME, P_TEXT) + 4, py + 26, &FONT_XS, VERSION_TEXT, P_CYAN);
-        break;
-    case PG_GDUMP:                           /* the bank, large */
-        cv_text(x, y, &FONT_XS, "SYSEX DUMP", P_LABEL);
-        cv_text(x, py, &FONT_L, "ALL 32", P_CYAN);
-        break;
-    case PG_GRND: {                          /* the seed shown; where it came from; kept in the slot (the chip) */
-        char s[12];
-        seed_text(rnd_cur, s);
-        cv_text(x, y, &FONT_XS, "RND SEED", P_LABEL);
-        cv_text(x, y + 16, &FONT_M, s, rnd_cur == RND_EMPTY ? P_LABEL : P_RND);
-        cv_text(x, y + 42, &FONT_XS, rnd_src == RS_SYNTH ? "FROM RND" : rnd_src == RS_SLOT ? "FROM SLOT" : "", P_RND);
-        if (rnd_cur != RND_EMPTY && seeds.seed[rnd_slot] == rnd_cur)
-            cv_text(x + w - text_w(&FONT_XS, "SAVED"), y + 42, &FONT_XS, "SAVED", P_TEXT);
-        break;
-    }
-    default:
-        break;
-    }
-}
-
-/* a knob's slider: a choice's positions (the one set lit), else its value from the left (from the middle when it
- * goes either way) with a thumb */
-static void slider(int32_t x, int32_t y, int32_t w, const param_t *q)
-{
-    int32_t v = param_get(q, page_rec(ui.page)) - q->lo, span = q->hi - q->lo, p = v * (w - 1) / span, i;
-    if (q->names && span < 8) {              /* (more, as a value: the MIDI channel) */
-        for (i = 0; i <= span; i++)
-            cv_rect(x + i * w / (span + 1), y, w / (span + 1) - 1, 5, i == v ? P_CYAN : P_EDGE);
-        return;
-    }
-    cv_rect(x, y + 1, w, 3, P_TRACK);
-    if (q->lo < 0) {
-        int32_t c = -q->lo * (w - 1) / span;
-        cv_rect(x + (p < c ? p : c), y + 1, (p < c ? c - p : p - c) + 1, 3, P_CYAN);
-        cv_rect(x + c, y - 1, 1, 7, P_LABEL);
-    } else {
-        cv_rect(x, y + 1, p + 1, 3, P_CYAN);
-    }
-    cv_rect(x + p - 1, y - 1, 3, 7, P_TEXT);
-}
-static void chip(int32_t x, int32_t y, int32_t w, uint32_t k)   /* a switch: its name, its setting */
-{
-    char t[12];
-    int lit = knob_lit(k);
-    card(x, y, w, 20, lit ? P_CYAN : P_EDGE);
-    cv_text(x + 5, y + 2, &FONT_XS, knob_name(k), P_LABEL);
-    knob_text(k, t);
-    cv_text(x + w - 5 - text_w(&FONT_XS, t), y + 2, &FONT_XS, t, lit ? P_CYAN : P_TEXT);
-}
-static void knob_card(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t k)   /* K1-K4: name, value, slider */
-{
-    static const char *const TAG[4] = {"K1", "K2", "K3", "K4"};
-    const param_t *q = knob_param(k);
-    int lit = knob_lit(k);
-    char t[12];
-    card(x, y, w, h, lit ? P_CYAN : P_EDGE);
-    cv_text(x + 5, y + 3, &FONT_XS, TAG[k - EN_K1], lit ? P_CYAN : P_CDIM);
-    if (!knob_name(k))
-        return;
-    cv_text(x + 5, y + 19, &FONT_XS, knob_name(k), P_LABEL);
-    knob_text(k, t);
-    cv_text(x + 5, y + 36, text_w(&FONT_B, t) <= w - 10 ? &FONT_B : &FONT_XS, t, lit ? P_CYAN : P_TEXT);
-    if (q->name)
-        slider(x + 5, y + h - 12, w - 10, q);
-}
-
-/* the audio's load on the GLO pages' header, for testing: "CPU 34/41", now (the most of the last quarter second) and
+/* the audio's load on the GLO pages' bar (glo_frame), for testing: "CPU 34/41", now (the most of the last quarter second) and
  * the most of the last 5 s, then "!n" after any dropout since boot (the audio missed its deadline: a click) */
 #define CPU_NOW_MS 250u
 #define CPU_PEAK_MS 5000u
@@ -3633,107 +3698,61 @@ static void cpu_text(char *t)                /* "CPU 34/41", "CPU 34/41 !2" */
     }
 }
 
-static void head_draw(void)                  /* the section tabs; the page's name or a message, the note (on GLO: the
-                                              * audio's load) */
+static void head_draw(void)                  /* the section tabs (each page's panel under them) */
 {
-    char t[24];
-    int32_t note = voice_note, x;
+    int32_t x;
     uint32_t i;
-    cv_begin(240, tall_page() ? 20 : 36, P_BG);   /* (a panel's page: the tabs alone, its panel under them) */
+    cv_begin(240, 20, P_BG);
     for (i = 0; i < NSEC; i++) {
         int on = PAGE_SEC[ui.page] == i, run = (i == SEC_ARP && patch.arp_on) || (i == SEC_SEQ && (seq_playing() || seq_rec));
-        x = 5 + (int32_t)i * TAB_W;
-        cv_rect(x, 1, TAB_W - 1, 18, P_CARD);   /* (the one you're in: its name white) */
-        cv_text(x + (TAB_W - 1 - text_w(&FONT_XS, SEC_NAME[i])) / 2, 2, &FONT_XS, SEC_NAME[i],
+        int32_t w = TAB_X(i + 1) - TAB_X(i) - 1;
+        x = TAB_X(i);
+        cv_rect(x, 1, w, 17, on ? P_BAR : P_CARD);   /* (the one you're in: the bars' cyan, its name white) */
+        cv_text(x + (w - text_w(&FONT_XS, SEC_NAME[i])) / 2, 2, &FONT_XS, SEC_NAME[i],
                 on ? P_SILK : run ? P_CYAN : P_LABEL);
-    }
-    if (tall_page()) {
-        cv_blit(0, 0);
-        return;
-    }
-    if (plat_ms() < ui.msg_until) {
-        x = cv_text(6, 20, &FONT_B, ui.msg[0], P_TEXT);
-        cv_text(x + 8, 20, &FONT_B, ui.msg[1], P_CYAN);
-    } else {
-        cv_text(6, 20, &FONT_B, PAGE_NAME[ui.page], P_TEXT);
-    }
-    if (ui.page >= PG_GMIDI && (plat_ms() >= ui.msg_until || !ui.msg[1][0])) {   /* (not over a message's value) */
-        cpu_text(t);
-        cv_text(234 - text_w(&FONT_XS, t), 21, &FONT_XS, t, plat_xruns() ? P_CYAN : P_LABEL);
-    } else if (plat_ms() >= ui.msg_until) {
-        if (note >= 0) {                     /* the note, and the last key's velocity and pressure */
-            note_name(note, t);
-            x = 234 - text_w(&FONT_B, t);
-            cv_text(x, 20, &FONT_B, t, P_CYAN);
-            if (ui.keys >> ui.last_key & 1u) {
-                char n[24] = "V ";
-                int_text(ui.vel[ui.last_key], t);
-                text_cat(n, t);
-                text_cat(n, "  P ");
-                int_text(ui.prs[ui.last_key], t);
-                text_cat(n, t);
-                cv_text(x - 8 - text_w(&FONT_XS, n), 21, &FONT_XS, n, P_LABEL);
-            }
-        }
     }
     cv_blit(0, 0);
 }
 
-static void panel_draw(void)                 /* the section's card: its picture, switches and knobs */
+static void panel_draw(void)                 /* the page's section panel, from under the tabs: in two halves (the
+                                              * canvas holds 144 rows) */
 {
     uint32_t i;
-    int32_t gw = knob_name(EN_SELECT) || knob_name(EN_ALGO) || knob_name(EN_PRESET) ? 112 : 232;
-    cv_begin(240, tall_page() ? TALL_H / 2 : 144, P_BG);
-    if (tall_page()) {                       /* a section's panel, from under the tabs: in two halves (the canvas
-                                              * holds 144 rows) */
-        for (i = 0; i < 2u; i++) {
-            if (i)
-                cv_begin(240, TALL_H / 2, P_BG);
-            cv_oy = -(int32_t)i * (TALL_H / 2);
-            if (ui.page == PG_FX)
-                mixer_draw();
-            else if (ui.page == PG_TUNE || ui.page == PG_FMOD)
-                filters_draw();
-            else if (ui.page == PG_AENV)
-                env_draw();
-            else if (ui.page == PG_MENV)
-                trig_draw();
-            else if (ui.page == PG_EMOD || ui.page == PG_LFO2 || ui.page == PG_XMOD || ui.page == PG_AMOD)
-                mod_draw();
-            else if (ui.page == PG_ARP)
-                arp_draw();
-            else if (ui.page == PG_SEQ)
-                seq_draw();
-            else if (ui.page == PG_EFX)
-                effects_draw();
-            else if (ui.page == PG_PATCH)
-                master_draw();
-            else if (ui.page == PG_LFO1)
-                lfos_draw();
-            else
-                osc_draw();
-            cv_blit(0, 20 + i * (TALL_H / 2));
-        }
-        return;
+    for (i = 0; i < 2u; i++) {
+        cv_begin(240, TALL_H / 2, P_BG);
+        cv_oy = -(int32_t)i * (TALL_H / 2);
+        if (ui.page == PG_FX)
+            mixer_draw();
+        else if (ui.page == PG_TUNE || ui.page == PG_FMOD)
+            filters_draw();
+        else if (ui.page == PG_AENV)
+            env_draw();
+        else if (ui.page == PG_MENV)
+            trig_draw();
+        else if (ui.page == PG_EMOD || ui.page == PG_LFO2 || ui.page == PG_XMOD || ui.page == PG_AMOD)
+            mod_draw();
+        else if (ui.page == PG_ARP)
+            arp_draw();
+        else if (ui.page == PG_SEQ)
+            seq_draw();
+        else if (ui.page == PG_EFX)
+            effects_draw();
+        else if (ui.page == PG_PATCH)
+            master_draw();
+        else if (ui.page == PG_LFO1)
+            lfos_draw();
+        else if (ui.page == PG_GMIDI)
+            glo_midi_draw();
+        else if (ui.page == PG_GSYS)
+            glo_sys_draw();
+        else if (ui.page == PG_GDUMP)
+            glo_dump_draw();
+        else if (ui.page == PG_GRND)
+            glo_rnd_draw();
+        else
+            osc_draw();
+        cv_blit(0, 20 + i * (TALL_H / 2));
     }
-    card(4, 2, gw, 62, P_EDGE);
-    picture(9, 5, gw - 10);
-    for (i = EN_SELECT; i <= EN_PRESET; i++)
-        if (knob_name(i))
-            chip(120, 2 + (int32_t)i * 21, 116, i);
-    if (ui.page == PG_GDUMP) {
-        cv_text(6, 76, &FONT_XS, "SEL  sends the sound, FX every patch", P_LABEL);
-        cv_text(6, 94, &FONT_XS, "     as BS2 SysEx dumps over USB", P_LABEL);
-        cv_text(6, 112, &FONT_XS, "GLO settings save themselves", P_LABEL);
-    } else if (ui.page == PG_GRND) {         /* no knobs: what the buttons do here */
-        cv_text(6, 76, &FONT_XS, "PRESET  picks a slot, shows its seed", P_LABEL);
-        cv_text(6, 94, &FONT_XS, "SAVE  keeps the seed shown there", P_LABEL);
-        cv_text(6, 112, &FONT_XS, "FX  sends it to the RND Synth (USB)", P_LABEL);
-    } else {
-        for (i = EN_K1; i <= EN_K4; i++)
-            knob_card(4 + (int32_t)(i - EN_K1) * 59, 68, 55, 74, i);
-    }
-    cv_blit(0, 36);
 }
 
 static void key_cell(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t k, uint16_t off)
@@ -3930,6 +3949,10 @@ void app_frame(void)
         last_note = voice_note;
         ui.redraw = 1;
     }
+    if (ui.org_at && now - ui.org_at >= ORG_SHOW_MS) {   /* the MASTER's display: the patch again */
+        ui.org_at = 0;
+        ui.redraw = 1;
+    }
     for (i = 0; i < NE; i++)                 /* an encoder's light goes out */
         if (ui.turned_at[i] && now - ui.turned_at[i] < 400u && now > lit_until)
             lit_until = ui.turned_at[i] + 300u;
@@ -3960,8 +3983,8 @@ void app_frame(void)
             ui.msg_until = 0;
         ui.redraw = 1;
     }
-    if (cpu_meter(now) && ui.page >= PG_GMIDI && !ui.redraw)   /* (the header alone) */
-        head_draw();
+    if (cpu_meter(now) && ui.page >= PG_GMIDI && !ui.redraw)   /* (the panel alone: its load in the bar) */
+        panel_draw();
     i = live();
     if (ui.redraw) {
         ui.redraw = 0;
@@ -4113,6 +4136,10 @@ int app_expect(const char *what, int *got)
         *got = ui.page;
     else if (!strcmp(what, "slot"))
         *got = set.slot;
+    else if (!strcmp(what, "org_shown"))     /* the MASTER's display on a control's value, not the patch */
+        *got = ui.org_at != 0u;
+    else if (!strcmp(what, "org"))           /* the Org. Value arrow lit: +1 right, -1 left, 0 none */
+        *got = org_dir();
     else if (!strcmp(what, "pdir"))          /* the MASTER's Patch button lit: -1 down, +1 up */
         *got = ui.pdir;
     else if (!strcmp(what, "chan"))          /* the GLO pages' settings */

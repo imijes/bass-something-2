@@ -61,3 +61,45 @@ turn PRESET 1
 wait 30
 expect slot 1
 expect arp 1
+# the Org. Value arrows: a sound control turned off its saved value lights the way back (cutoff up: turn left), none
+# once it is back; a patch change, none; SAVE, none
+tap ARP
+turn SELECT -1
+tap FX
+wait 30
+expect page 10
+expect org 0
+turn K4 3
+expect org -1
+turn K4 -5
+expect org 1
+turn K4 2
+expect org 0
+turn K4 4
+expect org -1
+tap HOME
+wait 30
+expect page 5
+expect org -1
+turn PRESET -1
+wait 30
+expect org 0
+tap FX
+turn K2 6
+expect org -1
+tap SAVE
+wait 30
+expect org 0
+# the display: a control's value for a moment after its change (on any page), then the patch again; a patch change,
+# the patch at once
+expect org_shown 1
+wait 1600
+expect org_shown 0
+expect page 10
+turn K2 -6
+tap HOME
+wait 30
+expect org_shown 1
+turn PRESET 1
+wait 30
+expect org_shown 0

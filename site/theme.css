@@ -4,9 +4,9 @@
  * (tools/manual_html.py's --paper, --ink ...) and the installer (web/installer.html's --bg, --fg ...) */
 :root, :root:not([data-theme="light"]), :root[data-theme] {
   --paper: #121212; --sheet: #262628; --rule: #404044; --ink: #ffffff; --muted: #a2a2a8;
-  --hot: #00b4d8; --hot-t: #004250; --cool: #00b4d8; --cool-t: #1a2a2e; --hot-ink: #00b4d8;
-  --bg: #121212; --fg: #ffffff; --dim: #a2a2a8; --accent: #00b4d8; --on-accent: #00141a; --bad: #ff7a6b;
-  --focus: #00b4d8;
+  --hot: #3aadec; --hot-t: #12364a; --cool: #3aadec; --cool-t: #1a2a2e; --hot-ink: #3aadec;
+  --bg: #121212; --fg: #ffffff; --dim: #a2a2a8; --accent: #3aadec; --on-accent: #00141a; --bad: #ff7a6b;
+  --focus: #3aadec;
   color-scheme: dark;
 }
 body { background: #121212; color: #ffffff; font-family: "Barlow", "Helvetica Neue", Arial, sans-serif; }
