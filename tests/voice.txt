@@ -84,6 +84,16 @@ expect pw1 95
 turn K4 -45
 wait 30
 expect pw1 50
+# turned fast it goes further (knob_accel): the first click one, then 40 ms apart two each, 15 ms apart eight each
+turn K4 -3 40
+wait 30
+expect pw1 45
+turn K4 3 15
+wait 200
+expect pw1 62
+turn K4 -12
+wait 30
+expect pw1 50
 turn PRESET 1
 turn K4 63
 tap SEL
@@ -821,6 +831,13 @@ expect page 3
 spin K1 2
 wait 30
 expect lfo1_wave 2
+expect lfo1_rate 75
+# the speed (0..255) two steps a click, as quick across as a 0..127 knob (knob_accel)
+turn K2 3
+wait 30
+expect lfo1_rate 81
+turn K2 -3
+wait 30
 expect lfo1_rate 75
 turn ALGO -1
 spin K2 64

@@ -15,7 +15,7 @@ void app_boot(void);
 #define APP_BLOCK 256u                   /* frames per audio block: 5.8 ms at 44.1 kHz */
 #define APP_TOUCH                        /* velocity and pressure from the keys (lib/touch.h) */
 #define APP_BTDEV                        /* Bluetooth MIDI devices (lib/btdev.h) */
-#define APP_BLE_AT_BOOT (!bs2_ble_off())   /* Bluetooth at power-on: as the player left it (GLO SYS) */
+#define APP_BLE_AT_BOOT (!bs2_ble_off())   /* Bluetooth at power-on: as the player left it (GLO MIDI) */
 int bs2_ble_off(void);
 
 /* the store: the app's objects, the panel calibration (the platform's) and Bluetooth's address and pairing among

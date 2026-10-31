@@ -17,10 +17,19 @@ The manual (`docs/MANUAL.md`) describes everything it does.
 | `web/emu/index.html` | The emulator's page: fm1-base's, in the firmware's colours, with a quick guide |
 | `site/theme.css`, `site/make_site.py` | The site (front page, installer, manual) in the firmware's colours, with its tabs |
 | `site/publish_pages.py` | The built site to GitHub Pages (the `gh-pages` branch) |
+| `platform/*.patch` | The changes to fm1-base and felucca-bsp it needs (below) |
 
 ## Build, test, install
 
-From the repository root:
+Bass Something 2 builds in an [fm1-base](https://github.com/charlesvestal/fm1-base) checkout (bs2/ at its root) at
+d8ff8f4, with its felucca-bsp at 305c372, plus two small platform patches that aren't upstream yet (`platform/`):
+the computer's USB audio as the synth's external input (`plat_usb_audio_route`, `plat_usb_audio_in`), and the battery
+read while the keys' velocity is on. From the fm1-base root:
+
+    git apply bs2/platform/fm1-base.patch
+    git -C bsp apply ../bs2/platform/felucca-bsp.patch
+
+Then, from the repository root:
 
     tools/build.py bs2 --host                   # the host simulator, then:
     bs2/build/host/bass-something-2_host bs2/tests/basic.txt bs2/build/host
@@ -30,10 +39,12 @@ From the repository root:
 
 The site (bs2/build/site), from a release:
 
-    tools/build.py bs2 --release 0.1 && tools/build.py bs2 --web --release 0.1
-    python3 bs2/site/make_site.py bs2/build/bass-something-2-0.1.fwsc 0.1
+    tools/build.py bs2 --release 0.2 && tools/build.py bs2 --web --release 0.2
+    tools/build.py bs2 --rfm1 --release 0.2               # RemoteFM1 (iOS): bs2/build/rfm1/bass_something_2-0.2.rfm1,
+                                                          # a release asset; build it from a pushed commit (its source_url)
+    python3 bs2/site/make_site.py bs2/build/bass-something-2-0.2.fwsc 0.2
     (cd bs2/build/site && python3 -m http.server 8765)    # http://localhost:8765
-    python3 bs2/site/publish_pages.py 0.1                 # https://imijes.github.io/bass-something-2/
+    python3 bs2/site/publish_pages.py 0.2                 # https://imijes.github.io/bass-something-2/
 
 Bass Something 2 is by John Brown ([@imijes](https://github.com/imijes)). Credits for everyone whose work it builds on: `docs/MANUAL.md`, section 12.
 

@@ -6,7 +6,7 @@
  * them through power-off, in a table of their own (OBJ_SEEDS, apart from the patch bank and its Bass Station II
  * dumps); one goes back to the synth on request. On GLO RND (GLO + OCT+): PRESET picks a slot and shows its seed,
  * SAVE keeps the seed shown in that slot, FX sends the seed shown. A new seed's tempo becomes the FM-1's (TEMPO, so
- * the arp, the sequencer and CLK OUT follow the synth's new direction). The synth's SysEx (its frames read here anew,
+ * the arp, the sequencer and SEND CLK follow the synth's new direction). The synth's SysEx (its frames read here anew,
  * after Dub-1-RND's):
  *   F0 6F 62 78 10 c0 c1 c2 c3 c4 F7    the seed, five 7-bit chunks, low first (bits 0..6, 7..13, .. 28..31)
  *   F0 6F 62 78 21 md tl th tn sc F7    after it: its mode, tempo (tl | th << 7, BPM; 0 none), tonic and scale

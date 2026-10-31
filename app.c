@@ -15,7 +15,7 @@ typedef struct {
     uint32_t magic;
     int8_t octave;                       /* -2 .. +2 */
     uint8_t slot;                        /* the patch played (bank_t), 0..NSLOTS-1 (was the wave: 0 or 1) */
-    uint8_t ble_off;                     /* Bluetooth switched off (GLO SYS); 0, the default: on */
+    uint8_t ble_off;                     /* Bluetooth switched off (GLO MIDI); 0, the default: on */
     /* the GLO pages' (a record of the first eight bytes, before them: these from the defaults) */
     uint8_t chan;                        /* MIDI channel in and out: CH_OFF, 1..16, CH_ALL (in any; out on 1) */
     uint8_t local;                       /* the keys play the voice (0: their MIDI out alone) */
@@ -29,12 +29,17 @@ typedef struct {
     seqmem_t mem[NSEQ];                  /* the Bass Station II's four sequences: kept with the settings (glo_keep),
                                           * apart from the patches; the arp's OCTAVES in REC and PLAY picks one into
                                           * the patch, recording writes both */
+    uint8_t pad;                         /* (the record before knobs ended in a byte of padding: not read) */
+    uint8_t knobs;                       /* KN_*: how far a knob goes as it turns faster (knob_accel) */
+    uint8_t spare[3];                    /* (0: the record's end, no padding) */
 } settings_t;
 #define SET_V1_SIZE 8u                   /* the record before the GLO pages: magic to ble_off */
 #define SET_V2_SIZE offsetof(settings_t, mem)   /* the record before the sequences (16 bytes stored: a byte of padding) */
+#define SET_V3_SIZE offsetof(settings_t, knobs)  /* the record before the knobs' response */
 enum { CH_OFF = 0, CH_ALL = 17 };
 enum { CLK_AUTO, CLK_INT, CLK_EXT, NCLK };   /* MIDI clock followed when it comes; never; always (none: stopped) */
 enum { VC_SOFT, VC_NORMAL, VC_HARD, NVC };
+enum { KN_FINE, KN_NORMAL, KN_FAST, KN_COARSE, NKN };   /* the knobs' response: one step a click, to big strides */
 static settings_t set;
 static settings_t set_kept;              /* the record as it is in the store (glo_keep) */
 #define GLO_FROM offsetof(settings_t, ble_off)   /* the GLO pages' settings: ble_off on; kept on their own */
@@ -526,7 +531,7 @@ static struct {
     float tick;                              /* clock ticks into the step */
     uint32_t ext_ticks, ext_age;             /* MIDI clocks not yet counted; samples since the last */
     uint32_t lfo_ticks;                      /* MIDI clocks not yet counted by the LFOs (their sync) */
-    float clk_out;                           /* clock ticks toward the next one out (GLO SYS's CLK OUT) */
+    float clk_out;                           /* clock ticks toward the next one out (GLO SYS's SEND CLK) */
     uint32_t apos, spos;                     /* the arp's notes played; the sequencer's next step */
     uint32_t scur;                           /* the sequencer's step sounding (NSTEPS: none yet) */
     uint32_t rpos;                           /* the 16ths since the start: the rhythm's place, and swing's pair */
@@ -535,7 +540,7 @@ static struct {
     int32_t transpose;                       /* the sequencer: the last key down from its first note (0: as recorded) */
 } eng = {.vel = 100, .ext_age = EXT_HOLD};
 
-static int ext_clock(void)                   /* the arp and the sequencer follow MIDI clock (GLO MIDI's CLOCK) */
+static int ext_clock(void)                   /* the arp and the sequencer follow MIDI clock (GLO SYS's SYNC) */
 {
     return set.clock == CLK_EXT || (set.clock == CLK_AUTO && eng.ext_age < EXT_HOLD);
 }
@@ -590,7 +595,9 @@ static void note_in(uint32_t note, uint32_t vel)   /* a key or MIDI in: vel 0 a 
             eng.transpose = (int32_t)note - seq_first();
         else if (!arp_takes()) {
             voice_vel = (float)vel / 127.0f;
-            voice_legato = voice_note >= 0 && eng.ndown > 1u;   /* (another key held: legato) */
+            /* (another key held: legato; but not over a note-on the render has not taken yet, a chord struck in
+             * one block: that one's start stands, or no envelope would start at all) */
+            voice_legato = voice_note >= 0 && eng.ndown > 1u && (voice_trig == voice.trig || voice_legato);
             voice_note = (int32_t)note;
             voice_trig++;
         }
@@ -1125,6 +1132,8 @@ static void settings_defaults(settings_t *s)
     s->clock = CLK_AUTO;
     s->vcurve = VC_NORMAL;
     s->cc_chan = CH_OFF;
+    s->knobs = KN_NORMAL;
+    s->pad = s->spare[0] = s->spare[1] = s->spare[2] = 0;
     {
         static const seqmem_t L = SEQ_LINE, E = {.len = 0, .step = {SEQ_REST}};
         uint32_t i, j;
@@ -1188,6 +1197,7 @@ _Static_assert(offsetof(patch_t, env_trig) == BANK_V10_PSIZE, "version 10's: 11'
 _Static_assert(offsetof(patch_t, lfo_delay) == BANK_V11_PSIZE, "version 11's: 12's without the LFOs' delay on");
 _Static_assert(offsetof(patch_t, ofm) == BANK_V12_PSIZE, "version 12's: 13's without Osc Filter Mod on");
 _Static_assert(sizeof(settings_t) <= PLAT_STORE_MAX, "the settings fit a store object");
+_Static_assert(sizeof(settings_t) == SET_V3_SIZE + 4u, "the settings end with no padding");
 static bank_t bank;
 static void patch_sane(patch_t *p);          /* (the UI's: by its controls' ranges) */
 static void bank_factory(void);              /* (the factory patches: after the dumps' reader) */
@@ -1328,7 +1338,7 @@ void app_init(void)
         set = d;
     else                                 /* an older, shorter record: what it lacks from the defaults (the sequences
                                           * whole: before them its last byte was padding) */
-        for (i = (uint32_t)n < sizeof set && (uint32_t)n > SET_V2_SIZE ? SET_V2_SIZE : (uint32_t)n; i < sizeof set; i++)
+        for (i = (uint32_t)n < SET_V3_SIZE && (uint32_t)n > SET_V2_SIZE ? SET_V2_SIZE : (uint32_t)n; i < sizeof set; i++)
             ((uint8_t *)&set)[i] = ((const uint8_t *)&d)[i];
     set_sane();
     tol_init();
@@ -1540,6 +1550,7 @@ static const char *const CHAN_NAME[CH_ALL + 1] = {"OFF", "1", "2", "3", "4", "5"
                                                   "12", "13", "14", "15", "16", "ALL"};
 static const char *const CLK_NAME[NCLK] = {"AUTO", "INT", "EXT"};
 static const char *const VC_NAME[NVC] = {"SOFT", "NORMAL", "HARD"};
+static const char *const KN_NAME[NKN] = {"FINE", "NORMAL", "FAST", "COARSE"};
 static const char *const ARP_NAME[NARPM] = {"UP", "DOWN", "UP/DN", "UP/DN2", "PLAYED", "RANDOM", "PLAY", "REC"};
 typedef struct {
     const char *name;
@@ -1610,10 +1621,11 @@ static const param_t PARAMS[NPAGES][NE] = {
                   [EN_K1] = {"CHANNEL", SF(chan), CH_OFF, CH_ALL, CHAN_NAME},
                   [EN_K2] = {"LOCAL", SF(local), 0, 1, OFF_ON},
                   [EN_K3] = {"AT OUT", SF(at_out), 0, 1, OFF_ON},
-                  [EN_K4] = {"CLOCK", SF(clock), 0, NCLK - 1, CLK_NAME}},
-    [PG_GSYS] = {[EN_K1] = {"TUNE", SF(tune), -50, 50, 0}, [EN_K2] = {"CLK OUT", SF(clk_out), 0, 1, OFF_ON},
+                  [EN_K4] = {"BLE", SF(ble_off), 0, 1, ON_OFF}},
+    [PG_GSYS] = {[EN_SELECT] = {"SEND CLK", SF(clk_out), 0, 1, OFF_ON},
+                 [EN_K1] = {"TUNE", SF(tune), -50, 50, 0}, [EN_K2] = {"SYNC", SF(clock), 0, NCLK - 1, CLK_NAME},
                  [EN_K3] = {"VELOCITY", SF(vcurve), 0, NVC - 1, VC_NAME},
-                 [EN_K4] = {"BLE", SF(ble_off), 0, 1, ON_OFF}},
+                 [EN_K4] = {"KNOBS", SF(knobs), 0, NKN - 1, KN_NAME}},
 };
 /* MIX FX's switch, as the Bass Station II's: what its K4 sets, from the switch's bottom (NOISE, the start) up; EXT, the
  * external input's level: the computer's USB audio (plat_usb_audio_route) */
@@ -1681,8 +1693,8 @@ static const char *const TITLE[NPAGES][NE] = {
     [PG_XMOD] = {[EN_K1] = "FILTER KEY TRACKING", [EN_K2] = "VCA LIMITER"},
     [PG_LFO1] = {[EN_SELECT] = "GLIDE TIME", [EN_K1] = "LFO 1 WAVE", [EN_K4] = "LFO 2 WAVE"},
 
-    [PG_GMIDI] = {[EN_SELECT] = "CC CHANNEL", [EN_K2] = "LOCAL CONTROL", [EN_K3] = "AFTER TOUCH OUT", [EN_K4] = "ARP/SEQ CLOCK"},
-    [PG_GSYS] = {[EN_K2] = "MIDI CLOCK OUT", [EN_K4] = "BLUETOOTH MIDI"},
+    [PG_GMIDI] = {[EN_SELECT] = "CC CHANNEL", [EN_K2] = "LOCAL CONTROL", [EN_K3] = "AFTER TOUCH OUT", [EN_K4] = "BLUETOOTH MIDI"},
+    [PG_GSYS] = {[EN_SELECT] = "SEND MIDI CLOCK", [EN_K2] = "CLOCK SYNC", [EN_K4] = "KNOB RESPONSE"},
 };
 static void *page_rec(uint32_t g)            /* what a page's encoders set: the sound, or the settings */
 {
@@ -1791,7 +1803,7 @@ static void cc_apply(uint32_t cc, uint32_t v)   /* the main loop's: a CC on CC C
     }
 }
 
-/* REC (not on GLO SYS): every knob of the oscillators, their mix, the filter, both envelopes and both LFOs at random,
+/* REC (not on GLO MIDI): every knob of the oscillators, their mix, the filter, both envelopes and both LFOs at random,
  * a new sound to start from (unsaved: SAVE keeps it); the filter left a little open and the attack under a second, so
  * it is heard */
 static void randomize(void)
@@ -1946,9 +1958,30 @@ static const param_t *knob_param(uint32_t k)
     return &PARAMS[ui.page][k];
 }
 /* the encoders' settings: each turn a step, held at its ends; 0 when this page has nothing on it */
+/* a knob turned fast goes further, as GLO SYS's KNOBS sets: the steps a click by the time since the last (under 20,
+ * 35, 60, 100 ms, else), NORMAL's so a quick spin crosses 0..127 in a turn or two and a slow one still steps by one;
+ * FINE always one, COARSE two at the slowest. Only a control of 48 steps or more (not the switches and choices). A
+ * wider one (the LFOs' speeds, 0..255) as a 0..127 one: each click its share of 128 (2 steps). The host's "spin"
+ * exact, its "turn" (80 ms apart) one a click at NORMAL */
+static int32_t knob_accel(uint32_t k, int32_t e, const param_t *q)
+{
+    static uint32_t last[NE];
+    uint32_t now = plat_ms(), gap = now - last[k];
+#ifdef PLAT_HOST
+    if (plat_host_exact)                     /* (and no time of its own for the next turn's) */
+        return e;
+#endif
+    last[k] = now;
+    if (!q->name || q->hi - q->lo < 48)
+        return e;
+    static const uint8_t MUL[NKN][5] = {{1, 1, 1, 1, 1}, {8, 4, 2, 1, 1}, {12, 8, 4, 2, 1}, {16, 12, 8, 4, 2}};
+    return e * ((q->hi - q->lo + 1) / 128 > 1 ? (q->hi - q->lo + 1) / 128 : 1) *
+           MUL[set.knobs < NKN ? set.knobs : KN_NORMAL][gap < 20u ? 0 : gap < 35u ? 1 : gap < 60u ? 2 : gap < 100u ? 3 : 4];
+}
 static int knob_turn(uint32_t k, int32_t e)
 {
     const param_t *q = knob_param(k);
+    e = knob_accel(k, e, q);
     if (ui.page == PG_PATCH && k == EN_PRESET) {   /* a slot: its sound at once (what was not saved is left) */
         uint32_t s = (uint32_t)clamp((int32_t)set.slot + e, 0, NSLOTS - 1);
         ui.pdir = (int8_t)(e < 0 ? -1 : 1);
@@ -2066,7 +2099,7 @@ static int knob_turn(uint32_t k, int32_t e)
     }
     if (ui.page == PG_SEQ && k == EN_ALGO)   /* (the length: into the one picked too) */
         seq_changed();
-    if (ui.page == PG_GSYS && k == EN_K4)    /* Bluetooth: at once */
+    if (ui.page == PG_GMIDI && k == EN_K4)   /* Bluetooth: at once */
         plat_ble_enable(!set.ble_off);
     return 1;
 }
@@ -2532,10 +2565,11 @@ static void input(void)
             octave_step(-1);
         else if (k == B_OCTUP)
             octave_step(1);
-        else if (seq_rec && k == B_FX)       /* recording: FX a rest (the Bass Station II's REST), SEL the step
-                                              * before legato (its LEGATO) */
+        else if (seq_rec && ui.page == PG_SEQ && k == B_FX)   /* recording, on SEQ: FX a rest (the Bass Station
+                                              * II's REST), SEL the step before legato (its LEGATO); elsewhere their
+                                              * own, so REC left on doesn't take them */
             step_enter(SEQ_REST);
-        else if (seq_rec && k == B_SEL)
+        else if (seq_rec && ui.page == PG_SEQ && k == B_SEL)
             step_legato();
         else if (k == B_SEL && (ui.page == PG_OSC || ui.page == PG_MIX)) {   /* the OSCILLATORS' Osc Select */
             ui.osc_sel ^= 1u;
@@ -2579,7 +2613,7 @@ static void input(void)
                 patch.arp_on = 0;
                 set_dirty = 1;
             }
-            if (set.clk_out && !ext_clock())  /* (CLK OUT: start or stop to what follows the clock) */
+            if (set.clk_out && !ext_clock())  /* (SEND CLK: start or stop to what follows the clock) */
                 plat_midi_send(0x0Fu | (run ? 0xFAu : 0xFCu) << 8, TO_USB | TO_BLE);
             app_say("SEQ", run ? "PLAY" : "STOP");
         } else if (k == B_GLO)               /* the global settings: MIDI, again SYS, again DUMP (RND: GLO + OCT+) */
@@ -2594,10 +2628,10 @@ static void input(void)
             app_say("BUTTON", BTN_NAME[k]);
         }
     }
-    if (ui.rec_held && !(btn >> B_REC & 1u)) {   /* REC let go: on GLO SYS a Bluetooth device, elsewhere a random
+    if (ui.rec_held && !(btn >> B_REC & 1u)) {   /* REC let go: on GLO MIDI a Bluetooth device, elsewhere a random
                                                   * sound */
         ui.rec_held = 0;
-        if (ui.page != PG_GSYS)
+        if (ui.page != PG_GMIDI)
             randomize();
         else if (FM1B_BLE_CENTRAL && !set.ble_off)
             ble_device_button();
@@ -2611,7 +2645,7 @@ static void input(void)
         ui.turns[k] += e;
         ui.turned_at[k] = plat_ms();
         ui.redraw = 1;
-        if (k == EN_ALGO && FM1B_BLE_CENTRAL && ui.looking && ui.page == PG_GSYS) {
+        if (k == EN_ALGO && FM1B_BLE_CENTRAL && ui.looking && ui.page == PG_GMIDI) {
             btdev_choose(btdev_pick() + e);
             ble_device_say();
         } else if (knob_turn(k, e)) {
@@ -2666,7 +2700,7 @@ void app_input_only(void) { input(); }
 #define P_CDIM RGB(18, 54, 74)               /* under a curve; a button lit (#12364a) */
 #define P_KEYW RGB(206, 206, 210)
 #define P_KEYB RGB(10, 10, 10)
-/* the firmware's version as shown (the splash, GLO SYS): a release's "v0.1", a development build's "DEV" */
+/* the firmware's version as shown (the splash, GLO SYS): a release's "v0.2", a development build's "DEV" */
 #define VERSION_TEXT (APP_VERSION[0] >= '0' && APP_VERSION[0] <= '9' ? "v" APP_VERSION : APP_VERSION)
 static void ui_start(void) { ui.page = PG_PATCH; }   /* the first page, after the splash: the MASTER */
 
@@ -3363,8 +3397,8 @@ static void info(int32_t x, int32_t w, int32_t y, const char *name, const char *
     cv_text(x + w, y, &FONT_T, v, c);
 }
 #define GLO_ROW 124                          /* the knobs' and switches' row */
-/* GLOBAL MIDI: the channel on the display, its knob (K1); what goes out and the clock; CC Chan (SELECT), Local, AT Out
- * (K2, K3: switches) and the arp's clock (K4) along the bottom */
+/* GLOBAL MIDI: the channel on the display, its knob (K1); what goes out and Bluetooth; CC Chan (SELECT), Local, AT Out
+ * (K2, K3: switches) and Bluetooth (K4) along the bottom */
 static void glo_midi_draw(void)
 {
     char t[4], o[8] = "Ch ";
@@ -3378,15 +3412,16 @@ static void glo_midi_draw(void)
     print_knob(118, 60, 15, knob_param(EN_K1), EN_K1, 1, "Channel", 0);
     info(146, 42, 46, "Out", o, P_CYAN);
     info(146, 42, 58, "CC", set.cc_chan == CH_ALL ? "Any" : set.cc_chan ? CHAN_NAME[set.cc_chan] : "Off", P_CYAN);
-    info(146, 42, 70, "Clock", ext_clock() ? "MIDI in" : set.clk_out ? "Sending" : "Internal",
-         ext_clock() || set.clk_out ? P_CYAN : P_SILK);
+    info(146, 42, 70, "BLE", set.ble_off ? "Off" : plat_ble_connected() ? "Connected" : "On",
+         !set.ble_off && plat_ble_connected() ? P_CYAN : P_SILK);
     print_knob(34, GLO_ROW, 14, knob_param(EN_SELECT), EN_SELECT, 1, "CC Chan", 0);
     print_switch(92, GLO_ROW, EN_K2, "Off", "On", "Local");
     print_switch(150, GLO_ROW, EN_K3, "Off", "On", "AT Out");
-    print_knob(208, GLO_ROW, 14, knob_param(EN_K4), EN_K4, 1, "Arp Clock", 0);
+    print_switch(208, GLO_ROW, EN_K4, "On", "Off", "Bluetooth");
 }
-/* GLOBAL SYSTEM: the tempo on the display (dashes while MIDI clock leads), Bluetooth and the firmware; Tune, Clock Out,
- * the keys' Velocity curve and Bluetooth (K1-K4) along the bottom */
+/* GLOBAL SYSTEM: the tempo on the display (dashes while MIDI clock leads), the Send Clk switch (SELECT), the clock
+ * and the firmware; Tune, Sync (what the arp follows), the keys' Velocity curve and the knobs' response (K1-K4) along
+ * the bottom */
 static void glo_sys_draw(void)
 {
     char t[4];
@@ -3397,13 +3432,14 @@ static void glo_sys_draw(void)
     glo_frame("System");
     seg_display(8, 40, t, 3);
     print_c(50, 92, ext_clock() ? (eng.ext_age < EXT_HOLD ? "MIDI clock" : "Waiting for clock") : "Tempo", P_SILK);
-    info(118, 52, 46, "Bluetooth", set.ble_off ? "Off" : plat_ble_connected() ? "Connected" : "On",
-         !set.ble_off && plat_ble_connected() ? P_CYAN : P_SILK);
-    info(118, 52, 58, "Firmware", VERSION_TEXT, P_CYAN);
+    print_switch(122, 64, EN_SELECT, "Off", "On", "Send Clk");
+    info(152, 40, 52, "Clock", ext_clock() ? "MIDI in" : set.clk_out ? "Sending" : "Internal",
+         ext_clock() || set.clk_out ? P_CYAN : P_SILK);
+    info(152, 40, 64, "Version", VERSION_TEXT, P_CYAN);
     print_knob(34, GLO_ROW, 14, knob_param(EN_K1), EN_K1, 1, "Tune", 0);
-    print_switch(92, GLO_ROW, EN_K2, "Off", "On", "Clock Out");
+    print_knob(92, GLO_ROW, 14, knob_param(EN_K2), EN_K2, 1, "Sync", 0);
     print_knob(150, GLO_ROW, 14, knob_param(EN_K3), EN_K3, 1, "Velocity", 0);
-    print_switch(208, GLO_ROW, EN_K4, "On", "Off", "Bluetooth");
+    print_knob(208, GLO_ROW, 14, knob_param(EN_K4), EN_K4, 1, "Knobs", 0);
 }
 /* GLOBAL DUMP: the patch on the display; SEL sends it, FX all 32, as the Bass Station II's SysEx (two buttons, as
  * the FM-1's are: FX at the left, SEL at the right) */
@@ -3771,7 +3807,34 @@ static void key_cell(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t k, uin
         cv_rect(x + 2, y + h - p, w - 4, p, P_TEXT);
 }
 
-static void keys_draw(void)                  /* the keys; the octave, the slot, Bluetooth, the volume, MIDI in */
+/* the battery under OCT: three bars (red, empty: none), a bolt on USB power (no charge line: charging or not), the
+ * outline grey until the first reading */
+static void battery_draw(int32_t x, int32_t y)
+{
+    int b = plat_battery(), i;
+    uint16_t c = b < 0 ? P_EDGE : b == 0 ? P_LEDON : P_LABEL;
+    cv_rect(x, y, 18, 1, c);
+    cv_rect(x, y + 8, 18, 1, c);
+    cv_rect(x, y, 1, 9, c);
+    cv_rect(x + 17, y, 1, 9, c);
+    cv_rect(x + 18, y + 3, 2, 3, c);
+    if (b == 4) {                            /* a bolt */
+        cv_line(x + 11, y + 2, x + 7, y + 4, P_CYAN);
+        cv_line(x + 7, y + 4, x + 11, y + 4, P_CYAN);
+        cv_line(x + 11, y + 4, x + 7, y + 6, P_CYAN);
+        return;
+    }
+    for (i = 0; i < b && i < 3; i++)
+        cv_rect(x + 2 + 5 * i, y + 2, 4, 5, P_CYAN);
+}
+/* what the footer shows of Bluetooth and the battery: a change redraws it */
+static uint32_t ble_batt(void)
+{
+    return (uint32_t)(plat_ble_connected() | plat_ble_device() << 1 | (plat_battery() + 1) << 4);
+}
+
+static void keys_draw(void)                  /* the keys; the octave, the slot, Bluetooth, the volume, the battery,
+                                              * MIDI in */
 {
     char t[24];
     uint32_t i, pct = plat_master() * 100u / 4096u;
@@ -3804,6 +3867,7 @@ static void keys_draw(void)                  /* the keys; the octave, the slot, 
     int_text((int32_t)pct, t);
     text_cat(t, "%");
     cv_text(204, 31, &FONT_XS, t, P_CYAN);
+    battery_draw(5, 49);
     if (midi_count) {                        /* the last MIDI message in, and where from */
         static const char *const PORT[NPORTS] = {"USB", "BLE", "TRS"};
         static const char HEX[] = "0123456789ABCDEF";
@@ -3815,9 +3879,9 @@ static void keys_draw(void)                  /* the keys; the octave, the slot, 
             h[3 * b + 1] = HEX[v & 15u];
             h[3 * b + 2] = b < 2u ? ' ' : 0;
         }
-        cv_text(4, 45, &FONT_XS, "MIDI IN", P_LABEL);
-        cv_text(52, 45, &FONT_XS, midi_last_port < NPORTS ? PORT[midi_last_port] : "", P_CYAN);
-        cv_text(82, 45, &FONT_XS, h, P_TEXT);
+        cv_text(32, 45, &FONT_XS, "MIDI IN", P_LABEL);
+        cv_text(80, 45, &FONT_XS, midi_last_port < NPORTS ? PORT[midi_last_port] : "", P_CYAN);
+        cv_text(110, 45, &FONT_XS, h, P_TEXT);
     }
     if (seq_rec || seq_playing() || patch.arp_on)   /* what plays the keys: recording, the sequencer, the arp */
         cv_text(178, 45, &FONT_XS, seq_rec ? "REC" : patch.arp_mode == ARP_PLAY ? "SEQ" : "ARP", P_CYAN);
@@ -3975,10 +4039,9 @@ void app_frame(void)
         last_midi = midi_count;
         ui.redraw = 1;
     }
-    if (pct != last_pct || (uint32_t)(plat_ble_connected() | plat_ble_device() << 1) != last_ble ||
-        (ui.msg_until && now >= ui.msg_until)) {
+    if (pct != last_pct || ble_batt() != last_ble || (ui.msg_until && now >= ui.msg_until)) {
         last_pct = pct;
-        last_ble = (uint32_t)(plat_ble_connected() | plat_ble_device() << 1);
+        last_ble = ble_batt();
         if (now >= ui.msg_until)
             ui.msg_until = 0;
         ui.redraw = 1;
@@ -4158,6 +4221,8 @@ int app_expect(const char *what, int *got)
         *got = set.clock;
     else if (!strcmp(what, "vcurve"))
         *got = set.vcurve;
+    else if (!strcmp(what, "knobs"))
+        *got = set.knobs;
     else if (!strcmp(what, "ble_off"))
         *got = set.ble_off;
     else if (!strcmp(what, "afx"))

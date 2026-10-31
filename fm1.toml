@@ -8,8 +8,12 @@ o2 = []                        # separate units compiled at -O2 (an app's DSP)
 words = "words.tsv"
 ble = true                     # Bluetooth MIDI (--no-ble builds without it)
 ble_central = true             # and the FM-1 connects to Bluetooth MIDI devices too
+usb_audio_first = true         # USB audio's streaming interfaces first (felucca-bsp FELUCCA_UAC_AS_FIRST): macOS shows
+                               # the FM-1 as an audio device beside its MIDI
+authors = ["John Brown"]       # the .rfm1's manifest (tools/build.py bs2 --rfm1: RemoteFM1 for iOS)
 # the site (tools/make_site.py, tools/publish_site.sh)
 tagline = "a Bass Station 2-style monosynth for the M-VAVE FM-1"
 repo = "https://github.com/imijes/bass-something-2"   # the source
 licence = "MPL-2.0"
-credits = ""                   # (the installer's footer: bs2/site/make_site.py FOOTER, pointing to the manual's Credits)
+credits = "by John Brown (https://github.com/imijes), with the factory patches of Emozinaguitars' ULTIMATE PATCHES Vol 2 and the work of others, all credited in the manual's section 12: https://imijes.github.io/bass-something-2/manual/#s12"
+                               # (the .rfm1's credits; the installer's footer is bs2/site/make_site.py FOOTER's)
