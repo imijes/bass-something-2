@@ -64,9 +64,9 @@
  * (tools/manual_html.py's --paper, --ink ...) and the installer (web/installer.html's --bg, --fg ...) */
 :root, :root:not([data-theme="light"]), :root[data-theme] {
   --paper: #121212; --sheet: #262628; --rule: #404044; --ink: #ffffff; --muted: #a2a2a8;
-  --hot: #00b4d8; --hot-t: #004250; --cool: #00b4d8; --cool-t: #1a2a2e; --hot-ink: #00b4d8;
-  --bg: #121212; --fg: #ffffff; --dim: #a2a2a8; --accent: #00b4d8; --on-accent: #00141a; --bad: #ff7a6b;
-  --focus: #00b4d8;
+  --hot: #3aadec; --hot-t: #12364a; --cool: #3aadec; --cool-t: #1a2a2e; --hot-ink: #3aadec;
+  --bg: #121212; --fg: #ffffff; --dim: #a2a2a8; --accent: #3aadec; --on-accent: #00141a; --bad: #ff7a6b;
+  --focus: #3aadec;
   color-scheme: dark;
 }
 body { background: #121212; color: #ffffff; font-family: "Barlow", "Helvetica Neue", Arial, sans-serif; }
@@ -102,7 +102,7 @@ dialog { background: #1a1a1c; border: 1px solid var(--rule); }
 </style>
 </head>
 <body>
-<nav aria-label="Site"><ul class="bs2-tabs narrow"><li><a href="../">Home</a></li><li><a href="../emu/">Emulator</a></li><li><a href="../install/" aria-current="page">Install</a></li><li><a href="../manual/">Manual</a></li></ul></nav>
+<nav aria-label="Site"><ul class="bs2-tabs narrow"><li><a href="../">Home</a></li><li><a href="../emu/">Emulator</a></li><li><a href="../install/" aria-current="page">Install</a></li><li><a href="../sysex/">SysEx</a></li><li><a href="../manual/">Manual</a></li></ul></nav>
 <main>
   <button type="button" class="lang" id="lang" lang="ja">日本語</button>
   <h1>Install Bass Something 2</h1>
@@ -765,7 +765,7 @@ const log = (t) => {
   if (atEnd) el.scrollTop = el.scrollHeight;
 };
 let image = null, boot = null;
-const meta = {"version": "0.1", "product": "FM-1_62000100", "pkg": "../firmware/bass-something-2-0.1.fwsc", "backup": false, "boot": {"pkg": "../firmware/m-bootloader-1.2.fwsc", "version": "1.2", "sha256": "0e89141f52d1f2d62198d4f69147a2c15c8360806e64d48002990a6fdab6d6dd"}};
+const meta = {"version": "0.2", "product": "FM-1_62000200", "pkg": "../firmware/bass-something-2-0.2.fwsc", "backup": false, "boot": {"pkg": "../firmware/m-bootloader-1.2.fwsc", "version": "1.2", "sha256": "0e89141f52d1f2d62198d4f69147a2c15c8360806e64d48002990a6fdab6d6dd"}};
 /* the firmware's own steps around an install (its site's install_app script, or none): before(midi, ui) runs before
    anything is written, may ask (ui.ask) and returns its state, or false to stop there; after(midi, ui, state) once
    the new firmware has started (it waits for it itself). A failure in after is said, the install stays done */

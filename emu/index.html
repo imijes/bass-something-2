@@ -15,8 +15,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
 <style>
 /* the firmware's screen (app.c): P_BG matte black, P_CARD and P_EDGE the cards, P_LABEL the names, P_CYAN what is live */
-:root { --ground: #121212; --ink: #ffffff; --muted: #a2a2a8; --rule: #404044; --accent: #00b4d8; --teal: #00b4d8;
-        --card: #262628; --track: #36363a; --cdim: #004250; --bad: #ff7a6b; --focus: #00b4d8; color-scheme: dark; }
+:root { --ground: #121212; --ink: #ffffff; --muted: #a2a2a8; --rule: #404044; --accent: #3aadec; --teal: #3aadec;
+        --card: #262628; --track: #36363a; --cdim: #12364a; --bad: #ff7a6b; --focus: #3aadec; color-scheme: dark; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 body { background: var(--ground); color: var(--ink); margin: 0; padding-inline: 16px; padding-block: 28px 48px;
@@ -41,22 +41,22 @@ a { color: var(--accent); }
 .device svg { pointer-events: none; }
 .hit { position: absolute; touch-action: none; cursor: pointer; -webkit-tap-highlight-color: transparent; border-radius: 12px; }
 .hit.knob { cursor: ns-resize; border-radius: 50%; }
-.hit:focus-visible { outline: 3px solid #00b4d8; outline-offset: 2px; box-shadow: 0 0 0 6px #000; }
+.hit:focus-visible { outline: 3px solid #3aadec; outline-offset: 2px; box-shadow: 0 0 0 6px #000; }
 .device svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .device canvas { position: absolute; left: 31.8%; top: 9.6875%; width: 20%; height: 31.25%; background: #000; border-radius: 2px; }
 .ctl { cursor: pointer; }
 .ctl.knob { cursor: ns-resize; }
 .btnface { transition: fill .06s; }
-.lit .btnface { fill: #00b4d8; }
+.lit .btnface { fill: #3aadec; }
 .lit text.btn { fill: #00141a; }
-.held .btnface, .held .keyface { stroke: #00b4d8; stroke-width: 3; }
+.held .btnface, .held .keyface { stroke: #3aadec; stroke-width: 3; }
 .latched .btnface, .latched .keyface { stroke: #ffffff; stroke-width: 3; }
 .keyface { transition: fill .06s; }
-.lit .keyface.white { fill: #00b4d8; }
-.lit .keyface.black { fill: #00b4d8; }
+.lit .keyface.white { fill: #3aadec; }
+.lit .keyface.black { fill: #3aadec; }
 .start { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .6); border-radius: 4.4% / 6.9%; }
 .start button { font: 600 1.25rem "Barlow Semi Condensed", "Barlow", sans-serif; letter-spacing: .04em; padding: .7em 1.6em;
-                border-radius: 4px; border: 0; background: #00b4d8; color: #00141a; cursor: pointer; text-transform: uppercase; }
+                border-radius: 4px; border: 0; background: #3aadec; color: #00141a; cursor: pointer; text-transform: uppercase; }
 .start[hidden] { display: none; }
 .turn { display: none; margin: 0 0 .8rem; color: var(--muted); font-size: .92rem; }
 @media (orientation: portrait) and (max-width: 700px) { .turn { display: block; } }
@@ -103,6 +103,7 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
     <li><a href="../">Home</a></li>
     <li><a href="./" aria-current="page">Emulator</a></li>
     <li><a href="../install/">Install</a></li>
+    <li><a href="../sysex/">SysEx</a></li>
     <li><a href="../manual/">Manual</a></li>
   </ul></nav>
 </header>
@@ -220,7 +221,7 @@ function knob(x, y, r, label, role, name) {
   const g = el("g", { class: "ctl knob" });
   el("circle", { cx: x, cy: y, r: r + 5, fill: TRAY }, g);
   el("circle", { cx: x, cy: y, r, fill: KNOB, stroke: "#404044", "stroke-width": 2 }, g);
-  const ind = el("line", { x1: x, y1: y - r + 5, x2: x, y2: y - r + 15, stroke: "#00b4d8", "stroke-width": 3, "stroke-linecap": "round" }, g);
+  const ind = el("line", { x1: x, y1: y - r + 5, x2: x, y2: y - r + 15, stroke: "#3aadec", "stroke-width": 3, "stroke-linecap": "round" }, g);
   text(g, x, y - r - 12, label, 17);
   el("circle", { cx: x, cy: y, r: r + 14, fill: "transparent" }, g);
   knobs[label] = { g, ind, x, y, angle: 0, role, name: name || label };

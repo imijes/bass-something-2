@@ -1,0 +1,325 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MPL-2.0
+     Copyright (C) 2026 John Brown
+     Bass Something 2's SysEx page: Bass Station II patch dumps to and from the FM-1 over Web MIDI (bs2_sysex.c reads
+     and writes them; app_sysex answers F0 7D 42 53 32 01 / 03 F7 with the sound / all 32), in the firmware's own
+     colours (app.c P_*), as the emulator page -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bass Something 2 SysEx</title>
+<meta name="description" content="Send Bass Station II patches to Bass Something 2 on the M-VAVE FM-1, and back its patches up, from the browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+/* the firmware's screen (app.c): P_BG matte black, P_CARD and P_EDGE the cards, P_LABEL the names, P_CYAN what is live */
+:root { --ground: #121212; --ink: #ffffff; --muted: #a2a2a8; --rule: #404044; --accent: #3aadec; --card: #262628;
+        --cdim: #12364a; --bad: #ff7a6b; --focus: #3aadec; --red: #fc4e70; color-scheme: dark; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+body { background: var(--ground); color: var(--ink); margin: 0; padding-inline: 16px; padding-block: 28px 48px;
+       font: 400 16px/1.55 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+main, body > header { max-width: 860px; margin: 0 auto; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 1.2rem; margin: 0 0 1.4rem; }
+h1 { font: 700 2rem/1.1 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0; letter-spacing: .02em; color: var(--accent); }
+h2 { font: 700 1.05rem/1.2 "Barlow Semi Condensed", "Barlow", sans-serif; letter-spacing: .06em; text-transform: uppercase;
+     margin: 0; padding: .3rem .7rem; background: var(--accent); color: #fff; }
+header p { margin: 0; color: var(--muted); }
+/* the section tabs, as on the screen: grey cards, the one you are on lit cyan */
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.tabs a { display: block; padding: .2em .7em; background: var(--card); border: 1px solid var(--rule); border-radius: 3px;
+          color: var(--muted); text-decoration: none; font: 600 .95rem "Barlow Semi Condensed", "Barlow", sans-serif;
+          letter-spacing: .06em; text-transform: uppercase; }
+.tabs a:hover { color: var(--ink); border-color: var(--accent); }
+.tabs a[aria-current] { background: var(--accent); border-color: var(--accent); color: #00141a; }
+a { color: var(--accent); }
+/* each part a panel section: its cyan bar, a cyan line down its left */
+section { margin: 0 0 1.6rem; border-left: 3px solid var(--accent); background: #1a1a1c; }
+section > div { padding: .9rem 1rem 1rem; }
+section p { margin: 0 0 .7rem; }
+.row { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; margin: 0 0 .8rem; }
+label { color: var(--muted); font-size: .92rem; }
+select, input[type=number] { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--rule);
+                             border-radius: 4px; padding: .25em .4em; max-width: 100%; }
+input[type=number] { width: 5em; }
+button { font: 600 .95rem "Barlow Semi Condensed", "Barlow", sans-serif; letter-spacing: .05em; text-transform: uppercase;
+         color: var(--ink); background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: .45em 1em;
+         cursor: pointer; min-height: 2.4em; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button.go { background: var(--accent); border-color: var(--accent); color: #00141a; }
+button:disabled { opacity: .45; cursor: default; }
+.drop { border: 2px dashed var(--rule); border-radius: 6px; padding: 1rem; text-align: center; color: var(--muted); }
+.drop.over { border-color: var(--accent); background: var(--cdim); color: var(--ink); }
+.status { color: var(--muted); font-size: .95rem; min-height: 1.5em; }
+.status.ok { color: var(--accent); }
+.status.bad { color: var(--bad); font-weight: 600; }
+.warn { color: var(--ink); background: #2a1418; border-left: 3px solid var(--red); padding: .5rem .8rem; font-size: .95rem; }
+.warn[hidden] { display: none; }
+.list { max-height: 18rem; overflow: auto; border: 1px solid var(--rule); border-radius: 4px; }
+table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+th, td { text-align: left; padding: .25rem .6rem; border-bottom: 1px solid #2c2c30; }
+th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: #1a1a1c; }
+td.slot { font: 600 .95rem ui-monospace, Menlo, monospace; color: var(--red); width: 4.5em; }
+.empty { color: var(--muted); padding: .6rem; }
+progress { width: 12rem; accent-color: var(--accent); }
+kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: 0 .3em; color: var(--ink); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bass Something 2</h1>
+  <p>Inspired by the Bass Station 2</p>
+  <nav aria-label="Site"><ul class="tabs">
+    <li><a href="../">Home</a></li>
+    <li><a href="../emu/">Emulator</a></li>
+    <li><a href="../install/">Install</a></li>
+    <li><a href="./" aria-current="page">SysEx</a></li>
+    <li><a href="../manual/">Manual</a></li>
+  </ul></nav>
+</header>
+<main>
+  <p>Send Bass Station II patches (<code>.syx</code> files) to the FM-1, and back its patches up, over USB. This needs
+    Chrome or Edge, with the FM-1 running Bass Something 2 and connected by USB. The browser asks to allow SysEx: allow it.
+    <a href="../manual/#s7">The manual's SysEx section</a> has the details.</p>
+
+  <section aria-labelledby="h-conn">
+    <h2 id="h-conn">Connect</h2>
+    <div>
+      <div class="row">
+        <button id="connect" class="go">Connect</button>
+        <label>To the FM-1 <select id="out" disabled></select></label>
+        <label>From the FM-1 <select id="in" disabled></select></label>
+      </div>
+      <p id="conn-status" class="status" role="status" aria-live="polite">Not connected.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-get">
+    <h2 id="h-get">From the FM-1: back up</h2>
+    <div>
+      <p>Ask for the sound you're playing, or all 32 patches. Pressing SEL or FX on the FM-1's GLOBAL DUMP page
+        (<kbd>GLO</kbd> three times) arrives here too.</p>
+      <div class="row">
+        <button id="get-sound" disabled>Get the sound</button>
+        <button id="get-all" disabled>Get all 32</button>
+        <button id="save" class="go" disabled>Save .syx</button>
+        <button id="clear" disabled>Clear</button>
+      </div>
+      <div class="list" id="got-list"><p class="empty">Nothing received yet.</p></div>
+      <p id="get-status" class="status" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-send">
+    <h2 id="h-send">To the FM-1: load patches</h2>
+    <div>
+      <p>A single patch loads into the sound you're playing: press <kbd>SAVE</kbd> on the FM-1 to keep it. A bank (each
+        patch addressed to its number, as a backup from above or a Bass Station II sound pack) goes straight into the
+        FM-1's patches, P01 to P32.</p>
+      <div class="drop" id="drop">
+        <p style="margin:0 0 .6rem">Drop <code>.syx</code> files here, or</p>
+        <label class="sr" for="file">Choose .syx files</label>
+        <input type="file" id="file" accept=".syx,application/octet-stream" multiple>
+      </div>
+      <div class="list" id="send-list" style="margin-top:.8rem"><p class="empty">No file chosen.</p></div>
+      <p class="warn" id="bank-warn" hidden>This replaces the FM-1's patches it reaches, without SAVE. Back them up
+        above first if you want to keep them.</p>
+      <div class="row" style="margin-top:.8rem">
+        <button id="send" class="go" disabled>Send to the FM-1</button>
+        <button id="stop" disabled>Stop</button>
+        <label>Pause between patches <input type="number" id="gap" min="20" max="500" step="10" value="50"> ms</label>
+        <progress id="prog" max="1" value="0" hidden></progress>
+      </div>
+      <p id="send-status" class="status" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const NOVATION = [0xF0, 0x00, 0x20, 0x29, 0x00, 0x33];   // a Bass Station II patch dump's start
+const ASK_SOUND = [0xF0, 0x7D, 0x42, 0x53, 0x32, 0x01, 0xF7], ASK_ALL = [0xF0, 0x7D, 0x42, 0x53, 0x32, 0x03, 0xF7];
+const DUMP_LEN = 154, DUMP_MIN = 122, NAME_AT = 137, NAME_N = 16, STORE = 0x01;   // bs2_sysex.c's BSX_*
+const FM1_PORT = /fm-?1|bass ?something|felucca/i;
+let midi = null, out = null, inp = null, got = [], toSend = [], sending = false, stopAsked = false;
+
+const isDump = (m) => (m.length === DUMP_LEN || m.length === DUMP_MIN) && NOVATION.every((b, i) => m[i] === b);
+function dumpName(m) {
+  if (m.length !== DUMP_LEN) return "";
+  return String.fromCharCode(...m.slice(NAME_AT, NAME_AT + NAME_N).map((c) => (c >= 0x20 && c < 0x7F ? c : 0x20))).trimEnd();
+}
+const dumpSlot = (m) => (m[7] === STORE ? m[8] & 0x7F : -1);   // -1: the sound (the edit buffer)
+const slotText = (s) => (s < 0 ? "Sound" : "P" + String(s + 1).padStart(2, "0"));
+
+function say(id, text, kind) {
+  const el = $(id);
+  el.textContent = text;
+  el.className = "status" + (kind ? " " + kind : "");
+}
+function table(list, rows) {
+  if (!rows.length) return;
+  const t = document.createElement("table");
+  t.innerHTML = "<thead><tr><th scope=\"col\">Patch</th><th scope=\"col\">Name</th></tr></thead>";
+  const body = t.createTBody();
+  for (const m of rows) {
+    const s = dumpSlot(m), tr = body.insertRow();
+    const a = tr.insertCell(), b = tr.insertCell();
+    a.className = "slot";
+    a.textContent = s >= 32 ? slotText(s) + " (left out)" : slotText(s);
+    b.textContent = dumpName(m) || "(no name)";
+  }
+  list.replaceChildren(t);
+}
+
+// ---------------------------------------------------------------- the ports
+function fillPorts() {
+  const fill = (sel, ports, cur) => {
+    const list = [...ports.values()];
+    sel.replaceChildren(...list.map((p) => new Option(p.name, p.id)));
+    const pick = list.find((p) => cur && p.id === cur.id) || list.find((p) => FM1_PORT.test(p.name)) || list[0];
+    if (pick) sel.value = pick.id;
+    sel.disabled = !list.length;
+    return pick || null;
+  };
+  setOut(fill($("out"), midi.outputs, out));
+  setIn(fill($("in"), midi.inputs, inp));
+  const ready = out && inp && FM1_PORT.test(out.name);
+  if (!out || !inp)
+    say("conn-status", "No MIDI ports found. Connect the FM-1 by USB.", "bad");
+  else
+    say("conn-status", ready ? `Connected: ${out.name}.` : `No FM-1 found by name: using ${out.name}. Pick the FM-1 if it's another.`,
+        ready ? "ok" : "");
+  enable();
+}
+function setOut(p) { out = p; }
+function setIn(p) {
+  if (inp && inp !== p) inp.onmidimessage = null;
+  inp = p;
+  if (inp) inp.onmidimessage = received;
+}
+function enable() {
+  const ok = !!out && !sending;
+  $("get-sound").disabled = $("get-all").disabled = !ok;
+  $("send").disabled = !ok || !toSend.length;
+  $("stop").disabled = !sending;
+  $("save").disabled = $("clear").disabled = !got.length;
+}
+$("connect").addEventListener("click", async () => {
+  if (!navigator.requestMIDIAccess) {
+    say("conn-status", "This browser has no Web MIDI. Use Chrome or Edge on a computer.", "bad");
+    return;
+  }
+  try {
+    midi = await navigator.requestMIDIAccess({ sysex: true });
+  } catch (e) {
+    say("conn-status", "MIDI with SysEx wasn't allowed. Allow it in the browser's site settings, then try again.", "bad");
+    return;
+  }
+  midi.onstatechange = fillPorts;
+  $("connect").textContent = "Look again";
+  fillPorts();
+});
+$("out").addEventListener("change", (e) => { setOut(midi.outputs.get(e.target.value) || null); enable(); });
+$("in").addEventListener("change", (e) => setIn(midi.inputs.get(e.target.value) || null));
+
+// ---------------------------------------------------------------- from the FM-1
+let gotTimer = 0;
+function received(e) {
+  const m = e.data;
+  if (m[0] !== 0xF0 || !isDump(m)) return;
+  got.push(Uint8Array.from(m));
+  table($("got-list"), got);
+  clearTimeout(gotTimer);
+  gotTimer = setTimeout(() => say("get-status", `${got.length} patch${got.length === 1 ? "" : "es"} received.`, "ok"), 300);
+  enable();
+}
+function ask(msg, what) {
+  if (!out) return;
+  out.send(msg);
+  say("get-status", `Asked for ${what}…`);
+  setTimeout(() => { if (!got.length) say("get-status", "No answer. Check that the FM-1 runs Bass Something 2 and the ports above are its own.", "bad"); }, 3000);
+}
+$("get-sound").addEventListener("click", () => ask(ASK_SOUND, "the sound"));
+$("get-all").addEventListener("click", () => ask(ASK_ALL, "all 32 patches"));
+$("clear").addEventListener("click", () => {
+  got = [];
+  $("got-list").innerHTML = '<p class="empty">Nothing received yet.</p>';
+  say("get-status", "");
+  enable();
+});
+$("save").addEventListener("click", () => {
+  const blob = new Blob(got, { type: "application/octet-stream" });
+  const d = new Date(), day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `bass-something-2-${got.length === 1 ? "sound" : got.length + "-patches"}-${day}.syx`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+// ---------------------------------------------------------------- to the FM-1
+function split(bytes) {                     // a file's SysEx messages, F0 .. F7 each
+  const list = [];
+  let start = -1;
+  for (let i = 0; i < bytes.length; i++) {
+    if (bytes[i] === 0xF0) start = i;
+    else if (bytes[i] === 0xF7 && start >= 0) { list.push(bytes.slice(start, i + 1)); start = -1; }
+  }
+  return list;
+}
+async function load(files) {
+  let all = [], other = 0;
+  for (const f of files) {
+    for (const m of split(new Uint8Array(await f.arrayBuffer()))) {
+      if (isDump(m)) all.push(m);
+      else other++;
+    }
+  }
+  toSend = all;
+  if (!all.length) {
+    $("send-list").innerHTML = '<p class="empty">No Bass Station II patches in that file.</p>';
+    say("send-status", other ? `${other} other SysEx message${other === 1 ? "" : "s"} left out.` : "", "bad");
+  } else {
+    table($("send-list"), all);
+    const banked = all.filter((m) => dumpSlot(m) >= 0 && dumpSlot(m) < 32).length;
+    $("bank-warn").hidden = !banked;
+    say("send-status", `${all.length} patch${all.length === 1 ? "" : "es"} ready` +
+        (other ? `, ${other} other SysEx message${other === 1 ? "" : "s"} left out.` : "."));
+  }
+  enable();
+}
+$("file").addEventListener("change", (e) => load(e.target.files));
+const drop = $("drop");
+drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); load(e.dataTransfer.files); });
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+$("send").addEventListener("click", async () => {
+  const gap = Math.max(20, Number($("gap").value) || 50), prog = $("prog");
+  sending = true;
+  stopAsked = false;
+  prog.max = toSend.length;
+  prog.value = 0;
+  prog.hidden = false;
+  enable();
+  let n = 0;
+  for (const m of toSend) {                 // one at a time: the FM-1 drops a message that comes while it's busy
+    if (stopAsked) break;
+    out.send(m);
+    prog.value = ++n;
+    say("send-status", `Sending ${n} of ${toSend.length}…`);
+    await sleep(gap);
+  }
+  sending = false;
+  enable();
+  say("send-status", stopAsked ? `Stopped after ${n}.` : `Sent ${n}. The FM-1's screen says what came in` +
+      (toSend.length > 1 ? " (BANK LOADED and how many)." : " (SYSEX LOADED): press SAVE to keep it."), stopAsked ? "" : "ok");
+});
+$("stop").addEventListener("click", () => { stopAsked = true; });
+</script>
+</body>
+</html>
