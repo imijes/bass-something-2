@@ -62,3 +62,19 @@ MOD ENV OSC 1 PW	mod envelope, oscillator 1 pulse width
 MOD ENV OSC 2 PW	mod envelope, oscillator 2 pulse width
 PW1 ENV	pulse width 1 envelope
 PW2 ENV	pulse width 2 envelope
+SUBTR	subtractive
+SSAW	supersaw
+HARM	harmonic
+PLUCK	plucked string
+RND T1	R N D track 1
+RND T2	R N D track 2
+RND T3	R N D track 3
+RND T4	R N D track 4
+NAT MINOR	natural minor
+HARM MINOR	harmonic minor
+MAJ PENTA	major pentatonic
+MIN PENTA	minor pentatonic
+DBL HARMONIC	double harmonic
+HUNGARIAN MIN	Hungarian minor
+PHRYG DOM	Phrygian dominant
+DB	decibels

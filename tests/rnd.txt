@@ -1,5 +1,6 @@
-# RND seeds (bs2_rnd.c): the RND Synth's seeds captured, kept in their own table through power-off, sent back; the
-# sound and the patches untouched by them. Its notes (tracks on channels 1..4) play on GLO MIDI's channel.
+# RND (bs2_rnd.c): the RND Synth's patch playing (seed and lock code) kept in a slot of their own table through
+# power-off, a slot's sent back locks first; the synth asked how it is as the RND pages open; the sound and the patches untouched.
+# Its notes (tracks on channels 1..4) play on GLO MIDI's channel.
 # tools/build.py bs2 --host, then from the repository's root
 #   bs2/build/host/bass-something-2_host bs2/tests/rnd.txt bs2/build/host
 # (from the INIT patch in every slot, as before the factory patches)
@@ -13,7 +14,9 @@ tap GLO
 tap GLO
 wait 30
 expect page 16
-# GLO + OCT+: GLOBAL RND, the octave as it was; no seed yet, none to send or keep
+expect rnd_tx 0
+# GLO + OCT+: RND SEED, the octave as it was; the synth asked (19: its version, 18: everything); S01 empty, nothing
+# playing yet: none to send or keep
 press GLO
 wait 30
 tap OCT+
@@ -21,56 +24,81 @@ wait 30
 release GLO
 wait 30
 expect page 19
-said GLOBAL RND
+said RND SEED
 expect octave 0
 unsaid OCTAVE
+expect rnd_tx 2
+expect rnd_op0 25
+expect rnd_op1 24
 expect seed_hi 65535
-expect seed_src 0
+expect play_hi 65535
 tap FX
 wait 30
-said NONE YET
+said EMPTY
 tap SAVE
 wait 30
-said NONE YET
-# a seed from the RND Synth: captured and shown, the sound as it was
+said NONE PLAYING
+# SEL asks again
+tap SEL
+wait 30
+said RND ASKED
+expect rnd_tx 4
+# its answer (firmware 1.4, captured from it): the patch, its locks (Harmonic on tracks 1, 2, 4), three tracks; the
+# tempo (99) becomes TEMPO; the slot still empty; the sound as it was
 expect cutoff 100
 expect dirty 0
-sysex_in bs2/tests/syx/rnd_seed.syx
+sysex_in bs2/tests/syx/rnd14_dump.syx
 wait 30
-said RND SEED IN 12345678
-expect seed_hi 4660
-expect seed_lo 22136
-expect seed_src 1
+said RND SEED IN F34E8559 99 BPM
+expect play_hi 62286
+expect play_lo 34137
+expect rnd_code 35424480
+expect seed_hi 65535
+expect rnd_ntr 3
+expect tempo 99
 expect cutoff 100
-expect dirty 0
-# its repeats ignored; its tempo frame after it (120 BPM) becomes TEMPO, said with the seed
-sysex_in bs2/tests/syx/rnd_seed.syx
-sysex_in bs2/tests/syx/rnd_key.syx
-wait 30
-said RND SEED IN 12345678 120 BPM
-expect tempo 120
-# the tempo frame again: TEMPO is the player's between seeds
-sysex_in bs2/tests/syx/rnd_key.syx
+# tracks set to 2 there: the same seed, a new lock code, two tracks; nothing said, TEMPO the player's
+sysex_in bs2/tests/syx/rnd14_tracks2.syx
 wait 30
 said_none
-# SAVE here keeps the seed in its slot (S01), not the patch
+expect rnd_code 35426664
+expect rnd_ntr 2
+# SAVE here keeps the patch playing in the slot (S01), not the FM-1's patch
 tap SAVE
 wait 30
-said SEED SAVED S01 12345678
+said SEED SAVED S01 F34E8559
+expect seed_hi 62286
+expect seed_code 35426664
 expect dirty 1
-# another seed, kept in S02
+# its names, as RND pixels gives them: the seed's three words, the lock code's after them
+rnd_words VIABLE INJURY CLINIC CODE INCH ABSURD
+# an older seed frame alone (the synth's last lock code with it); S01 shows its own still; S02 empty, shown so, and
+# SAVE there keeps the one playing
 sysex_in bs2/tests/syx/rnd_seed2.syx
 wait 30
 said RND SEED IN CAFEF00D
+expect seed_hi 62286
+expect play_hi 51966
 turn PRESET 1
 wait 300
 said RND SEED S02 EMPTY
 expect seed_slot 1
-expect seed_hi 51966
+expect seed_hi 65535
 tap SAVE
 wait 30
 said SEED SAVED S02 CAFEF00D
-# the RND Synth's own frames (captured from it): a new seed and its tempo, 132 BPM; the sound otherwise untouched
+expect seed_hi 51966
+# S03 and on: empty still
+turn PRESET 1
+wait 300
+said RND SEED S03 EMPTY
+expect seed_hi 65535
+turn PRESET 5
+wait 300
+expect seed_hi 65535
+turn PRESET -6
+wait 300
+# the RND Synth's own 1.3 frames: a new seed and its tempo, 132 BPM; the sound otherwise untouched
 sysex_in bs2/tests/syx/rnd_real_seed.syx
 sysex_in bs2/tests/syx/rnd_real_tempo132.syx
 wait 30
@@ -92,19 +120,151 @@ expect tempo 240
 sysex_in bs2/tests/syx/rnd_tempo0.syx
 wait 30
 expect tempo 240
-# PRESET back to S01: its seed shown; FX sends it in the RND Synth's frame
+# PRESET back to S01: its id shown; FX sends it, a step every few ms: every lock off (1C), its locks (the track count,
+# 1F 2; the engines, 1B on tracks 0, 1, 3), the seed (10)
 turn PRESET -1
 wait 300
-said RND SEED S01 12345678
-expect seed_src 2
+said RND SEED S01 F34E8559 LOCKED
+expect seed_code 35426664
 tap FX
+wait 100
+said RND SEED SENT F34E8559
+expect rnd_tx 10
+expect rnd_op4 28
+expect rnd_op5 31
+expect rnd_arg5 2
+expect rnd_op6 27
+expect rnd_arg6 0
+expect rnd_op7 27
+expect rnd_arg7 1
+expect rnd_op8 27
+expect rnd_arg8 3
+expect rnd_op9 16
+expect rnd_arg9 89
+# GLO + OCT+ again: RND PATCH (not asked again); its locks as the synth said: engines only, tracks 2
+press GLO
 wait 30
-said RND SEED SENT 12345678
-rnd_out bs2/build/host/rnd_out.syx
-# a computer asks for the seed shown (F0 7D 42 53 32 02 F7)
+tap OCT+
+wait 30
+release GLO
+wait 30
+expect page 20
+said RND PATCH
+expect rnd_tx 10
+# SELECT: the type, RANDOM -> SEQUENCE (1A 00), back (1A 7F)
+turn SELECT 1
+wait 30
+said RND TYPE SEQUENCE
+expect rnd_op10 26
+expect rnd_arg10 0
+turn SELECT -1
+wait 30
+said RND TYPE RANDOM
+expect rnd_arg11 127
+# ALGO: the tracks, 2 -> 3 (1F 03); down to RANDOM (1F 7F)
+turn ALGO 1
+wait 30
+said RND TRACKS 3
+expect rnd_op12 31
+expect rnd_arg12 3
+spin ALGO -5
+wait 30
+said RND TRACKS RANDOM
+expect rnd_arg13 127
+# K2 with no root held: nothing sent; K1 the root D (note 62 on channel 1, let go 60 ms on), K2 its octave -1 (50)
+turn K2 1
+wait 30
+said LOCK A ROOT FIRST
+expect rnd_tx 14
+spin K1 3
+wait 100
+said RND ROOT D
+expect rnd_op14 144
+expect rnd_arg14 62
+expect rnd_op15 128
+turn K2 -1
+wait 100
+said RND OCTAVE -1
+expect rnd_arg16 50
+# K3: the scale, Dorian (CC 9 at 7), back to RANDOM (27 01); K1 back to RANDOM (27 00)
+spin K3 7
+wait 30
+said RND SCALE DORIAN
+expect rnd_op18 176
+expect rnd_arg18 9
+spin K3 -7
+wait 30
+said RND SCALE RANDOM
+expect rnd_op19 39
+expect rnd_arg19 1
+spin K1 -3
+wait 30
+said RND ROOT RANDOM
+expect rnd_op20 39
+expect rnd_arg20 0
+# SEL: every lock let go (1C)
+tap SEL
+wait 30
+said ALL RANDOM
+expect rnd_op21 28
+expect rnd_code 0
+# GLO + OCT+ again: RND TRACKS; K1-K4 set the row Row Select (SELECT) picks: engines first
+press GLO
+wait 30
+tap OCT+
+wait 30
+release GLO
+wait 30
+expect page 21
+said RND TRACKS
+# track 1's engine held: Subtractive (1B 00 name); let go (1B 00 00)
+turn K1 1
+wait 30
+said RND T1 ENGINE SUBTR
+expect rnd_op22 27
+expect rnd_arg22 0
+expect rnd_code 3980340
+turn K1 -1
+wait 30
+said RND T1 ENGINE RANDOM
+expect rnd_op23 27
+expect rnd_code 0
+# the levels: track 2's down to off (CC 7 on channel 3), back to as rolled
+turn SELECT 1
+wait 30
+said RND ROW LEVEL
+expect rnd_tx 24
+spin K2 -64
+wait 30
+said RND T2 LEVEL OFF
+expect rnd_op24 178
+expect rnd_arg24 7
+spin K2 64
+wait 30
+said RND T2 LEVEL 0.0 DB
+# the sends: track 4's up all the way (CC 91 on channel 5)
+turn SELECT 1
+wait 30
+said RND ROW REVERB
+spin K4 63
+wait 30
+said RND T4 REVERB +3.5 DB
+expect rnd_op26 180
+expect rnd_arg26 91
+expect rnd_tx 27
+# GLO + OCT+ again: RND SEED
+press GLO
+wait 30
+tap OCT+
+wait 30
+release GLO
+wait 30
+expect page 19
+# a computer asks for the slot's id (F0 7D 42 53 32 02 F7): sent the same way
 sysex_in bs2/tests/syx/rnd_ask.syx
-wait 30
+wait 100
 said RND SEED SENT
+expect rnd_tx 33
 # the sound untouched all along; REC still a random sound
 expect cutoff 100
 tap EDIT
@@ -127,7 +287,7 @@ expect note 67
 midi 82 43 00
 wait 30
 expect note -1
-# the seed table kept through power-off
+# the id table kept through power-off
 reboot
 wait 600
 tap GLO
@@ -139,10 +299,12 @@ release GLO
 wait 30
 wait 30
 expect page 19
-expect seed_hi 65535
+expect seed_hi 62286
+expect play_hi 65535
 turn PRESET 1
 wait 300
 said RND SEED S02 CAFEF00D
 turn PRESET -1
 wait 300
-said RND SEED S01 12345678
+said RND SEED S01 F34E8559 LOCKED
+expect seed_code 35426664

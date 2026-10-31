@@ -205,6 +205,10 @@ int app_sysex(const uint8_t *p, uint32_t n);
 #define APP_HOST_EXPECT
 int app_expect(const char *what, int *got);
 /* and its commands: sysex_in FILE (a .syx file in over USB, as app_sysex has it), sysex_out FILE (the last patch
- * dump sent, into FILE), bank_v3 .. bank_v7 (an older bank saved, for a reboot to read) */
+ * dump sent, into FILE), bank_v3 .. bank_v7 (an older bank saved, for a reboot to read), rnd_words WORD.. (RND
+ * SEED's slot named so, else a failure) */
 #define APP_HOST_CMD
 int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, const char *d);
+/* rnd_words's failures (the RND SEED slot's names, checked) */
+#define APP_HOST_FAILS
+int app_host_fails(void);

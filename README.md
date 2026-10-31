@@ -8,7 +8,8 @@ The manual (`docs/MANUAL.md`) describes everything it does.
 | `app.h` | The app's settings (name, block size, the store's objects) and its half of the contract with the platform |
 | `app.c` | The app: input, sound, screen, saving |
 | `bs2_sysex.c` | Bass Station II patch dumps in and out |
-| `bs2_rnd.c` | RND seeds: the RND Synth's seeds captured, kept in their own table (`OBJ_SEEDS`), sent back |
+| `bs2_rnd.c` | RND Synth (firmware 1.4): its patches (seed and locks) kept in their own table (`OBJ_SEEDS`) and sent back; its locks and its tracks' mixer set from the RND pages |
+| `rnd/` | The words RND SEED names patches with: BIP39's English list (`bip39_english.txt`, MIT) packed into `words.h` by `make_words.py` |
 | `fm1.toml` | Build and site settings: name, package identity (`FM-1_62`), USB names, tagline, licence |
 | `words.tsv` | The screen reader's words (fm1-reader) |
 | `tests/*.txt` | Host simulator checks: basic, glo, sysex, rnd, seqkeep, lit, voice (`tests/syx`: the SysEx they send) |

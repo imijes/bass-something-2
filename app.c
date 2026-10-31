@@ -1561,10 +1561,10 @@ static void ble_device_button(void)
  * settings_t field on the GLO pages, from PG_GMIDI on), its range, and its names when it is a choice; a page's
  * empty places set nothing */
 enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_GMIDI, PG_GSYS, PG_GDUMP,
-       PG_GRND, NPAGES };
+       PG_GRND, PG_RPAT, PG_RTRK, NPAGES };
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "MIX FX", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "GLOBAL MIDI", "GLOBAL SYSTEM",
-                                              "GLOBAL DUMP", "GLOBAL RND"};
+                                              "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS"};
 static const char *const SUB_NAME[NSUBW] = {"SINE", "PULSE", "SQUARE"};
 static const char *const SUB_OCT_NAME[3] = {"", "-1", "-2"};   /* (the sub's octave is 1 or 2) */
 static const char *const TRIG_NAME[NENVT] = {"MULTI", "SINGLE", "AUTOGLIDE"};
@@ -2008,7 +2008,8 @@ static int32_t knob_accel(uint32_t k, int32_t e, const param_t *q)
 }
 static int knob_turn(uint32_t k, int32_t e)
 {
-    const param_t *q = knob_param(k);
+    static const param_t RT_SPAN = {"RND", 0, 0, 127, 0};   /* (RND TRACKS' levels and sends: turned as a 0..127's) */
+    const param_t *q = ui.page == PG_RTRK && k >= EN_K1 && rnd_row != RR_ENG ? &RT_SPAN : knob_param(k);
     e = knob_accel(k, e, q);
     if (ui.page == PG_PATCH && k == EN_PRESET) {   /* a slot: its sound at once (what was not saved is left) */
         uint32_t s = (uint32_t)clamp((int32_t)set.slot + e, 0, NSLOTS - 1);
@@ -2036,6 +2037,10 @@ static int knob_turn(uint32_t k, int32_t e)
         rnd_pick(e);
         return 1;
     }
+    if (ui.page == PG_RPAT)                  /* the synth's locks (said there) */
+        return rnd_lock_turn(k, e);
+    if (ui.page == PG_RTRK)                  /* its tracks (said there) */
+        return rnd_track_turn(k, e);
     if (ui.page == PG_ARP && (k == EN_SELECT || k == EN_ALGO)) {   /* On/Legato, Latch/Rest: buttons, turned (up on,
                                                                   * down off); recording, the step legato, a rest */
         if (seq_rec && e > 0) {
@@ -2284,6 +2289,7 @@ static void knob_text(uint32_t k, char *t)
     int_text(v, t);
 }
 
+static uint8_t glo_from;                     /* the page GLO was last pressed on (GLO + OCT+: the RND pages) */
 static void page_go(uint32_t g)
 {
     char t[4];
@@ -2601,9 +2607,13 @@ static void input(void)
             ui.rec_held = 0;
             afx_on = (uint8_t)!afx_on;
             app_say("AFX", OFF_ON[afx_on]);
-        } else if (k == B_OCTUP && (btn >> B_GLO & 1u))   /* GLO + OCT+: the RND Synth's seeds (bs2_rnd.c) */
-            page_go(PG_GRND);
-        else if (k == B_OCTDN)
+        } else if (k == B_OCTUP && (btn >> B_GLO & 1u)) {   /* GLO + OCT+: the RND pages (bs2_rnd.c), the synth
+                                                         * asked how it is as they open */
+            if (glo_from < PG_GRND)          /* (the RND pages: the last ones; from one, the next: GLO took the
+                                              * FM-1 to a GLOBAL page as it went down) */
+                rnd_ask();
+            page_go(glo_from == PG_GRND ? PG_RPAT : glo_from == PG_RPAT ? PG_RTRK : PG_GRND);
+        } else if (k == B_OCTDN)
             octave_step(-1);
         else if (k == B_OCTUP)
             octave_step(1);
@@ -2620,7 +2630,13 @@ static void input(void)
         } else if (k == B_SEL && ui.page == PG_GDUMP)   /* GLO DUMP's: the sound out as a Bass Station II patch dump */
             sysex_send();
         else if (k == B_SEL && ui.page == PG_PATCH)
-            ;                                /* (the MASTER's: nothing) */
+            ;
+        else if (k == B_SEL && ui.page == PG_RPAT)   /* every lock let go */
+            rnd_free_all();
+        else if (k == B_SEL && ui.page == PG_GRND) {   /* the synth asked again */
+            rnd_ask();
+            app_say("RND", "ASKED");
+        }                                /* (the MASTER's: nothing) */
         else if (k == B_REC)
             ui.rec_held = 1;                 /* on release (unless OCT+ comes first) */
         else if (k == B_SAVE && ui.page == PG_GRND)   /* the seed shown into its slot */
@@ -2658,9 +2674,10 @@ static void input(void)
             if (set.clk_out && !ext_clock())  /* (SEND CLK: start or stop to what follows the clock) */
                 plat_midi_send(0x0Fu | (run ? 0xFAu : 0xFCu) << 8, TO_USB | TO_BLE);
             app_say("SEQ", run ? "PLAY" : "STOP");
-        } else if (k == B_GLO)               /* the global settings: MIDI, again SYS, again DUMP (RND: GLO + OCT+) */
+        } else if (k == B_GLO) {             /* the global settings: MIDI, again SYS, again DUMP (RND: GLO + OCT+) */
+            glo_from = ui.page;
             page_go(ui.page == PG_GMIDI ? PG_GSYS : ui.page == PG_GSYS ? PG_GDUMP : PG_GMIDI);
-        else if (k == B_FX && ui.page == PG_GDUMP)   /* every slot's */
+        } else if (k == B_FX && ui.page == PG_GDUMP)   /* every slot's */
             sysex_dump_all();
         else if (k == B_FX && ui.page == PG_GRND)    /* the seed shown, as the RND Synth's SysEx */
             rnd_send();
@@ -2714,6 +2731,7 @@ static void input(void)
     bank_in_step();
     seq_keep(0);
     glo_keep();
+    rnd_step();
     lit = notes_lit(&below, &above);
     if (lit != ui.lit)
         ui.redraw = 1;
@@ -2756,7 +2774,8 @@ static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDI
                                          [PG_TUNE] = SEC_FX, [PG_FMOD] = SEC_FX,
                                          [PG_EMOD] = SEC_ENV, [PG_EFX] = SEC_FX, [PG_XMOD] = SEC_FX, [PG_AMOD] = SEC_ARP,
                                          [PG_GMIDI] = SEC_GLO, [PG_GSYS] = SEC_GLO, [PG_GDUMP] = SEC_GLO,
-                                         [PG_GRND] = SEC_GLO};
+                                         [PG_GRND] = SEC_GLO, [PG_RPAT] = SEC_GLO,
+                                         [PG_RTRK] = SEC_GLO};
 /* the tabs span the panel's bar (x 2..235), a pixel between each; they end 3 rows over it, as its gaps are wide */
 #define TAB_X(i) (2 + (int32_t)(i) * 235 / NSEC)
 static uint8_t ycol[232];                    /* a picture's curve: each column's row */
@@ -3399,14 +3418,13 @@ static void seg_num(int32_t v, char *t)      /* v in three digits, right to left
 static void cpu_text(char *t);
 /* GLOBAL: the Bass Station II's Function settings, on the FM-1 a section of their own. Its bar, the page's own bar
  * under it at the left; at the right the audio's load (cpu_text: for testing), or what was just done while it's said */
-static void glo_frame(const char *name)
+static void section_frame(const char *bar, const char *name, const char *right, uint16_t rc)
 {
     static const int32_t EDGE[1] = {2};
-    char t[24];
     int32_t x;
     panel_bg();
     panel_bars(2, 236, EDGE, 1);
-    bar_text((10 + 236 - text_w(&FONT_B, "GLOBAL")) / 2, 1, "GLOBAL");
+    bar_text((10 + 236 - text_w(&FONT_B, bar)) / 2, 1, bar);
     cv_rect(4, 19, text_w(&FONT_XS, name) + 12, 15, P_BAR);
     cv_text(10, 19, &FONT_XS, name, P_SILK);
     if (plat_ms() < ui.msg_until) {
@@ -3415,8 +3433,21 @@ static void glo_frame(const char *name)
         cv_text(x - 6 - text_w(&FONT_XS, ui.msg[0]), 20, &FONT_XS, ui.msg[0], P_SILK);
         return;
     }
+    cv_text(232 - text_w(&FONT_XS, right), 20, &FONT_XS, right, rc);
+}
+static void glo_frame(const char *name)
+{
+    char t[24];
     cpu_text(t);
-    cv_text(232 - text_w(&FONT_XS, t), 20, &FONT_XS, t, plat_xruns() ? P_CYAN : P_DIM);
+    section_frame("GLOBAL", name, t, plat_xruns() ? P_CYAN : P_DIM);
+}
+/* the RND pages' (bs2_rnd.c): the RND SYNTH bar; at the right the synth's firmware once it has answered */
+static void rnd_frame_draw(const char *name)   /* at the right: the seed playing on the synth, once it has said */
+{
+    char t[24] = "PLAYING ";
+    seed_text(rnd.seed, t + 8);
+    section_frame("RND SYNTH", name, rnd.seed != RND_EMPTY ? t : rnd.heard ? "RND" : "NOT HEARD YET",
+                  rnd.heard ? P_CYAN : P_DIM);
 }
 /* a setting's two-way switch lying down at cx, cy (its middle): its ends' names over it (the one set white), its name
  * under it (its setting instead, cyan, while it moves) */
@@ -3502,26 +3533,169 @@ static void glo_dump_draw(void)
     panel_button(138, 108, 72, 28, "Sound", 0, 0);
     print_c(174, 139, "SEL", P_SILK);
 }
-/* GLOBAL RND: the seed shown on an eight-digit display (dashes: none), where it came from; the slot (PRESET), Save
- * (SAVE: the seed into the slot) and Send (FX: to the RND Synth) */
-static void glo_rnd_draw(void)
+/* RND SEED: the slot's seed on an eight-digit display (dashes: empty), its LEDs (Locks: the id holds locks; Playing:
+ * it's the synth's patch now), its names (seed_words); the seed playing on the synth at the top right; what the slot is (the synth's patch as it said, when it's the one playing; else
+ * its locks); the slot (PRESET), Save (SAVE: the patch playing into the slot), Send (FX: the slot's to the synth, its
+ * locks first) and Ask (SEL: the synth's state asked again) */
+static void lock_line(const rlock_t *l, int eng, char *t)   /* its type, root, scale held ("-": free); or engines */
 {
-    char s[12];
-    seed_text(rnd_cur, s);
-    if (rnd_cur == RND_EMPTY)
+    uint32_t i;
+    t[0] = 0;
+    if (eng) {
+        for (i = 0; i < 4u; i++) {
+            text_cat(t, i ? "  " : "");
+            text_cat(t, l->eng[i] >= 0 ? RND_ENG_S[l->eng[i]] : "-");
+        }
+        return;
+    }
+    text_cat(t, l->type >= 0 ? RND_TYPE[l->type] : "ANY TYPE");
+    text_cat(t, "  ");
+    text_cat(t, l->root >= 0 ? RND_ROOT[l->root] : "ANY ROOT");
+    text_cat(t, "  ");
+    text_cat(t, l->scale >= 0 ? RND_SCALE[l->scale] : "ANY SCALE");
+}
+static void rnd_seed_draw(void)
+{
+    char s[64], v[8];
+    uint32_t i;
+    const uint32_t seed = seeds.seed[rnd_slot], code = seeds.code[rnd_slot];
+    const int live = seed != RND_EMPTY && seed == rnd.seed && code == rnd.code;
+    const rlock_t l = lock_get(code);
+    seed_text(seed, s);
+    if (seed == RND_EMPTY)
         memcpy(s, "--------", 8);
-    glo_frame("RND Seed");
-    seg_display(8, 40, s, 8);
-    print_c(110, 92, rnd_cur != RND_EMPTY && seeds.seed[rnd_slot] == rnd_cur ? "Saved in its slot"
-                     : rnd_src == RS_SYNTH ? "From the RND Synth" : rnd_src == RS_SLOT ? "From its slot" : "No seed yet",
-            P_SILK);
-    bs2_knob(34, GLO_ROW, 14, rnd_slot, NSEEDS - 1, knob_lit(EN_PRESET) ? KF_LIT : 0u);
+    rnd_frame_draw("Seed");
+    seg_display(6, 37, s, 8);
+    led(220, 45, seed != RND_EMPTY && code != 0u);
+    print_c(220, 52, "Locks", P_SILK);
+    led(220, 70, live);
+    print_c(220, 77, "Playing", P_SILK);
+    if (seed == RND_EMPTY)
+        print_c(120, 89, "Empty: SAVE keeps the patch playing", P_DIM);
+    else {
+        seed_words(seed, code, s);
+        print_c(120, 89, s, P_SILK);
+    }
+    if (live && rnd.type < 3u && rnd.root < 12u && rnd.scale < NRSCALE) {   /* the patch as the synth said */
+        s[0] = 0;
+        text_cat(s, RND_TYPE[rnd.type]);
+        text_cat(s, "  ");
+        text_cat(s, RND_ROOT[rnd.root]);
+        text_cat(s, " ");
+        text_cat(s, RND_SCALE[rnd.scale]);
+        text_cat(s, "  ");
+        int_text(rnd.bpm, v);
+        text_cat(s, v);
+        text_cat(s, " BPM");
+        print_c(120, 100, s, P_SILK);
+        s[0] = 0;
+        for (i = 0; i < rnd.ntr; i++) {
+            text_cat(s, i ? "  " : "");
+            text_cat(s, rnd.eng[i] < NENG ? RND_ENG_S[rnd.eng[i]] : "?");
+        }
+        print_c(120, 111, s, P_CYAN);
+    } else if (seed != RND_EMPTY) {          /* another: what it holds */
+        lock_line(&l, 0, s);
+        print_c(120, 100, code ? s : "Nothing locked", P_SILK);
+        if (code) {
+            lock_line(&l, 1, s);
+            print_c(120, 111, s, P_CYAN);
+        }
+    }
+    bs2_knob(26, 131, 12, rnd_slot, NSEEDS - 1, knob_lit(EN_PRESET) ? KF_LIT : 0u);
     seed_slot_text(s);
-    print_c(34, GLO_ROW + 18, s, knob_lit(EN_PRESET) ? P_CYAN : P_SILK);
-    panel_button(70, 110, 72, 28, "Save", 0, 0);
-    print_c(106, 141, "SAVE", P_SILK);
-    panel_button(156, 110, 72, 28, "Send", 0, 0);
-    print_c(192, 141, "FX", P_SILK);
+    print_c(26, 146, s, knob_lit(EN_PRESET) ? P_CYAN : P_SILK);
+    panel_button(54, 121, 56, 22, "Save", 0, 0);
+    print_c(82, 145, "SAVE", P_SILK);
+    panel_button(116, 121, 56, 22, "Send", 0, 0);
+    print_c(144, 145, "FX", P_SILK);
+    panel_button(178, 121, 56, 22, "Ask", 0, 0);
+    print_c(206, 145, "SEL", P_SILK);
+}
+/* RND PATCH: what the synth holds across new patches, grouped as the Bass Station II groups its panel: PATCH (the
+ * Type and Tracks switches, SELECT and ALGO, the LED under the place set; RND: the synth picks) and KEY (Root, Octave,
+ * Scale: K1-K3). By each group's name, in cyan, what the synth plays now; SEL lets every lock go */
+static void rnd_switch(int32_t cx, int32_t y, uint32_t k, uint32_t n, int32_t pos, const char *const *names,
+                       int32_t gap)
+{
+    uint32_t i;
+    int32_t x0 = cx - gap * (int32_t)(n - 1u) / 2;
+    slide_h(cx - (9 * (int32_t)n + 15) / 2, y, (int32_t)n, pos, knob_lit(k) ? KF_LIT : 0u);
+    for (i = 0; i < n; i++) {
+        led(x0 + gap * (int32_t)i, y + 27, (int32_t)i == pos);
+        print_c(x0 + gap * (int32_t)i, y + 34, names[i], P_SILK);
+    }
+}
+static void rnd_knob(int32_t cx, int32_t cy, uint32_t k, int32_t v, int32_t span, const char *name, const char *val,
+                     int dim)
+{
+    const int lit = knob_lit(k) && !dim;
+    bs2_knob(cx, cy, 15, v, span, (lit ? KF_LIT : 0u) | (dim ? KF_DIM : 0u));
+    print_c(cx, cy + 19, lit ? val : name, lit ? P_CYAN : dim ? P_DIM : P_SILK);
+}
+static void rnd_patch_draw(void)
+{
+    static const char *const TY[4] = {"RND", "SEQ", "DRN", "JNG"};
+    static const char *const TR[5] = {"RND", "1", "2", "3", "4"};
+    const rlock_t l = lock_get(rnd.code);
+    char t[24], v[8];
+    rnd_frame_draw("Patch Locks");
+    cv_rect(114, 36, 3, 116, P_BAR);         /* PATCH | KEY */
+    cv_text(8, 37, &FONT_T, "Type", P_SILK);
+    if (rnd.type < 3u)
+        cv_text(108 - text_w(&FONT_T, RND_TYPE[rnd.type]), 37, &FONT_T, RND_TYPE[rnd.type], P_CYAN);
+    rnd_switch(56, 46, EN_SELECT, 4, l.type + 1, TY, 24);
+    cv_text(8, 97, &FONT_T, "Tracks", P_SILK);
+    if (rnd.ntr) {
+        int_text(rnd.ntr, t);
+        text_cat(t, " PLAYING");
+        cv_text(108 - text_w(&FONT_T, t), 97, &FONT_T, t, P_CYAN);
+    }
+    rnd_switch(56, 107, EN_ALGO, 5, l.tracks < 0 ? 0 : l.tracks, TR, 21);
+    cv_text(122, 38, &FONT_T, "Key", P_SILK);
+    if (rnd.root < 12u && rnd.scale < NRSCALE) {
+        t[0] = 0;
+        text_cat(t, RND_ROOT[rnd.root]);
+        text_cat(t, " ");
+        text_cat(t, RND_SCALE[rnd.scale]);
+        cv_text(234 - text_w(&FONT_T, t), 38, &FONT_T, t, P_CYAN);
+    }
+    rnd_knob(144, 66, EN_K1, l.root + 1, 12, "Root", l.root < 0 ? "RANDOM" : RND_ROOT[l.root], 0);
+    int_text(l.oct, v);
+    rnd_knob(206, 66, EN_K2, l.oct + 3, 6, "Octave", v, l.root < 0);
+    rnd_knob(144, 118, EN_K3, l.scale + 1, NRSCALE, "Scale", l.scale < 0 ? "RANDOM" : RND_SCALE[l.scale], 0);
+    print_c(206, 104, l.scale < 0 ? "RANDOM" : RND_SCALE[l.scale], l.scale < 0 ? P_DIM : P_SILK);
+    panel_button(178, 116, 56, 20, "All RND", 0, 0);
+    print_c(206, 139, "SEL", P_SILK);
+}
+/* RND TRACKS: the synth's four tracks as a mixer: Row Select at the left (SELECT: Engine, Level, Reverb: what K1-K4
+ * set, as Env Select picks the ENVELOPES' faders), a strip a track (K1-K4): its number and the engine it plays (cyan;
+ * dim: not playing), its engine held (RND: the synth picks), its level fader and its reverb knob; the rows K1-K4
+ * don't set dim */
+static void rnd_tracks_draw(void)
+{
+    static const char *const ROW[NRR] = {"Engine", "Level", "Reverb"};
+    const rlock_t l = lock_get(rnd.code);
+    uint32_t i;
+    rnd_frame_draw("Tracks");
+    print_c(33, 40, "Row Select", P_SILK);
+    for (i = 0; i < NRR; i++)
+        cv_text(42 - text_w(&FONT_T, ROW[i]), 56 + 14 * (int32_t)i, &FONT_T, ROW[i], i == rnd_row ? P_SILK : P_DIM);
+    slide_v(44, 56, NRR, rnd_row, knob_lit(EN_SELECT) ? KF_LIT : 0u);
+    cv_rect(66, 36, 3, 116, P_BAR);          /* Row Select | the tracks */
+    for (i = 0; i < 4u; i++) {
+        const int32_t cx = 92 + 40 * (int32_t)i;
+        const int on = i < rnd.ntr;
+        const uint32_t lit = knob_lit(EN_K1 + i) ? KF_LIT : 0u;
+        const char n[2] = {(char)('1' + i), 0};
+        print_c(cx, 37, n, on ? P_SILK : P_DIM);
+        print_c(cx, 46, on && rnd.eng[i] < NENG ? RND_ENG_S[rnd.eng[i]] : "-", on ? P_CYAN : P_DIM);
+        cv_rect(cx - 18, 57, 36, 13, P_KSHADOW);   /* the engine held, on a black window */
+        print_c(cx, 59, l.eng[i] < 0 ? "RND" : RND_ENG_S[l.eng[i]],
+                rnd_row != RR_ENG ? P_DIM : lit ? P_CYAN : P_SILK);
+        fader(cx, 74, 54, rnd.vol[i] > 127u ? 64 : rnd.vol[i], 127, rnd_row == RR_LEVEL ? lit : KF_DIM);
+        bs2_knob(cx, 141, 9, rnd.rev[i] > 127u ? 64 : rnd.rev[i], 127, rnd_row == RR_REVERB ? lit : KF_DIM);
+    }
 }
 /* the ARPEGGIATOR (the Bass Station II's): Tempo (its LED on the beat) and Rhythm, the Note Mode knob with its modes
  * round it, Octaves (Arp Octaves, or the sequence: Seq); the On/Legato and Latch/Rest buttons (SELECT, ALGO), their
@@ -3834,7 +4008,11 @@ static void panel_draw(void)                 /* the page's section panel, from u
         else if (ui.page == PG_GDUMP)
             glo_dump_draw();
         else if (ui.page == PG_GRND)
-            glo_rnd_draw();
+            rnd_seed_draw();
+        else if (ui.page == PG_RPAT)
+            rnd_patch_draw();
+        else if (ui.page == PG_RTRK)
+            rnd_tracks_draw();
         else
             osc_draw();
         cv_blit(0, 20 + i * (TALL_H / 2));
@@ -4285,14 +4463,27 @@ int app_expect(const char *what, int *got)
         *got = patch.tempo;
     else if (!strcmp(what, "lit"))           /* the keys lit for the notes held (bit 0: F3 at octave 0) */
         *got = (int)ui.lit;
-    else if (!strcmp(what, "seed_hi"))       /* the seed shown, in halves (RND_EMPTY: 65535 65535) */
-        *got = (int)(rnd_cur >> 16);
+    else if (!strcmp(what, "seed_hi"))       /* the slot's seed, in halves (RND_EMPTY: 65535 65535) */
+        *got = (int)(seeds.seed[rnd_slot] >> 16);
     else if (!strcmp(what, "seed_lo"))
-        *got = (int)(rnd_cur & 0xFFFFu);
+        *got = (int)(seeds.seed[rnd_slot] & 0xFFFFu);
     else if (!strcmp(what, "seed_slot"))
         *got = rnd_slot;
-    else if (!strcmp(what, "seed_src"))      /* RS_* */
-        *got = rnd_src;
+    else if (!strcmp(what, "play_hi"))      /* the seed playing on the synth, in halves */
+        *got = (int)(rnd.seed >> 16);
+    else if (!strcmp(what, "play_lo"))
+        *got = (int)(rnd.seed & 0xFFFFu);
+    else if (!strcmp(what, "seed_code"))     /* the slot's lock code */
+        *got = (int)seeds.code[rnd_slot];
+    else if (!strcmp(what, "rnd_tx"))        /* messages to the synth so far */
+        *got = (int)rnd_ntx;
+    else if (!strncmp(what, "rnd_op", 6) || !strncmp(what, "rnd_arg", 7)) {   /* message N's op (or status), first byte */
+        uint32_t i = (uint32_t)atoi(what + (what[4] == 'o' ? 6 : 7));
+        *got = i < rnd_ntx && i < 64u ? rnd_tx[i][what[4] == 'o' ? 0 : 1] : -1;
+    } else if (!strcmp(what, "rnd_ntr"))     /* the synth's: tracks playing, lock code */
+        *got = rnd.ntr;
+    else if (!strcmp(what, "rnd_code"))
+        *got = (int)rnd.code;
     else if (!strcmp(what, "rpos"))          /* the arp's or sequencer's steps since it started */
         *got = (int)eng.rpos;
     else if (!strcmp(what, "fc_now"))
@@ -4399,12 +4590,28 @@ static uint8_t *bank_old(uint32_t v, uint32_t ps)
     return r;
 }
 
+static int host_fails;                       /* the app's own checks failed (rnd_words) */
+int app_host_fails(void) { return host_fails; }
 int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, const char *d)
 {
     static uint8_t syx[32768];
     FILE *fp;
     size_t n;
     (void)b, (void)c, (void)d;
+    if (!strcmp(cmd, "rnd_words")) {         /* rnd_words WORD..: the slot's names, as RND SEED shows them
+                                              * (in capitals) */
+        char w[64];
+        const char *want = plat_host_line + strlen("rnd_words ");
+        size_t n = strlen(want);
+        while (n && (want[n - 1] == '\n' || want[n - 1] == '\r' || want[n - 1] == ' '))
+            n--;                             /* (the line's end) */
+        seed_words(seeds.seed[rnd_slot], seeds.code[rnd_slot], w);
+        if (strlen(w) != n || strncmp(w, want, n)) {
+            printf("FAIL rnd_words: %s, not %.*s\n", w, (int)n, want);
+            host_fails++;
+        }
+        return 1;
+    }
     if (!strcmp(cmd, "sysex_in")) {          /* a .syx file: each frame, F0 and F7 off, as the platform hands it */
         size_t i, s0 = 0;
         int in = 0;
@@ -4481,13 +4688,6 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
             OLD(0, key_trk) = 3;
         }
         plat_store_save(OBJ_PATCHES, r, offsetof(bank_t, p) + NSLOTS * ps);
-        return 1;
-    }
-    if (!strcmp(cmd, "rnd_out")) {           /* the last seed frame sent */
-        if (!(fp = fopen(a, "wb")))
-            return perror(a), 1;
-        fwrite(rnd_out, 1, sizeof rnd_out, fp);
-        fclose(fp);
         return 1;
     }
     if (!strcmp(cmd, "sysex_bank_out")) {    /* the last bank sent (GLO DUMP's), into FILE: a .syx of 32 dumps */

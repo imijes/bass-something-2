@@ -20,7 +20,7 @@ TRS.
 5. The arpeggiator and the sequencer
 6. Patches and saving
 7. SysEx: a Bass Station II editor
-8. RND seeds
+8. RND Synth
 9. MIDI and audio
 10. The screen reader
 11. Troubleshooting
@@ -105,7 +105,7 @@ the keys' reach lights OCT-, one above lights OCT+.
 | MASTER | The volume. |
 | REC | A random sound (see below). On GLOBAL MIDI it finds a Bluetooth MIDI device instead. |
 | REC + OCT+ | Hold REC and press OCT+: AFX mode on or off. |
-| GLO + OCT+ | Hold GLO and press OCT+: GLOBAL RND, for the RND Synth's seeds. See RND seeds. |
+| GLO + OCT+ | Hold GLO and press OCT+: the RND pages, for Cyma Forma's RND Synth (again: the next one). See RND Synth. |
 | PLAY | Plays the sequence at its own key (the arp on, in PLAY), or stops it. |
 | SAVE | Saves the sound into its patch, and the settings. |
 
@@ -502,7 +502,7 @@ follow the control changed last, on whichever page. The display shows that contr
 | SAVE | Stores the sound into the patch shown. |
 | SEL | Nothing here. The sound goes out as a SysEx dump from GLOBAL DUMP (see SysEx). |
 
-**SAVE** works on every page but GLOBAL RND (where it keeps a seed). It stores the sound into its patch and keeps the
+**SAVE** works on every page but RND SEED (where it keeps the RND Synth's patch). It stores the sound into its patch and keeps the
 settings: the octave and the patch you're on (the FM-1 starts on it next time). While something isn't saved, SAVE is
 lit and the patch shows * at the bottom of the screen (P01*). The screen says SAVED and the
 patch's number when it's done.
@@ -533,8 +533,8 @@ FM-1 with the pause between messages set for you.
   and it's a backup: sent back, each patch returns to its own slot. The patch you're on goes as it sounds now, with
   changes not yet saved.
 - A computer can ask for the sound: SysEx `F0 7D 42 53 32 01 F7` sends the same dump as SEL on GLOBAL DUMP.
-  `F0 7D 42 53 32 03 F7` sends the whole bank, as FX on GLOBAL DUMP. `F0 7D 42 53 32 02 F7` asks for the RND seed
-  shown instead (see RND seeds).
+  `F0 7D 42 53 32 03 F7` sends the whole bank, as FX on GLOBAL DUMP. `F0 7D 42 53 32 02 F7` sends the RND
+  SEED slot's patch to the RND Synth instead (see RND Synth).
 
 **From an editor to the FM-1:** choose the FM-1 as the editor's MIDI output and send the patch (in an editor, it's
 usually called Send or Send to synth). Any Bass Station II patch dump works, with a name (firmware 2.5 and later) or
@@ -566,51 +566,106 @@ Values beyond what an FM-1 control can reach are brought to its nearest.
 
 ---
 
-## 8. RND seeds
+## 8. RND Synth
 
-For owners of Cyma Forma's RND Synth, Bass Something 2 can be its companion: it captures the RND Synth's seeds, keeps 32 of
-them, and sends one back when you want it again. A seed is the number, shown as eight digits (12345678), that the RND
-Synth makes its music from. Seeds don't change Bass Something 2's own sound; a new seed's tempo does become the FM-1's
-(see Tempo).
+For owners of Cyma Forma's RND Synth (firmware 1.4 or later), Bass Something 2 is its companion and its remote. It
+keeps 32 of the RND Synth's patches and sends one back when you want it again, it sets what the RND Synth holds across
+new patches (its type, key and tracks), and it mixes the RND Synth's four tracks. None of this changes Bass Something
+2's own sound; a new patch's tempo does become the FM-1's (see Tempo below).
 
-The seeds are kept in a table of their own, S01 to S32, through power-off. It's separate from the 32 patches, so
-saving a patch or loading a Bass Station II dump doesn't touch it.
+**Connecting:** plug the RND Synth and the FM-1 into a computer by USB, and pass MIDI between them both ways (a DAW, or
+a MIDI router that passes SysEx). From the RND Synth to the FM-1: its SysEx and its notes. From the FM-1 to the RND
+Synth: its SysEx, and its channel messages (a root is set with a note on channel 1, a scale with CC 9 on channel 1,
+the tracks' levels and reverb with CCs on channels 2 to 5). If the FM-1's keys also go to the RND Synth, set GLOBAL
+MIDI's CHANNEL to something other than 1, or every key you play sets the RND Synth's root.
 
-![GLO RND: seed 12345678 from the RND Synth, slot S01, and what the buttons do](img/screen-glo-rnd.png "GLO + OCT+: RND")
+**Clock:** the RND Synth never sends MIDI clock. It follows the FM-1's (GLOBAL SYSTEM's SEND CLK on), or a master
+clock that drives both.
 
-Hold GLO and press OCT+ for GLOBAL RND. It's kept off GLO's own pages, as only RND Synth owners need it;
-press GLO to leave it. Its display shows the seed on eight red digits (dashes until there is one), and under it
-FROM THE RND SYNTH (its latest), FROM ITS SLOT (a kept one), or SAVED IN ITS SLOT when it's the one kept in the slot
-shown. The knob under it is PRESET, the slot; the Save and Send buttons are SAVE and FX.
+Hold GLO and press OCT+ for the RND pages; hold GLO and press OCT+ again for the next one: RND SEED, RND PATCH, RND
+TRACKS, then RND SEED again. Press GLO to leave. They're kept off GLO's own pages, as only RND Synth owners need them.
+Opening them asks the RND Synth how it is (its firmware, its patch, its locks, its tracks), and each page shows it.
+At the right of each page's own bar is the seed the RND Synth is playing (PLAYING F34E8559; NOT HEARD YET until it
+has answered).
+
+### RND SEED: the patches you keep
+
+![RND SEED: slot S01 with seed F34E8559 and its words, the Locks and Playing LEDs, what the RND Synth plays, then the slot knob and the Save, Send and Ask buttons](img/screen-rnd-seed.png "GLO + OCT+: RND SEED")
+
+An RND Synth patch is its **seed** (a number, shown as eight digits, F34E8559, that it makes its music from) and its
+**locks** (what it held when it rolled the patch). On RND firmware 1.4 the locks are part of the patch: the same seed
+with other locks is another patch. Bass Something 2 keeps both, in 32 slots, S01 to S32, through power-off. They're a
+table of their own, separate from the 32 patches, so saving a patch or loading a Bass Station II dump doesn't touch
+them.
+
+The display shows the slot's seed (dashes: the slot is empty). Beside it, **Locks** lights when the slot's patch holds
+locks, and **Playing** when it's the patch the RND Synth is playing now. Under it are the patch's names, the words RND
+pixels (Cyma Forma's web app) gives it: three for the seed, then up to three for its locks (VIABLE INJURY CLINIC CODE
+INCH ABSURD). Type them into RND pixels to load the same patch there. Under the words: when it's the patch playing,
+what the RND Synth says it is (SEQUENCE D OCTATONIC 99 BPM, then each track's engine, in cyan); otherwise what the slot
+locks (ANY TYPE ANY ROOT ANY SCALE, then the engines held, - for none).
 
 | Control | What it does |
 | --- | --- |
-| PRESET · SEED | Picks a slot, S01 to S32, and shows its seed. An empty slot says EMPTY and leaves the seed shown as it was, ready to keep there. |
-| SAVE | Keeps the seed shown in the slot shown. The screen says SEED SAVED, the slot and the seed. On this page SAVE doesn't store the patch. |
-| FX | Sends the seed shown to the RND Synth, over USB. The screen says RND SEED SENT. |
+| PRESET · SEED | Picks a slot, S01 to S32. The screen says the slot and its seed (LOCKED: with locks), or EMPTY. |
+| SAVE | Keeps the patch the RND Synth is playing, seed and locks, in the slot. The screen says SEED SAVED, the slot and the seed. On this page SAVE doesn't store the FM-1's patch. |
+| FX | Sends the slot's patch to the RND Synth: every lock let go, the slot's locks set, then its seed, a step every few milliseconds. The RND Synth plays exactly the patch you kept. The screen says RND SEED SENT. |
+| SEL | Asks the RND Synth how it is again, for when it was changed elsewhere (in RND pixels, say). |
 
-**Connecting:** plug the RND Synth and the FM-1 into a computer by USB, and pass MIDI between them (a DAW, or a MIDI
-router that passes SysEx). From the RND Synth to the FM-1: its seeds and its notes. From the FM-1 to the RND Synth:
-the seeds it sends.
+**Capturing:** each time the RND Synth makes a new patch, the FM-1 says RND SEED IN, the seed and its tempo
+(RND SEED IN 1A2B3C4D 132 BPM), and shows it at the top right. Turn PRESET to a slot and press SAVE to keep it.
 
-**Capturing:** each time the RND Synth makes a new seed, the FM-1 says RND SEED IN, the seed and its tempo
-(RND SEED IN 1A2B3C4D 132 BPM). Turn PRESET to an empty slot and press SAVE to keep it. The RND Synth repeats its seed
-often; only a new one is taken. Its other messages (the key and the scale, its tracks) are accepted and left alone.
-
-**Tempo:** a new seed comes with the RND Synth's tempo for it, and the FM-1 takes it as its TEMPO (40 to 240 BPM).
+**Tempo:** a new patch comes with the RND Synth's tempo for it, and the FM-1 takes it as its TEMPO (40 to 240 BPM).
 The arp, the sequencer and SEND CLK's clock follow at once, so when the RND Synth changes direction, the FM-1 moves
-with it. If the RND Synth changes its tempo without a new seed, the FM-1 follows that too (RND TEMPO 147 BPM).
-Between them TEMPO is yours to turn: the RND Synth repeating the same tempo doesn't set it back. Like any TEMPO
-change it's kept with the sequence after two seconds, once the FM-1 is quiet (see SEQ).
+with it. If the RND Synth changes its tempo without a new patch, the FM-1 follows that too (RND TEMPO 147 BPM).
+Between them TEMPO is yours to turn. Like any TEMPO change it's kept with the sequence after two seconds, once the
+FM-1 is quiet (see SEQ).
 
-**Sending one back:** turn PRESET to the slot and press FX.
+### RND PATCH: the locks
 
-**Playing its tracks:** the RND Synth plays its four tracks on MIDI channels 1 to 4. Set GLOBAL MIDI's CHANNEL (K1) to
-one of them, and the FM-1 plays that track's notes with its own sound. On ALL, the four tracks share the FM-1's one
-voice, each new note cutting off the last.
+![RND PATCH: the Type and Tracks switches with their LEDs, then the Root, Octave and Scale knobs and the All RND button](img/screen-rnd-patch.png "GLO + OCT+, again: RND PATCH")
 
-The seed message is `F0 6F 62 78 10 c0 c1 c2 c3 c4 F7`: the seed in five 7-bit parts, lowest first. A computer can
-send it the same way, or ask for the seed shown with `F0 7D 42 53 32 02 F7`.
+What the RND Synth holds across new patches. Each setting is RND (the RND Synth picks) or a
+lock. Locks are kept by the RND Synth, through its button and through power-off. By each group's name, in cyan,
+is what the RND Synth is playing now (SEQUENCE, 3 PLAYING, D OCTATONIC).
+
+| Control | What it locks |
+| --- | --- |
+| SELECT · TYPE | RND, SEQ (sequence), DRN (drone) or JNG (jingles). The RND Synth plays the patch again in the new type at once. |
+| ALGO · TRACKS | RND, or 1 to 4 tracks. At once, too. |
+| K1 · ROOT | RND, or C to B: the key's tonic, from the next patch. |
+| K2 · OCTAVE | The root's octave, −3 to +3. Only with a root locked. |
+| K3 · SCALE | RND, or one of 20 scales (Major, Natural Minor, Harmonic Minor, Blues, the pentatonics, the modes, Whole Tone, Double Harmonic, Hungarian Minor, Phrygian Dominant, Hirajoshi, In Sen, Prometheus, Octatonic, Persian), from the next patch. |
+| SEL · ALL RND | Lets every lock go, the engines' too. |
+
+Locks change the patch's id: a patch kept after you lock something keeps those locks.
+
+### RND TRACKS: the mixer
+
+![RND TRACKS: Row Select at the left, then the four tracks, each with the engine it plays, the engine held, a level fader and a reverb knob](img/screen-rnd-tracks.png "GLO + OCT+, again and again: RND TRACKS")
+
+The RND Synth's four tracks, a strip each (K1 to K4), as Env Select picks the ENVELOPES' faders: **Row Select**
+(SELECT) picks what K1 to K4 set, and the other rows dim. Each strip shows the track's number and the engine it plays
+(in cyan; dim when the track isn't playing).
+
+| Row | K1 to K4 set |
+| --- | --- |
+| Engine | The engine held on that track: RND, or SUBTR (subtractive), FM, ACID (303), NOISE, SPEECH, PLUCK (plucked string), SSAW (supersaw), HARM (harmonic). On a playing track it changes at once, and the patch is then "off-seed": no seed brings it back exactly. |
+| Level | The track's level: the middle is the patch's own (0.0 DB), the top +6 dB, the bottom off. Said in dB. |
+| Reverb | The track's reverb send: the middle is the patch's own, the bottom dry, the top as wet as the RND Synth goes. Said in dB. |
+
+Levels and sends go back to the middle with every new patch, as on the RND Synth.
+
+### Playing its tracks
+
+The RND Synth plays its tracks on MIDI channels 1 to 4. Set GLOBAL MIDI's CHANNEL (K1) to one of them, and the FM-1
+plays that track's notes with its own sound. On ALL, the four tracks share the FM-1's one voice, each new note cutting
+off the last.
+
+### Its messages
+
+The RND Synth's SysEx is `F0 6F 62 78` then a message number: `10` and five 7-bit parts, lowest first, is the seed.
+A computer can send it the same way, or have the FM-1 send the RND SEED slot's patch with `F0 7D 42 53 32 02 F7`.
 
 ---
 
@@ -629,7 +684,7 @@ GLO opens the global settings; press it again for the next page. They belong to 
 save themselves: two seconds after you change one, once the FM-1 is quiet (see SEQ), it's kept through power-off,
 without SAVE (so a GLO change never
 writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar (MIDI, System,
-SysEx Dump, RND Seed) and a red display: GLOBAL MIDI's shows the MIDI channel (ALL, OFF or the number), GLOBAL
+SysEx Dump) and a red display: GLOBAL MIDI's shows the MIDI channel (ALL, OFF or the number), GLOBAL
 SYSTEM's the tempo (while MIDI clock leads, its tempo as measured over every two beats; dashes until then), with the knobs' response, the clock's state and the firmware's version (VERSION v0.3)
 beside it, GLOBAL DUMP's the patch. The on/off settings are slide switches.
 
@@ -646,7 +701,7 @@ is heard.
 ![GLO SYS: the tempo 120 on the display, the Send Clk switch, the clock and the version, then Tune, Sync, Velocity and Knobs](img/screen-glo-sys.png "GLO, again: SYS")
 ![GLO DUMP: P01 on the display, then the All 32 button (FX) and the Sound button (SEL)](img/screen-glo-dump.png "GLO, again: DUMP")
 
-GLO + OCT+ (hold GLO, press OCT+) opens one more page, GLOBAL RND, for the RND Synth's seeds: see RND seeds.
+GLO + OCT+ (hold GLO, press OCT+) opens the RND pages, for the RND Synth: see RND Synth.
 
 | Page | Control | Setting |
 | --- | --- | --- |
@@ -663,7 +718,7 @@ GLO + OCT+ (hold GLO, press OCT+) opens one more page, GLOBAL RND, for the RND S
 | SYS | K4 KNOBS (KNOB RESPONSE) | How far the knobs go as you turn them faster. FINE: always one step a click. NORMAL (the default): up to 8 steps a click on a quick spin. FAST: up to 12, and sooner. COARSE: two steps a click even turned slowly, up to 16. Only the knobs with a wide range (levels, Frequency, Tune, Tempo, the LFOs' speeds and so on); switches and short lists always move one position a click. |
 | DUMP | SEL (Sound) | Sends the sound as one Bass Station II patch dump (SysEx). See SysEx. |
 | DUMP | FX (All 32) | Sends all 32 patches as a Bass Station II bank (SysEx), which loads back into the same patches. See SysEx. |
-| RND (GLO + OCT+) | PRESET, SAVE, FX | Picks, keeps and sends the RND Synth's seeds. See RND seeds. |
+| RND (GLO + OCT+) | | The RND Synth's patches, locks and tracks. See RND Synth. |
 
 ### Control changes
 
@@ -809,9 +864,13 @@ Bass Something 2 is by **John Brown** ([@imijes](https://github.com/imijes)), un
 - **Quixotic7** ([@Quixotic7](https://github.com/Quixotic7)): RemoteFM1 for iOS and its `.rfm1` format, which runs
   this firmware on an iPhone or iPad.
 - **Groove OS** by Peter Gombos: the idea of running FM-1 firmware in the browser (no code from it).
+- **RND pixels** by Cyma Forma ([pixels.cymaforma.com](https://pixels.cymaforma.com/)): how an RND Synth patch is
+  named (its seed and lock code, and their words), and the RND Synth's SysEx, which the RND pages follow.
+- **BIP39**'s English word list (MIT licence, [bitcoin/bips](https://github.com/bitcoin/bips/blob/master/bip-0039/english.txt)):
+  the words RND SEED names patches with.
 - Fonts: **Barlow** by The Barlow Project Authors and **Terminus** by Dimitar Toshkov Zhekov (both SIL OFL 1.1).
 
 The full list for the platform underneath is fm1-base's `CREDITS.md` and `LICENSING.md`.
 
-Novation and Bass Station are trademarks of Focusrite Audio Engineering Ltd.; M-VAVE and FM-1 are trademarks of their
-owners. Bass Something 2 is not affiliated with Novation or M-VAVE.
+Novation and Bass Station are trademarks of Focusrite Audio Engineering Ltd.; M-VAVE and FM-1, Cyma Forma and RND are
+trademarks of their owners. Bass Something 2 is not affiliated with Novation, M-VAVE or Cyma Forma.
