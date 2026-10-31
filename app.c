@@ -530,6 +530,9 @@ static struct {
     uint32_t src;                            /* SRC_*: what plays the voice */
     float tick;                              /* clock ticks into the step */
     uint32_t ext_ticks, ext_age;             /* MIDI clocks not yet counted; samples since the last */
+    uint32_t ext_n, ext_span;                /* MIDI clocks since the last measure's start, and the samples since */
+    float ext_bpm;                           /* MIDI clock's tempo, measured (0: not yet) */
+    uint16_t ext_shown;                      /* it as shown, whole BPM (moves on a change over 0.7) */
     uint32_t lfo_ticks;                      /* MIDI clocks not yet counted by the LFOs (their sync) */
     float clk_out;                           /* clock ticks toward the next one out (GLO SYS's SEND CLK) */
     uint32_t apos, spos;                     /* the arp's notes played; the sequencer's next step */
@@ -728,6 +731,7 @@ static void eng_run(uint32_t m)              /* each modulation step, m samples 
             if (!(eng.down[eng.held[i] >> 5] >> (eng.held[i] & 31u) & 1u))
                 held_del(eng.held[i]);
     eng.ext_age = eng.ext_age < EXT_HOLD ? eng.ext_age + m : EXT_HOLD;
+    eng.ext_span += m;
     if (set.clk_out && !ext_clock())         /* the tempo out as MIDI clock, whether anything plays or not */
         for (eng.clk_out += (float)patch.tempo * (24.0f / 60.0f / BS2_RATE) * (float)m; eng.clk_out >= 1.0f;
              eng.clk_out -= 1.0f)
@@ -767,6 +771,29 @@ static void eng_run(uint32_t m)              /* each modulation step, m samples 
         eng_quiet();
 }
 
+/* MIDI clock's tempo, for the screen: the samples over each EXT_MEASURE clocks (the clocks seen a block at a time, so
+ * each measure is within a block either way: ~1 % at 120 BPM), a jump taken at once, a drift averaged; from the
+ * first clock after none came for EXT_HOLD */
+#define EXT_MEASURE 48u                      /* two beats */
+static void ext_measure(void)
+{
+    float b, d;
+    if (eng.ext_age >= EXT_HOLD) {           /* (the clock just came: its first a measure's start) */
+        eng.ext_n = eng.ext_span = 0;
+        eng.ext_bpm = 0.0f;
+        eng.ext_shown = 0;
+        return;
+    }
+    if (++eng.ext_n < EXT_MEASURE || !eng.ext_span)
+        return;
+    b = (float)EXT_MEASURE * (60.0f / 24.0f) * BS2_RATE / (float)eng.ext_span;
+    eng.ext_n = eng.ext_span = 0;
+    d = b - eng.ext_bpm;
+    eng.ext_bpm = eng.ext_bpm == 0.0f || fm_fabsf(d) > 0.04f * eng.ext_bpm ? b : eng.ext_bpm + 0.3f * d;
+    if (!eng.ext_shown || fm_fabsf(eng.ext_bpm - (float)eng.ext_shown) > 0.7f)
+        eng.ext_shown = (uint16_t)clamp((int32_t)(eng.ext_bpm + 0.5f), 1, 999);
+}
+
 static volatile uint32_t midi_last, midi_last_port, midi_count;   /* the last message in (shown), and how many */
 static void midi_in(void)                    /* audio interrupt: the keys' notes, and the packets that came in */
 {
@@ -787,6 +814,7 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
             if (set.clock != CLK_INT) {
                 eng.ext_ticks++;
                 eng.lfo_ticks++;
+                ext_measure();
                 eng.ext_age = 0;
             }
         } else if (st == 0xFAu) {            /* start: from the first step */
@@ -2002,6 +2030,8 @@ static int knob_turn(uint32_t k, int32_t e)
         }
         return 1;
     }
+    if (ui.page == PG_ARP && k == EN_K1 && ext_clock())   /* TEMPO: MIDI clock's while it leads (the patch's kept) */
+        return 1;
     if (ui.page == PG_GRND && k == EN_PRESET) {   /* a seed slot: its seed shown */
         rnd_pick(e);
         return 1;
@@ -2163,6 +2193,11 @@ static const char *knob_title(uint32_t k)    /* over the header: the whole name 
     text_cat(w, t);
     return w;
 }
+/* the tempo ARP's TEMPO shows: MIDI clock's, measured, while it leads (0: not yet, or lost), else the patch's */
+static int32_t arp_tempo(void)
+{
+    return !ext_clock() ? (int32_t)patch.tempo : eng.ext_age < EXT_HOLD ? (int32_t)eng.ext_shown : 0;
+}
 static void knob_text(uint32_t k, char *t)
 {
     const param_t *q = knob_param(k);
@@ -2170,6 +2205,13 @@ static void knob_text(uint32_t k, char *t)
     t[0] = 0;
     if (ui.page == PG_ARP && (k == EN_SELECT || k == EN_ALGO)) {   /* the buttons: what they set (recording, its step) */
         text_cat(t, seq_rec ? (k == EN_SELECT ? "LEGATO" : "REST") : OFF_ON[k == EN_SELECT ? patch.arp_on : patch.latch]);
+        return;
+    }
+    if (ui.page == PG_ARP && k == EN_K1 && ext_clock()) {   /* MIDI clock's tempo (dashes until it is measured) */
+        if (arp_tempo())
+            int_text(arp_tempo(), t);
+        else
+            text_cat(t, "---");
         return;
     }
     if (ui.page == PG_FX && k == EN_K3) {   /* the switch */
@@ -3419,16 +3461,16 @@ static void glo_midi_draw(void)
     print_switch(150, GLO_ROW, EN_K3, "Off", "On", "AT Out");
     print_switch(208, GLO_ROW, EN_K4, "On", "Off", "Bluetooth");
 }
-/* GLOBAL SYSTEM: the tempo on the display (dashes while MIDI clock leads), the Send Clk switch (SELECT), the clock
+/* GLOBAL SYSTEM: the tempo on the display (MIDI clock's, measured, while it leads; dashes until it is), the Send Clk switch (SELECT), the clock
  * and the firmware; Tune, Sync (what the arp follows), the keys' Velocity curve and the knobs' response (K1-K4) along
  * the bottom */
 static void glo_sys_draw(void)
 {
     char t[4];
-    if (ext_clock())
+    if (ext_clock() && (eng.ext_age >= EXT_HOLD || !eng.ext_shown))
         memcpy(t, "---", 3);
     else
-        seg_num(patch.tempo, t);
+        seg_num(ext_clock() ? eng.ext_shown : patch.tempo, t);
     glo_frame("System");
     seg_display(8, 40, t, 3);
     print_c(50, 92, ext_clock() ? (eng.ext_age < EXT_HOLD ? "MIDI clock" : "Waiting for clock") : "Tempo", P_SILK);
@@ -3491,10 +3533,18 @@ static void arp_draw(void)
     const int run = eng.src == SRC_ARP || eng.src == SRC_SEQ;
     uint32_t i;
     int32_t x, y;
+    char t[12];
     panel_bg();
     panel_bars(2, 236, EDGE, 1);
     bar_text((10 + 236 - text_w(&FONT_B, "ARPEGGIATOR")) / 2, 1, "ARPEGGIATOR");
-    print_knob(30, 50, 16, CCP(PG_ARP, EN_K1), EN_K1, 1, "", "Tempo");   /* (its name under its range) */
+    if (ext_clock()) {                       /* TEMPO at MIDI clock's (the patch's until it is measured) */
+        bs2_knob(30, 50, 16, clamp(arp_tempo() ? arp_tempo() : (int32_t)patch.tempo, 40, 240) - 40, 200,
+                 knob_lit(EN_K1) ? KF_LIT : 0u);
+        knob_text(EN_K1, t);
+        print_c(30, 70, knob_lit(EN_K1) ? t : "", P_CYAN);
+        print_c(30, 79, "MIDI clock", P_SILK);
+    } else
+        print_knob(30, 50, 16, CCP(PG_ARP, EN_K1), EN_K1, 1, "", "Tempo");   /* (its name under its range) */
     cv_text(4, 70, &FONT_T, "40", P_SILK);
     cv_text(46, 70, &FONT_T, "240", P_SILK);
     led(53, 34, run && eng.rpos % 4u == 0u);   /* (the tempo's LED: each quarter, playing) */
@@ -3907,12 +3957,14 @@ static uint32_t live(void)
     case PG_LFO1:                            /* (its wave LEDs blink as the LFOs go) */
         return plat_ms() / 50u;              /* 20 times a second */
     case PG_ARP:
-        return eng.src == SRC_ARP || eng.src == SRC_SEQ ? eng.rpos % RHY_STEPS + 1u : 0u;
+        return (eng.src == SRC_ARP || eng.src == SRC_SEQ ? eng.rpos % RHY_STEPS + 1u : 0u)
+               | (uint32_t)ext_clock() << 7 | (uint32_t)arp_tempo() << 8;   /* (TEMPO: MIDI clock's as it moves) */
     case PG_SEQ:
         return eng.src == SRC_SEQ ? eng.rpos + 1u : 0u;
     case PG_GMIDI:
     case PG_GSYS:
-        return (uint32_t)ext_clock() | (uint32_t)(eng.ext_age < EXT_HOLD) << 1 | (uint32_t)plat_ble_connected() << 2;
+        return (uint32_t)ext_clock() | (uint32_t)(eng.ext_age < EXT_HOLD) << 1 | (uint32_t)plat_ble_connected() << 2
+               | (uint32_t)eng.ext_shown << 3;
     default:
         return 0;
     }
@@ -4227,6 +4279,8 @@ int app_expect(const char *what, int *got)
         *got = set.ble_off;
     else if (!strcmp(what, "afx"))
         *got = afx_on;
+    else if (!strcmp(what, "ext_bpm"))       /* MIDI clock's tempo as GLO SYS shows it (0: not measured) */
+        *got = eng.ext_shown;
     else if (!strcmp(what, "tempo"))         /* the patch's TEMPO */
         *got = patch.tempo;
     else if (!strcmp(what, "lit"))           /* the keys lit for the notes held (bit 0: F3 at octave 0) */

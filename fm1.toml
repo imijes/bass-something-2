@@ -15,5 +15,5 @@ authors = ["John Brown"]       # the .rfm1's manifest (tools/build.py bs2 --rfm1
 tagline = "a Bass Station 2-style monosynth for the M-VAVE FM-1"
 repo = "https://github.com/imijes/bass-something-2"   # the source
 licence = "MPL-2.0"
-credits = "by John Brown (https://github.com/imijes), with the factory patches of Emozinaguitars' ULTIMATE PATCHES Vol 2 and the work of others, all credited in the manual's section 12: https://imijes.github.io/bass-something-2/manual/#s12"
+credits = "by John Brown (https://github.com/imijes), with the work of others, all credited in the manual's section 12: https://imijes.github.io/bass-something-2/manual/#s12"
                                # (the .rfm1's credits; the installer's footer is bs2/site/make_site.py FOOTER's)

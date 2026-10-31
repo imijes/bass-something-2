@@ -361,7 +361,7 @@ in.
 | --- | --- |
 | SELECT · ON | The arp on (turn up) or off (turn down). While the sequencer records, it's LEGATO instead (see SEQ). |
 | ALGO · LATCH | Turn up for on (the LED beside LATCH lights): the notes keep playing after you let go, until you play a new chord, which replaces them. With the arp off, LATCH is the Bass Station II's key hold: the last note you played keeps sounding until you play another. While the sequencer records, it's REST instead. |
-| K1 · TEMPO | 40 to 240 BPM. |
+| K1 · TEMPO | 40 to 240 BPM. While MIDI clock is followed (GLO SYS's SYNC), the knob shows the clock's tempo, labelled MIDI CLOCK (dashes until it's measured), and turning it changes nothing. The patch keeps its own tempo for when the clock stops. |
 | K2 · RHYTHM | The Bass Station II's 32 arp rhythms. Each is two bars of 16ths with rests and held notes. Rhythm 1 is two bars of quarter notes, and 32 plays every 16th. |
 | K3 · MODE (ARP MODE) | UP, DOWN, UP/DN (the top and bottom notes once each), UP/DN2 (twice each), PLAYED (in the order played), RANDOM, PLAY (the sequencer plays) or REC (the sequencer records), named around the knob as on the panel. |
 | K4 · OCTAVES | A four-position switch, 1 to 4 octaves, its positions on its left as on the panel. In PLAY and REC it's SEQ instead: which of the four sequences, as on the Bass Station II's switch. |
@@ -443,8 +443,44 @@ turning PRESET write at once, so pressing SAVE mid-performance gives a short gap
 Bass Something 2 holds 32 patches, P01 to P32. Each patch is a complete sound: the settings of every control described
 in [section 4](#s4), plus the arp and the sequence.
 
-A new Bass Something 2 starts with 32 factory patches, GHOST MACHINE I in P01 to DATA RAIN in P32. They are the first 32
-of the ULTIMATE PATCHES Volume 2 bank for the Bass Station II (see [Credits](#s12)), each with the default sequence.
+A new Bass Something 2 starts with 32 factory patches of its own, each with the default sequence. P01 to P10 are
+basses, P11 to P20 leads, and P21 to P32 show off the rest of the voice:
+
+| Patch | Name | What it shows |
+|---|---|---|
+| P01 | SUB ZERO | a sine an octave down with the sine sub under it: felt more than heard |
+| P02 | STATION BASS | the classic: two saws at 16', the square sub, a short filter envelope |
+| P03 | ACID SLIDE | the Acid filter with high resonance; overlap the notes to slide |
+| P04 | RUBBER PLUCK | a narrow pulse through the 12 dB filter, short and round |
+| P05 | REESE TUNNEL | two detuned saws beating, the cutoff breathing slowly |
+| P06 | FM GROWL | Osc Filter Mod: oscillator 2 moving the cutoff at audio rate |
+| P07 | WOBBLE DUB | LFO 2 on the cutoff, synced to eighths of the tempo |
+| P08 | SYNC PUNCH | hard sync, the mod envelope sweeping oscillator 2 down |
+| P09 | GRIT BASS | squares and the sub through the drive and the distortion |
+| P10 | BOOM 808 | a sine that drops into its note with a long decay: a tuned kick |
+| P11 | BRIGHT SAWS | two open saws, glide on legato notes, delayed vibrato |
+| P12 | SQUARE SOLO | a square with another an octave up, hollow and woody |
+| P13 | SYNC SCREAMER | hard sync with the mod envelope on oscillator 2's pitch |
+| P14 | PWM LEAD | two pulses, their widths swept by LFO 2 in opposite directions |
+| P15 | ACID SCREAM | the Acid filter high and near self-oscillation, driven |
+| P16 | FIFTH ELEMENT | oscillator 2 a fifth up: a power chord from each note |
+| P17 | RING LEAD | ring modulation for a metallic edge |
+| P18 | PORTA SINE | a soft sine and triangle that always glide, slowly |
+| P19 | HOT WIRE | a saw and a pulse pushed hard through drive and distortion |
+| P20 | BREATHY FLUTE | a triangle with noise, a slow attack and delayed vibrato |
+| P21 | ARP PLUCKS | the arpeggiator up two octaves in rhythm 8: hold a chord |
+| P22 | ARP RANDOMIZER | random notes over three octaves, latched, sample and hold on the cutoff |
+| P23 | S&H COMPUTER | sample and hold on a resonant filter: 70s computer bleeps |
+| P24 | SLOW SWEEP PAD | detuned saws, slow attack and release, the cutoff swept slowly |
+| P25 | LASER ZAP | the mod envelope drops the pitch an octave into the note |
+| P26 | RING BELLS | two oscillators ring-modulated a fifth apart, decaying like a bell |
+| P27 | WINDY NOISE | noise through a resonant band pass that drifts: hold a key |
+| P28 | STUTTER GATE | the envelopes retriggering: each note chopped |
+| P29 | FM METAL | Osc Filter Mod at full with an odd interval: metallic clangs |
+| P30 | HIGHPASS PLUCK | the high pass filter thinning a plucked saw |
+| P31 | SIREN SWEEP | LFO 1 on both oscillators' pitches: a siren on every key |
+| P32 | TALKING WAH | the band pass opening and closing on each note |
+
 Updating the firmware keeps the patches you have. To get the factory ones back, send the factory bank,
 `bs2/presets/factory.syx` in the source (see [SysEx](#s7)).
 
@@ -593,7 +629,7 @@ save themselves: two seconds after you change one, once the FM-1 is quiet (see S
 without SAVE (so a GLO change never
 writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar (MIDI, System,
 SysEx Dump, RND Seed) and a red display: GLOBAL MIDI's shows the MIDI channel (ALL, OFF or the number), GLOBAL
-SYSTEM's the tempo (dashes while MIDI clock leads), with the knobs' response, the clock's state and the firmware's version (VERSION v0.2)
+SYSTEM's the tempo (while MIDI clock leads, its tempo as measured over every two beats; dashes until then), with the knobs' response, the clock's state and the firmware's version (VERSION v0.2)
 beside it, GLOBAL DUMP's the patch. The on/off settings are slide switches.
 
 On every GLO page, the right of the page's own bar shows the audio's load (for a moment after a change, what changed
@@ -766,8 +802,6 @@ Bass Something 2 is by **John Brown** ([@imijes](https://github.com/imijes)), un
 - **keremimo** ([@keremimo](https://github.com/keremimo)): MIDI clock and transport sync in felucca-bsp.
 - **Chris Farrell** ([@seajaysec](https://github.com/seajaysec)): from fm-static, the web installer's finding of an
   FM-1 under any port name, and its package and update checks. Used under MPL-2.0 with his permission.
-- **Emozinaguitars**: the factory patches, the first 32 of ULTIMATE PATCHES Volume 2 for the Bass Station II, shared
-  free in the Bass Station II patch community.
 - **BS2-Web** by François Georgy ([francoisgeorgy/BS2-Web](https://github.com/francoisgeorgy/BS2-Web)): where each
   setting sits in a Bass Station II patch dump, which the SysEx import and export follow.
 - **Tronstoner**: the chart of the Bass Station II's arp rhythms (2013, CC BY-SA), the source for rhythms 31 and 32.

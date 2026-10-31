@@ -287,6 +287,38 @@ wait 300
 spin K2 -2
 wait 30
 expect clock 0
+# GLO SYS shows MIDI clock's tempo, measured (dashes until two beats have come): 21 ms apart is 119 BPM, 25 ms 100
+wait 1000
+expect ext_bpm 0
+clock 40 21
+expect ext_bpm 0
+clock 80 21
+expect ext_bpm 119
+clock 150 25
+expect ext_bpm 100
+# ARP's TEMPO shows it too, turning it changing nothing (the patch's 120 kept); the patch's back when the clock goes
+tap ARP
+wait 30
+expect page 6
+turn K1 5
+clock 10 25
+said ARP TEMPO 100
+expect tempo 120
+wait 1000
+turn K1 5
+wait 30
+said ARP TEMPO 125
+turn K1 -5
+wait 30
+expect tempo 120
+tap GLO
+wait 30
+tap GLO
+wait 30
+expect page 17
+clock 30 25
+expect ext_bpm 0
+wait 1000
 tap ARP
 wait 30
 turn SELECT -1

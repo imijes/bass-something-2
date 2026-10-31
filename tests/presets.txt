@@ -1,13 +1,13 @@
 # The factory patches (bs2/presets: factory.syx's first 32 dumps, read at first power-on through the bank's import):
-# P01 GHOST MACHINE I, P32 DATA RAIN, each with the default sequence; they play.
+# P01 SUB ZERO, P32 TALKING WAH (bs2/presets/make_factory.py's), each with the default sequence; they play.
 # tools/build.py bs2 --host, then from the repository's root
 #   bs2/build/host/bass-something-2_host bs2/tests/presets.txt bs2/build/host
 wait 600
 expect slot 0
-expect cutoff 60
-expect filter 2
+expect cutoff 50
+expect filter 0
 expect wave 2
-expect reso 67
+expect reso 0
 expect seq_len 8
 expect seq0 48
 peakreset
@@ -21,7 +21,8 @@ wait 30
 turn PRESET 31
 wait 30
 expect slot 31
-expect cutoff 127
+expect cutoff 36
+expect filter 2
 expect wave 0
 peakreset
 midi 90 30 64
@@ -36,4 +37,4 @@ wait 30
 reboot
 wait 600
 expect slot 31
-expect cutoff 127
+expect cutoff 36
