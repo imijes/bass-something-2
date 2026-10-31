@@ -15,6 +15,7 @@ The manual (`docs/MANUAL.md`) describes everything it does.
 | `tests/*.txt` | Host simulator checks: basic, glo, sysex, rnd, seqkeep, lit, voice (`tests/syx`: the SysEx they send) |
 | `tests/screens.txt` | The manual's screenshots |
 | `docs/MANUAL.md`, `site/landing.md` | The manual and the site's front page |
+| `docs/SIZE_LOG.md`, `tools/size_log.py` | What each change costs in flash and RAM: `python3 bs2/tools/size_log.py "what changed"` (from the fm1-base root) builds the firmware and adds a row |
 | `web/emu/index.html` | The emulator's page: fm1-base's, in the firmware's colours, with a quick guide |
 | `site/theme.css`, `site/make_site.py` | The site (front page, installer, manual) in the firmware's colours, with its tabs |
 | `site/publish_pages.py` | The built site to GitHub Pages (the `gh-pages` branch) |

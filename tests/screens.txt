@@ -1,10 +1,12 @@
 # The manual's screenshots (bs2/docs/img), from the INIT patch (bank_init: the factory patches set aside, as the
 # manual's text describes the INIT sound): tools/build.py bs2 --host, then
 #   bs2/build/host/bass-something-2_host bs2/tests/screens.txt bs2/docs/img
+# (each page change waits out the controls' map: tags_draw)
 bank_init
 wait 900
 shot screen-ready.png
 tap EDIT
+wait 1500
 wait 900
 shot screen-osc.png
 key 7 down 90 50
@@ -24,21 +26,25 @@ turn PRESET -1
 tap OCT-
 turn K3 -3
 tap EDIT
+wait 1500
 wait 30
 turn K4 -20
 wait 400
 shot screen-osc-pw.png
 tap FX
+wait 1500
 wait 30
 turn K2 30
 wait 400
 shot screen-filter.png
 tap FX
+wait 1500
 wait 30
 turn K1 20
 wait 400
 shot screen-filter-mod.png
 tap ENV
+wait 1500
 wait 400
 shot screen-amp-env.png
 turn SELECT 1
@@ -51,53 +57,65 @@ shot screen-env.png
 key 7 up
 wait 30
 tap ENV
+wait 1500
 wait 400
 shot screen-trig.png
 tap ENV
+wait 1500
 wait 30
 turn K1 20
 wait 400
 shot screen-env-mod.png
 tap LFO
+wait 1500
 wait 30
 turn SELECT 60
 turn K2 10
 wait 400
 shot screen-lfo.png
 tap LFO
+wait 1500
 wait 30
 turn K3 30
 wait 400
 shot screen-lfo-mod.png
 tap HOME
+wait 1500
 tap HOME
+wait 1500
 wait 30
 turn K4 50
 wait 400
 shot screen-fx.png
 tap FX
+wait 1500
 tap FX
+wait 1500
 tap FX
+wait 1500
 wait 30
 turn K1 30
 turn K2 20
 wait 400
 shot screen-effects.png
 tap ARP
+wait 1500
 wait 30
-turn SELECT 1
+turn PRESET 1
 wait 30
 turn K2 -20
 key 7 down 100 0
 wait 900
 shot screen-arp.png
 key 7 up
-turn SELECT -1
+turn PRESET -1
 wait 30
 tap ARP
+wait 1500
 wait 400
 shot screen-arp-mod.png
 tap SEQ
+wait 1500
 wait 30
 tap PLAY
 wait 700
@@ -105,39 +123,55 @@ shot screen-seq.png
 tap PLAY
 wait 30
 tap HOME
+wait 1500
 wait 400
 shot screen-patch.png
 tap GLO
+wait 1500
 wait 400
 shot screen-glo-midi.png
 tap GLO
+wait 1500
 wait 400
 shot screen-glo-sys.png
 tap GLO
+wait 1500
 wait 400
 shot screen-glo-dump.png
+tap GLO
+wait 1500
+shot screen-glo-disp.png
 press GLO
-wait 30
-tap OCT+
-wait 30
+wait 1050
 release GLO
+wait 1500
 wait 30
 sysex_in bs2/tests/syx/rnd14_dump.syx
 wait 30
 tap SAVE
 wait 1500
 shot screen-rnd-seed.png
-press GLO
-wait 30
-tap OCT+
-wait 30
-release GLO
+tap GLO
+wait 1500
 wait 1500
 shot screen-rnd-patch.png
-press GLO
-wait 30
-tap OCT+
-wait 30
-release GLO
+tap GLO
 wait 1500
 shot screen-rnd-tracks.png
+# the controls' map, as a page opens: the FILTERS
+tap FX
+wait 200
+shot screen-map.png
+# Manual Mode: on (GLO DISPLAY's K2: GLO four times), the FILTERS' Frequency turned: its value, its hint under it
+tap GLO
+tap GLO
+tap GLO
+tap GLO
+wait 1500
+turn K2 1
+wait 1500
+tap FX
+wait 1500
+turn K4 -3
+wait 50
+shot screen-hint.png

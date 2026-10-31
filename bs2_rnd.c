@@ -2,7 +2,7 @@
  * Copyright (C) 2026 Charles Vestal
  * Copyright (C) 2026 John Brown */
 /* RND: Bass Something 2 as a companion to Cyma Forma's RND Synth (firmware 1.4): a keeper of its patches and, on
- * the RND pages (GLO + OCT+), a remote for it. They don't touch Bass Something 2's sound. The one exception is the
+ * the RND pages (GLO held), a remote for it. They don't touch Bass Something 2's sound. The one exception is the
  * tempo: a new seed's tempo becomes the FM-1's TEMPO, so the arp, the sequencer and SEND CLK follow the synth's new
  * direction.
  *
@@ -616,7 +616,7 @@ static int rnd_track_turn(uint32_t k, int32_t e)   /* RND TRACKS' encoders (0: s
     char w[16] = "RND T", v[16];
     uint32_t t4;
     int32_t x;
-    if (k == EN_SELECT) {
+    if (k == EN_PRESET) {                   /* Row Select */
         x = clamp((int32_t)rnd_row + e, 0, NRR - 1);
         rnd_row = (uint8_t)x;
         app_say("RND ROW", x == RR_ENG ? "ENGINE" : x == RR_LEVEL ? "LEVEL" : "REVERB");

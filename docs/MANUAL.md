@@ -57,14 +57,14 @@ on.
 ![Bass Something 2 while a key is held: the OSCILLATORS panel, its Mod Env depth turned, the key filled cyan on the keyboard](img/screen-playing.png "A key held, a knob turned")
 
 The screen is a small Bass Station II front panel. Every page is drawn as one of its sections (MASTER, OSCILLATORS,
-MIX FX, FILTERS, ENVELOPES, PORTA, LFOS, EFFECTS, ARPEGGIATOR, the sequencer, GLOBAL, and the mods): its cyan bar with
+SUB OSC + MIXER, FILTERS, ENVELOPES, PORTA, LFOS, EFFECTS, ARPEGGIATOR, the sequencer, GLOBAL, and the mods): its cyan bar with
 the section's name, its knobs, switches and red LEDs, the print white. The panel starts right under the tabs, and a
-knob shows its value, in cyan, in place of its name while it turns.
+knob shows its value in a cyan label on it while it turns.
 
 | Part | What it shows |
 | --- | --- |
 | Section tabs | HOME, ENV, LFO, FX, ARP, SEQ, EDIT and GLO, the buttons. The section you're in is lit in the panel's cyan, its name white; the others are grey. ARP and SEQ are written in cyan while they play. |
-| Panel | The section: its knobs, switches, LEDs and print, where the Bass Station II has them. A knob's line turns cyan, and its value shows in place of its name, for a moment as it turns. |
+| Panel | The section: its knobs, switches, LEDs and print, where the Bass Station II has them. A knob's line turns cyan, and its value shows in a cyan label on it, for a moment as it turns. |
 | Keys | The 27 keys, black above white. A held key fills cyan to its velocity, and white over that shows its pressure. A key whose note is held from MIDI in is all cyan. |
 | Bottom lines | OCT, the octave. P01 to P32, the patch, with * while it has changes that aren't saved. BLE, lit while a computer or phone is connected over Bluetooth, and DEV, lit while a Bluetooth MIDI device is. VOL, MASTER's volume. Under OCT, the battery: three bars when full, the outline red when it's nearly empty, a cyan bolt while USB powers the FM-1 (it can't tell charging from not), grey until its first reading. MIDI IN, where the last message came from (USB, BLE or TRS) and its bytes. ARP, SEQ or REC while one of them plays the voice, and AFX while AFX mode is on. |
 
@@ -78,17 +78,30 @@ GLOBAL SYSTEM's KNOBS sets how much they speed up, from FINE to COARSE.
 
 | Button | Page | Again |
 | --- | --- | --- |
-| HOME | MASTER: the patch, picked, saved and sent (the page after the splash) | MIX FX: the sub oscillator and the mixer |
+| HOME | MASTER: the patch, picked, saved and sent (the page after the splash) | SUB OSC + MIXER: the sub oscillator and the mixer |
 | ENV | ENVELOPES: Env Select (SELECT) and the four faders | TRIGGERING; then the group's mods (velocity, retriggering, fixed sustain) |
 | LFO | PORTA and LFOS: the glide, both LFOs' waves and knobs, the Delay/Speed switch | the group's mods (keysync, Speed/Sync, slew) |
 | FX | FILTERS | LFO 2 on the filters; then EFFECTS: distortion and Osc Filter Mod; then the group's mods (key tracking, the VCA limiter) |
-| ARP | ARPEGGIATOR: tempo, rhythm, mode, octaves, the On and Latch buttons | the group's mods (Seq Retrig, swing), then back |
-| SEQ | SEQ: the sequencer | recording on or off (the arp's REC) |
+| ARP | ARPEGGIATOR: tempo, rhythm, mode, octaves, the On and Latch buttons (held a second: AFX mode) | the group's mods (Seq Retrig, swing), then back |
+| SEQ | SEQ: the sequencer (held a second: AFX mode) | recording on or off (the arp's REC) |
 | EDIT | OSCILLATORS: the pitch's view | the pulse width's view |
-| GLO | GLOBAL MIDI | GLOBAL SYSTEM, then GLOBAL DUMP |
+| GLO | GLOBAL MIDI (held a second: the RND pages) | GLOBAL SYSTEM, then GLOBAL DUMP, then GLOBAL DISPLAY |
 
 The buttons' lights: SAVE is lit while there's something to save, ARP while the arp is on, SEQ while recording,
 and PLAY while the sequencer plays. The other buttons glow dimly, so they can be found in the dark.
+
+As each page opens, its controls are labelled for a moment with the FM-1 encoder or button that sets them: SELECT,
+ALGO, PRESET and K1 to K4 in cyan, and buttons (SEL, FX, SAVE) in white. The labels go after the pop-up time (a second and a
+half unless you change it on GLOBAL DISPLAY), or as soon as you turn a knob. When you turn a knob, its value shows in
+the same cyan label, on the control it sets, for the same time.
+
+**Manual Mode** (GLOBAL DISPLAY, K2) adds a few words on what each control does: under the value as you turn a
+knob ("Filter cutoff", "Fade-in time", "Note order"), and at the foot of the panel as you press a button
+("Envelopes", "GLO hold: RND Settings"). It's off until you turn it on, and the FM-1 remembers it.
+
+![Manual Mode on the FILTERS: Frequency turned to 97, with Filter cutoff under its value](img/screen-hint.png "Manual Mode: what a knob does")
+
+![The FILTERS as the page opens: each switch and knob labelled with its encoder, SELECT, ALGO and PRESET on the switches, K1 to K4 on the knobs](img/screen-map.png "A page opening: its controls' encoders")
 
 The keys light while their notes are held, whether you're playing them or they come in over MIDI. A note held below
 the keys' reach lights OCT-, one above lights OCT+.
@@ -104,8 +117,8 @@ the keys' reach lights OCT-, one above lights OCT+.
 | SEL | On the OSCILLATORS pages, Osc Select: which oscillator their knobs set, 1 or 2. On GLOBAL DUMP, the sound out as a SysEx dump. On the SEQ page while the sequencer records, the step's legato (see SEQ). |
 | MASTER | The volume. |
 | REC | A random sound (see below). On GLOBAL MIDI it finds a Bluetooth MIDI device instead. |
-| REC + OCT+ | Hold REC and press OCT+: AFX mode on or off. |
-| GLO + OCT+ | Hold GLO and press OCT+: the RND pages, for Cyma Forma's RND Synth (again: the next one). See RND Synth. |
+| Hold ARP or SEQ | Held for a second: AFX mode on or off. A shorter press opens the page as usual. |
+| Hold GLO | Held for a second: the RND pages, for Cyma Forma's RND Synth; held again, back to GLOBAL. See RND Synth. |
 | PLAY | Plays the sequence at its own key (the arp on, in PLAY), or stops it. |
 | SAVE | Saves the sound into its patch, and the settings. |
 
@@ -124,11 +137,11 @@ it.
 
 ### AFX mode
 
-Hold REC and press OCT+ to switch AFX mode on. The screen says AFX ON, and AFX stays lit at the bottom right. Each
+Hold ARP or SEQ for a second to switch AFX mode on. The screen says AFX ON, and AFX stays lit at the bottom right. Each
 key then plays the sound with its own changes: oscillator 1's wave, the filter's cutoff, the decay of both envelopes
 and the noise. For example, the lowest F is a dark, short sine, like a kick, and some keys add noise for snares and
 hi-hats. Each key keeps its changes in any octave, and MIDI notes in play the key they'd be on the keyboard. The
-patch itself doesn't change: switch AFX off (REC + OCT+ again) and the keys all play it as before. AFX is off each
+patch itself doesn't change: switch AFX off (hold ARP or SEQ again) and the keys all play it as before. AFX is off each
 time the FM-1 starts.
 
 ---
@@ -166,7 +179,7 @@ Like an analog synth, the engine is never quite still. These behaviours are alwa
 ![The OSCILLATORS panel, the pitch's view: Coarse, Fine, the Mod Env and LFO 1 depths (Pitch), the pulse width dimmed; Range and Waveform with their LEDs, Osc Select, Sync 1-2](img/screen-osc.png "EDIT: the OSCILLATORS")
 
 The Bass Station II's Oscillators section, with its five knobs, the Range and Waveform LEDs, Osc Select, Sync 1-2 and
-the pulse width's switch. The sub oscillator, beside them on a Bass Station II, is on MIX FX. The section has two
+the pulse width's switch. The sub oscillator, beside them on a Bass Station II, is on SUB OSC + MIXER. The section has two
 views, EDIT and EDIT again: the pitch's and the pulse width's. Each shows the whole section, the controls the
 encoders don't set in that view dimmed.
 
@@ -310,14 +323,14 @@ pitch is on both oscillators, one on oscillator 2 on that one, and an LFO 2 on t
 on the cutoff, or an LFO 2 on the pitch, has no place on a Bass Station II and is set to 0. A sine LFO (Bass Station
 II LFOs have none) becomes a triangle.
 
-### MIX FX (HOME again)
+### SUB OSC + MIXER (HOME again)
 
-![MIX FX as the Bass Station II's panel: the Sub Osc's octave and wave switches with their LEDs, then the MIXER: Osc 1, Osc 2, Sub Osc and the Ext / Ring / Noise switch with its knob](img/screen-fx.png "HOME, again: the sub osc and the mixer")
+![SUB OSC + MIXER as the Bass Station II's panel: the Sub Osc's octave and wave switches with their LEDs, then the MIXER: Osc 1, Osc 2, Sub Osc and the Ext / Ring / Noise switch with its knob](img/screen-fx.png "HOME, again: the sub osc and the mixer")
 
 The page is laid out as that part of the Bass Station II's panel: the end of the oscillators' section, the Sub Osc with
 its octave and wave switches (a red LED at what each is set to), then the MIXER, its four knobs with the switch that
-picks what the fourth one sets. It starts right under the tabs, with no row for the page's name, so a knob's name
-changes to its value, in cyan, while it turns.
+picks what the fourth one sets. It starts right under the tabs, with no row for the page's name, so a knob shows
+its value in a cyan label on it while it turns.
 
 | Control | Setting |
 | --- | --- |
@@ -352,14 +365,14 @@ or to MIDI clock when it comes in (see GLO SYS's SYNC).
 
 ![The ARPEGGIATOR panel playing: TEMPO and RHYTHM, MODE with its eight positions around it, the OCTAVES switch with its four positions, ON's LED lit beside it over LEGATO, LATCH over REST](img/screen-arp.png "ARP")
 
-Press ARP to open its page. As on the Bass Station II's panel, the arp has its On and Latch buttons: turn SELECT up
+Press ARP to open its page. As on the Bass Station II's panel, the arp has its On and Latch buttons: turn PRESET up
 to switch it on (the LED beside ON lights, and so does ARP), down to switch it off. While it's on, the notes you hold are played one
 at a time over the octaves you set and in the rhythm you pick. It holds up to 16 notes, from the keys and from MIDI
 in.
 
 | Control | Setting |
 | --- | --- |
-| SELECT · ON | The arp on (turn up) or off (turn down). While the sequencer records, it's LEGATO instead (see SEQ). |
+| PRESET · ON | The arp on (turn up) or off (turn down). While the sequencer records, it's LEGATO instead (see SEQ). |
 | ALGO · LATCH | Turn up for on (the LED beside LATCH lights): the notes keep playing after you let go, until you play a new chord, which replaces them. With the arp off, LATCH is the Bass Station II's key hold: the last note you played keeps sounding until you play another. While the sequencer records, it's REST instead. |
 | K1 · TEMPO | 40 to 240 BPM. While MIDI clock is followed (GLO SYS's SYNC), the knob shows the clock's tempo, labelled MIDI CLOCK (dashes until it's measured), and turning it changes nothing. The patch keeps its own tempo for when the clock stops. |
 | K2 · RHYTHM | The Bass Station II's 32 arp rhythms. Each is two bars of 16ths with rests and held notes. Rhythm 1 is two bars of quarter notes, and 32 plays every 16th. |
@@ -407,7 +420,7 @@ starts a new sequence from step 1. Each key, or each note from MIDI in, is the n
 | Button | While recording |
 | --- | --- |
 | FX on the SEQ page, or ALGO turned up on the ARP page | A rest (the Bass Station II's REST). |
-| SEL on the SEQ page, or SELECT turned up on the ARP page | Makes the step just recorded legato (the Bass Station II's LEGATO). That note is held into the next one, which plays without a new attack. The same note on both sides makes a tie: one note held over both steps. Again cancels it. A rest can't be tied. |
+| SEL on the SEQ page, or PRESET turned up on the ARP page | Makes the step just recorded legato (the Bass Station II's LEGATO). That note is held into the next one, which plays without a new attack. The same note on both sides makes a tie: one note held over both steps. Again cancels it. A rest can't be tied. |
 
 Recording stops at 32 steps (SEQ FULL). Press SEQ again to stop: MODE goes to PLAY. Leaving REC before playing a note
 keeps the sequence as it was.
@@ -582,15 +595,16 @@ MIDI's CHANNEL to something other than 1, or every key you play sets the RND Syn
 **Clock:** the RND Synth never sends MIDI clock. It follows the FM-1's (GLOBAL SYSTEM's SEND CLK on), or a master
 clock that drives both.
 
-Hold GLO and press OCT+ for the RND pages; hold GLO and press OCT+ again for the next one: RND SEED, RND PATCH, RND
-TRACKS, then RND SEED again. Press GLO to leave. They're kept off GLO's own pages, as only RND Synth owners need them.
+Hold GLO for a second for the RND pages, then press GLO for the next one: RND SEED, RND PATCH, RND TRACKS, then
+RND SEED again. Hold GLO for a second again to go back to GLOBAL. They use the whole screen under the tabs, in larger print, so
+the keys' strip and the status line (octave, patch, volume) are hidden while they're open. They're kept off GLO's own pages, as only RND Synth owners need them.
 Opening them asks the RND Synth how it is (its firmware, its patch, its locks, its tracks), and each page shows it.
 At the right of each page's own bar is the seed the RND Synth is playing (PLAYING F34E8559; NOT HEARD YET until it
 has answered).
 
 ### RND SEED: the patches you keep
 
-![RND SEED: slot S01 with seed F34E8559 and its words, the Locks and Playing LEDs, what the RND Synth plays, then the slot knob and the Save, Send and Ask buttons](img/screen-rnd-seed.png "GLO + OCT+: RND SEED")
+![RND SEED: slot S01 with seed F34E8559 and its words, the Locks and Playing LEDs, what the RND Synth plays, then the slot knob and the Save, Send and Ask buttons](img/screen-rnd-seed.png "GLO held: RND SEED")
 
 An RND Synth patch is its **seed** (a number, shown as eight digits, F34E8559, that it makes its music from) and its
 **locks** (what it held when it rolled the patch). On RND firmware 1.4 the locks are part of the patch: the same seed
@@ -623,7 +637,7 @@ FM-1 is quiet (see SEQ).
 
 ### RND PATCH: the locks
 
-![RND PATCH: the Type and Tracks switches with their LEDs, then the Root, Octave and Scale knobs and the All RND button](img/screen-rnd-patch.png "GLO + OCT+, again: RND PATCH")
+![RND PATCH: the Type and Tracks switches with their LEDs, then the Root, Octave and Scale knobs and the All RND button](img/screen-rnd-patch.png "GLO held, then GLO: RND PATCH")
 
 What the RND Synth holds across new patches. Each setting is RND (the RND Synth picks) or a
 lock. Locks are kept by the RND Synth, through its button and through power-off. By each group's name, in cyan,
@@ -642,10 +656,10 @@ Locks change the patch's id: a patch kept after you lock something keeps those l
 
 ### RND TRACKS: the mixer
 
-![RND TRACKS: Row Select at the left, then the four tracks, each with the engine it plays, the engine held, a level fader and a reverb knob](img/screen-rnd-tracks.png "GLO + OCT+, again and again: RND TRACKS")
+![RND TRACKS: Row Select at the left, then the four tracks, each with the engine it plays, the engine held, a level fader and a reverb knob](img/screen-rnd-tracks.png "GLO held, then GLO twice: RND TRACKS")
 
 The RND Synth's four tracks, a strip each (K1 to K4), as Env Select picks the ENVELOPES' faders: **Row Select**
-(SELECT) picks what K1 to K4 set, and the other rows dim. Each strip shows the track's number and the engine it plays
+(PRESET) picks what K1 to K4 set, and the other rows dim. Each strip shows the track's number and the engine it plays
 (in cyan; dim when the track isn't playing).
 
 | Row | K1 to K4 set |
@@ -684,7 +698,7 @@ GLO opens the global settings; press it again for the next page. They belong to 
 save themselves: two seconds after you change one, once the FM-1 is quiet (see SEQ), it's kept through power-off,
 without SAVE (so a GLO change never
 writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar (MIDI, System,
-SysEx Dump) and a red display: GLOBAL MIDI's shows the MIDI channel (ALL, OFF or the number), GLOBAL
+SysEx Dump, Display) and a red display: GLOBAL MIDI's shows the MIDI channel (ALL, OFF or the number), GLOBAL
 SYSTEM's the tempo (while MIDI clock leads, its tempo as measured over every two beats; dashes until then), with the knobs' response, the clock's state and the firmware's version (VERSION v0.3)
 beside it, GLOBAL DUMP's the patch. The on/off settings are slide switches.
 
@@ -700,8 +714,9 @@ is heard.
 ![GLO MIDI: the channel ALL on the display, the Channel knob, where notes go out, CC and Bluetooth, then CC Chan and the Local, AT Out and Bluetooth switches](img/screen-glo-midi.png "GLO: MIDI")
 ![GLO SYS: the tempo 120 on the display, the Send Clk switch, the clock and the version, then Tune, Sync, Velocity and Knobs](img/screen-glo-sys.png "GLO, again: SYS")
 ![GLO DUMP: P01 on the display, then the All 32 button (FX) and the Sound button (SEL)](img/screen-glo-dump.png "GLO, again: DUMP")
+![GLO DISPLAY: what the pop-ups are, then the Pop-ups knob and the Manual Mode switch](img/screen-glo-disp.png "GLO, again: DISPLAY")
 
-GLO + OCT+ (hold GLO, press OCT+) opens the RND pages, for the RND Synth: see RND Synth.
+Holding GLO for a second opens the RND pages, for the RND Synth: see RND Synth.
 
 | Page | Control | Setting |
 | --- | --- | --- |
@@ -718,7 +733,9 @@ GLO + OCT+ (hold GLO, press OCT+) opens the RND pages, for the RND Synth: see RN
 | SYS | K4 KNOBS (KNOB RESPONSE) | How far the knobs go as you turn them faster. FINE: always one step a click. NORMAL (the default): up to 8 steps a click on a quick spin. FAST: up to 12, and sooner. COARSE: two steps a click even turned slowly, up to 16. Only the knobs with a wide range (levels, Frequency, Tune, Tempo, the LFOs' speeds and so on); switches and short lists always move one position a click. |
 | DUMP | SEL (Sound) | Sends the sound as one Bass Station II patch dump (SysEx). See SysEx. |
 | DUMP | FX (All 32) | Sends all 32 patches as a Bass Station II bank (SysEx), which loads back into the same patches. See SysEx. |
-| RND (GLO + OCT+) | | The RND Synth's patches, locks and tracks. See RND Synth. |
+| DISPLAY | K1 POP-UPS (POP-UP TIME) | How long the pop-ups stay: the controls' labels as a page opens, a knob's value after you turn it, and Manual Mode's hints. OFF: no labels or button hints, and a value only while the knob turns. 1.5 S (the default), 2 S or 3 S. ALWAYS: until you turn another knob or open another page. |
+| DISPLAY | K2 MANUAL MODE | ON: as you turn a knob, a few words on what it does show under its value; as you press a button, at the foot of the panel. OFF (the default): none. See The screen. |
+| RND (GLO held) | | The RND Synth's patches, locks and tracks. See RND Synth. |
 
 ### Control changes
 
@@ -737,11 +754,11 @@ Station II uses two CCs for one knob (cutoff 16 and 48, for example), the FM-1 r
 | 16 | FILTERS | FREQUENCY |
 | 18 | LFOS | LFO 1 speed |
 | 19 | LFOS | LFO 2 speed |
-| 20 | MIX FX | OSC1 level |
-| 21 | MIX FX | OSC2 level |
-| 22 | MIX FX | SUB level |
-| 23 | MIX FX | NOISE level |
-| 24 | MIX FX | RING level |
+| 20 | SUB OSC + MIXER | OSC1 level |
+| 21 | SUB OSC + MIXER | OSC2 level |
+| 22 | SUB OSC + MIXER | SUB level |
+| 23 | SUB OSC + MIXER | NOISE level |
+| 24 | SUB OSC + MIXER | RING level |
 | 26 | OSCILLATORS (Osc 1) | FINE |
 | 27 | OSCILLATORS (Osc 1) | COARSE |
 | 29 | OSCILLATORS (Osc 2) | FINE |
@@ -756,7 +773,7 @@ Station II uses two CCs for one knob (cutoff 16 and 48, for example), the FM-1 r
 | 77 | PULSE WIDTH (Osc 2) | Mod Env |
 | 78 | PULSE WIDTH (Osc 2) | LFO 2 |
 | 79 | PULSE WIDTH (Osc 2) | Manual |
-| 80 | MIX FX | SUBWAVE |
+| 80 | SUB OSC + MIXER | SUBWAVE |
 | 82 | FILTERS | RESONANCE |
 | 85 | FILTERS | MOD ENV depth |
 | 86 | LFOS | LFO 1 delay |
@@ -802,7 +819,7 @@ Over the USB cable the FM-1 is also a sound card. A computer can record what it 
 and can play through it: choose "Bass Something 2 FM-1" as the output, and its sound comes out of the FM-1's speaker and
 headphones, mixed with the FM-1's own, at MASTER's volume.
 
-That output is also the FM-1's Ext input, as the Bass Station II's Ext In socket is: turn the mixer's Ext up (MIX FX,
+That output is also the FM-1's Ext input, as the Bass Station II's Ext In socket is: turn the mixer's Ext up (SUB OSC + MIXER,
 K3 to Ext, then K4) and the computer's sound goes through the synth instead, into the mixer with the oscillators, then
 the filter, the amp envelope and the distortion. Like the Bass Station II's, you hear it only while a note plays (the
 amp envelope opens it), so hold a key, use LATCH, or let the arp or the sequencer play the envelope. Its two sides are
@@ -821,7 +838,7 @@ emulator does the same, with your own screen reader or with its built-in voice.
 
 ## 11. Troubleshooting
 
-**No sound:** turn MASTER up. Check the mixer's levels on MIX FX (HOME twice) and the Frequency on the FILTERS (FX); a random sound can be
+**No sound:** turn MASTER up. Check the mixer's levels on SUB OSC + MIXER (HOME twice) and the Frequency on the FILTERS (FX); a random sound can be
 quiet. On GLOBAL MIDI, LOCAL must be ON for the keys to play.
 
 **A key plays the wrong sound, a different one on each key:** AFX mode is on (AFX at the bottom right). Hold REC and

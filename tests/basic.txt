@@ -430,7 +430,7 @@ expect filter 6
 tap ARP
 wait 30
 expect page 6
-turn SELECT 1
+turn PRESET 1
 wait 30
 expect arp 1
 said ARP ON
@@ -601,7 +601,7 @@ expect peak_db_max -0.5
 midi 80 3C 00
 midi 80 43 00
 wait 300
-turn SELECT -1
+turn PRESET -1
 wait 30
 expect arp 0
 said ARP OFF
@@ -729,7 +729,7 @@ expect rec 0
 # two bars (on: C3 at 4 s, D3 at 4.5), on round (off: the rest, then C3)
 tap ARP
 wait 30
-turn SELECT 1
+turn PRESET 1
 wait 30
 expect arp 1
 midi 90 30 64
@@ -836,20 +836,19 @@ spin K4 -127
 spin K4 64
 wait 30
 expect CUTOFF 64
-# REC + OCT+: AFX on (the octave left, no random sound at REC's release), each key its own sound; again: off
+# ARP held a second: AFX on (the page and the octave left, no random sound), each key its own sound; SEQ held: off
 expect octave 1
 listen
-press REC
-wait 30
-tap OCT+
-wait 30
-release REC
+press ARP
+wait 1050
+release ARP
 wait 30
 said AFX ON
 unsaid RANDOMIZED
 unsaid OCTAVE
 expect afx 1
 expect octave 1
+expect page 10
 expect dirty 1
 shot afx.png
 # F3 (key 0) darker than C4 (key 7): the cutoff by the key, -40 and +60
@@ -863,11 +862,9 @@ wait 100
 expect cut_now >80
 key 7 up
 wait 300
-press REC
-wait 30
-tap OCT+
-wait 30
-release REC
+press SEQ
+wait 1050
+release SEQ
 wait 30
 said AFX OFF
 expect afx 0

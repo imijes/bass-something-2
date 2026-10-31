@@ -51,7 +51,7 @@ expect arp 0
 # the arp on (ARP's SELECT), a key held: still on in the next patch
 tap ARP
 wait 30
-turn SELECT 1
+turn PRESET 1
 wait 30
 expect arp 1
 tap HOME
@@ -64,7 +64,7 @@ expect arp 1
 # the Org. Value arrows: a sound control turned off its saved value lights the way back (cutoff up: turn left), none
 # once it is back; a patch change, none; SAVE, none
 tap ARP
-turn SELECT -1
+turn PRESET -1
 tap FX
 wait 30
 expect page 10

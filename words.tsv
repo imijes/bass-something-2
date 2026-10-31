@@ -34,7 +34,7 @@ PW2	pulse width 2
 PWM1	pulse width mod 1
 PWM2	pulse width mod 2
 AMP ENV	amp envelope
-MIX FX	mixer and effects
+SUB OSC + MIXER	sub oscillator and mixer
 SUBWAVE	sub wave
 RANGE1	range 1
 RANGE2	range 2
