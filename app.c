@@ -2742,7 +2742,7 @@ void app_input_only(void) { input(); }
 #define P_CDIM RGB(18, 54, 74)               /* under a curve; a button lit (#12364a) */
 #define P_KEYW RGB(206, 206, 210)
 #define P_KEYB RGB(10, 10, 10)
-/* the firmware's version as shown (the splash, GLO SYS): a release's "v0.2", a development build's "DEV" */
+/* the firmware's version as shown (the splash, GLO SYS): a release's "v0.3", a development build's "DEV" */
 #define VERSION_TEXT (APP_VERSION[0] >= '0' && APP_VERSION[0] <= '9' ? "v" APP_VERSION : APP_VERSION)
 static void ui_start(void) { ui.page = PG_PATCH; }   /* the first page, after the splash: the MASTER */
 

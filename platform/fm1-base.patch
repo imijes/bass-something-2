@@ -1,5 +1,5 @@
 diff --git a/device/main_fm1.c b/device/main_fm1.c
-index 5eaa87b..0567a07 100644
+index 5eaa87b..e24592b 100644
 --- a/device/main_fm1.c
 +++ b/device/main_fm1.c
 @@ -13,6 +13,11 @@ extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[];
@@ -53,7 +53,26 @@ index 5eaa87b..0567a07 100644
  #endif
  #if FELUCCA_UAC
              uac_tap(o + 2u * k, REND_FRAMES);       /* the USB audio input: the same master output */
-@@ -980,8 +1001,9 @@ static void fm1_main(void)
+@@ -826,8 +847,9 @@ static void safe_main(void)
+             uint32_t n;
+             if (ota_frame_get(&p, &n) && log_frame(p, n))
+                 ota_frame_done();
++            else
++                ota_service();                      /* (only at a frame the log didn't take) */
+         }
+-        ota_service();
+         if (usb.ota_req) {
+             usb.ota_req = 0;
+             if (flash_ok)
+@@ -863,6 +885,7 @@ static void fm1_main(void)
+     int32_t knob = 512 * 16;
+     uint32_t batt_t = 0;                            /* (the battery's last reading, fm1_ms) */
+     uint32_t last_frame = 0;
++    int took;                                       /* a SysEx frame taken this pass (not the updater's) */
+     {
+         uint32_t f = irq_save();
+         rails_boot[0] = fm1_p33_read(FM1_P3_ANA_CON6);
+@@ -980,8 +1003,9 @@ static void fm1_main(void)
                  master_pos = mirror_in_master(remote.master >= 0 ? (uint32_t)remote.master : (uint32_t)(knob / 4));
              }
          }
@@ -65,6 +84,36 @@ index 5eaa87b..0567a07 100644
              batt_t = fm1_ms;
              if (b > 0)
                  batt_raw = batt_raw ? batt_raw + (b - batt_raw) / 16 : b;
+@@ -995,9 +1019,11 @@ static void fm1_main(void)
+ #ifdef APP_LOOP
+         app_loop();                                 /* the app's background (a radio's tasks) */
+ #endif
+-        {   /* a screen reader's SysEx (announce.c), before the updater looks */
++        {   /* a screen reader's SysEx (announce.c), before the updater looks; the updater only at a frame none took
++             * (the next one waiting, else, would be its own, dropped if not) */
+             const uint8_t *p;
+             uint32_t n;
++            took = 0;
+             if (ota_frame_get(&p, &n) && (ann_frame(p, n, fm1_ms) || log_frame(p, n) || remote_frame(p, n)
+ #if FM1B_WIFI
+                                           || wifi_frame(p, n)
+@@ -1011,11 +1037,14 @@ static void fm1_main(void)
+ #ifdef APP_SYSEX
+                                           || app_sysex(p, n)
+ #endif
+-                                          ))
++                                          )) {
+                 ota_frame_done();
++                took = 1;
++            }
+         }
+         fm1b_dbg.stage = 4;
+-        usb_cmd(ota_service());                     /* M-UPGRADE handshake; the commands in its framing (backup,
++        if (!took)
++            usb_cmd(ota_service());                 /* M-UPGRADE handshake; the commands in its framing (backup,
+                                                      * mirror, the app's); other SysEx is dropped */
+ #if FM1B_BACKUP
+         bu_step();                                  /* a backup streaming to the host */
 diff --git a/device/plat_fm1.c b/device/plat_fm1.c
 index 48477b9..8e69e74 100644
 --- a/device/plat_fm1.c

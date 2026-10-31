@@ -46,7 +46,7 @@ the screen, sound and MIDI. There's no Bluetooth or USB host there, and the app 
 doesn't start can be recovered too. For details, see felucca-bsp's `tools/fm1_rescue.sh`.
 
 At power-on the screen shows BASS SOMETHING 2 in cyan, "Inspired by the Bass Station 2" under it, and an oscilloscope whose
-wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.2) is in the bottom
+wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.3) is in the bottom
 right corner. Then the panel opens on the patch you last saved. The emulator shows the same splash when you switch it
 on.
 
@@ -549,10 +549,11 @@ first one's name, and a second after the last one it saves the bank and says BAN
 IN, 96 LEFT for a whole Bass Station II bank). **This replaces the patches it reaches, without SAVE**: send GLOBAL
 DUMP's bank to the computer first if you want to keep them. Each patch keeps its own sequence, tempo and gate.
 
-Send the file with a pause between messages: the FM-1 takes one SysEx message at a time and drops one that comes
-while it's still busy with the last. 20 ms is enough in testing; 50 ms leaves room. Most librarians (SysEx Librarian on
-macOS among them) have a setting for the delay between messages. If BANK LOADED counts fewer than were sent, send it
-again with a longer pause.
+From v0.3 the file can go as fast as the computer sends it: the FM-1 queues the messages and holds the computer back
+while it catches up, so none is lost. Firmware before v0.3 took one SysEx message at a time and dropped one that came
+while it was still busy with the last: with it, send with a pause between messages (20 ms is enough in testing; 50 ms
+leaves room; most librarians, SysEx Librarian on macOS among them, have a setting for it). If BANK LOADED counts fewer
+than were sent, send it again with a longer pause.
 
 A dump carries what the two synths share, including both oscillators' tuning, the mod envelope's pulse width depths,
 the two velocities, the envelopes' triggering and retriggering, and the filter's key tracking (firmware 2.5's; a dump
@@ -629,7 +630,7 @@ save themselves: two seconds after you change one, once the FM-1 is quiet (see S
 without SAVE (so a GLO change never
 writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar (MIDI, System,
 SysEx Dump, RND Seed) and a red display: GLOBAL MIDI's shows the MIDI channel (ALL, OFF or the number), GLOBAL
-SYSTEM's the tempo (while MIDI clock leads, its tempo as measured over every two beats; dashes until then), with the knobs' response, the clock's state and the firmware's version (VERSION v0.2)
+SYSTEM's the tempo (while MIDI clock leads, its tempo as measured over every two beats; dashes until then), with the knobs' response, the clock's state and the firmware's version (VERSION v0.3)
 beside it, GLOBAL DUMP's the patch. The on/off settings are slide switches.
 
 On every GLO page, the right of the page's own bar shows the audio's load (for a moment after a change, what changed
