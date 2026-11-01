@@ -11,3 +11,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-10-31 | 1750657+ | K1-K4 right to left; SELECT/ALGO/PRESET by position (per-page encoder map) | 303,660 | +160 | 277,904 | 77,300 | +0 | 21,004 | 101,760 |
 | 2026-10-31 | 1750657+ | SUB OSC + MIXER on EDIT (3rd); SEL opens MASTER, HOME free; Osc Select on SELECT, Sync on the PW page | 303,644 | -16 | 277,920 | 77,300 | +0 | 21,004 | 101,760 |
 | 2026-10-31 | 81c188f+ | HOME page: the whole BS2 front panel to the footer keys' scale; HOME button, first page | 308,252 | +4,608 | 273,312 | 77,300 | +0 | 21,004 | 101,760 |
+| 2026-10-31 | fdf92da | Env Select balanced; button hints over the keys | 308,300 | +48 | 273,264 | 77,300 | +0 | 21,004 | 101,760 |

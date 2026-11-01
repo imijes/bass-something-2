@@ -42,12 +42,12 @@ Then, from the repository root:
 
 The site (bs2/build/site), from a release:
 
-    tools/build.py bs2 --release 0.3 && tools/build.py bs2 --web --release 0.3
-    tools/build.py bs2 --rfm1 --release 0.3               # RemoteFM1 (iOS): bs2/build/rfm1/bass_something_2-0.3.rfm1,
+    tools/build.py bs2 --release 0.4 && tools/build.py bs2 --web --release 0.4
+    tools/build.py bs2 --rfm1 --release 0.4               # RemoteFM1 (iOS): bs2/build/rfm1/bass_something_2-0.4.rfm1,
                                                           # a release asset; build it from a pushed commit (its source_url)
-    python3 bs2/site/make_site.py bs2/build/bass-something-2-0.3.fwsc 0.3
+    python3 bs2/site/make_site.py bs2/build/bass-something-2-0.4.fwsc 0.4
     (cd bs2/build/site && python3 -m http.server 8765)    # http://localhost:8765
-    python3 bs2/site/publish_pages.py 0.3                 # https://imijes.github.io/bass-something-2/
+    python3 bs2/site/publish_pages.py 0.4                 # https://imijes.github.io/bass-something-2/
 
 Bass Something 2 is by John Brown ([@imijes](https://github.com/imijes)). Credits for everyone whose work it builds on: `docs/MANUAL.md`, section 12.
 
