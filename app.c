@@ -4488,7 +4488,7 @@ static void level_col(int32_t i, float v, int32_t h)   /* -1..1 to the column's 
  * the sub's when it's in the mix: an octave or two under) from its steepest rising zero crossing, so a held note stands
  * still; scaled to its own level (a quiet sound as big), its trace with a
  * dim glow under it; a flat line in silence */
-enum { SC_X = 4, SC_Y = 59, SC_W = 232, SC_H = 31 };   /* (clear of the display's edge, over the panel's) */
+enum { SC_X = 4, SC_Y = 59, SC_W = 232, SC_H = 29 };   /* (clear of the display's edge, over the panel's) */
 static int scope_live(void) { return voice.amp.stage != ENV_IDLE; }
 static void scope_paint(void)
 {
@@ -4574,9 +4574,11 @@ static void cpu_text(char *t)                /* "CPU 34/41", "CPU 34/41 !2" */
  * wheels' left edge to the keys' right end, 125.4 of bgoonz/bass-station's rem, over the footer's 224 px: 25/14 px a
  * rem), its foot on them; each control where that layout has it (in tenths of its rem: h_*) and as the sound has it.
  * Over it the name and the display, large */
-#define HOME_Y 92                            /* the panel's top (its 38 rem down to the keys) */
-#define HL(r) ((r) * 25 / 140)               /* tenths of a rem: px */
-#define HX(r) (4 + HL((r) - 45))
+#define HOME_Y 90                            /* the panel's top (its 38 rem down to the keys) */
+#define HOME_L 8                             /* the panel's bars' margin, each side alike (63 .. 1293 tenths), as the
+                                              * keys' (keys_draw) */
+#define HL(r) ((r) * (240 - 2 * HOME_L) / 1230)   /* tenths of a rem: px */
+#define HX(r) (HOME_L + HL((r) - 63))
 #define HY(r) (HOME_Y + HL(r))
 static void h_rect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* at least a pixel each way */
 {
@@ -4647,7 +4649,6 @@ static void home_draw(void)
 {
     static const int16_t TOP_GAP[3] = {333, 753, 924}, MID_GAP[4] = {333, 402, 693, 1140};
     static const int16_t KT_GAP[7] = {395, 526, 767, 860, 940, 982, 1062};
-    static const uint8_t CHEEK[8] = {4, 16, 28, 40, 45, 36, 28, 20};   /* across the left one, black to its ridge */
     static const uint8_t WAVE_LED[NWAVES] = {2, 3, 0, 1, 3};   /* WAVE_*: the LEDs' sine, triangle, saw, square */
     const param_t *osc = ui.osc_sel ? OSC2_P : PARAMS[PG_OSC], *env = ui.env_sel == 1u ? MENV_P : PARAMS[PG_AENV];
     const uint32_t f = patch.filter, acid = f == FLT_ACID, trig = patch.env_trig[ui.env_sel == 1u];
@@ -4662,17 +4663,14 @@ static void home_draw(void)
     slot_text(d + 1);
     if (ui.org_at)                           /* (a control just changed: its value) */
         seg_num(param_get(ui.org, &patch), d);
-    seg_display(140, 6, d, 3);
+    seg_display(240 - HOME_L - 84, 6, d, 3);   /* (its right edge the panel's: 84 wide) */
     if (set_dirty)
-        disc(214, 43, 2, RGB(252, 78, 112));
-    tag(184, 31, EN_PRESET);
+        disc(240 - HOME_L - 10, 43, 2, RGB(252, 78, 112));
+    tag(240 - HOME_L - 42, 31, EN_PRESET);
     scope_paint();                           /* (what plays and its tempo: the footer's) */
-    /* the panel: its face, the cheeks, the blue bars (their gaps, the lines down from them), the keys' strip */
+    /* the panel: its face (flat, as the theme: no cheeks), the blue bars (their gaps, the lines down from them), the
+     * keys' strip */
     cv_rect(0, HOME_Y, 240, pan_h - HOME_Y, grey(24));
-    for (i = 0; i < 8; i++) {
-        cv_rect(HX(0) + i, HOME_Y, 1, pan_h - HOME_Y, grey(CHEEK[i]));
-        cv_rect(HX(1365) - 1 - i, HOME_Y, 1, pan_h - HOME_Y, grey(CHEEK[i]));
-    }
     h_rect(63, 33, 1230, 15, P_BAR);
     h_rect(63, 190, 1230, 3, P_BAR);
     for (i = 0; i < 3; i++) {
@@ -4693,8 +4691,6 @@ static void home_draw(void)
         h_rect(KT_GAP[i], 343, 3, 3, grey(24));
     h_rect(70, 146, 110, 14, P_SILK);        /* the maker's name and the model's (print too small to read) */
     h_rect(70, 168, 105, 10, P_CYAN);
-    h_button(71, 345, 50, 17, grey(34));     /* Transpose, Function */
-    h_button(138, 345, 50, 17, grey(34));
     /* the MASTER: Volume, the display, the Org. Value LEDs, Save and the Patch buttons */
     {
         static const param_t VOL = {"VOLUME", 0, 0, 4095, 0};
@@ -4979,13 +4975,14 @@ static void keys_draw(void)                  /* the keys; the octave, the slot, 
     static const uint8_t WK[16] = PLAT_WHITE_KEYS, BK[11] = PLAT_BLACK_KEYS;
     /* black above white: a held key fills to its velocity (cyan), its pressure over that (white); a key whose note
      * MIDI in holds, all cyan */
+    enum { KX = (240 - (16 * 14 - 1)) / 2 }; /* (the sixteen white keys in the middle: 8 px each side, as HOME_L) */
     cv_begin(240, 60, P_BG);
     for (i = 0; i < 16u; i++)
-        key_cell(4 + (int32_t)i * 14, 14, 13, 14, WK[i], P_KEYW);
+        key_cell(KX + (int32_t)i * 14, 14, 13, 14, WK[i], P_KEYW);
     for (i = 0; i < 11u; i++) {
         static const uint8_t AT[11] = {0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14};   /* the white key each one follows */
-        cv_rect(4 + (int32_t)AT[i] * 14 + 7, 0, 13, 13, P_EDGE);
-        key_cell(4 + (int32_t)AT[i] * 14 + 8, 0, 11, 12, BK[i], P_KEYB);
+        cv_rect(KX + (int32_t)AT[i] * 14 + 7, 0, 13, 13, P_EDGE);
+        key_cell(KX + (int32_t)AT[i] * 14 + 8, 0, 11, 12, BK[i], P_KEYB);
     }
     octave_text(t);
     if (ui.hint_until && ui.hint)            /* a button's hint: on the keys, its middle where black meets white (off

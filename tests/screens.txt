@@ -4,7 +4,6 @@
 # (each page change waits out the controls' map: tags_draw)
 bank_init
 wait 900
-shot screen-ready.png
 # Knob Zoom off for the shots (GLO DISPLAY's PRESET): the whole panel, as the manual shows it, while a knob turns;
 # Hints off (K3, on by default) so none covers a control, till screen-hint.png's
 tap GLO

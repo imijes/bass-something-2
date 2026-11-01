@@ -10,7 +10,7 @@ TRS.
 It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of its patches as seeds with their locks
 (type, key, tracks), sends them back, and mixes its four tracks (see [RND Synth](#s8)).
 
-![The Bass Something 2 screen at rest: the section tabs, the HOME page (the name, the red P01 display, the whole Bass Station II panel), the keys, then OCT +0, P01, 120 BPM, VOL 50% and ARP OFF](img/screen-ready.png "Bass Something 2 at rest")
+![The Bass Something 2 screen with a note playing: the section tabs, the HOME page (the name, the red P01 display, the scope drawing the note's wave, the whole Bass Station II panel), the keys with the held one in cyan, then OCT +0, P01, 120 BPM, VOL 50% and ARP OFF](img/screen-home.png "Bass Something 2 playing")
 
 ---
 
@@ -608,6 +608,8 @@ Values beyond what an FM-1 control can reach are brought to its nearest.
 
 ## 8. RND Synth
 
+![The RND Synth Companion splash: the RND Synth and the FM-1 side by side on black between RND SYNTH and COMPANION in cyan](img/screen-rnd-splash.png "GLO held: the RND Synth Companion's splash")
+
 For owners of Cyma Forma's RND Synth (firmware 1.4 or later), Bass Something 2 is its companion and its remote. It
 keeps 32 of the RND Synth's patches and sends one back when you want it again, it sets what the RND Synth holds across
 new patches (its type, key and tracks), and it mixes the RND Synth's four tracks. None of this changes Bass Something
@@ -628,8 +630,6 @@ the keys' strip and the status line (octave, patch, volume) are hidden while the
 Opening them asks the RND Synth how it is (its firmware, its patch, its locks, its tracks), and each page shows it.
 As they open, a splash fills the screen for a moment: RND SYNTH, the RND Synth beside the FM-1, then COMPANION, in cyan. Any
 button or knob skips it.
-
-![The RND Synth Companion splash: the RND Synth and the FM-1 side by side on black between RND SYNTH and COMPANION in cyan](img/screen-rnd-splash.png "GLO held: the RND Synth Companion's splash")
 
 At the right of each page's own bar is the seed the RND Synth is playing (PLAYING F34E8559; NOT HEARD YET until it
 has answered).

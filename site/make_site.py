@@ -62,7 +62,7 @@ def meta(html, here):
             f'<meta property="og:type" content="website">\n<meta property="og:site_name" content="Bass Something 2">\n'
             f'<meta property="og:title" content="{title}">\n<meta property="og:description" content="{desc}">\n'
             f'<meta property="og:url" content="{URL}{here}">\n'
-            f'<meta property="og:image" content="{URL}manual/img/screen-ready.png">\n'
+            f'<meta property="og:image" content="{URL}manual/img/screen-home.png">\n'
             f'<meta property="og:image:alt" content="Bass Something 2 on the FM-1\'s screen: the HOME page">\n'
             f'<meta name="twitter:card" content="summary">\n')
     return html.replace("</title>", "</title>\n" + tags.rstrip("\n"), 1)

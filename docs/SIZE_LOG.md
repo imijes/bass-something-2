@@ -38,3 +38,8 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-01 | c546dca+ | RND splash: the RND's acrylic corners whole | 329,552 | -192 | 252,012 | 77,396 | +0 | 20,908 | 102,832 |
 | 2026-11-01 | c546dca+ | RND splash drawn once while up (no flicker) | 329,424 | -128 | 252,140 | 77,396 | +0 | 20,908 | 102,832 |
 | 2026-11-01 | c546dca+ | RND splash: the devices 6 px right (the FM-1's screen) | 329,424 | +0 | 252,140 | 77,396 | +0 | 20,908 | 102,832 |
+| 2026-11-01 | fcfb3b8+ | HOME: Transpose/Function under the keys' line (solid) | 329,424 | +0 | 252,140 | 77,396 | +0 | 20,908 | 102,832 |
+| 2026-11-01 | fcfb3b8+ | HOME: flat face plate (no cheek shading) | 329,344 | -80 | 252,220 | 77,396 | +0 | 20,908 | 102,832 |
+| 2026-11-01 | fcfb3b8+ | HOME: panel zoomed to equal margins, display to its right edge, scope 2 px shorter | 329,360 | +16 | 252,204 | 77,396 | +0 | 20,908 | 102,832 |
+| 2026-11-01 | fcfb3b8+ | Keys strip centred (8 px each side), HOME panel's margin 8 to match | 329,360 | +0 | 252,204 | 77,396 | +0 | 20,908 | 102,832 |
+| 2026-11-01 | fcfb3b8+ | HOME: no Transpose/Function buttons; manual's RND section opens on its splash | 329,328 | -32 | 252,236 | 77,396 | +0 | 20,908 | 102,832 |
