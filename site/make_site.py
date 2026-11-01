@@ -38,12 +38,43 @@ FOOTER = ('<footer>\n  <p class="small">Bass Something 2 by John Brown (<a href=
           'Engineering Ltd. Bass Something 2 is not affiliated with M-VAVE or Novation.</p>\n</footer>')
 
 
+# each page's title and summary, as a shared link shows them (fm1-base's are put together from fm1.toml's tagline and
+# read oddly): <title>, the description, and Open Graph's (the front page's screenshot as the picture)
+URL = "https://imijes.github.io/bass-something-2/"
+WHAT = ("a Bass Station II-style monosynth firmware for the M-VAVE FM-1, and a companion for Cyma Forma's RND Synth: "
+        "seeds, locks and a track mixer")
+META = {
+    "": ("Bass Something 2: a Bass Station II-style synth for the M-VAVE FM-1", f"Bass Something 2 is {WHAT}."),
+    "install/": ("Install · Bass Something 2", "Install Bass Something 2 on the M-VAVE FM-1 from Chrome or Edge, over USB."),
+    "manual/": ("Manual · Bass Something 2", "The manual for Bass Something 2, a Bass Station II-style monosynth firmware "
+                "for the M-VAVE FM-1: every page and control, the arp and the sequencer, patches, SysEx, MIDI and the RND "
+                "Synth."),
+}
+
+
+def meta(html, here):
+    title, desc = (x.replace("&", "&amp;").replace('"', "&quot;") for x in META[here])
+    html, n = re.subn(r"<title>.*?</title>", f"<title>{title}</title>", html, count=1, flags=re.S)
+    if n != 1:
+        raise SystemExit(f"{here or 'front page'}: no <title>")
+    html = re.sub(r'<meta name="description"[^>]*>\n?', "", html)
+    tags = (f'<meta name="description" content="{desc}">\n'
+            f'<meta property="og:type" content="website">\n<meta property="og:site_name" content="Bass Something 2">\n'
+            f'<meta property="og:title" content="{title}">\n<meta property="og:description" content="{desc}">\n'
+            f'<meta property="og:url" content="{URL}{here}">\n'
+            f'<meta property="og:image" content="{URL}manual/img/screen-ready.png">\n'
+            f'<meta property="og:image:alt" content="Bass Something 2 on the FM-1\'s screen: the HOME page">\n'
+            f'<meta name="twitter:card" content="summary">\n')
+    return html.replace("</title>", "</title>\n" + tags.rstrip("\n"), 1)
+
+
 def theme(page, here, css):
     html = page.read_text(encoding="utf-8")
     if html.count("</head>") != 1:
         raise SystemExit(f"{page}: no </head> to put the theme before")
     html = html.replace("</head>", f"<style>\n{css}</style>\n</head>")
     html = html.replace("Bass-Something-2", "Bass Something 2")   # fm1.toml's name, a file name's spelling
+    html = meta(html, here)
     up = "../" * here.count("/")
     if '<div class="page">' in html:            # the manual and the front page (tools/manual_html.py)
         html = html.replace('<div class="page">', '<div class="page">\n' + tabs(here, up), 1)
