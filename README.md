@@ -1,6 +1,6 @@
 # Bass Something 2
 
-A Bass Station 2-style monosynth firmware for the M-VAVE FM-1, and a companion for Cyma Forma's RND Synth (firmware 1.4):
+A monosynth inspired by the legendary Novation Bass Station II, for the M-VAVE FM-1, and a companion for Cyma Forma's RND Synth (firmware 1.4):
 32 seed slots with their locks, and a mixer for its four tracks. It's built on fm1-base, started from fm1-base's `template/`.
 The manual (`docs/MANUAL.md`) describes everything it does.
 

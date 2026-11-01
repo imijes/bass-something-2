@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MPL-2.0
  * Copyright (C) 2026 Charles Vestal
  * Copyright (C) 2026 John Brown */
-/* Bass Something 2: a Bass Station 2-style monosynth for the M-VAVE FM-1 (and an RND Synth companion), started from fm1-base's template.
+/* Bass Something 2: a monosynth inspired by the legendary Novation Bass Station II, for the M-VAVE FM-1 (and an RND Synth companion), started from fm1-base's template.
  * This header is the app's half of the contract with the platform (device/unity.c, host/plat_host.c). */
 #pragma once
 #include <stdint.h>

@@ -12,7 +12,7 @@ usb_audio_first = true         # USB audio's streaming interfaces first (felucca
                                # the FM-1 as an audio device beside its MIDI
 authors = ["John Brown"]       # the .rfm1's manifest (tools/build.py bs2 --rfm1: RemoteFM1 for iOS)
 # the site (tools/make_site.py, tools/publish_site.sh)
-tagline = "a Bass Station 2-style monosynth for the M-VAVE FM-1, and an RND Synth companion"
+tagline = "a monosynth inspired by the legendary Novation Bass Station II, for the M-VAVE FM-1, and an RND Synth companion"
 repo = "https://github.com/imijes/bass-something-2"   # the source
 licence = "MPL-2.0"
 credits = "by John Brown (https://github.com/imijes), with the work of others, all credited in the manual's section 12: https://imijes.github.io/bass-something-2/manual/#s12"
