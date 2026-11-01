@@ -1,9 +1,19 @@
-# The MASTER page (HOME): a patch change leaves the arp and the sequencer playing; the Patch button lit is the way
+# The MASTER page (SEL; the first page is HOME's, the whole panel): a patch change leaves the arp and the sequencer playing; the Patch button lit is the way
 # PRESET went; SEL does nothing here (the sound's dump is GLO DUMP's SEL).
 # tools/build.py bs2 --host, then from the repository's root
 #   bs2/build/host/bass-something-2_host bs2/tests/master.txt bs2/build/host
 bank_init
 wait 600
+# HOME first (the whole panel), SEL the MASTER, HOME again, SEL again
+expect page 16
+tap SEL
+wait 30
+expect page 5
+tap HOME
+wait 30
+expect page 16
+tap SEL
+wait 30
 expect page 5
 expect slot 0
 # the arrows: down lit only after a turn down, up only after a turn up, however fast or back and forth

@@ -14,7 +14,7 @@ tap GLO
 tap GLO
 tap GLO
 wait 30
-expect page 16
+expect page 17
 expect rnd_tx 0
 # GLO held a second: RND SEED, the octave as it was; the synth asked (19: its version, 18: everything); S01 empty, nothing
 # playing yet: none to send or keep
@@ -22,7 +22,7 @@ press GLO
 wait 1050
 release GLO
 wait 30
-expect page 20
+expect page 21
 said RND SEED
 expect octave 0
 unsaid OCTAVE
@@ -143,7 +143,7 @@ expect rnd_arg9 89
 # GLO again: RND PATCH (not asked again); its locks as the synth said: engines only, tracks 2
 tap GLO
 wait 30
-expect page 21
+expect page 22
 said RND PATCH
 expect rnd_tx 10
 # SELECT: the type, RANDOM -> SEQUENCE (1A 00), back (1A 7F)
@@ -206,7 +206,7 @@ expect rnd_code 0
 # GLO again: RND TRACKS; K1-K4 set the row Row Select (PRESET) picks: engines first
 tap GLO
 wait 30
-expect page 22
+expect page 23
 said RND TRACKS
 # track 1's engine held: Subtractive (1B 00 name); let go (1B 00 00)
 turn K1 1
@@ -246,7 +246,7 @@ expect rnd_tx 27
 # GLO again: RND SEED
 tap GLO
 wait 30
-expect page 20
+expect page 21
 # a computer asks for the slot's id (F0 7D 42 53 32 02 F7): sent the same way
 sysex_in bs2/tests/syx/rnd_ask.syx
 wait 100
@@ -283,7 +283,7 @@ wait 1050
 release GLO
 wait 30
 wait 30
-expect page 20
+expect page 21
 expect seed_hi 62286
 expect play_hi 65535
 turn PRESET 1
@@ -300,7 +300,7 @@ wait 1050
 said GLOBAL MIDI
 release GLO
 wait 30
-expect page 16
+expect page 17
 tap GLO
 wait 30
-expect page 17
+expect page 18

@@ -78,7 +78,8 @@ GLOBAL SYSTEM's KNOBS sets how much they speed up, from FINE to COARSE.
 
 | Button | Page | Again |
 | --- | --- | --- |
-| SEL | MASTER: the patch, picked, saved and sent (the page after the splash) | |
+| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash) | |
+| SEL | MASTER: the patch, picked, saved and sent | |
 | ENV | ENVELOPES: Env Select (PRESET) and the four faders | TRIGGERING; then the group's mods (velocity, retriggering, fixed sustain) |
 | LFO | PORTA and LFOS: the glide, both LFOs' waves and knobs, the Delay/Speed switch | the group's mods (keysync, Speed/Sync, slew) |
 | FX | FILTERS | LFO 2 on the filters; then EFFECTS: distortion and Osc Filter Mod; then the group's mods (key tracking, the VCA limiter) |
@@ -87,7 +88,7 @@ GLOBAL SYSTEM's KNOBS sets how much they speed up, from FINE to COARSE.
 | EDIT | OSCILLATORS: the pitch's view | the pulse width's view; then SUB OSC + MIXER, beside them on a Bass Station II |
 | GLO | GLOBAL MIDI (held a second: the RND pages) | GLOBAL SYSTEM, then GLOBAL DUMP, then GLOBAL DISPLAY |
 
-HOME is free for now: it does nothing. SEL opens MASTER on every page except where it has a job of its own, printed
+SEL opens MASTER on every page except where it has a job of its own, printed
 on the page: GLOBAL DUMP, the RND pages, and SEQ while the sequencer records.
 
 The buttons' lights: SAVE is lit while there's something to save, ARP while the arp is on, SEQ while recording,
@@ -104,7 +105,7 @@ left, SELECT beside it, PRESET under MASTER, ALGO under SELECT): one switch is o
 and ALGO, two one over the other on SELECT and ALGO, and three where they lie on the page.
 
 **Manual Mode** (GLOBAL DISPLAY, K4) adds a few words on what each control does: under the value as you turn a
-knob ("Filter cutoff", "Fade-in time", "Note order"), and at the foot of the panel as you press a button
+knob ("Filter cutoff", "Fade-in time", "Note order"), and over the keys as you press a button
 ("Envelopes", "GLO hold: RND Settings"). It's off until you turn it on, and the FM-1 remembers it.
 
 ![Manual Mode on the FILTERS: Frequency turned to 97, with Filter cutoff under its value](img/screen-hint.png "Manual Mode: what a knob does")
@@ -509,7 +510,15 @@ Updating the firmware keeps the patches you have. To get the factory ones back, 
 
 ![The MASTER panel: the Volume, the red display showing P01, the Save and Patch buttons](img/screen-patch.png "SEL: the MASTER")
 
-The MASTER page (SEL) is the Bass Station II's Master section, and the page Bass Something 2 starts on: the Volume
+![HOME: the name, the patch display, and the whole Bass Station II panel above the keys](img/screen-home.png "HOME")
+
+The HOME page (HOME) is the page Bass Something 2 starts on: the name, the patch in large red digits, what plays (the
+arp, the sequencer) and the tempo, and under them a Bass Station II's whole front panel, drawn to the scale of the keys
+at the foot of the screen (they stand for its keys and its wheels together). Every knob, fader, switch and LED on it
+shows the sound as it is set, and follows it as you change it on the other pages. PRESET picks the patch here, as on
+MASTER.
+
+The MASTER page (SEL) is the Bass Station II's Master section: the Volume
 (the FM-1's MASTER knob, as it's set), the display with the patch in red, its dot lit while there are changes not
 saved, the Org. Value arrows, the Save button and the Patch buttons.
 
@@ -743,7 +752,7 @@ Holding GLO for a second opens the RND pages, for the RND Synth: see RND Synth.
 | DUMP | SEL (Sound) | Sends the sound as one Bass Station II patch dump (SysEx). See SysEx. |
 | DUMP | FX (All 32) | Sends all 32 patches as a Bass Station II bank (SysEx), which loads back into the same patches. See SysEx. |
 | DISPLAY | K3 POP-UPS (POP-UP TIME) | How long the pop-ups stay: the controls' labels as a page opens, a knob's value after you turn it, and Manual Mode's hints. OFF: no labels or button hints, and a value only while the knob turns. 1.5 S (the default), 2 S or 3 S. ALWAYS: until you turn another knob or open another page. |
-| DISPLAY | K4 MANUAL MODE | ON: as you turn a knob, a few words on what it does show under its value; as you press a button, at the foot of the panel. OFF (the default): none. See The screen. |
+| DISPLAY | K4 MANUAL MODE | ON: as you turn a knob, a few words on what it does show under its value; as you press a button, over the keys. OFF (the default): none. See The screen. |
 | RND (GLO held) | | The RND Synth's patches, locks and tracks. See RND Synth. |
 
 ### Control changes
