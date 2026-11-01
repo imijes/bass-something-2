@@ -30,8 +30,10 @@ tap PLAY
 wait 30
 expect seq_run 1
 expect arp 1
-tap HOME
-tap HOME
+tap EDIT
+tap EDIT
+tap EDIT
+tap SEL
 wait 30
 expect page 5
 turn PRESET 1
@@ -54,7 +56,7 @@ wait 30
 turn PRESET 1
 wait 30
 expect arp 1
-tap HOME
+tap SEL
 wait 30
 expect page 5
 turn PRESET 1
@@ -77,7 +79,7 @@ turn K4 2
 expect org 0
 turn K4 4
 expect org -1
-tap HOME
+tap SEL
 wait 30
 expect page 5
 expect org -1
@@ -97,7 +99,7 @@ wait 1600
 expect org_shown 0
 expect page 10
 turn K2 -6
-tap HOME
+tap SEL
 wait 30
 expect org_shown 1
 turn PRESET 1

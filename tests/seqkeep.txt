@@ -57,7 +57,7 @@ wait 30
 tap SEQ
 wait 30
 expect seq0 55
-tap HOME
+tap SEL
 wait 30
 turn PRESET 1
 wait 300

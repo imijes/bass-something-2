@@ -109,7 +109,7 @@ expect cc_chan 0
 midi B0 10 00
 wait 30
 expect cutoff >0
-spin SELECT 3
+spin PRESET 3
 wait 30
 expect cc_chan 3
 said CC CHANNEL 3
@@ -162,14 +162,14 @@ expect note 64
 midi 82 40 00
 wait 30
 expect note -1
-spin SELECT 20
+spin PRESET 20
 wait 30
 expect cc_chan 17
 said CC CHANNEL ALL
 midi B9 10 7F
 wait 30
 expect cutoff 127
-spin SELECT -14
+spin PRESET -14
 wait 30
 expect cc_chan 3
 spin K3 -1
@@ -180,7 +180,7 @@ said AFTER TOUCH OUT OFF
 tap GLO
 wait 30
 expect page 17
-spin SELECT 1
+spin PRESET 1
 wait 30
 expect clk_out 1
 said SEND MIDI CLOCK ON
@@ -193,7 +193,7 @@ expect_out USB FA 00 00
 tap PLAY
 wait 30
 expect_out USB FC 00 00
-spin SELECT -1
+spin PRESET -1
 wait 30
 out
 wait 500
@@ -259,23 +259,23 @@ tap GLO
 wait 30
 expect page 19
 expect pop 1
-turn K1 -1
+turn K3 -1
 wait 30
 expect pop 0
 said POP-UP TIME OFF
-turn K1 4
+turn K3 4
 wait 30
 expect pop 4
 said POP-UP TIME ALWAYS
-turn K1 -3
+turn K3 -3
 wait 30
 expect pop 1
 expect hints 0
-turn K2 1
+turn K4 1
 wait 30
 expect hints 1
 said MANUAL MODE ON
-turn K2 -1
+turn K4 -1
 wait 30
 expect hints 0
 said MANUAL MODE OFF
@@ -423,7 +423,7 @@ expect page 16
 tap SAVE
 wait 30
 expect dirty 0
-spin SELECT 2
+spin PRESET 2
 wait 30
 expect cc_chan 5
 expect dirty 0

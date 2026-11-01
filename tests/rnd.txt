@@ -167,32 +167,32 @@ wait 30
 said RND TRACKS RANDOM
 expect rnd_arg13 127
 # K2 with no root held: nothing sent; K1 the root D (note 62 on channel 1, let go 60 ms on), K2 its octave -1 (50)
-turn K2 1
+turn K3 1
 wait 30
 said LOCK A ROOT FIRST
 expect rnd_tx 14
-spin K1 3
+spin K2 3
 wait 100
 said RND ROOT D
 expect rnd_op14 144
 expect rnd_arg14 62
 expect rnd_op15 128
-turn K2 -1
+turn K3 -1
 wait 100
 said RND OCTAVE -1
 expect rnd_arg16 50
 # K3: the scale, Dorian (CC 9 at 7), back to RANDOM (27 01); K1 back to RANDOM (27 00)
-spin K3 7
+spin K4 7
 wait 30
 said RND SCALE DORIAN
 expect rnd_op18 176
 expect rnd_arg18 9
-spin K3 -7
+spin K4 -7
 wait 30
 said RND SCALE RANDOM
 expect rnd_op19 39
 expect rnd_arg19 1
-spin K1 -3
+spin K2 -3
 wait 30
 said RND ROOT RANDOM
 expect rnd_op20 39

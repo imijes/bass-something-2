@@ -17,18 +17,25 @@ wait 30
 expect octave 1
 expect dirty 1
 tap EDIT
-turn ALGO 1
+turn PRESET 1
 wait 30
 expect wave 1
 turn K3 3
 wait 300
 expect turns5 3
 turn K3 -3
-tap HOME
-press HOME
+# (MASTER, then EDIT to SUB OSC + MIXER, in the 82 ms the two HOME presses took: the sequencer below keeps its phase)
+press SEL
+release SEL
+wait 68
+press EDIT
+release EDIT
+press EDIT
+release EDIT
+press EDIT
 wait 30
 shot controls.png
-release HOME
+release EDIT
 tap SAVE
 wait 30
 expect dirty 0
@@ -188,7 +195,7 @@ wait 30
 expect page 0
 # the patch: oscillator 2 (OSCILLATORS, SEL its Osc Select), the sub and the filter (HOME twice more: Classic's modes,
 # then Acid), each loud enough and none running away
-tap SEL
+turn SELECT 1
 wait 30
 said OSC SELECT 2
 turn K1 7
@@ -196,7 +203,7 @@ turn K2 -20
 wait 30
 expect coarse2 7
 expect fine2 -13
-tap SEL
+turn SELECT -1
 wait 30
 tap EDIT
 tap FX
@@ -221,7 +228,7 @@ spin ALGO 1
 wait 78
 expect filter 0
 # SEL here sets nothing (the OSCILLATORS' Osc Select; the sub's octave is the mixer's SELECT)
-tap SEL
+wait 80
 wait 30
 expect sub 1
 turn K4 -40
@@ -250,7 +257,7 @@ expect env 0
 # the note is held and comes back after the release
 turn K3 63
 tap ENV
-turn SELECT 1
+turn PRESET 1
 expect page 8
 turn K3 127
 wait 30
@@ -294,7 +301,7 @@ wait 30
 expect page 4
 expect lfo2_cut 0
 # a page's empty places set nothing (LFO 2: PRESET)
-turn PRESET 5
+turn SELECT 5
 wait 30
 expect dirty 1
 # saved into slot 1, kept over a power cycle; EDIT: PRESET picks slot 2 (the defaults), then back
@@ -305,13 +312,13 @@ reboot
 wait 600
 expect slot 0
 tap ENV
-spin SELECT -2
-spin SELECT 1
+spin PRESET -2
+spin PRESET 1
 wait 78
 expect menv_cut 63
 expect SUSTAIN 127
 expect lfo1_o1 63
-tap HOME
+tap SEL
 wait 30
 expect page 5
 turn PRESET 1
@@ -351,15 +358,30 @@ flash_fail 0
 tap EDIT
 wait 30
 expect page 0
-turn PRESET 1
-tap SEL
+press EDIT
+release EDIT
+turn PRESET 1 68
+press EDIT
+release EDIT
+press EDIT
+release EDIT
+turn SELECT 1
 wait 30
-turn ALGO 1
+turn PRESET 1
 wait 30
 expect sync 1
 expect wave2 1
-tap HOME
-tap HOME
+# (MASTER, then EDIT to SUB OSC + MIXER, in the 160 ms of the two HOME taps they replace)
+press SEL
+release SEL
+wait 76
+press EDIT
+release EDIT
+press EDIT
+release EDIT
+press EDIT
+release EDIT
+wait 68
 wait 30
 turn K3 1
 spin K4 127
@@ -373,7 +395,7 @@ wait 30
 turn K3 63
 wait 30
 expect menv_o2 63
-tap SEL
+turn SELECT -1
 wait 30
 midi 90 30 64
 peakreset
@@ -553,7 +575,7 @@ midi 80 40 00
 midi 80 43 00
 wait 440
 tap ARP
-turn K1 -1
+turn K3 -1
 tap ARP
 wait 30
 expect retrig 0
@@ -567,7 +589,7 @@ midi 80 40 00
 midi 80 43 00
 wait 440
 tap ARP
-turn K1 1
+turn K3 1
 tap ARP
 # MIDI clock: followed instead of the tempo (24 a quarter note: rhythm 32's 16ths a step of 6 clocks, its gate 3)
 spin K2 40
@@ -612,7 +634,7 @@ tap SEQ
 wait 30
 expect page 7
 expect SEQ 4
-turn SELECT -3
+turn PRESET -3
 wait 30
 expect SEQ 1
 expect LENGTH 8
@@ -710,7 +732,7 @@ expect seq1 72
 expect seq2 128
 expect dirty 1
 # the cursor's note and legato: K1 (from REST, then up from C-1), K2
-turn PRESET -1
+turn ALGO -1
 wait 30
 expect step 1
 turn K1 -200
@@ -740,7 +762,7 @@ expect note 50
 midi 80 30 00
 wait 440
 tap ARP
-turn K1 -1
+turn K3 -1
 tap ARP
 wait 30
 expect retrig 0
@@ -752,16 +774,16 @@ expect note 48
 midi 80 30 00
 wait 440
 tap ARP
-turn K1 1
+turn K3 1
 tap ARP
 tap SEQ
 wait 30
 # the four sequences: 2 empty; back to 1, the new one (kept apart from the patch's)
-turn SELECT 1
+turn PRESET 1
 wait 30
 expect SEQ 2
 expect LENGTH 0
-turn SELECT -1
+turn PRESET -1
 wait 30
 expect LENGTH 3
 expect seq1 50
@@ -821,7 +843,7 @@ said SOUND RANDOMIZED
 unsaid BLE SCANNING
 expect dirty 1
 # the saved sound back (the random one left), its cutoff at 64
-tap HOME
+tap SEL
 wait 30
 spin PRESET 1
 wait 30

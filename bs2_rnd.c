@@ -40,7 +40,7 @@ _Static_assert(sizeof(seeds_t) <= PLAT_STORE_MAX, "the seed table fits a store o
 typedef struct {                             /* a lock code, apart: RND_FREE or the setting */
     int8_t type, root, oct, scale, tracks, eng[4];
 } rlock_t;
-static seeds_t seeds;
+static seeds_t seeds PLAT_POOL;
 static const uint8_t RND_ID[3] = {0x6F, 0x62, 0x78};
 static const char *const RND_ENG[NENG] = {"Subtractive", "FM", "Acid (303)", "Noise", "Speech", "Plucked String",
                                           "SuperSaw", "Harmonic"};   /* (its names, as 22 and 1B spell them) */
@@ -161,7 +161,8 @@ static void word_cat(uint32_t w, char *t)    /* word w (0..2047), in capitals, o
     for (j = w % WORD_EVERY; j; j--)
         at += 5u * word_bits(&at, 4);
     n = word_bits(&at, 4);
-    t += strlen(t);
+    while (*t)                               /* (its end: the device has no string.h) */
+        t++;
     while (n--)
         *t++ = (char)('A' - 1 + (int)word_bits(&at, 5));
     *t = 0;
