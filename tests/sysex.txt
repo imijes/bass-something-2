@@ -255,8 +255,9 @@ expect swing 66
 tap GLO
 tap GLO
 tap GLO
+tap GLO
 wait 30
-expect page 19
+expect page 20
 tap SEL
 wait 30
 said SYSEX SENT Bass Smth 2 01
@@ -387,7 +388,9 @@ tap GLO
 wait 30
 tap GLO
 wait 30
-expect page 19
+tap GLO
+wait 30
+expect page 20
 tap FX
 wait 30
 said SYSEX SENT ALL 32
@@ -432,15 +435,15 @@ wait 30
 expect page 2
 spin PRESET 2
 wait 30
-spin ALGO -2
+spin K4 -2
 wait 30
 spin PRESET -2
 wait 30
-spin ALGO 1
+spin K4 1
 wait 30
 spin PRESET 1
 wait 30
-spin ALGO 2
+spin K4 2
 wait 30
 tap ENV
 wait 30
@@ -460,7 +463,9 @@ expect loopM 0
 tap GLO
 tap GLO
 tap GLO
+tap GLO
 wait 30
+expect page 20
 tap SEL
 wait 30
 sysex_out bs2/build/host/sysex_env.syx
@@ -470,7 +475,7 @@ wait 30
 expect page 2
 spin PRESET 2
 wait 30
-spin ALGO -2
+spin K4 -2
 wait 30
 tap ENV
 wait 30
@@ -548,7 +553,9 @@ expect lfo1_syncv 12
 tap GLO
 tap GLO
 tap GLO
+tap GLO
 wait 30
+expect page 20
 tap SEL
 wait 30
 sysex_out bs2/build/host/sysex_lfo.syx
@@ -600,7 +607,9 @@ expect ofm 77
 tap GLO
 tap GLO
 tap GLO
+tap GLO
 wait 30
+expect page 20
 tap SEL
 wait 30
 sysex_out bs2/build/host/sysex_ofm.syx

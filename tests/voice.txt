@@ -8,26 +8,10 @@ bank_init
 wait 600
 tap EDIT
 expect page 0
-# every wave of oscillator 1 plays, in range (saw, square, sine, triangle, pulse)
+# every wave of oscillator 1 plays, in range, the knob going along the panel's LEDs (the INIT patch's saw, then
+# from the left: sine, triangle, saw, square, pulse)
 expect wave 0
-peakreset
-midi 90 30 7F
-wait 300
-expect peak_db_min -40
-expect peak_db_max -0.5
-midi 80 30 00
-wait 400
-turn PRESET 1
-wait 30
-expect wave 1
-peakreset
-midi 90 30 7F
-wait 300
-expect peak_db_min -40
-expect peak_db_max -0.5
-midi 80 30 00
-wait 400
-turn PRESET 1
+spin PRESET -4
 wait 30
 expect wave 2
 peakreset
@@ -40,6 +24,26 @@ wait 400
 turn PRESET 1
 wait 30
 expect wave 3
+peakreset
+midi 90 30 7F
+wait 300
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+turn PRESET 1
+wait 30
+expect wave 0
+peakreset
+midi 90 30 7F
+wait 300
+expect peak_db_min -40
+expect peak_db_max -0.5
+midi 80 30 00
+wait 400
+turn PRESET 1
+wait 30
+expect wave 1
 peakreset
 midi 90 30 7F
 wait 300
@@ -513,10 +517,8 @@ tap EDIT
 wait 30
 expect page 0
 spin PRESET -4
-turn PRESET 2
 turn SELECT 1
 spin PRESET -4
-turn PRESET 2
 turn SELECT -1
 wait 30
 expect wave 2
@@ -692,7 +694,7 @@ expect sub 2
 turn SELECT -1
 wait 30
 expect sub 1
-# ENVELOPES' Triggering (ENV again, ALGO; Env Select at Amp+Mod: both envelopes'). Single: a note played legato (a
+# ENVELOPES' Triggering (ENV again, K4; Env Select at Amp+Mod: both envelopes'). Single: a note played legato (a
 # key still held) does not start them again, one on its own does; Multi: every note does. (The attack at the faders'
 # middle, 250 ms: a start caught while it rises)
 tap ENV
@@ -709,7 +711,7 @@ wait 30
 expect page 2
 expect trigA 0
 expect trigM 0
-spin ALGO 1
+spin K4 1
 wait 30
 expect trigA 1
 expect trigM 1
@@ -729,7 +731,7 @@ wait 30
 expect env 1
 midi 80 30 00
 wait 1500
-spin ALGO -2
+spin K4 -2
 wait 30
 expect trigA 0
 midi 90 30 64
@@ -741,7 +743,7 @@ midi 80 30 00
 midi 80 34 00
 wait 1500
 # Autoglide: the glide (PORTA's, on the LFOS page) on legato notes alone: a note on its own there at once
-spin ALGO 2
+spin K4 2
 wait 30
 expect trigA 2
 tap LFO
@@ -768,7 +770,7 @@ tap ENV
 tap ENV
 wait 30
 expect page 2
-spin ALGO -2
+spin K4 -2
 wait 30
 expect trigA 0
 # the mods (ENV after the triggering): the amp envelope's retriggering, twice, then its sustain; endless, it goes on

@@ -3,7 +3,7 @@
 #   bs2/build/host/bass-something-2_host bs2/tests/glo.txt bs2/build/host
 wait 600
 listen
-# GLO: MIDI, again SYS, again DUMP, again DISPLAY, again MIDI (RND: GLO held, tests/rnd.txt)
+# GLO: MIDI, again SYS, again DISPLAY, again DUMP (the last), again MIDI (RND: GLO held, tests/rnd.txt)
 tap GLO
 wait 30
 expect page 17
@@ -14,10 +14,11 @@ expect page 18
 tap GLO
 wait 30
 expect page 19
+said GLOBAL DISPLAY
 tap GLO
 wait 30
 expect page 20
-said GLOBAL DISPLAY
+said GLOBAL DUMP
 tap GLO
 wait 30
 expect page 17
@@ -252,33 +253,33 @@ expect tune -13
 spin K4 1
 wait 30
 expect knobs 1
-# DISPLAY (GLO after DUMP): K1 the pop-ups' time, 1.5 S by default, OFF to ALWAYS; K2 MANUAL MODE, off by default (a
-# few words on each control as it's used); then back to SYS
-tap GLO
+# DISPLAY (GLO after SYS): K4 the pop-ups' time, 1.5 S by default, OFF to ALWAYS; K3 HINTS, off by default (a few
+# words on each control as it's used); then back to SYS
 tap GLO
 wait 30
-expect page 20
+expect page 19
 expect pop 1
-turn K3 -1
+turn K4 -1
 wait 30
 expect pop 0
 said POP-UP TIME OFF
-turn K3 4
+turn K4 4
 wait 30
 expect pop 4
 said POP-UP TIME ALWAYS
-turn K3 -3
+turn K4 -3
 wait 30
 expect pop 1
 expect hints 0
-turn K4 1
+turn K3 1
 wait 30
 expect hints 1
-said MANUAL MODE ON
-turn K4 -1
+said HINTS ON
+turn K3 -1
 wait 30
 expect hints 0
-said MANUAL MODE OFF
+said HINTS OFF
+tap GLO
 tap GLO
 tap GLO
 wait 30
@@ -375,7 +376,9 @@ tap GLO
 wait 30
 tap GLO
 wait 30
-expect page 19
+tap GLO
+wait 30
+expect page 20
 tap FX
 wait 30
 said SYSEX SENT ALL 32

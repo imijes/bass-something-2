@@ -31,9 +31,10 @@ typedef struct {
                                           * the patch, recording writes both */
     uint8_t pad;                         /* (the record before knobs ended in a byte of padding: not read) */
     uint8_t knobs;                       /* KN_*: how far a knob goes as it turns faster (knob_accel) */
-    uint8_t hints;                       /* Manual Mode (GLO SYS): a few words on what each control does, as it's used */
+    uint8_t hints;                       /* Hints (GLO DISPLAY): a few words on what each control does, as it's used */
     uint8_t pop;                         /* the pop-ups' time (GLO DISPLAY): pop_d's order, 1.5 s stored as 0 */
-    uint8_t spare;                       /* (0: the record's end, no padding) */
+    uint8_t zoom_off;                    /* KNOB ZOOM (GLO DISPLAY): 0 AUTO, 1 OFF (was a spare byte, 0: AUTO in older
+                                          * records; the record's end, no padding) */
 } settings_t;
 #define SET_V1_SIZE 8u                   /* the record before the GLO pages: magic to ble_off */
 #define SET_V2_SIZE offsetof(settings_t, mem)   /* the record before the sequences (16 bytes stored: a byte of padding) */
@@ -49,6 +50,8 @@ static settings_t set_kept PLAT_POOL;    /* the record as it is in the store (gl
 static uint8_t set_dirty;                /* changed since the last save: SAVE is lit */
 
 static const char *const WAVE_NAME[NWAVES] = {"SAW", "SQUARE", "SINE", "TRI", "PULSE"};
+static const uint8_t WAVE_SHOWN[NWAVES] = {WAVE_SINE, WAVE_TRI, WAVE_SAW, WAVE_SQUARE, WAVE_PULSE};   /* the BS2's
+                                              * order, the panel's left to right: the knob's (knob_turn) */
 static const char *const DEST_NAME[NDEST] = {"CUTOFF", "PITCH", "OSC2"};
 static const char *const LFO_NAME[NLFOW] = {"TRI", "SAW", "SQUARE", "S&H"};
 static const char *const SYNC_NAME[NSYNCV] = {   /* the sync values as a Bass Station II's display shows them */
@@ -88,6 +91,12 @@ static float gain_now;                       /* glides to MASTER: no step at a b
 static float vel_now;                        /* glides to the note's velocity: a legato note's is no step (a click) */
 #define CTRL_N 32u                           /* the modulation's step: every 32 samples (0.7 ms) */
 #define CTRL_RATE (BS2_RATE / (float)CTRL_N)
+/* HOME's scope (scope_paint): the synth's output before the volume, every 4th sample (11 kHz, 93 ms of it), and
+ * oscillator 1's step (cycles a sample), its period */
+#define SCOPE_N 1024u
+static int8_t scope_buf[SCOPE_N] PLAT_POOL;
+static volatile uint32_t scope_w;
+static volatile float scope_inc;
 #ifdef PLAT_HOST
 static volatile int32_t cut_now, cents_now, pitch_now;   /* what the modulation made of the last block (app_expect) */
 static volatile int32_t dc_now;          /* the output's mean over its mean size, the last 0.2 s or so, 1/1000 */
@@ -927,6 +936,7 @@ static float sag_gain(void)                  /* a modulation step: the gain the 
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
     static uint32_t rng = 1u;                /* the noise's */
+    static uint32_t scope_ph;                /* (the scope's every 4th) */
     static afx_t ax;                         /* AFX: the last key's (read at a block's start), or none */
     uint32_t i, j, m, wave, wave2 = patch.wave2, sync = patch.sync;
     int32_t note, cut;
@@ -1027,6 +1037,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         inv2 = inc2 > 0.0f ? 1.0f / inc2 : 0.0f;
         pw1 = pulse_width(wave, patch.pw1, patch.pwm1, lv[1], 63.0f * e * (float)patch.menv_pw1);
         pw2 = pulse_width(wave2, patch.pw2, patch.pwm2, lv[1], 63.0f * e * (float)patch.menv_pw2);
+        scope_inc = inc;
         incs = inc * (patch.sub_oct == 2u ? 0.25f : 0.5f);
         invs = incs > 0.0f ? 1.0f / incs : 0.0f;
 #ifdef PLAT_HOST
@@ -1089,6 +1100,8 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                 if (voice.lim_e > th)
                     s *= th / voice.lim_e;
             }
+            if (!(++scope_ph & 3u))          /* (HOME's scope: every 4th, before the volume) */
+                scope_buf[scope_w++ & (SCOPE_N - 1u)] = (int8_t)fm_clampf(s * 100.0f, -127.0f, 127.0f);
             s *= 0.3f * gain_now;
 #ifdef PLAT_HOST
             dsum += s;
@@ -1177,7 +1190,7 @@ static void settings_defaults(settings_t *s)
     s->vcurve = VC_NORMAL;
     s->cc_chan = CH_OFF;
     s->knobs = KN_NORMAL;
-    s->pad = s->hints = s->pop = s->spare = 0;
+    s->pad = s->hints = s->pop = s->zoom_off = 0;
     {
         static const seqmem_t L = SEQ_LINE, E = {.len = 0, .step = {SEQ_REST}};
         uint32_t i, j;
@@ -1400,7 +1413,7 @@ static struct {
     char msg[2][24];                     /* a short message over the header */
     uint32_t msg_until;
     uint32_t map_until;                  /* the controls' map shown until (0: not shown) */
-    uint32_t hint_until;                 /* Manual Mode: a button's hint shown until (0: none) */
+    uint32_t hint_until;                 /* Hints: a button's hint shown until (0: none) */
     uint32_t val_until;                  /* the knob turned last (last_enc): its value's pop-up until (0: none) */
     uint8_t last_enc;
     const char *hint;                    /* (that hint) */
@@ -1433,6 +1446,24 @@ static struct {
                                           * 1 the mod envelope, 2 both (Amp+Mod) */
     uint32_t lit;                        /* the keys whose notes are held (notes_lit): lit, on the keys and on screen */
 } ui PLAT_POOL;
+/* Knob Zoom's camera (below, zoom_step) */
+#define ZOOM_MAX 256                         /* Q8, over 1x: 2x (crisp once there: whole pixels) */
+#define ZOOM_HOLD_MS 1000u
+#define ZOOM_IN_MS 64u                       /* the damping's time constants */
+#define ZOOM_OUT_MS 96u
+enum { ZH_NONE, ZH_DIVE, ZH_PAGE, ZH_RISE };   /* zoom.home: a CC on HOME (zoom_cc_in): the camera going in, on its
+                                                * section page, coming out */
+#define ZOOM_DIVE_MS 450u                    /* HOME's dive, the whole way in (and out: ZOOM_RISE_MS) */
+#define ZOOM_RISE_MS 550u
+static struct {                             /* (all 0 at rest: in the pool) */
+    int16_t z, x, y, tx, ty;                 /* the scale over 1x (Q8, 0: none), the focus and where it heads (panel px) */
+    int16_t hx, hy;                          /* HOME's: the CC's section's middle (panel px) */
+    float u, lc;                             /* the dive's way along (0 HOME, 1 its page at 2x); HOME's scale there, log2 */
+    uint8_t k, pg;                           /* the encoder (+1: 0 none) and page its target is of */
+    uint8_t home, g, ke;                     /* ZH_*; the CC's section page, its encoder */
+    uint8_t sv[5], v[5];                     /* HOME's views (zoom_views); the CC's page's */
+    uint32_t at, cc_at;                      /* the last step's time; the last CC's from HOME */
+} zoom PLAT_POOL;
 #define ORG_SHOW_MS 1500u                    /* a control's value on the MASTER's display, after its change */
 static void org_set(const void *q)           /* a control of the sound changed: the Org. Value arrows', the display's */
 {
@@ -1575,11 +1606,11 @@ static void ble_device_button(void)
  * DUMP; GLO held RND, the RND Synth's seeds: kept with the settings, not the patches). Each page's encoders by plat.h EN_*: a patch_t field each (a
  * settings_t field on the GLO pages, from PG_GMIDI on), its range, and its names when it is a choice; a page's
  * empty places set nothing */
-enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GSYS, PG_GDUMP, PG_GDISP,
+enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GSYS, PG_GDISP, PG_GDUMP,
        PG_GRND, PG_RPAT, PG_RTRK, NPAGES };
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI", "GLOBAL SYSTEM",
-                                              "GLOBAL DUMP", "GLOBAL DISPLAY", "RND SEED", "RND PATCH", "RND TRACKS"};
+                                              "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS"};
 #define RND_PAGE(g) ((g) >= PG_GRND)           /* (the RND pages: the last ones) */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 /* the pop-ups' time (GLO DISPLAY), its knob's places; pop_d the place, 0 and 1 swapped in the store so a record from
@@ -1595,6 +1626,7 @@ static const char *const COUNT_NAME[17] = {"ENDLESS", "1", "2", "3", "4", "5", "
                                            "13", "14", "15", "16"};
 static const char *const RANGE_NAME[NRANGE] = {"16'", "8'", "4'", "2'"};
 static const char *const OFF_ON[2] = {"OFF", "ON"};
+static const char *const AUTO_OFF[2] = {"AUTO", "OFF"};
 static const char *const ON_OFF[2] = {"ON", "OFF"};   /* (ble_off) */
 static const char *const CHAN_NAME[CH_ALL + 1] = {"OFF", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11",
                                                   "12", "13", "14", "15", "16", "ALL"};
@@ -1620,9 +1652,9 @@ static const param_t PARAMS[NPAGES][NE] = {
                 [EN_K3] = {"MOD ENV", PF(menv_o1), -63, 63, 0}, [EN_K4] = {"LFO 1", PF(lfo[0].depth[0]), -63, 63, 0}},
     [PG_MIX] = {[EN_SELECT] = {"SYNC", PF(sync), 0, 1, OFF_ON}, [EN_K4] = {"PW", PF(pw1), 5, 95, 0}},
     /* the Bass Station II's ENVELOPES: PG_AENV its panel (Env Select, ui.env_sel: the faders, K1 to K4, the amp
-     * envelope's or MENV_P's), PG_MENV its Triggering (Env Select again, the switch on ALGO: the amp envelope's or
+     * envelope's or MENV_P's), PG_MENV its Triggering (Env Select again, the switch on K4: the amp envelope's or
      * TRIGM_P's) */
-    [PG_MENV] = {[EN_ALGO] = {"TRIGGER", PF(env_trig[0]), 0, NENVT - 1, TRIG_NAME}},
+    [PG_MENV] = {[EN_K4] = {"TRIGGER", PF(env_trig[0]), 0, NENVT - 1, TRIG_NAME}},
     /* the Bass Station II's PORTA and LFOS, left to right: the Glide Time (SELECT); LFO 1's wave button (K1) and knob
      * (K2), LFO 2's knob (K3) and wave button (K4); each knob its speed, or its delay at the Delay/Speed switch's Delay
      * (ALGO: ui.lfo_delay), its sync value at Speed/Sync's Sync (knob_param) */
@@ -1677,7 +1709,8 @@ static const param_t PARAMS[NPAGES][NE] = {
                  [EN_K3] = {"VELOCITY", SF(vcurve), 0, NVC - 1, VC_NAME},
                  [EN_K4] = {"KNOBS", SF(knobs), 0, NKN - 1, KN_NAME}},
     /* (K1 turned and shown as pop_d's: knob_turn, knob_text) */
-    [PG_GDISP] = {[EN_K1] = {"POP-UPS", SF(pop), 0, NPOP - 1, 0}, [EN_K2] = {"MANUAL", SF(hints), 0, 1, OFF_ON}},
+    [PG_GDISP] = {[EN_PRESET] = {"KNOB ZOOM", SF(zoom_off), 0, 1, AUTO_OFF},
+                  [EN_K1] = {"HINTS", SF(hints), 0, 1, OFF_ON}, [EN_K2] = {"POP-UPS", SF(pop), 0, NPOP - 1, 0}},
 };
 /* SUB OSC + MIXER's switch, as the Bass Station II's: what its K4 sets, from the switch's bottom (NOISE, the start) up; EXT, the
  * external input's level: the computer's USB audio (plat_usb_audio_route) */
@@ -1706,7 +1739,7 @@ static const param_t MENV_P[NE] = {[EN_K1] = {"ATTACK", PF(menv_a), 0, 127, 0}, 
                                    [EN_K4] = {"RELEASE", PF(menv_r), 0, 127, 0}};
 /* the ENV group's other pages at Env Select's Mod: the mod envelope's Triggering, its velocity, retriggering, count and
  * fixed sustain */
-static const param_t TRIGM_P[NE] = {[EN_ALGO] = {"TRIGGER", PF(env_trig[1]), 0, NENVT - 1, TRIG_NAME}};
+static const param_t TRIGM_P[NE] = {[EN_K4] = {"TRIGGER", PF(env_trig[1]), 0, NENVT - 1, TRIG_NAME}};
 static const param_t EMODM_P[NE] = {[EN_K1] = {"VELOCITY", PF(vel_menv), -63, 63, 0},
                                     [EN_K2] = {"RETRIG", PF(env_loop[1]), 0, 1, OFF_ON},
                                     [EN_K3] = {"COUNT", PF(env_count[1]), 0, 16, COUNT_NAME},
@@ -1725,7 +1758,7 @@ static const param_t *const MORE_P[] = {&OSC2_P[EN_SELECT], &OSC2_P[EN_ALGO], &O
                                         &PW_P[1][PW_MENV], &PW_P[1][PW_MANUAL], &PW_P[1][PW_LFO2], &MIX_SRC[MS_NOISE],
                                         &MIX_SRC[MS_RING], &MIX_SRC[MS_EXT], &FILT_P,
                                         &MENV_P[EN_K1], &MENV_P[EN_K2], &MENV_P[EN_K3], &MENV_P[EN_K4], &LATCH_P,
-                                        &TRIGM_P[EN_ALGO], &EMODM_P[EN_K1], &EMODM_P[EN_K2], &EMODM_P[EN_K3],
+                                        &TRIGM_P[EN_K4], &EMODM_P[EN_K1], &EMODM_P[EN_K2], &EMODM_P[EN_K3],
                                         &EMODM_P[EN_K4], &LFOD_P[0], &LFOD_P[1], &LFOSV_P[0], &LFOSV_P[1],
                                         &LFOM2_P[EN_K1], &LFOM2_P[EN_K2], &LFOM2_P[EN_K3]};
 /* a knob's whole name over the header, when its card's is short */
@@ -1747,7 +1780,7 @@ static const char *const TITLE[NPAGES][NE] = {
 
     [PG_GMIDI] = {[EN_SELECT] = "CC CHANNEL", [EN_K2] = "LOCAL CONTROL", [EN_K3] = "AFTER TOUCH OUT", [EN_K4] = "BLUETOOTH MIDI"},
     [PG_GSYS] = {[EN_SELECT] = "SEND MIDI CLOCK", [EN_K2] = "CLOCK SYNC", [EN_K4] = "KNOB RESPONSE"},
-    [PG_GDISP] = {[EN_K1] = "POP-UP TIME", [EN_K2] = "MANUAL MODE"},
+    [PG_GDISP] = {[EN_PRESET] = "KNOB ZOOM", [EN_K1] = "HINTS", [EN_K2] = "POP-UP TIME"},
 };
 static void *page_rec(uint32_t g)            /* what a page's encoders set: the sound, or the settings */
 {
@@ -1827,6 +1860,8 @@ static const cc_map_t CC_MAP[] = {
     {72, &PW_P[0][PW_MENV]},        {77, &PW_P[1][PW_MENV]},       {112, CCP(PG_EMOD, EN_K1)},
     {113, &EMODM_P[EN_K1]},        {115, CCP(PG_EFX, EN_K2)},
 };
+static void zoom_cc_in(const param_t *q);
+static void zoom_views(const uint8_t *v);
 static void cc_apply(uint32_t cc, uint32_t v)   /* the main loop's: a CC on CC CHAN, number and value */
 {
     uint32_t i;
@@ -1851,6 +1886,9 @@ static void cc_apply(uint32_t cc, uint32_t v)   /* the main loop's: a CC on CC C
             x = q->lo + (x * span + 63) / 127;
         param_put(q, &patch, q->names ? q->lo + x : x);
         org_set(q);
+        if (!set.zoom_off && (ui.page == PG_HOME || zoom.home))   /* (Knob Zoom: from HOME, into its section page:
+                                              * zoom_cc_in) */
+            zoom_cc_in(q);
         set_dirty = 1;
         ui.redraw = 1;
     }
@@ -2075,7 +2113,7 @@ static int knob_turn(uint32_t k, int32_t e)
     static const param_t RT_SPAN = {"RND", 0, 0, 127, 0};   /* (RND TRACKS' levels and sends: turned as a 0..127's) */
     const param_t *q = ui.page == PG_RTRK && k >= EN_K1 && rnd_row != RR_ENG ? &RT_SPAN : knob_param(k);
     e = knob_accel(k, e, q);
-    if (ui.page == PG_GDISP && k == EN_K1) {   /* the pop-ups' time: its place (pop_d), stored swapped */
+    if (ui.page == PG_GDISP && k == EN_K2) {   /* the pop-ups' time: its place (pop_d), stored swapped */
         const uint32_t d = (uint32_t)clamp((int32_t)pop_d() + e, 0, NPOP - 1);
         set.pop = (uint8_t)(d < 2u ? 1u - d : d);
         return 1;
@@ -2198,6 +2236,16 @@ static int knob_turn(uint32_t k, int32_t e)
         ui.pw_src = AT[clamp((int32_t)PW_POS[ui.pw_src] + e, 0, NPW - 1)];
         return 1;
     }
+    if (q->names == WAVE_NAME) {             /* an oscillator's Waveform: along the panel's LEDs (WAVE_SHOWN), not by
+                                              * its number */
+        uint32_t i = 0;
+        while (i < NWAVES - 1u && WAVE_SHOWN[i] != (uint32_t)param_get(q, &patch))
+            i++;
+        param_put(q, &patch, WAVE_SHOWN[clamp((int32_t)i + e, 0, NWAVES - 1)]);
+        org_set(q);
+        set_dirty = 1;
+        return 1;
+    }
     if (!q->name)
         return 0;
     param_put(q, page_rec(ui.page), param_get(q, page_rec(ui.page)) + e);
@@ -2253,7 +2301,7 @@ static const char *knob_title(uint32_t k)    /* over the header: the whole name 
                                                                     * "AMP+MOD ENV RETRIGGER COUNT" */
         static const char *const WHAT[3][NE] = {
             {[EN_K1] = "ATTACK", [EN_K2] = "DECAY", [EN_K3] = "SUSTAIN", [EN_K4] = "RELEASE"},
-            {[EN_ALGO] = "TRIGGERING"},
+            {[EN_K4] = "TRIGGERING"},
             {[EN_K1] = "VELOCITY", [EN_K2] = "RETRIGGER", [EN_K3] = "RETRIGGER COUNT", [EN_K4] = "FIXED SUSTAIN"}};
         w[0] = 0;
         text_cat(w, ui.env_sel == 1u ? "MOD ENV " : ui.env_sel ? "AMP+MOD ENV " : "AMP ENV ");
@@ -2356,7 +2404,7 @@ static void knob_text(uint32_t k, char *t)
             text_cat(t, OFF_ON[seq_leg(&patch.sq, cursor())]);
         return;
     }
-    if (ui.page == PG_GDISP && k == EN_K1) {
+    if (ui.page == PG_GDISP && k == EN_K2) {
         text_cat(t, POP_NAME[pop_d()]);
         return;
     }
@@ -2382,6 +2430,9 @@ static uint32_t pop_until(void)              /* a pop-up shown now: until (0: no
 static void page_go(uint32_t g)
 {
     char t[4];
+    if (zoom.home && ui.page != PG_HOME)     /* (HOME's CC's page: HOME's views back) */
+        zoom_views(zoom.sv);
+    zoom.home = ZH_NONE;
     ui.page = (uint8_t)g;
     ui.redraw = 1;
     ui.map_until = pop_until();              /* (its controls' map for a moment: tags_draw) */
@@ -2661,13 +2712,13 @@ static uint32_t notes_lit(uint32_t *below, uint32_t *above)
 /* ARP, SEQ and GLO: tapped, their page; held HOLD_MS, a mode (ARP or SEQ: AFX on or off; GLO: the RND pages, held
  * again the GLOBAL ones). The hold acts while still held, its release then nothing */
 #define HOLD_MS 1000u
-/* Manual Mode's hints: a few words on what a control does, under its value as it turns (a button's at the panel's
+/* Hints: a few words on what a control does, under its value as it turns (a button's at the panel's
  * foot as it's pressed) */
 static const char *const HINT[NPAGES][NE] = {
     [PG_OSC] = {"Octave range", "Waveform", "Osc 1 or 2", "Pitch, semitones", "Pitch, cents", "Envelope to pitch",
                 "Vibrato depth"},
     [PG_MIX] = {"Sync osc 2 to 1", "Osc 1 or 2", "What K4 sets"},
-    [PG_MENV] = {"Which envelope", "How notes restart it"},
+    [PG_MENV] = {"Which envelope", [EN_K4] = "How notes restart it"},
     [PG_AENV] = {"Which envelope", [EN_K1] = "Fade-in time", "Fall time", "Held level", "Fade-out time"},
     [PG_EMOD] = {"Which envelope", [EN_K1] = "Touch response", "Loop the envelope", "How many loops", "Drum-style hold"},
     [PG_LFO1] = {"Glide time", "Speed or delay", [EN_K1] = "LFO 1 shape", "LFO 1 speed", "LFO 2 speed", "LFO 2 shape"},
@@ -2688,7 +2739,7 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_GMIDI] = {"CC input channel", [EN_K1] = "Note channel", "Keys play the synth", "Pressure out as MIDI",
                   "Bluetooth MIDI"},
     [PG_GSYS] = {"Send MIDI clock", [EN_K1] = "Master tune", "Clock to follow", "Touch curve", "Knob speed-up"},
-    [PG_GDISP] = {[EN_K1] = "Pop-up time", "These hints"},
+    [PG_GDISP] = {[EN_PRESET] = "Zoom on what turns", [EN_K1] = "These hints", "Pop-up time"},
     [PG_GRND] = {[EN_PRESET] = "Pick a seed slot"},
     [PG_RPAT] = {"Lock patch type", "Lock track count", [EN_K1] = "Lock root note", "Lock root octave", "Lock scale"},
     [PG_RTRK] = {[EN_PRESET] = "Pick the knobs' row"},
@@ -2742,7 +2793,7 @@ static void hold_tap(uint32_t k)
     else if (ui.page >= PG_GRND)             /* on the RND pages (the last ones): the next */
         page_go(ui.page == PG_GRND ? PG_RPAT : ui.page == PG_RPAT ? PG_RTRK : PG_GRND);
     else                                     /* the global settings: MIDI, again SYS, DUMP, DISPLAY */
-        page_go(ui.page == PG_GMIDI ? PG_GSYS : ui.page == PG_GSYS ? PG_GDUMP : ui.page == PG_GDUMP ? PG_GDISP : PG_GMIDI);
+        page_go(ui.page == PG_GMIDI ? PG_GSYS : ui.page == PG_GSYS ? PG_GDISP : ui.page == PG_GDISP ? PG_GDUMP : PG_GMIDI);
 }
 
 static void hold_step(uint32_t btn)
@@ -2802,7 +2853,7 @@ static void input(void)
         uint32_t bit = 1u << k;
         if (!(btn & bit) || (ui.btn & bit))
             continue;
-        if (set.hints) {                     /* (Manual Mode: what it does, from the page it's pressed on) */
+        if (set.hints) {                     /* (Hints: what it does, from the page it's pressed on) */
             ui.hint = btn_hint(k);
             ui.hint_until = pop_until();
             ui.redraw = 1;
@@ -2890,6 +2941,7 @@ static void input(void)
         if ((l = enc_logical(k)) >= NE)      /* (none on this page) */
             continue;
         ui.turned_at[l] = plat_ms();
+        zoom.home = ZH_NONE;                 /* (HOME's CC's page: kept, the user's now) */
         ui.map_until = ui.hint_until = 0;    /* (a knob turned: the map goes, and a button's hint; its value stays) */
         ui.last_enc = (uint8_t)l;
         ui.val_until = pop_until();
@@ -3122,6 +3174,165 @@ static void wave_icon(int32_t x, int32_t y, uint32_t w)   /* the sub's waves as 
     cv_rect(x + hi - 1, y + 6, 10 - hi, 1, P_SILK);
     cv_rect(x + 9, y, 1, 7, P_SILK);
 }
+/* Knob Zoom: an encoder turned, the panel's camera closes in on its control (where its tag goes: tag_v) to ZOOM_MAX,
+ * stays while it turns and goes back out ZOOM_HOLD_MS after the last turn; the scale and the focus each move a share
+ * of the way a frame (damped, ZOOM_IN_MS / ZOOM_OUT_MS), so a second knob pans to its own. Drawn by scaling each half
+ * of the panel up within the canvas itself (zoom_blow: no buffer of its own) */
+static int32_t zoom_ease(int32_t v, int32_t to, uint32_t dt, uint32_t tau)   /* v a share of the way to to */
+{
+    const int32_t d = (to - v) * (int32_t)(dt < tau ? dt : tau) / (int32_t)tau;
+    return v + (d ? d : to > v ? 1 : to < v ? -1 : 0);
+}
+/* HOME's Knob Zoom: a MIDI CC there dives into its control's section page, one camera move: HOME closes in on the
+ * section (its middle) until it fills the screen as its page does, then that page is up (its views as the control
+ * needs, the control as though its encoder turned), going on in to 2x on the control; it stays while CCs come, then
+ * the same way back out to HOME, its views as they were. The scale goes in log steps along a smoothstep (zoom.u), the
+ * page changing where HOME's scale is the page's 1x. A turn or a page of the user's own ends it there */
+static void home_sect(uint32_t g, int16_t *x, int16_t *y, float *lc);
+static void zoom_views(const uint8_t *v)
+{
+    ui.osc_sel = v[0], ui.env_sel = v[1], ui.mix_src = v[2], ui.pw_src = v[3], ui.lfo_delay = v[4];
+}
+static uint32_t zoom_find(const param_t *q, uint8_t *v, uint32_t *kp)   /* q's section page (PG_HOME: none), its
+                                                * encoder, the views it needs there (from HOME's, zoom.sv) */
+{
+    const uint8_t pg = ui.page, was[5] = {ui.osc_sel, ui.env_sel, ui.mix_src, ui.pw_src, ui.lfo_delay};
+    uint32_t g = PG_HOME, k = 0, i, ok;
+    for (i = 0; i < 5u; i++)
+        v[i] = zoom.sv[i];
+    if (q >= &PARAMS[0][0] && q < &PARAMS[PG_HOME][0]) {   /* (a page's own: its views at their first) */
+        i = (uint32_t)(q - &PARAMS[0][0]);
+        g = i / NE, k = i % NE;
+        v[0] = v[4] = 0;
+        if (v[1] == 1u)
+            v[1] = 0;
+    } else if (q >= OSC2_P && q < OSC2_P + NE) {
+        g = PG_OSC, k = (uint32_t)(q - OSC2_P), v[0] = 1;
+    } else if (q >= MENV_P && q < MENV_P + NE) {
+        g = PG_AENV, k = (uint32_t)(q - MENV_P), v[1] = 1;
+    } else if (q >= EMODM_P && q < EMODM_P + NE) {
+        g = PG_EMOD, k = (uint32_t)(q - EMODM_P), v[1] = 1;
+    } else if (q >= MIX_SRC && q < MIX_SRC + NMS) {
+        g = PG_FX, k = EN_K4, v[2] = (uint8_t)(q - MIX_SRC);
+    } else if (q >= &PW_P[0][0] && q < &PW_P[0][0] + 2 * NPW) {
+        i = (uint32_t)(q - &PW_P[0][0]);
+        g = PG_MIX, k = EN_K4, v[0] = (uint8_t)(i / NPW), v[3] = (uint8_t)(i % NPW);
+    } else if (q >= LFOD_P && q < LFOD_P + NLFO) {
+        g = PG_LFO1, k = EN_K2 + (uint32_t)(q - LFOD_P), v[4] = 1;
+    } else if (q == &LATCH_P) {
+        g = PG_ARP, k = EN_ALGO;
+    }
+    zoom_views(v);                           /* (what k sets there, so: q?) */
+    ui.page = (uint8_t)g;
+    ok = g != PG_HOME && knob_param(k) == q;
+    zoom_views(was);
+    ui.page = pg;
+    *kp = k;
+    return ok ? g : PG_HOME;
+}
+static void zoom_page(void)                  /* the CC's page up, its control as though turned */
+{
+    zoom_views(zoom.v);
+    ui.page = zoom.g;
+    ui.redraw = 1;
+    ui.turned_at[zoom.ke] = plat_ms();
+    ui.last_enc = zoom.ke;
+    ui.map_until = ui.hint_until = 0;
+    ui.val_until = pop_until();
+}
+static void zoom_cc_in(const param_t *q)     /* a CC's control q changed (on HOME, or on the way from it) */
+{
+    uint8_t v[5];
+    uint32_t k, g, i;
+    if (!zoom.home)                          /* (HOME's views, for the way back) */
+        zoom.sv[0] = ui.osc_sel, zoom.sv[1] = ui.env_sel, zoom.sv[2] = ui.mix_src, zoom.sv[3] = ui.pw_src,
+        zoom.sv[4] = ui.lfo_delay, zoom.u = 0.0f;
+    if ((g = zoom_find(q, v, &k)) == PG_HOME)   /* (none: as it is) */
+        return;
+    if (g != zoom.g || !zoom.home)
+        home_sect(g, &zoom.hx, &zoom.hy, &zoom.lc);
+    zoom.g = (uint8_t)g, zoom.ke = (uint8_t)k;
+    for (i = 0; i < 5u; i++)
+        zoom.v[i] = v[i];
+    zoom.cc_at = plat_ms() | 1u;
+    if (zoom.home == ZH_PAGE) {              /* (on its page: another control there, or another page, from 1x) */
+        if (ui.page != g)
+            zoom.z = 0;
+        zoom_page();
+    } else {
+        zoom.home = ZH_DIVE;
+    }
+}
+static int zoom_step(uint32_t now)           /* a frame: 1 when the camera moved (the panel drawn again) */
+{
+    const uint32_t dt = zoom.at ? now - zoom.at : 0u, last = ui.turned_at[ui.last_enc];
+    const int aim = !set.zoom_off && zoom.k == ui.last_enc + 1u && zoom.pg == ui.page && last
+                    && now - last < ZOOM_HOLD_MS;
+    const int16_t z = zoom.z, x = zoom.x, y = zoom.y;
+    zoom.at = now;
+    if (zoom.home == ZH_PAGE && !aim)        /* (the CCs done: back out) */
+        zoom.home = ZH_RISE;
+    if (zoom.home == ZH_DIVE || zoom.home == ZH_RISE) {   /* (HOME's dive: along its path) */
+        const int in = zoom.home == ZH_DIVE;
+        float u = zoom.u + (in ? (float)dt / ZOOM_DIVE_MS : -(float)dt / ZOOM_RISE_MS), l;
+        u = fm_clampf(u, 0.0f, 1.0f);
+        zoom.u = u;
+        l = u * u * (3.0f - 2.0f * u) * (zoom.lc + 1.0f);
+        if (l < zoom.lc) {                   /* (HOME, on the section) */
+            if (ui.page != PG_HOME) {
+                zoom_views(zoom.sv);
+                ui.page = PG_HOME;
+                ui.redraw = 1;
+            }
+            zoom.x = zoom.hx, zoom.y = zoom.hy;
+        } else {                             /* (its page, on the control: where its tag is, tag_v) */
+            if (ui.page != zoom.g)
+                zoom_page();
+            l -= zoom.lc;
+            zoom.x = zoom.tx, zoom.y = zoom.ty;
+        }
+        zoom.z = (int16_t)(256.0f * fm_exp2f(l) - 255.5f);
+        zoom.pg = ui.page;
+        if (in && u >= 1.0f) {               /* (in: its page's as for a turn from now, CCs keeping it) */
+            zoom.home = ZH_PAGE;
+            zoom.k = (uint8_t)(zoom.ke + 1u);
+            ui.turned_at[zoom.ke] = now;
+            ui.last_enc = zoom.ke;
+        } else if (!in && u <= 0.0f) {
+            zoom.home = ZH_NONE;
+            zoom.z = 0;
+        }
+        return zoom.z != z || zoom.x != x || zoom.y != y || ui.redraw;
+    }
+    if (zoom.pg != ui.page)                  /* (another page: from the whole of it) */
+        zoom.z = 0;
+    zoom.z = (int16_t)zoom_ease(zoom.z, aim ? ZOOM_MAX : 0, dt, aim ? ZOOM_IN_MS : ZOOM_OUT_MS);
+    if (!z && aim)                           /* (from the whole panel: straight at it) */
+        zoom.x = zoom.tx, zoom.y = zoom.ty;
+    else if (zoom.z) {
+        zoom.x = (int16_t)zoom_ease(zoom.x, zoom.tx, dt, ZOOM_IN_MS);
+        zoom.y = (int16_t)zoom_ease(zoom.y, zoom.ty, dt, ZOOM_IN_MS);
+    }
+    return zoom.z != z || (zoom.z && (zoom.x != x || zoom.y != y));
+}
+/* the canvas's rows (a half of the panel, its rows from the window's first) scaled up in place: screen (x, r) from
+ * canvas ((x16 + x step) >> 16, (y16 + r step) >> 16), Q16, step <= 1. The window first to the left edge, then from
+ * the last pixel back: each read at or before its write, so none read is written yet */
+static void zoom_blow(uint32_t x16, uint32_t y16, uint32_t step)
+{
+    const uint32_t w = cv_w, dx = x16 >> 16, xf = x16 & 0xFFFFu, rows = ((y16 + (cv_h - 1u) * step) >> 16) + 1u;
+    uint32_t r, x;
+    for (r = 0; dx && r < rows; r++)
+        for (x = 0; x + dx < w; x++)
+            cv_px[r * w + x] = cv_px[r * w + x + dx];
+    for (r = cv_h; r-- > 0;) {
+        const uint16_t *s = cv_px + ((y16 + r * step) >> 16) * w;
+        uint16_t *d = cv_px + r * w;
+        for (x = w; x-- > 0;)
+            d[x] = s[(xf + x * step) >> 16];
+    }
+}
+
 /* the controls' tags, one look for both: as a page opens, for the pop-ups' time (pop_until) or until a knob turns, the map: each control
  * tagged with what sets it on the FM-1 (an encoder: cyan; a button: white); and while a control turns, its value in
  * its tag (cyan). The page's drawing says where its controls are (tag*), tags_draw puts them over it */
@@ -3130,7 +3341,7 @@ static const char *const ENC_NAME[NE] = {"SELECT", "ALGO", "PRESET", "K1", "K2",
 static struct {
     int16_t x, y;
     uint8_t btn, lit;
-    const char *s, *h;                       /* (h: Manual Mode's hint, lit) */
+    const char *s, *h;                       /* (h: its hint, Hints on, lit) */
     char v[16];                              /* (lit: its value) */
 } tags[NTAGS] PLAT_POOL;
 static uint32_t ntags;
@@ -3148,6 +3359,11 @@ static void tag_at(int32_t cx, int32_t cy, const char *s, int btn)   /* centred 
 static void tag_v(int32_t cx, int32_t cy, uint32_t k, const char *v)   /* encoder k's; v its value (0: knob_text's) */
 {
     const int lit = knob_lit(k) || (ui.val_until && k == ui.last_enc);   /* (turning, then the pop-ups' time) */
+    if (knob_lit(k) && k == ui.last_enc && (int32_t)(ui.turned_at[k] - zoom.cc_at) >= 0) {   /* (turning, since the
+                                              * last CC: Knob Zoom's target) */
+        zoom.tx = (int16_t)cx, zoom.ty = (int16_t)cy;
+        zoom.k = (uint8_t)(k + 1u), zoom.pg = ui.page;
+    }
     if ((!ui.map_until && !lit) || ntags >= NTAGS)
         return;
     tags[ntags].v[0] = 0;
@@ -3331,8 +3547,8 @@ static void filters_draw(void)
         led(28 + 17 * (int32_t)i, 137, !acid && shape == i);
         print_c(28 + 17 * (int32_t)i, 143, SH[i], cl);
     }
-    print_knob(102, 40, 15, CCP(PG_TUNE, EN_K1), EN_K1, !md, "Overdrive", 0);
-    print_knob(150, 40, 15, CCP(PG_TUNE, EN_K2), EN_K2, !md, "Resonance", 0);
+    print_knob(100, 40, 15, CCP(PG_TUNE, EN_K1), EN_K1, !md, "Overdrive", 0);   /* (2 px apart: their names clear) */
+    print_knob(152, 40, 15, CCP(PG_TUNE, EN_K2), EN_K2, !md, "Resonance", 0);
     print_knob(102, 104, 15, CCP(PG_TUNE, EN_K3), EN_K3, !md, "Mod Env", "depth");
     print_knob(150, 104, 15, CCP(PG_FMOD, EN_K1), EN_K1, md, "LFO 2", "depth");
     cv_rect(82, 84, 5, 1, P_SILK);           /* the depths' brackets, and their line to the Frequency */
@@ -3394,23 +3610,24 @@ static void env_draw(void)
         print_c(cx, 138, ST[i], P_SILK);
     }
 }
-/* the ENVELOPES' Triggering, the Bass Station II's switch (ALGO): Autoglide, Single, Multi (top to bottom), an LED at
- * each; of the envelope Env Select picks (Amp+Mod: both, the amp's shown), as on a Bass Station II */
+/* the ENVELOPES' Triggering, the Bass Station II's switch (K4, the switch in its column at the right): Autoglide,
+ * Single, Multi (top to bottom), an LED at each, the labels left of them; of the envelope Env Select picks (Amp+Mod:
+ * both, the amp's shown), as on a Bass Station II */
 static void trig_draw(void)
 {
     static const char *const TRIG[NENVT] = {"Multi", "Single", "Autoglide"};
-    const uint32_t v = (uint32_t)param_get(knob_param(EN_ALGO), &patch);
+    const uint32_t v = (uint32_t)param_get(knob_param(EN_K4), &patch);
     uint32_t i;
     panel_head("ENVELOPES");
     env_select();
-    cv_rect(66, 77, 60, 1, P_SILK);          /* Env Select's line to the switch it sets */
-    print_c(150, 40, "Triggering", P_SILK);
-    slide_v(126, 56, 3, (int32_t)(NENVT - 1u - v), knob_lit(EN_ALGO) ? KF_LIT : 0u);
-    tag_sv(126, 56, 3, EN_ALGO);
+    cv_rect(66, 77, 180 - text_w(&FONT_T, "Autoglide") - 66, 1, P_SILK);   /* Env Select's line to the switch it sets */
+    print_c(180, 40, "Triggering", P_SILK);
+    slide_v(203, 56, 3, (int32_t)(NENVT - 1u - v), knob_lit(EN_K4) ? KF_LIT : 0u);
+    tag_sv(203, 56, 3, EN_K4);
     for (i = 0; i < NENVT; i++) {            /* (top to bottom: Autoglide, Single, Multi) */
         uint32_t w = NENVT - 1u - i;
-        led(155, 67 + 10 * (int32_t)i, v == w);
-        cv_text(162, 62 + 10 * (int32_t)i, &FONT_T, TRIG[w], v == w ? P_SILK : P_DIM);
+        led(192, 67 + 10 * (int32_t)i, v == w);
+        cv_text(184 - text_w(&FONT_T, TRIG[w]), 62 + 10 * (int32_t)i, &FONT_T, TRIG[w], v == w ? P_SILK : P_DIM);
     }
 }
 /* the mods' pages: a plate screwed onto the panel, as a modification to a Bass Station II would be: brushed aluminium,
@@ -3534,7 +3751,8 @@ static void lfos_draw(void)
         cv_rect(kx, 96, 1, 16, P_SILK);      /* its line to the switch */
         cv_rect(i ? 157 : kx, 111, i ? kx - 156 : 139 - kx, 1, P_SILK);
     }
-    print_c(148, 86, "Delay", ui.lfo_delay ? P_SILK : P_DIM);   /* the Delay/Speed switch */
+    print_c(148, 75, "Delay", ui.lfo_delay ? P_SILK : P_DIM);   /* the Delay/Speed switch (Delay on the LFOs' names
+                                                                 * line, clear of their speeds) */
     slide_v(139, 96, 2, !ui.lfo_delay, knob_lit(EN_ALGO) ? KF_LIT : 0u);
     tag_sv(139, 96, 2, EN_ALGO);
     print_c(148, 131, "Speed", ui.lfo_delay ? P_DIM : P_SILK);
@@ -3708,7 +3926,7 @@ static void print_switch(int32_t cx, int32_t cy, uint32_t k, const char *n0, con
     cv_text(cx + 17 - text_w(&FONT_T, n1), cy - 20, &FONT_T, n1, v ? P_SILK : P_DIM);
     slide_h(cx - 16, cy - 9, 2, v, lit ? KF_LIT : 0u);
     tag(cx, cy, k);
-    print_c(cx, cy + 13, name, P_SILK);
+    print_c(cx, cy + 18, name, P_SILK);   /* (level with a GLO_ROW knob's name) */
 }
 /* "Bluetooth  Connected": its name at x, what it is at x + w */
 static void info(int32_t x, int32_t w, int32_t y, const char *name, const char *v, uint16_t c)
@@ -3751,7 +3969,7 @@ static void glo_sys_draw(void)
         seg_num(ext_clock() ? eng.ext_shown : patch.tempo, t);
     glo_frame("System");
     seg_display(8, 40, t, 3);
-    print_c(50, 92, ext_clock() ? (eng.ext_age < EXT_HOLD ? "MIDI clock" : "Waiting for clock") : "Tempo", P_SILK);
+    print_c(50, 90, ext_clock() ? (eng.ext_age < EXT_HOLD ? "MIDI clock" : "Waiting for clock") : "Tempo", P_SILK);
     print_switch(122, 64, EN_SELECT, "Off", "On", "Send Clk");
     info(152, 40, 52, "Clock", ext_clock() ? "MIDI in" : set.clk_out ? "Sending" : "Internal",
          ext_clock() || set.clk_out ? P_CYAN : P_SILK);
@@ -3761,20 +3979,24 @@ static void glo_sys_draw(void)
     print_knob(150, GLO_ROW, 14, knob_param(EN_K3), EN_K3, 1, "Velocity", 0);
     print_knob(208, GLO_ROW, 14, knob_param(EN_K4), EN_K4, 1, "Knobs", 0);
 }
-/* GLOBAL DISPLAY: the pop-ups' time (K1: the controls' labels as a page opens, a button's hint, a knob's value and
- * hint after it turns) and Manual Mode (K2), with what each does */
+/* GLOBAL DISPLAY: Knob Zoom (PRESET), Hints (K1, on K3) and the pop-ups' time (K2, on K4: the controls' labels as a
+ * page opens, a button's hint, a knob's value and hint after it turns), with what each does */
 static void glo_disp_draw(void)
 {
-    const uint32_t lit = knob_lit(EN_K1);
+    const uint32_t lit = knob_lit(EN_K2);
     glo_frame("Display");
     cv_text(10, 42, &FONT_XS, "Pop-ups: the controls' labels", P_SILK);
     cv_text(10, 57, &FONT_XS, "as a page opens, a knob's value", P_SILK);
-    cv_text(10, 72, &FONT_XS, "as it turns. Manual Mode adds", P_SILK);
-    cv_text(10, 87, &FONT_XS, "a few words on what it does.", P_SILK);
-    bs2_knob(34, GLO_ROW, 14, (int32_t)pop_d(), NPOP - 1, lit ? KF_LIT : 0u);
-    tag(34, GLO_ROW, EN_K1);
-    print_c(34, GLO_ROW + 18, "Pop-ups", P_SILK);
-    print_switch(92, GLO_ROW, EN_K2, "Off", "On", "Manual Mode");
+    cv_text(10, 72, &FONT_XS, "as it turns. Hints add a few", P_SILK);
+    cv_text(10, 87, &FONT_XS, "words on what it does.", P_SILK);
+    print_switch(34, GLO_ROW, EN_PRESET, "", "", "Knob Zoom");   /* (PRESET's, at the left as it is; its names further
+                                                                 * apart: Auto is wide) */
+    cv_text(34 - 24, GLO_ROW - 20, &FONT_T, "Auto", set.zoom_off ? P_DIM : P_SILK);
+    cv_text(34 + 24 - text_w(&FONT_T, "Off"), GLO_ROW - 20, &FONT_T, "Off", set.zoom_off ? P_SILK : P_DIM);
+    print_switch(150, GLO_ROW, EN_K1, "Off", "On", "Hints");   /* (K3's and K4's columns) */
+    bs2_knob(208, GLO_ROW, 14, (int32_t)pop_d(), NPOP - 1, lit ? KF_LIT : 0u);
+    tag(208, GLO_ROW, EN_K2);
+    print_c(208, GLO_ROW + 18, "Pop-ups", P_SILK);
 }
 /* GLOBAL DUMP: the patch on the display; SEL sends it, FX all 32, as the Bass Station II's SysEx (two buttons, as
  * the FM-1's are: FX at the left, SEL at the right) */
@@ -3785,7 +4007,7 @@ static void glo_dump_draw(void)
     slot_text(t + 1);
     glo_frame("SysEx Dump");
     seg_display(8, 40, t, 3);
-    print_c(50, 92, "Patch", P_SILK);
+    print_c(50, 90, "Patch", P_SILK);
     cv_text(118, 44, &FONT_T, "Bass Station II", P_SILK);
     cv_text(118, 54, &FONT_T, "patch dumps, over USB", P_SILK);
     cv_text(118, 70, &FONT_T, "GLO settings save", P_DIM);
@@ -4002,7 +4224,7 @@ static void arp_draw(void)
         print_c(30, 79, "MIDI clock", P_SILK);
     } else
         print_knob(30, 50, 16, CCP(PG_ARP, EN_K1), EN_K1, 1, "", "Tempo");   /* (its name under its range) */
-    cv_text(4, 70, &FONT_T, "40", P_SILK);
+    cv_text(7, 70, &FONT_T, "40", P_SILK);   /* (clear of the panel's edge) */
     cv_text(46, 70, &FONT_T, "240", P_SILK);
     led(53, 34, run && eng.rpos % 4u == 0u);   /* (the tempo's LED: each quarter, playing) */
     print_knob(92, 50, 16, CCP(PG_ARP, EN_K2), EN_K2, 1, "", "Rhythm");
@@ -4134,7 +4356,6 @@ static void osc_draw(void)
 {
     static const char *const L1[5] = {"Coarse", "Fine", "Mod Env", "LFO 1", "Pulse"}, *const L2[5] = {0, 0, "depth", "depth", "Width"};
     static const char *const FT[NRANGE] = {"16'", "8'", "4'", "2'"};
-    static const uint8_t SHOWN[NWAVES] = {WAVE_SINE, WAVE_TRI, WAVE_SAW, WAVE_SQUARE, WAVE_PULSE};   /* the BS2's order */
     const int pw = ui.page == PG_MIX;
     const param_t *q[5];
     const param_t *op = ui.osc_sel ? OSC2_P : PARAMS[PG_OSC], *pq = &PW_P[ui.osc_sel][ui.pw_src];
@@ -4165,8 +4386,8 @@ static void osc_draw(void)
     }
     cv_text(6, 129, &FONT_T, "Waveform", on);   /* Waveform (ALGO) */
     for (i = 0; i < NWAVES; i++) {
-        osc_wave_icon(56 + 14 * (int32_t)i, 120, SHOWN[i], on);
-        led(60 + 14 * (int32_t)i, 137, wave == SHOWN[i]);
+        osc_wave_icon(56 + 14 * (int32_t)i, 120, WAVE_SHOWN[i], on);
+        led(60 + 14 * (int32_t)i, 137, wave == WAVE_SHOWN[i]);
     }
     print_c(141, 90, "Osc Select", P_SILK);  /* Osc Select (osc_sel_k): both views */
     cv_text(116, 106, &FONT_T, "1", P_SILK);
@@ -4205,6 +4426,51 @@ static void trace(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c, uint16
 static void level_col(int32_t i, float v, int32_t h)   /* -1..1 to the column's row */
 {
     ycol[i] = (uint8_t)((1.0f - fm_clampf(v, -1.0f, 1.0f)) * 0.5f * (float)(h - 1) + 0.5f);
+}
+/* HOME's scope, between the name and the panel: the synth's output (scope_buf), two of its periods (oscillator 1's,
+ * the sub's when it's in the mix: an octave or two under) from its steepest rising zero crossing, so a held note stands
+ * still; scaled to its own level (a quiet sound as big), its trace with a
+ * dim glow under it; a flat line in silence */
+enum { SC_X = 4, SC_Y = 59, SC_W = 232, SC_H = 31 };   /* (clear of the display's edge, over the panel's) */
+static int scope_live(void) { return voice.amp.stage != ENV_IDLE; }
+static void scope_paint(void)
+{
+    static float gain = 1.0f;
+    const uint32_t w = scope_w, M = SCOPE_N - 1u;
+    const float inc = scope_inc;
+    uint32_t i, j, span, per, start, best = 0;
+    int32_t pk = 0, sl = 0;
+    cv_rect(SC_X, SC_Y + SC_H / 2, SC_W, 1, grey(40));   /* (its middle) */
+    if (!scope_live() || inc <= 0.0f) {
+        cv_rect(SC_X, SC_Y + SC_H / 2, SC_W, 1, P_CDIM);
+        return;
+    }
+    per = (uint32_t)clamp((int32_t)(0.25f / inc * (patch.lvl_sub ? patch.sub_oct == 2u ? 4.0f : 2.0f : 1.0f)), 24, 300);
+    span = 2u * per;                         /* (at a quarter of the rate) */
+    start = w - span - 64u;                  /* (the block the audio writes, behind it) */
+    for (i = 0; i < per; i++) {              /* (a period back: the rising crossing that rises fastest) */
+        j = start - i;
+        if (scope_buf[(j - 1u) & M] < 0 && scope_buf[j & M] >= 0
+            && scope_buf[(j + 2u) & M] - scope_buf[(j - 2u) & M] > sl)
+            sl = scope_buf[(j + 2u) & M] - scope_buf[(j - 2u) & M], best = i;
+    }
+    start -= best;
+    for (i = 0; i < SC_W; i++) {
+        int32_t v = scope_buf[(start + i * span / SC_W) & M];
+        pk = v > pk ? v : -v > pk ? -v : pk;
+    }
+    gain += ((pk > 6 ? 0.9f * 127.0f / (float)pk : 0.9f * 127.0f / 6.0f) - gain) * 0.3f;
+    for (i = 0; i < SC_W; i++)
+        level_col((int32_t)i, (float)scope_buf[(start + i * span / SC_W) & M] * gain * (1.0f / 127.0f), SC_H);
+    trace(SC_X, SC_Y + 1, SC_W, SC_H, P_CDIM, 0);
+    trace(SC_X, SC_Y, SC_W, SC_H, P_CYAN, 0);
+}
+static void scope_frame(void)                /* the scope alone, over HOME as it's drawn */
+{
+    cv_begin(240, SC_H + 1, P_BG);
+    cv_oy = -SC_Y;
+    scope_paint();
+    cv_blit(0, 20 + SC_Y);
 }
 /* the audio's load on the GLO pages' bar (glo_frame), for testing: "CPU 34/41", now (the most of the last quarter second) and
  * the most of the last 5 s, then "!n" after any dropout since boot (the audio missed its deadline: a click) */
@@ -4329,7 +4595,7 @@ static void home_draw(void)
     const param_t *osc = ui.osc_sel ? OSC2_P : PARAMS[PG_OSC], *env = ui.env_sel == 1u ? MENV_P : PARAMS[PG_AENV];
     const uint32_t f = patch.filter, acid = f == FLT_ACID, trig = patch.env_trig[ui.env_sel == 1u];
     const int dir = org_dir();
-    char d[4], t[16];
+    char d[4];
     int32_t i;
     /* the name, the display (as the MASTER's), what plays */
     cv_text(10, 12, &FONT_B, "BASS", P_SILK);
@@ -4341,16 +4607,9 @@ static void home_draw(void)
         seg_num(param_get(ui.org, &patch), d);
     seg_display(140, 6, d, 3);
     if (set_dirty)
-        disc(214, 50, 2, RGB(252, 78, 112));
+        disc(214, 43, 2, RGB(252, 78, 112));
     tag(184, 31, EN_PRESET);
-    t[0] = 0;
-    text_cat(t, seq_rec ? "SEQ REC" : seq_playing() ? "SEQ PLAY" : patch.arp_on ? "ARP " : "ARP OFF");
-    if (patch.arp_on && !seq_rec && !seq_playing())
-        text_cat(t, ARP_NAME[patch.arp_mode]);
-    cv_text(10, 64, &FONT_XS, t, patch.arp_on || seq_playing() ? P_CYAN : P_LABEL);
-    int_text(arp_tempo(), t);
-    text_cat(t, " BPM");
-    cv_text(226 - text_w(&FONT_XS, t), 64, &FONT_XS, t, P_LABEL);
+    scope_paint();                           /* (what plays and its tempo: the footer's) */
     /* the panel: its face, the cheeks, the blue bars (their gaps, the lines down from them), the keys' strip */
     cv_rect(0, HOME_Y, 240, pan_h - HOME_Y, grey(24));
     for (i = 0; i < 8; i++) {
@@ -4370,9 +4629,8 @@ static void home_draw(void)
     }
     h_rect(690, 51, 45, 15, P_BAR);          /* Sub Osc's */
     h_rect(690, 65, 3, 118, P_BAR);
-    h_rect(235, 343, 1055, 3, P_BAR);        /* over the keys: their second functions' */
+    h_rect(195, 343, 1095, 3, P_BAR);        /* over the keys: their second functions' (straight on at the left) */
     h_rect(1287, 343, 3, 12, P_BAR);
-    h_rect(195, 356, 40, 3, P_BAR);
     for (i = 0; i < 7; i++)
         h_rect(KT_GAP[i], 343, 3, 3, grey(24));
     h_rect(70, 146, 110, 14, P_SILK);        /* the maker's name and the model's (print too small to read) */
@@ -4489,6 +4747,20 @@ static void home_draw(void)
     h_param(1233, 209, 0, CCP(PG_EFX, EN_K2));
 }
 
+static void home_sect(uint32_t g, int16_t *x, int16_t *y, float *lc)   /* page g's section on HOME: its middle, and
+                                              * the scale (log2) it fills the screen at, as its page does */
+{
+    static const int16_t S[7][3] = {{333, 690, 33}, {690, 924, 33}, {924, 1293, 33}, {63, 333, 190},
+                                    {333, 693, 190}, {693, 1140, 190}, {1140, 1293, 190}};   /* across, its top */
+    const uint32_t i = g == PG_OSC || g == PG_MIX ? 0u : g == PG_FX ? 1u : g == PG_TUNE || g == PG_FMOD ? 2u
+                       : g == PG_ARP || g == PG_AMOD || g == PG_SEQ ? 3u : g == PG_LFO1 || g == PG_LFO2 ? 4u
+                       : g == PG_EFX || g == PG_XMOD ? 6u : 5u;
+    const int32_t w = HX(S[i][1]) - HX(S[i][0]), h = HL(S[i][2] == 33 ? 157 : 146);
+    *x = (int16_t)((HX(S[i][0]) + HX(S[i][1])) / 2);
+    *y = (int16_t)(HY(S[i][2]) + h / 2);
+    *lc = fm_log2f(fm_minf(fm_minf(240.0f / (float)w, (float)TALL_H / (float)h), 6.0f));
+}
+
 static void head_draw(void)                  /* the section tabs (each page's panel under them) */
 {
     int32_t x;
@@ -4506,14 +4778,21 @@ static void head_draw(void)                  /* the section tabs (each page's pa
 }
 
 static void panel_draw(void)                 /* the page's section panel, from under the tabs: in two halves (the
-                                              * canvas holds 144 rows) */
+                                              * canvas holds 144 rows); through Knob Zoom's camera (zoom_blow) */
 {
-    uint32_t i;
+    uint32_t i, step = 0, x16 = 0, y16 = 0;
     pan_h = RND_PAGE(ui.page) ? RND_H : TALL_H;
     pr_font = RND_PAGE(ui.page) ? &FONT_XS : &FONT_T;
+    if (zoom.z && zoom.pg == ui.page) {      /* (the window: around the focus, inside the panel) */
+        step = (256u << 16) / (256u + (uint32_t)zoom.z);
+        x16 = (uint32_t)clamp(((int32_t)zoom.x << 16) - (int32_t)(120u * step), 0, (int32_t)((240u << 16) - 240u * step));
+        y16 = (uint32_t)clamp(((int32_t)zoom.y << 16) - (int32_t)(pan_h / 2u * step), 0,
+                              (int32_t)((pan_h << 16) - pan_h * step));
+    }
     for (i = 0; i < 2u; i++) {
+        const uint32_t sy16 = y16 + i * (pan_h / 2u) * step;   /* (this half's first row in the window) */
         cv_begin(240, pan_h / 2, P_BG);
-        cv_oy = -(int32_t)i * (pan_h / 2);
+        cv_oy = step ? -(int32_t)(sy16 >> 16) : -(int32_t)i * (pan_h / 2);
         ntags = 0;
         if (ui.page == PG_FX)
             mixer_draw();
@@ -4554,6 +4833,8 @@ static void panel_draw(void)                 /* the page's section panel, from u
         else
             osc_draw();
         tags_draw();
+        if (step)
+            zoom_blow(x16, sy16 & 0xFFFFu, step);
         cv_blit(0, 20 + i * (pan_h / 2));
     }
     pr_font = &FONT_T;
@@ -4601,8 +4882,8 @@ static uint32_t ble_batt(void)
     return (uint32_t)(plat_ble_connected() | plat_ble_device() << 1 | (plat_battery() + 1) << 4);
 }
 
-static void keys_draw(void)                  /* the keys; the octave, the slot, Bluetooth, the volume, the battery,
-                                              * MIDI in */
+static void keys_draw(void)                  /* the keys; the octave, the slot, the tempo, the volume; the battery,
+                                              * Bluetooth, MIDI in, what plays */
 {
     char t[24];
     uint32_t i, pct = plat_master() * 100u / 4096u;
@@ -4629,27 +4910,32 @@ static void keys_draw(void)                  /* the keys; the octave, the slot, 
     x = cv_text(64, 31, &FONT_XS, t, P_TEXT);
     if (set_dirty)                           /* not saved yet */
         cv_text(x + 2, 31, &FONT_XS, "*", P_CYAN);
-    x = 104;
-    if (FM1B_BLE)                            /* Bluetooth: grey while it waits, lit while a computer is connected */
-        x = cv_text(x, 31, &FONT_XS, "BLE", plat_ble_connected() ? P_CYAN : P_EDGE) + 6;
-    if (FM1B_BLE_CENTRAL)                    /* a Bluetooth MIDI device: lit while connected */
-        cv_text(x, 31, &FONT_XS, "DEV", plat_ble_device() == BLE_DEV_READY ? P_CYAN : P_EDGE);
+    int_text(arp_tempo(), t);                /* the tempo: lit while the arp or the sequencer plays */
+    x = cv_text(102, 31, &FONT_XS, t, patch.arp_on || seq_playing() ? P_CYAN : P_TEXT);
+    cv_text(x + 4, 31, &FONT_XS, "BPM", P_LABEL);
+    if (afx_on)                              /* each key its own sound */
+        cv_text(150, 31, &FONT_XS, "AFX", P_AFX);
     cv_text(178, 31, &FONT_XS, "VOL", P_LABEL);
     int_text((int32_t)pct, t);
     text_cat(t, "%");
     cv_text(204, 31, &FONT_XS, t, P_CYAN);
     battery_draw(5, 49);
+    x = 30;
+    if (FM1B_BLE)                            /* Bluetooth: grey while it waits, lit while a computer is connected */
+        x = cv_text(x, 45, &FONT_XS, "BLE", plat_ble_connected() ? P_CYAN : P_EDGE) + 6;
+    if (FM1B_BLE_CENTRAL)                    /* a Bluetooth MIDI device: lit while connected */
+        cv_text(x, 45, &FONT_XS, "DEV", plat_ble_device() == BLE_DEV_READY ? P_CYAN : P_EDGE);
     if (midi_count) {                        /* the last MIDI message in, and where from */
         char h[9];
         const char *port = midi_in_text(h);
-        cv_text(32, 45, &FONT_XS, "MIDI IN", P_LABEL);
-        cv_text(80, 45, &FONT_XS, port, P_CYAN);
-        cv_text(110, 45, &FONT_XS, h, P_TEXT);
+        cv_text(82, 45, &FONT_XS, port, P_CYAN);
+        cv_text(106, 45, &FONT_XS, h, P_TEXT);
     }
-    if (seq_rec || seq_playing() || patch.arp_on)   /* what plays the keys: recording, the sequencer, the arp */
-        cv_text(178, 45, &FONT_XS, seq_rec ? "REC" : patch.arp_mode == ARP_PLAY ? "SEQ" : "ARP", P_CYAN);
-    if (afx_on)                              /* each key its own sound */
-        cv_text(212, 45, &FONT_XS, "AFX", P_AFX);
+    t[0] = 0;                                /* what plays the keys, at the right: recording, the sequencer, the arp */
+    text_cat(t, seq_rec ? "SEQ REC" : seq_playing() ? "SEQ PLAY" : patch.arp_on ? "ARP " : "ARP OFF");
+    if (patch.arp_on && !seq_rec && !seq_playing())
+        text_cat(t, ARP_NAME[patch.arp_mode]);
+    cv_text(236 - text_w(&FONT_XS, t), 45, &FONT_XS, t, seq_rec || seq_playing() || patch.arp_on ? P_CYAN : P_LABEL);
     cv_blit(0, 180);
 }
 
@@ -4758,9 +5044,11 @@ void app_ui_init(void)
 
 void app_frame(void)
 {
-    static uint32_t last_pct, lit_until, last_ble, last_midi, last_live;
+    static uint32_t last_pct, lit_until, last_ble, last_midi, last_live, last_foot, scope_at;
+    static int scope_was;
     static int32_t last_note = -1;
     uint32_t i, now = plat_ms(), pct = plat_master() * 100u / 4096u;
+    int moved;
 #ifdef PLAT_WEB
     if (web_splash_at) {                     /* the splash, then the panel */
         if (now - web_splash_at < SPLASH_SCOPE_MS) {
@@ -4805,6 +5093,12 @@ void app_frame(void)
         last_midi = midi_count;
         ui.redraw = 1;
     }
+    i = (uint32_t)arp_tempo() | (uint32_t)patch.arp_on << 16 | (uint32_t)patch.arp_mode << 17
+        | (uint32_t)seq_playing() << 21 | (uint32_t)seq_rec << 22 | (uint32_t)afx_on << 23;
+    if (i != last_foot) {                    /* the footer's tempo, what plays (MIDI clock's tempo as it moves) */
+        last_foot = i;
+        ui.redraw = 1;
+    }
     if (ui.map_until && now >= ui.map_until) {   /* the map's moment over */
         ui.map_until = 0;
         ui.redraw = 1;
@@ -4827,13 +5121,19 @@ void app_frame(void)
     if (cpu_meter(now) && ui.page >= PG_GMIDI && !ui.redraw)   /* (the panel alone: its load in the bar) */
         panel_draw();
     i = live();
+    moved = zoom_step(now);
     if (ui.redraw) {
         ui.redraw = 0;
         draw();
-    } else if (i != last_live) {             /* the picture moved: its panel alone */
+    } else if (i != last_live || moved) {    /* the picture moved, or the camera: its panel alone */
         panel_draw();
     }
     last_live = i;
+    if (ui.page == PG_HOME && !zoom.z && now - scope_at >= 33u && (scope_live() || scope_was)) {
+        scope_at = now;                      /* (HOME's scope: 30 times a second while it sounds, once more after) */
+        scope_was = scope_live();
+        scope_frame();
+    }
 }
 
 #ifdef PLAT_HOST
@@ -4843,6 +5143,10 @@ int app_expect(const char *what, int *got)
         *got = set.octave;
     else if (!strcmp(what, "hints"))
         *got = set.hints;
+    else if (!strcmp(what, "zoom_off"))
+        *got = set.zoom_off;
+    else if (!strcmp(what, "zoom"))          /* Knob Zoom's scale over 1x (Q8: 256 2x) */
+        *got = zoom.z;
     else if (!strcmp(what, "pop"))
         *got = (int)pop_d();
     else if (!strcmp(what, "wave"))
@@ -4941,6 +5245,8 @@ int app_expect(const char *what, int *got)
     }
     else if (!strcmp(what, "menv_a"))
         *got = patch.menv_a;
+    else if (!strcmp(what, "env_sel"))       /* the ENVELOPES' Env Select (0 amp, 1 mod, 2 both) */
+        *got = ui.env_sel;
     else if (!strcmp(what, "amp_a"))
         *got = patch.amp_a;
     else if (!strcmp(what, "amp_d"))

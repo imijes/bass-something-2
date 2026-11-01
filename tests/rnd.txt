@@ -7,7 +7,7 @@
 bank_init
 wait 600
 listen
-# GLO alone: MIDI, SYS, DUMP, DISPLAY, MIDI (never RND)
+# GLO alone: MIDI, SYS, DISPLAY, DUMP, MIDI (never RND)
 tap GLO
 tap GLO
 tap GLO

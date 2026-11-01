@@ -1,0 +1,102 @@
+# Knob Zoom: an encoder turned, the panel's camera closes in on its control (2x) and goes back out a second after the
+# last turn; on HOME a MIDI CC's control: in on it there (3x), then on its section page (2x) and back; GLO DISPLAY's
+# KNOB ZOOM (PRESET) AUTO or OFF.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/zoom.txt bs2/build/host
+wait 600
+listen
+expect page 16
+expect zoom 0
+expect zoom_off 0
+# an encoder: in, held while it turns, out after
+tap EDIT
+wait 1500
+turn K1 1
+wait 300
+expect zoom 256
+wait 600
+expect zoom 256
+wait 900
+expect zoom 0
+# HOME: a CC on CC CHAN (GLO MIDI's SELECT, on PRESET) dives to its control, one camera move: HOME in on its section
+# (Frequency, CC 16: the FILTERS) till it fills the screen, that page from 1x on in to the control (2x), kept while
+# CCs come, then the same way out to HOME
+tap GLO
+wait 30
+expect page 17
+spin PRESET 3
+wait 30
+expect cc_chan 3
+tap HOME
+wait 1500
+expect page 16
+midi B2 10 20
+wait 100
+expect page 16
+expect zoom >0
+wait 500
+expect page 10
+expect zoom 256
+midi B2 10 30
+wait 900
+expect page 10
+expect zoom 256
+wait 400
+expect page 16
+expect zoom >0
+wait 800
+expect page 16
+expect zoom 0
+# the mod envelope's Attack (CC 102): ENVELOPES at Env Select's Mod; HOME's Env Select (Amp) back after
+expect env_sel 0
+midi B2 66 40
+wait 500
+expect page 8
+expect env_sel 1
+wait 2000
+expect page 16
+expect env_sel 0
+# a turn while the page is up: it stays, the user's now
+midi B2 10 20
+wait 500
+expect page 10
+turn K1 1
+wait 2500
+expect page 10
+tap HOME
+wait 1500
+# a CC on another page: no zoom
+tap EDIT
+wait 1500
+midi B2 10 60
+wait 300
+expect zoom 0
+# KNOB ZOOM OFF: no zoom anywhere; AUTO again
+tap GLO
+tap GLO
+tap GLO
+wait 30
+expect page 19
+turn PRESET 1
+wait 30
+expect zoom_off 1
+said KNOB ZOOM OFF
+wait 1500
+tap EDIT
+wait 1500
+turn K1 1
+wait 300
+expect zoom 0
+tap HOME
+wait 1500
+midi B2 10 30
+wait 300
+expect zoom 0
+tap GLO
+tap GLO
+tap GLO
+wait 30
+turn PRESET -1
+wait 30
+expect zoom_off 0
+said KNOB ZOOM AUTO

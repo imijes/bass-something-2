@@ -10,7 +10,7 @@ TRS.
 It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of its patches as seeds with their locks
 (type, key, tracks), sends them back, and mixes its four tracks (see [RND Synth](#s8)).
 
-![The Bass Something 2 screen at rest: the section tabs, the HOME page (the name, the red P01 display, the whole Bass Station II panel), the keys, then OCT +0, P01, VOL 50%](img/screen-ready.png "Bass Something 2 at rest")
+![The Bass Something 2 screen at rest: the section tabs, the HOME page (the name, the red P01 display, the whole Bass Station II panel), the keys, then OCT +0, P01, 120 BPM, VOL 50% and ARP OFF](img/screen-ready.png "Bass Something 2 at rest")
 
 ---
 
@@ -69,7 +69,7 @@ knob shows its value in a cyan label on it while it turns.
 | Section tabs | SEL, ENV, LFO, FX, ARP, SEQ, EDIT and GLO, the buttons. The section you're in is lit in the panel's cyan, its name white; the others are grey. ARP and SEQ are written in cyan while they play. |
 | Panel | The section: its knobs, switches, LEDs and print, where the Bass Station II has them. A knob's line turns cyan, and its value shows in a cyan label on it, for a moment as it turns. |
 | Keys | The 27 keys, black above white. A held key fills cyan to its velocity, and white over that shows its pressure. A key whose note is held from MIDI in is all cyan. |
-| Bottom lines | OCT, the octave. P01 to P32, the patch, with * while it has changes that aren't saved. BLE, lit while a computer or phone is connected over Bluetooth, and DEV, lit while a Bluetooth MIDI device is. VOL, MASTER's volume. Under OCT, the battery: three bars when full, the outline red when it's nearly empty, a cyan bolt while USB powers the FM-1 (it can't tell charging from not), grey until its first reading. MIDI IN, where the last message came from (USB, BLE or TRS) and its bytes. ARP, SEQ or REC while one of them plays the voice, and AFX while AFX mode is on. |
+| Bottom lines | Top line: OCT, the octave. P01 to P32, the patch, with * while it has changes that aren't saved. The tempo in BPM, cyan while the arp or the sequencer plays (MIDI clock's while it's followed). AFX while AFX mode is on. VOL, MASTER's volume. Bottom line: the battery (three bars when full, the outline red when it's nearly empty, a cyan bolt while USB powers the FM-1, as it can't tell charging from not, grey until its first reading). BLE, lit while a computer or phone is connected over Bluetooth, and DEV, lit while a Bluetooth MIDI device is. Where the last MIDI message came from (USB, BLE or TRS) and its bytes. At the right, what plays the keys: ARP OFF, ARP and its mode (ARP UP), SEQ PLAY or SEQ REC, cyan while it plays. |
 
 ### The pages
 
@@ -89,7 +89,7 @@ GLOBAL SYSTEM's KNOBS sets how much they speed up, from FINE to COARSE.
 | ARP | ARPEGGIATOR: tempo, rhythm, mode, octaves, the On and Latch buttons (held a second: AFX mode) | the group's mods (Seq Retrig, swing), then back |
 | SEQ | SEQ: the sequencer (held a second: AFX mode) | recording on or off (the arp's REC) |
 | EDIT | OSCILLATORS: the pitch's view | the pulse width's view; then SUB OSC + MIXER, beside them on a Bass Station II |
-| GLO | GLOBAL MIDI (held a second: the RND pages) | GLOBAL SYSTEM, then GLOBAL DUMP, then GLOBAL DISPLAY |
+| GLO | GLOBAL MIDI (held a second: the RND pages) | GLOBAL SYSTEM, then GLOBAL DISPLAY, then GLOBAL DUMP |
 
 SEL opens MASTER on every page except where it has a job of its own, printed
 on the page: GLOBAL DUMP, the RND pages, and SEQ while the sequencer records.
@@ -107,11 +107,11 @@ K4, two with K3 and K4, three with K2 to K4. The switches go to the encoders bes
 left, SELECT beside it, PRESET under MASTER, ALGO under SELECT): one switch is on PRESET, two side by side on PRESET
 and ALGO, two one over the other on SELECT and ALGO, and three where they lie on the page.
 
-**Manual Mode** (GLOBAL DISPLAY, K4) adds a few words on what each control does: under the value as you turn a
+**Hints** (GLOBAL DISPLAY, K3) add a few words on what each control does: under the value as you turn a
 knob ("Filter cutoff", "Fade-in time", "Note order"), and over the keys as you press a button
-("Envelopes", "GLO hold: RND Settings"). It's off until you turn it on, and the FM-1 remembers it.
+("Envelopes", "GLO hold: RND Settings"). They're off until you turn them on, and the FM-1 remembers the setting.
 
-![Manual Mode on the FILTERS: Frequency turned to 97, with Filter cutoff under its value](img/screen-hint.png "Manual Mode: what a knob does")
+![Hints on the FILTERS: Frequency turned to 97, with Filter cutoff under its value](img/screen-hint.png "Hints: what a knob does")
 
 ![The FILTERS as the page opens: each switch and knob labelled with its encoder, SELECT, ALGO and PRESET on the switches, K1 to K4 on the knobs](img/screen-map.png "A page opening: its controls' encoders")
 
@@ -149,7 +149,7 @@ it.
 
 ### AFX mode
 
-Hold ARP or SEQ for a second to switch AFX mode on. The screen says AFX ON, and AFX stays lit at the bottom right. Each
+Hold ARP or SEQ for a second to switch AFX mode on. The screen says AFX ON, and AFX stays lit at the bottom, left of VOL. Each
 key then plays the sound with its own changes: oscillator 1's wave, the filter's cutoff, the decay of both envelopes
 and the noise. For example, the lowest F is a dark, short sine, like a kick, and some keys add noise for snares and
 hi-hats. Each key keeps its changes in any octave, and MIDI notes in play the key they'd be on the keyboard. The
@@ -322,7 +322,7 @@ patch; Amp+Mod sets both):
 | Control | Setting |
 | --- | --- |
 | PRESET · ENV SELECT | Amp Env, Mod Env or Amp+Mod Env. |
-| ALGO · TRIGGER | Multi: every note starts the envelope again, legato or not. Single: a note played on its own starts it; a note played legato (another key still held) doesn't, the envelope going on. Autoglide: as Single, and the glide is on legato notes only, a note on its own going straight to its pitch (either envelope at Autoglide does this). With Multi and Single the glide is on every note. New patches start at Multi. |
+| K4 · TRIGGER | Multi: every note starts the envelope again, legato or not. Single: a note played on its own starts it; a note played legato (another key still held) doesn't, the envelope going on. Autoglide: as Single, and the glide is on legato notes only, a note on its own going straight to its pitch (either envelope at Autoglide does this). With Multi and Single the glide is on every note. New patches start at Multi. |
 
 The arp's and the sequencer's notes each start the envelopes as their own notes (the sequencer's legato steps don't).
 
@@ -513,10 +513,11 @@ Updating the firmware keeps the patches you have. To get the factory ones back, 
 
 ![The MASTER panel: the Volume, the red display showing P01, the Save and Patch buttons](img/screen-patch.png "SEL: the MASTER")
 
-![HOME: the name, the patch display, and the whole Bass Station II panel above the keys](img/screen-home.png "HOME")
+![HOME with a note held: the name, the patch display, the scope drawing the note's wave, and the whole Bass Station II panel above the keys](img/screen-home.png "HOME")
 
-The HOME page (HOME) is the page Bass Something 2 starts on: the name, the patch in large red digits, what plays (the
-arp, the sequencer) and the tempo, and under them a Bass Station II's whole front panel, drawn to the scale of the keys
+The HOME page (HOME) is the page Bass Something 2 starts on: the name, the patch in large red digits, a scope that draws
+the synth's wave as it plays (two of its periods, standing still while a note is held, scaled so a quiet sound shows as
+large as a loud one; a flat line in silence), and under them a Bass Station II's whole front panel, drawn to the scale of the keys
 at the foot of the screen (they stand for its keys and its wheels together). Every knob, fader, switch and LED on it
 shows the sound as it is set, and follows it as you change it on the other pages. PRESET picks the patch here, as on
 MASTER.
@@ -560,9 +561,9 @@ FM-1 with the pause between messages set for you.
 
 **From the FM-1 to an editor:**
 
-- On GLOBAL DUMP (GLO three times), press SEL: the sound goes out as one dump, named Bass Smth 2 and its number (Bass Smth 2 01: a patch name holds 16 characters).
+- On GLOBAL DUMP (GLO four times), press SEL: the sound goes out as one dump, named Bass Smth 2 and its number (Bass Smth 2 01: a patch name holds 16 characters).
   The screen says SYSEX SENT.
-- On GLOBAL DUMP (GLO three times), press FX: all 32 patches go out as a bank, Bass Smth 2 01 to Bass Smth 2 32, each
+- On GLOBAL DUMP (GLO four times), press FX: all 32 patches go out as a bank, Bass Smth 2 01 to Bass Smth 2 32, each
   addressed to its own patch number (0 to 31), as a Bass Station II bank file is. Record them into one `.syx` file
   and it's a backup: sent back, each patch returns to its own slot. The patch you're on goes as it sounds now, with
   changes not yet saved.
@@ -719,7 +720,7 @@ GLO opens the global settings; press it again for the next page. They belong to 
 save themselves: two seconds after you change one, once the FM-1 is quiet (see SEQ), it's kept through power-off,
 without SAVE (so a GLO change never
 writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar (MIDI, System,
-SysEx Dump, Display) and a red display: GLOBAL MIDI's shows the MIDI channel (ALL, OFF or the number), GLOBAL
+Display, SysEx Dump) and a red display: GLOBAL MIDI's shows the MIDI channel (ALL, OFF or the number), GLOBAL
 SYSTEM's the tempo (while MIDI clock leads, its tempo as measured over every two beats; dashes until then), with the knobs' response, the clock's state and the firmware's version (VERSION v0.4)
 beside it, GLOBAL DUMP's the patch. The on/off settings are slide switches.
 
@@ -734,8 +735,8 @@ is heard.
 
 ![GLO MIDI: the channel ALL on the display, the Channel knob, where notes go out, CC and Bluetooth, then CC Chan and the Local, AT Out and Bluetooth switches](img/screen-glo-midi.png "GLO: MIDI")
 ![GLO SYS: the tempo 120 on the display, the Send Clk switch, the clock and the version, then Tune, Sync, Velocity and Knobs](img/screen-glo-sys.png "GLO, again: SYS")
-![GLO DUMP: P01 on the display, then the All 32 button (FX) and the Sound button (SEL)](img/screen-glo-dump.png "GLO, again: DUMP")
-![GLO DISPLAY: what the pop-ups are, then the Pop-ups knob and the Manual Mode switch](img/screen-glo-disp.png "GLO, again: DISPLAY")
+![GLO DISPLAY: what the pop-ups are, then the Knob Zoom switch, the Hints switch and the Pop-ups knob](img/screen-glo-disp.png "GLO, again: DISPLAY")
+![GLO DUMP: P01 on the display, then the All 32 button (FX) and the Sound button (SEL)](img/screen-glo-dump.png "GLO, again: DUMP (the last)")
 
 Holding GLO for a second opens the RND pages, for the RND Synth: see RND Synth.
 
@@ -752,10 +753,11 @@ Holding GLO for a second opens the RND pages, for the RND Synth: see RND Synth.
 | SYS | K2 SYNC (CLOCK SYNC) | What the arp and the sequencer follow. AUTO: MIDI clock while it comes in, else the tempo. INT: the tempo only. EXT: MIDI clock only (without it they wait). While following, a MIDI start begins again from the first step. |
 | SYS | K3 VELOCITY | The keys' velocity curve: SOFT (louder for a light touch), NORMAL or HARD. |
 | SYS | K4 KNOBS (KNOB RESPONSE) | How far the knobs go as you turn them faster. FINE: always one step a click. NORMAL (the default): up to 8 steps a click on a quick spin. FAST: up to 12, and sooner. COARSE: two steps a click even turned slowly, up to 16. Only the knobs with a wide range (levels, Frequency, Tune, Tempo, the LFOs' speeds and so on); switches and short lists always move one position a click. |
+| DISPLAY | PRESET KNOB ZOOM | AUTO (the default): as you turn an encoder, the panel zooms in on its control (twice the size) and back out a second after you stop; on HOME, a MIDI CC dives in, one camera move: the small panel zooms in on the control's section until it fills the screen, becomes that section's own page and zooms on in to the control, stays while the CCs come, then pulls the same way back out to HOME (a turn of your own while that page is up keeps you there). OFF: no zoom. |
+| DISPLAY | K3 HINTS | ON: as you turn a knob, a few words on what it does show under its value; as you press a button, over the keys. OFF (the default): none. See The screen. |
+| DISPLAY | K4 POP-UPS (POP-UP TIME) | How long the pop-ups stay: the controls' labels as a page opens, a knob's value after you turn it, and the hints. OFF: no labels or button hints, and a value only while the knob turns. 1.5 S (the default), 2 S or 3 S. ALWAYS: until you turn another knob or open another page. |
 | DUMP | SEL (Sound) | Sends the sound as one Bass Station II patch dump (SysEx). See SysEx. |
 | DUMP | FX (All 32) | Sends all 32 patches as a Bass Station II bank (SysEx), which loads back into the same patches. See SysEx. |
-| DISPLAY | K3 POP-UPS (POP-UP TIME) | How long the pop-ups stay: the controls' labels as a page opens, a knob's value after you turn it, and Manual Mode's hints. OFF: no labels or button hints, and a value only while the knob turns. 1.5 S (the default), 2 S or 3 S. ALWAYS: until you turn another knob or open another page. |
-| DISPLAY | K4 MANUAL MODE | ON: as you turn a knob, a few words on what it does show under its value; as you press a button, over the keys. OFF (the default): none. See The screen. |
 | RND (GLO held) | | The RND Synth's patches, locks and tracks. See RND Synth. |
 
 ### Control changes
@@ -862,7 +864,7 @@ emulator does the same, with your own screen reader or with its built-in voice.
 **No sound:** turn MASTER up. Check the mixer's levels on SUB OSC + MIXER (EDIT three times) and the Frequency on the FILTERS (FX); a random sound can be
 quiet. On GLOBAL MIDI, LOCAL must be ON for the keys to play.
 
-**A key plays the wrong sound, a different one on each key:** AFX mode is on (AFX at the bottom right). Hold REC and
+**A key plays the wrong sound, a different one on each key:** AFX mode is on (AFX at the bottom, left of VOL). Hold REC and
 press OCT+.
 
 **A note keeps sounding (stuck):** another device sent its note-on but its note-off never arrived. The note's key is

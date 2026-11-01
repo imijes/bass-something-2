@@ -12,3 +12,16 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-10-31 | 1750657+ | SUB OSC + MIXER on EDIT (3rd); SEL opens MASTER, HOME free; Osc Select on SELECT, Sync on the PW page | 303,644 | -16 | 277,920 | 77,300 | +0 | 21,004 | 101,760 |
 | 2026-10-31 | 81c188f+ | HOME page: the whole BS2 front panel to the footer keys' scale; HOME button, first page | 308,252 | +4,608 | 273,312 | 77,300 | +0 | 21,004 | 101,760 |
 | 2026-10-31 | fdf92da | Env Select balanced; button hints over the keys | 308,300 | +48 | 273,264 | 77,300 | +0 | 21,004 | 101,760 |
+| 2026-10-31 | 6695c8b+ | Knob Zoom: the panel's camera eases in on the turned encoder's control (2x), out 1 s after | 309,212 | +912 | 272,352 | 77,300 | +0 | 21,004 | 101,784 |
+| 2026-10-31 | 6695c8b+ | Knob Zoom: HOME zooms on a MIDI CC's control (3x); GLO DISPLAY KNOB ZOOM AUTO/OFF | 309,500 | +288 | 272,064 | 77,300 | +0 | 21,004 | 101,784 |
+| 2026-10-31 | 6695c8b+ | GLO DISPLAY: KNOB ZOOM at the left (PRESET's place), POP-UPS and MANUAL in K3's and K4's columns | 309,516 | +16 | 272,048 | 77,300 | +0 | 21,004 | 101,784 |
+| 2026-10-31 | 6695c8b+ | GLO: DUMP the last page (MIDI, SYS, DISPLAY, DUMP) | 309,516 | +0 | 272,048 | 77,300 | +0 | 21,004 | 101,784 |
+| 2026-10-31 | 6695c8b+ | ENV: Triggering on K4 | 309,548 | +32 | 272,016 | 77,300 | +0 | 21,004 | 101,784 |
+| 2026-10-31 | 6695c8b+ | HOME CC: dive to the section page | 310,924 | +1,376 | 270,640 | 77,300 | +0 | 21,004 | 101,800 |
+| 2026-10-31 | 6695c8b+ | HOME CC: one camera move into the section page; HOME's key line straight | 311,196 | +272 | 270,368 | 77,300 | +0 | 21,004 | 101,808 |
+| 2026-10-31 | 6695c8b+ | GLO DISPLAY: Manual Mode now Hints (K3), Pop-ups on K4 | 311,228 | +32 | 270,336 | 77,300 | +0 | 21,004 | 101,808 |
+| 2026-10-31 | 6695c8b+ | HOME scope (the synth's output) in place of ARP/BPM; footer: tempo, what plays | 312,176 | +948 | 269,388 | 77,332 | +32 | 20,972 | 102,832 |
+| 2026-10-31 | 6695c8b+ | HOME scope 4 px lower (clear of the display) | 312,176 | +0 | 269,388 | 77,332 | +0 | 20,972 | 102,832 |
+| 2026-10-31 | 6695c8b+ | OSC Waveform knob in the panel's order (sine, tri, saw, square, pulse) | 312,272 | +96 | 269,292 | 77,332 | +0 | 20,972 | 102,832 |
+| 2026-10-31 | 6695c8b+ | HOME: the unsaved dot inside the display, by the digits | 312,272 | +0 | 269,292 | 77,332 | +0 | 20,972 | 102,832 |
+| 2026-10-31 | 6695c8b+ | Type: GLO names level with the knobs' (switches +5 px), Filters' Overdrive/Resonance apart, LFOs' Delay on the names line, ARP's 40 off the edge, Tempo/Patch under the display | 312,272 | +0 | 269,292 | 77,332 | +0 | 20,972 | 102,832 |
