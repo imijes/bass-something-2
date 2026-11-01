@@ -1181,16 +1181,17 @@ static void settings_defaults(settings_t *s)
     s->octave = 0;
     s->slot = 0;
     s->ble_off = 0;
-    s->chan = CH_ALL;
+    s->chan = 1;
     s->local = 1;
     s->at_out = 1;
-    s->clk_out = 0;
+    s->clk_out = 1;
     s->tune = 0;
     s->clock = CLK_AUTO;
     s->vcurve = VC_NORMAL;
-    s->cc_chan = CH_OFF;
+    s->cc_chan = 1;
     s->knobs = KN_NORMAL;
-    s->pad = s->hints = s->pop = s->zoom_off = 0;
+    s->hints = 1;
+    s->pad = s->pop = s->zoom_off = 0;           /* (pop 0: 1.5 s; zoom_off 0: AUTO) */
     {
         static const seqmem_t L = SEQ_LINE, E = {.len = 0, .step = {SEQ_REST}};
         uint32_t i, j;
@@ -1422,8 +1423,7 @@ static struct {
     uint8_t och[NKEYS];                  /* the MIDI channel each held key's note went out on, 1..16 (0: none) */
     int32_t last_key;                    /* the key pressed last: its numbers in the header */
     uint8_t looking;                     /* Bluetooth MIDI devices: REC pressed, the scan's list up (lib/btdev) */
-    uint8_t rec_held;                    /* REC down, its release still to act */
-    uint8_t hold_k, hold_live;           /* ARP, SEQ or GLO down: which, and its tap or hold still to act */
+    uint8_t hold_k, hold_live;           /* ARP, SEQ, GLO or REC down: which, and its tap or hold still to act */
     uint32_t hold_at;                    /* when it went down */
     int32_t turns[NE];                   /* detents since boot, per encoder */
     uint32_t turned_at[NE];              /* when each was last turned: it shows lit for a moment */
@@ -1894,7 +1894,15 @@ static void cc_apply(uint32_t cc, uint32_t v)   /* the main loop's: a CC on CC C
     }
 }
 
-/* REC (not on GLO MIDI): every knob of the oscillators, their mix, the filter, both envelopes and both LFOs at random,
+/* the RND Synth Companion's splash (rsplash_draw): up until (0: not), RSPLASH_MS as its pages open; a button or a knob
+ * ends it */
+#define RSPLASH_MS 1800u
+static uint32_t rsplash_until, rsplash_draws;   /* (draws: how many times it was drawn, once each time it's up) */
+
+/* the randomizer's moment on screen (rfx_draw): when it began (0: not showing), and what its knobs land on */
+static uint32_t rfx_at, rfx_seed;
+
+/* REC held HOLD_MS: every knob of the oscillators, their mix, the filter, both envelopes and both LFOs at random,
  * a new sound to start from (unsaved: SAVE keeps it); the filter left a little open and the attack under a second, so
  * it is heard */
 static void randomize(void)
@@ -1919,6 +1927,8 @@ static void randomize(void)
     patch.amp_a = (uint8_t)clamp(patch.amp_a, 0, 64);
     patch.vel_amp = (int8_t)clamp(patch.vel_amp, 0, 63);   /* (never inverted: a hard note silent) */
     set_dirty = 1;
+    rfx_at = plat_ms() | 1u;
+    rfx_seed = rng;
     app_say("SOUND", "RANDOMIZED");
 }
 
@@ -2709,8 +2719,9 @@ static uint32_t notes_lit(uint32_t *below, uint32_t *above)
     return m;
 }
 
-/* ARP, SEQ and GLO: tapped, their page; held HOLD_MS, a mode (ARP or SEQ: AFX on or off; GLO: the RND pages, held
- * again the GLOBAL ones). The hold acts while still held, its release then nothing */
+/* ARP, SEQ, GLO and REC: tapped, their page (REC: recording on or off, on GLO MIDI a Bluetooth device); held HOLD_MS,
+ * a mode (ARP or SEQ: AFX on or off; GLO: the RND pages, held again the GLOBAL ones; REC: a random sound). The hold
+ * acts while still held, its release then nothing */
 #define HOLD_MS 1000u
 /* Hints: a few words on what a control does, under its value as it turns (a button's at the panel's
  * foot as it's pressed) */
@@ -2759,11 +2770,44 @@ static const char *hint_of(uint32_t k)       /* encoder k's here (as its page's 
         return k == EN_K2 ? "LFO 1 fade-in" : "LFO 2 fade-in";
     return HINT[ui.page][k];
 }
+/* where a section's button goes, tapped on this page (its next page in the section: tap_page); NPAGES: no page (SEQ on
+ * its page: recording) */
+static uint32_t tap_page(uint32_t k)
+{
+    const uint32_t g = ui.page;
+    switch (k) {
+    case B_ENV:                              /* the envelopes; their triggering; the group's mods */
+        return g == PG_AENV ? PG_MENV : g == PG_MENV ? PG_EMOD : PG_AENV;
+    case B_LFO:
+        return g == PG_LFO1 ? PG_LFO2 : PG_LFO1;
+    case B_FX:                               /* the filters, LFO 2 on them, the effects, the group's mods */
+        return g == PG_TUNE ? PG_FMOD : g == PG_FMOD ? PG_EFX : g == PG_EFX ? PG_XMOD : PG_TUNE;
+    case B_EDIT:                             /* the oscillators, their pulse width, the sub osc and the mixer */
+        return g == PG_OSC ? PG_MIX : g == PG_MIX ? PG_FX : PG_OSC;
+    case B_ARP:                              /* the ARPEGGIATOR, again its mods */
+        return g == PG_ARP ? PG_AMOD : PG_ARP;
+    case B_SEQ:
+        return g == PG_SEQ ? NPAGES : PG_SEQ;
+    case B_GLO:                              /* on the RND pages their next; else the global settings' */
+        if (RND_PAGE(g))
+            return g == PG_GRND ? PG_RPAT : g == PG_RPAT ? PG_RTRK : PG_GRND;
+        return g == PG_GMIDI ? PG_GSYS : g == PG_GSYS ? PG_GDISP : g == PG_GDISP ? PG_GDUMP : PG_GMIDI;
+    }
+    return NPAGES;
+}
+
 static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page */
 {
-    static const char *const H[NB] = {"Filters, effects", 0, "Envelopes", "LFOs and glide", "Oscillators, mixer",
-                                      0, "The whole panel", "Save the patch", "ARP hold: AFX",
-                                      "SEQ hold: AFX", "Play or stop", "Random sound", "Octave down",
+    static const char *const TAP_NAME[NPAGES] = {
+        [PG_OSC] = "Oscillators", [PG_MIX] = "Pulse Width", [PG_FX] = "Sub + Mixer", [PG_AENV] = "Envelopes",
+        [PG_MENV] = "Triggering", [PG_EMOD] = "Env Mods", [PG_LFO1] = "LFOs", [PG_LFO2] = "LFO Mods",
+        [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods",
+        [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI", [PG_GSYS] = "System",
+        [PG_GDISP] = "Display", [PG_GDUMP] = "Dump", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
+        [PG_RTRK] = "RND Tracks"};
+    static char tap[48];                     /* "GLO tap: System, hold: RND Synth Companion" */
+    uint32_t g;
+    static const char *const H[NB] = {[B_HOME] = "The whole panel", "Save the patch", [B_PLAY] = "Play or stop", [B_OCTDN] = "Octave down",
                                       "Octave up"};
     const int rec = seq_rec && ui.page == PG_SEQ;
     if (k == B_SEL)
@@ -2773,27 +2817,53 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         return rec ? "Rest step" : ui.page == PG_GDUMP ? "Send all 32" : "Send seed to RND";
     if (k == B_SAVE && ui.page == PG_GRND)
         return "Keep RND's patch";
-    if (k == B_REC && ui.page == PG_GMIDI)
-        return "Find a BLE device";
-    if (k == B_GLO)
-        return RND_PAGE(ui.page) ? "GLO hold: Global Settings" : "GLO hold: RND Settings";
+    if ((g = tap_page(k)) < NPAGES || k == B_SEQ || k == B_REC) {   /* a section's (or REC): its next page (or what
+                                              * a tap does), and what a hold does */
+        tap[0] = 0;
+        text_cat(tap, BTN_NAME[k]);
+        text_cat(tap, " tap: ");
+        text_cat(tap, g < NPAGES ? TAP_NAME[g] : k == B_REC && ui.page == PG_GMIDI ? "Find BLE" : seq_rec ? "Rec off"
+                      : "Rec on");
+        if (k == B_REC)
+            text_cat(tap, ", hold: Randomize");
+        else if (k == B_ARP || k == B_SEQ)
+            text_cat(tap, ", hold: AFX mode");
+        else if (k == B_GLO)
+            text_cat(tap, RND_PAGE(ui.page) ? ", hold: Global" : ", hold: RND Synth Companion");
+        return tap;
+    }
     return H[k];
+}
+
+static void rec_toggle(void)                 /* recording on or off: the arp's REC, again PLAY */
+{
+    patch.arp_mode = seq_rec ? ARP_PLAY : ARP_REC;
+    set_dirty = 1;
+    app_say("REC", OFF_ON[seq_rec]);
+}
+
+static void hint_show(uint32_t k)            /* Hints: button k's, from the page it's on now */
+{
+    if (set.hints) {
+        ui.hint = btn_hint(k);
+        ui.hint_until = pop_until();
+        ui.redraw = 1;
+    }
 }
 
 static void hold_tap(uint32_t k)
 {
-    if (k == B_ARP)                          /* the ARPEGGIATOR, again its mods (On: its PRESET) */
-        page_go(ui.page == PG_ARP ? PG_AMOD : PG_ARP);
-    else if (k == B_SEQ && ui.page == PG_SEQ) {   /* the page, again recording: the arp's REC, again PLAY */
-        patch.arp_mode = seq_rec ? ARP_PLAY : ARP_REC;
-        set_dirty = 1;
-        app_say("REC", OFF_ON[seq_rec]);
-    } else if (k == B_SEQ)
-        page_go(PG_SEQ);
-    else if (ui.page >= PG_GRND)             /* on the RND pages (the last ones): the next */
-        page_go(ui.page == PG_GRND ? PG_RPAT : ui.page == PG_RPAT ? PG_RTRK : PG_GRND);
-    else                                     /* the global settings: MIDI, again SYS, DUMP, DISPLAY */
-        page_go(ui.page == PG_GMIDI ? PG_GSYS : ui.page == PG_GSYS ? PG_GDISP : ui.page == PG_GDISP ? PG_GDUMP : PG_GMIDI);
+    if (k == B_REC && ui.page != PG_GMIDI)   /* recording, on any page (GLO MIDI's: a Bluetooth device) */
+        rec_toggle();
+    else if (k == B_REC && FM1B_BLE_CENTRAL && !set.ble_off)
+        ble_device_button();
+    else if (k == B_REC)
+        app_say("BUTTON", "REC");
+    else if (tap_page(k) < NPAGES)           /* ARP, SEQ, GLO: their section's next page (tap_page) */
+        page_go(tap_page(k));
+    else                                     /* SEQ on its page: recording */
+        rec_toggle();
+    hint_show(k);                            /* (its hint again from where it went: the next tap's) */
 }
 
 static void hold_step(uint32_t btn)
@@ -2805,14 +2875,18 @@ static void hold_step(uint32_t btn)
         hold_tap(ui.hold_k);
     } else if (plat_ms() - ui.hold_at >= HOLD_MS) {
         ui.hold_live = 0;
-        if (ui.hold_k != B_GLO) {
+        if (ui.hold_k == B_REC)
+            randomize();
+        else if (ui.hold_k != B_GLO) {
             afx_on = (uint8_t)!afx_on;
             app_say("AFX", OFF_ON[afx_on]);
         } else if (ui.page >= PG_GRND)
             page_go(PG_GMIDI);
-        else {                               /* the RND pages (bs2_rnd.c), the synth asked how it is as they open */
+        else {                               /* the RND pages (bs2_rnd.c), the synth asked how it is as they open;
+                                              * their splash first (rsplash_draw) */
             rnd_ask();
             page_go(PG_GRND);
+            rsplash_until = plat_ms() + RSPLASH_MS;
         }
     }
 }
@@ -2853,12 +2927,9 @@ static void input(void)
         uint32_t bit = 1u << k;
         if (!(btn & bit) || (ui.btn & bit))
             continue;
-        if (set.hints) {                     /* (Hints: what it does, from the page it's pressed on) */
-            ui.hint = btn_hint(k);
-            ui.hint_until = pop_until();
-            ui.redraw = 1;
-        }
-        if (k == B_ARP || k == B_SEQ || k == B_GLO) {   /* on release, or once held HOLD_MS (hold_step) */
+        rsplash_until = 0;                   /* (the RND splash: over) */
+        hint_show(k);                        /* (Hints: what it does, from the page it's pressed on) */
+        if (k == B_ARP || k == B_SEQ || k == B_GLO || k == B_REC) {   /* on release, or once held HOLD_MS (hold_step) */
             ui.hold_k = (uint8_t)k;
             ui.hold_live = 1;
             ui.hold_at = plat_ms();
@@ -2883,20 +2954,13 @@ static void input(void)
             page_go(PG_PATCH);
         else if (k == B_HOME)                    /* HOME: the whole panel (the first page) */
             page_go(PG_HOME);
-        else if (k == B_REC)
-            ui.rec_held = 1;                 /* on release */
         else if (k == B_SAVE && ui.page == PG_GRND)   /* the seed shown into its slot */
             rnd_store();
         else if (k == B_SAVE)
             save();
-        else if (k == B_ENV)                     /* the envelopes; their triggering; the group's mods (Env Select
+        else if (k == B_ENV || k == B_LFO || k == B_EDIT)   /* their section's next page (tap_page; Env Select
                                                   * stays as it is: SELECT's) */
-            page_go(ui.page == PG_AENV ? PG_MENV : ui.page == PG_MENV ? PG_EMOD : PG_AENV);
-        else if (k == B_LFO)                     /* LFO 1, again LFO 2 */
-            page_go(ui.page == PG_LFO1 ? PG_LFO2 : PG_LFO1);
-        else if (k == B_EDIT)                    /* the oscillators, again their pulse width, then the sub osc and the
-                                                  * mixer (beside them on a Bass Station II) */
-            page_go(ui.page == PG_OSC ? PG_MIX : ui.page == PG_MIX ? PG_FX : PG_OSC);
+            page_go(tap_page(k));
         else if (k == B_PLAY) {              /* the sequence (the arp on, in PLAY) at its own key, or stopped */
             uint32_t run = !seq_playing();
             seq_auto = (uint8_t)run;
@@ -2916,28 +2980,22 @@ static void input(void)
         else if (k == B_FX && ui.page == PG_GRND)    /* the seed shown, as the RND Synth's SysEx */
             rnd_send();
         else if (k == B_FX)                      /* the filters, LFO 2 on them, the effects, the group's mods */
-            page_go(ui.page == PG_TUNE ? PG_FMOD : ui.page == PG_FMOD ? PG_EFX : ui.page == PG_EFX ? PG_XMOD : PG_TUNE);
+            page_go(tap_page(k));
         else {
             app_say("BUTTON", BTN_NAME[k]);
         }
+        if (k == B_ENV || k == B_LFO || k == B_EDIT || k == B_FX)   /* (a section's: its hint again from the page it
+                                                  * went to, the next tap's) */
+            hint_show(k);
     }
     hold_step(btn);
-    if (ui.rec_held && !(btn >> B_REC & 1u)) {   /* REC let go: on GLO MIDI a Bluetooth device, elsewhere a random
-                                                  * sound */
-        ui.rec_held = 0;
-        if (ui.page != PG_GMIDI)
-            randomize();
-        else if (FM1B_BLE_CENTRAL && !set.ble_off)
-            ble_device_button();
-        else
-            app_say("BUTTON", "REC");
-    }
     for (k = 0; k < NE; k++) {               /* an encoder turned (physical k): what it sets, and its count */
         char t[12];
         uint32_t l;
         if ((e = plat_enc((int)k)) == 0)
             continue;
         ui.turns[k] += e;
+        rsplash_until = 0;
         if ((l = enc_logical(k)) >= NE)      /* (none on this page) */
             continue;
         ui.turned_at[l] = plat_ms();
@@ -2980,7 +3038,7 @@ static void input(void)
     ui.lit = lit;
     plat_glow(1);                            /* the unlit buttons glow, readable in the dark */
     plat_leds(btn | (set_dirty ? 1u << B_SAVE : 0u) | (uint32_t)patch.arp_on << B_ARP | (uint32_t)seq_rec << B_SEQ
-              | (uint32_t)seq_playing() << B_PLAY | below << B_OCTDN | above << B_OCTUP, keys | lit);   /* (OCT-, OCT+: a
+              | (uint32_t)seq_rec << B_REC              | (uint32_t)seq_playing() << B_PLAY | below << B_OCTDN | above << B_OCTUP, keys | lit);   /* (OCT-, OCT+: a
                                               * note held out of the keys' reach, that way) */
 }
 
@@ -3907,12 +3965,12 @@ static void glo_frame(const char *name)
     cpu_text(t);
     section_frame("GLOBAL", name, t, plat_xruns() ? P_CYAN : P_DIM);
 }
-/* the RND pages' (bs2_rnd.c): the RND SYNTH bar; at the right the synth's firmware once it has answered */
+/* the RND pages' (bs2_rnd.c): the RND SYNTH COMPANION bar; at the right the synth's firmware once it has answered */
 static void rnd_frame_draw(const char *name)   /* at the right: the seed playing on the synth, once it has said */
 {
     char t[24] = "PLAYING ";
     seed_text(rnd.seed, t + 8);
-    section_frame("RND SYNTH", name, rnd.seed != RND_EMPTY ? t : rnd.heard ? "RND" : "NOT HEARD YET",
+    section_frame("RND SYNTH COMPANION", name, rnd.seed != RND_EMPTY ? t : rnd.heard ? "RND" : "NOT HEARD YET",
                   rnd.heard ? P_CYAN : P_DIM);
 }
 /* a setting's two-way switch lying down at cx, cy (its middle): its ends' names over it (the one set white), its name
@@ -3985,10 +4043,9 @@ static void glo_disp_draw(void)
 {
     const uint32_t lit = knob_lit(EN_K2);
     glo_frame("Display");
-    cv_text(10, 42, &FONT_XS, "Pop-ups: the controls' labels", P_SILK);
-    cv_text(10, 57, &FONT_XS, "as a page opens, a knob's value", P_SILK);
-    cv_text(10, 72, &FONT_XS, "as it turns. Hints add a few", P_SILK);
-    cv_text(10, 87, &FONT_XS, "words on what it does.", P_SILK);
+    cv_text(10, 42, &FONT_XS, "Pop-ups: the controls' labels as a page opens,", P_SILK);   /* (as wide as the bar) */
+    cv_text(10, 57, &FONT_XS, "a knob's value as it turns. Hints add a few", P_SILK);
+    cv_text(10, 72, &FONT_XS, "words on what it does.", P_SILK);
     print_switch(34, GLO_ROW, EN_PRESET, "", "", "Knob Zoom");   /* (PRESET's, at the left as it is; its names further
                                                                  * apart: Auto is wide) */
     cv_text(34 - 24, GLO_ROW - 20, &FONT_T, "Auto", set.zoom_off ? P_DIM : P_SILK);
@@ -4629,7 +4686,8 @@ static void home_draw(void)
     }
     h_rect(690, 51, 45, 15, P_BAR);          /* Sub Osc's */
     h_rect(690, 65, 3, 118, P_BAR);
-    h_rect(195, 343, 1095, 3, P_BAR);        /* over the keys: their second functions' (straight on at the left) */
+    h_rect(63, 343, 1227, 3, P_BAR);         /* over the keys: their second functions' (from the left, as the bar
+                                              * above) */
     h_rect(1287, 343, 3, 12, P_BAR);
     for (i = 0; i < 7; i++)
         h_rect(KT_GAP[i], 343, 3, 3, grey(24));
@@ -4777,6 +4835,34 @@ static void head_draw(void)                  /* the section tabs (each page's pa
     cv_blit(0, 0);
 }
 
+/* the randomizer at work, RFX_MS over the panel, on top of everything on it (HOME's scope waits: app_tick): a card, its four knobs whirling and stopping one after another at
+ * random, a strip of label tape whose letters tumble until each lands on RANDOMIZE (cyan once they all have) */
+#define RFX_MS 1000u
+static uint32_t rfx_hash(uint32_t a, uint32_t b) { return ((a ^ b * 0x9E3779B9u) * 2654435761u) >> 8; }
+static void rfx_draw(void)
+{
+    static const char W[] = "RANDOMIZE";
+    const uint32_t t = plat_ms() - rfx_at;
+    const int32_t w = 156, h = 76, x = 120 - w / 2, y = 80 - h / 2;   /* (the same place on every page: the screen's
+                                                                        * y 100) */
+    char s[sizeof W];
+    uint32_t i;
+    if (!rfx_at || t >= RFX_MS)
+        return;
+    cv_rect(x - 1, y - 1, w + 2, h + 2, P_CYAN);
+    cv_rect(x, y, w, h, RGB(16, 20, 24));
+    for (i = 0; i < 4u; i++) {               /* each knob swings to and fro, fast, till its turn to stop */
+        const uint32_t ph = (t * (5u + i) / 4u + i * 37u) % 128u;
+        const int stop = t >= 280u + 130u * i;
+        bs2_knob(x + 30 + 32 * (int32_t)i, y + 28, 12, stop ? (int32_t)(rfx_hash(rfx_seed, i) % 64u)
+                 : (int32_t)(ph < 64u ? ph : 127u - ph), 63, stop ? 0u : KF_LIT);
+    }
+    for (i = 0; i + 1u < sizeof W; i++)      /* the letters: at random, 25 times a second, till each lands */
+        s[i] = t >= 300u + 60u * i ? W[i] : (char)('A' + rfx_hash(t / 40u, i) % 26u);
+    s[i] = 0;
+    dymo(120, y + 54, s, t >= 300u + 60u * (sizeof W - 2u) ? P_CYAN : RGB(235, 235, 235));
+}
+
 static void panel_draw(void)                 /* the page's section panel, from under the tabs: in two halves (the
                                               * canvas holds 144 rows); through Knob Zoom's camera (zoom_blow) */
 {
@@ -4835,6 +4921,8 @@ static void panel_draw(void)                 /* the page's section panel, from u
         tags_draw();
         if (step)
             zoom_blow(x16, sy16 & 0xFFFFu, step);
+        cv_oy = -(int32_t)i * (pan_h / 2);   /* (over the camera's view, unzoomed) */
+        rfx_draw();
         cv_blit(0, 20 + i * (pan_h / 2));
     }
     pr_font = &FONT_T;
@@ -4931,9 +5019,13 @@ static void keys_draw(void)                  /* the keys; the octave, the slot, 
         cv_text(82, 45, &FONT_XS, port, P_CYAN);
         cv_text(106, 45, &FONT_XS, h, P_TEXT);
     }
-    t[0] = 0;                                /* what plays the keys, at the right: recording, the sequencer, the arp */
-    text_cat(t, seq_rec ? "SEQ REC" : seq_playing() ? "SEQ PLAY" : patch.arp_on ? "ARP " : "ARP OFF");
-    if (patch.arp_on && !seq_rec && !seq_playing())
+    t[0] = 0;                                /* what plays the keys, at the right: recording (its steps so far), the
+                                              * sequencer, the arp */
+    text_cat(t, seq_rec ? "SEQ REC " : seq_playing() ? "SEQ PLAY" : patch.arp_on ? "ARP " : "ARP OFF");
+    if (seq_rec) {
+        int_text(ui.rec_n, t + 8);
+        text_cat(t, "/32");
+    } else if (patch.arp_on && !seq_playing())
         text_cat(t, ARP_NAME[patch.arp_mode]);
     cv_text(236 - text_w(&FONT_XS, t), 45, &FONT_XS, t, seq_rec || seq_playing() || patch.arp_on ? P_CYAN : P_LABEL);
     cv_blit(0, 180);
@@ -4991,6 +5083,30 @@ void app_splash(void)                       /* the platform's, on the panel's bl
     splash_on = 1;
 }
 
+/* the RND Synth Companion's splash, the whole screen: RND SYNTH, the RND Synth beside the FM-1 (rnd/splash.h:
+ * bs2/rnd/make_splash.py, 256 colours), COMPANION, in the cyan, the three together in the middle */
+#include "rnd/splash.h"
+static void rsplash_line(uint32_t y, const char *s)   /* a line of the big print, centred */
+{
+    cv_begin(240, FONT_L.h, S_BG);
+    cv_text((240 - text_w(&FONT_L, s)) / 2, 0, &FONT_L, s, P_CYAN);
+    cv_blit(0, y);
+}
+static void rsplash_draw(void)
+{
+    enum { GAP = 10, DX = 6 };               /* (DX: the devices right of the middle, as the FM-1's screen shows it: its
+                                              * leftmost columns under the bezel) */
+    const uint32_t y = (240u - RND_SPLASH_H - 2u * (FONT_L.h + GAP)) / 2u;
+    uint32_t i;
+    lcd_fill(0, 0, 240, 240, S_BG);
+    rsplash_line(y, "RND SYNTH");
+    cv_begin(RND_SPLASH_W, RND_SPLASH_H, S_BG);
+    for (i = 0; i < RND_SPLASH_W * RND_SPLASH_H; i++)   /* (each pixel through the palette: as the panel takes it) */
+        cv_px[i] = RND_SPLASH_PAL[RND_SPLASH[i]];
+    cv_blit((240 - RND_SPLASH_W) / 2 + DX, y + FONT_L.h + GAP);
+    rsplash_line(y + FONT_L.h + 2u * GAP + RND_SPLASH_H, "COMPANION");
+}
+
 /* after the platform's start: the splash a while longer, a scope under the name whose wave morphs as the panel's OSC
  * WAVE steps (sine, triangle, saw, then a square whose width sweeps). Always SPLASH_SCOPE_MS, on the FM-1 and in the
  * emulator alike: the morph run in however long the splash had been up (as little as 0.4 s) blurred the waves */
@@ -5044,7 +5160,8 @@ void app_ui_init(void)
 
 void app_frame(void)
 {
-    static uint32_t last_pct, lit_until, last_ble, last_midi, last_live, last_foot, scope_at;
+    static uint32_t last_pct, lit_until, last_ble, last_midi, last_live, last_foot, scope_at, rfx_frame;
+    static uint8_t splash_shown;             /* the RND splash drawn, while it's up */
     static int scope_was;
     static int32_t last_note = -1;
     uint32_t i, now = plat_ms(), pct = plat_master() * 100u / 4096u;
@@ -5118,10 +5235,32 @@ void app_frame(void)
             ui.msg_until = 0;
         ui.redraw = 1;
     }
+    if (rsplash_until && (int32_t)(now - rsplash_until) >= 0) {   /* the RND splash over: the page */
+        rsplash_until = 0;
+        ui.redraw = 1;
+    }
+    if (rsplash_until) {                     /* (the RND splash up: the screen its own, drawn once as it comes, the
+                                              * redraws asked meanwhile left: each a flash) */
+        if (!splash_shown) {
+            splash_shown = 1;
+            rsplash_draws++;
+            rsplash_draw();
+        }
+        ui.redraw = 0;
+        return;
+    }
+    splash_shown = 0;
     if (cpu_meter(now) && ui.page >= PG_GMIDI && !ui.redraw)   /* (the panel alone: its load in the bar) */
         panel_draw();
     i = live();
     moved = zoom_step(now);
+    if (rfx_at && now - rfx_at >= RFX_MS) {  /* the randomizer's moment: over, else its next frame (30 a second) */
+        rfx_at = 0;
+        moved = 1;
+    } else if (rfx_at && now - rfx_frame >= 33u) {
+        rfx_frame = now;
+        moved = 1;
+    }
     if (ui.redraw) {
         ui.redraw = 0;
         draw();
@@ -5129,7 +5268,7 @@ void app_frame(void)
         panel_draw();
     }
     last_live = i;
-    if (ui.page == PG_HOME && !zoom.z && now - scope_at >= 33u && (scope_live() || scope_was)) {
+    if (ui.page == PG_HOME && !zoom.z && !rfx_at && now - scope_at >= 33u && (scope_live() || scope_was)) {
         scope_at = now;                      /* (HOME's scope: 30 times a second while it sounds, once more after) */
         scope_was = scope_live();
         scope_frame();
@@ -5145,6 +5284,12 @@ int app_expect(const char *what, int *got)
         *got = set.hints;
     else if (!strcmp(what, "zoom_off"))
         *got = set.zoom_off;
+    else if (!strcmp(what, "rsplash"))       /* the RND Synth Companion's splash up */
+        *got = rsplash_until != 0u;
+    else if (!strcmp(what, "rsplash_draws"))  /* the times it has been drawn (once each time it's up: no flashes) */
+        *got = (int)rsplash_draws;
+    else if (!strcmp(what, "rfx"))           /* the randomizer's moment on screen */
+        *got = rfx_at != 0u;
     else if (!strcmp(what, "zoom"))          /* Knob Zoom's scale over 1x (Q8: 256 2x) */
         *got = zoom.z;
     else if (!strcmp(what, "pop"))
@@ -5273,6 +5418,8 @@ int app_expect(const char *what, int *got)
         *got = set.mem[what[3] - '1'].len;
     else if (!strcmp(what, "rec"))
         *got = seq_rec;
+    else if (!strcmp(what, "rec_n"))         /* the steps recorded since REC (the bottom line's SEQ REC n/32) */
+        *got = ui.rec_n;
     else if (!strcmp(what, "step"))
         *got = ui.step;
     else if (!strcmp(what, "held"))

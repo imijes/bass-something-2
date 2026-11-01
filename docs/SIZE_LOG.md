@@ -25,3 +25,16 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-10-31 | 6695c8b+ | OSC Waveform knob in the panel's order (sine, tri, saw, square, pulse) | 312,272 | +96 | 269,292 | 77,332 | +0 | 20,972 | 102,832 |
 | 2026-10-31 | 6695c8b+ | HOME: the unsaved dot inside the display, by the digits | 312,272 | +0 | 269,292 | 77,332 | +0 | 20,972 | 102,832 |
 | 2026-10-31 | 6695c8b+ | Type: GLO names level with the knobs' (switches +5 px), Filters' Overdrive/Resonance apart, LFOs' Delay on the names line, ARP's 40 off the edge, Tempo/Patch under the display | 312,272 | +0 | 269,292 | 77,332 | +0 | 20,972 | 102,832 |
+| 2026-11-01 | c546dca+ | REC: tap records, hold 1 s random, SEQ REC n/32 | 312,416 | +144 | 269,148 | 77,332 | +0 | 20,972 | 102,832 |
+| 2026-11-01 | c546dca+ | Install defaults (ch 1, CC 1, clock out, Hints on), section tap hints, HOME keys line | 313,008 | +592 | 268,556 | 77,364 | +32 | 20,940 | 102,832 |
+| 2026-11-01 | c546dca+ | GLO DISPLAY: its text as wide as the bar, three lines | 312,976 | -32 | 268,588 | 77,364 | +0 | 20,940 | 102,832 |
+| 2026-11-01 | c546dca+ | REC hint: tap/hold format, hold: Randomize | 313,008 | +32 | 268,556 | 77,364 | +0 | 20,940 | 102,832 |
+| 2026-11-01 | c546dca+ | Hints: hold AFX mode, RND Synth Companion; RND pages' title | 312,624 | -384 | 268,940 | 77,380 | +16 | 20,924 | 102,832 |
+| 2026-11-01 | c546dca+ | Randomizer pop-up: whirling knobs, tumbling RANDOMIZE label | 313,008 | +384 | 268,556 | 77,380 | +0 | 20,924 | 102,832 |
+| 2026-11-01 | c546dca+ | Randomizer pop-up on top of HOME's scope, one place on every page | 313,024 | +16 | 268,540 | 77,380 | +0 | 20,924 | 102,832 |
+| 2026-11-01 | c546dca+ | RND Synth Companion splash (160 px photo) | 364,384 | +51,360 | 217,180 | 77,396 | +16 | 20,908 | 102,832 |
+| 2026-11-01 | c546dca+ | RND splash: own photo, RND Synth + FM-1 cut out (232x86) | 353,088 | -11,296 | 228,476 | 77,396 | +0 | 20,908 | 102,832 |
+| 2026-11-01 | c546dca+ | RND splash: 256 colours (a byte a pixel), 208 px, RND SYNTH / COMPANION in the big print | 329,744 | -23,344 | 251,820 | 77,396 | +0 | 20,908 | 102,832 |
+| 2026-11-01 | c546dca+ | RND splash: the RND's acrylic corners whole | 329,552 | -192 | 252,012 | 77,396 | +0 | 20,908 | 102,832 |
+| 2026-11-01 | c546dca+ | RND splash drawn once while up (no flicker) | 329,424 | -128 | 252,140 | 77,396 | +0 | 20,908 | 102,832 |
+| 2026-11-01 | c546dca+ | RND splash: the devices 6 px right (the FM-1's screen) | 329,424 | +0 | 252,140 | 77,396 | +0 | 20,908 | 102,832 |

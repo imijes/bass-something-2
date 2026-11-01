@@ -22,11 +22,14 @@ said GLOBAL DUMP
 tap GLO
 wait 30
 expect page 17
-# the defaults: any channel in, out on 1, the keys playing, aftertouch out, no clock out
-expect chan 17
+# the defaults (a first install's): channel 1 in and out, CC CHAN 1, the keys playing, aftertouch out, clock out, Hints
+# on, pop-ups 1.5 s, Knob Zoom AUTO
+expect chan 1
+expect cc_chan 1
 expect local 1
 expect at_out 1
-expect clk_out 0
+expect clk_out 1
+expect hints 1
 out
 key 7 down
 wait 50
@@ -35,7 +38,7 @@ wait 50
 expect_out USB 90 3C 64
 expect_out USB 80 3C 00
 # channel 5: the keys out on it, MIDI in on another not played
-spin K1 -12
+spin K1 4
 wait 30
 expect chan 5
 said CHANNEL 5
@@ -105,7 +108,10 @@ midi 80 40 00
 spin K1 40
 wait 30
 expect chan 17
-# CC CHAN (SELECT): the sound's knobs by the BS2's CC numbers, on their own channel; OFF by default, the notes apart
+# CC CHAN (SELECT): the sound's knobs by the BS2's CC numbers, on their own channel (1 by default), the notes apart;
+# at OFF none
+spin PRESET -1
+wait 30
 expect cc_chan 0
 midi B0 10 00
 wait 30
@@ -177,10 +183,13 @@ spin K3 -1
 wait 30
 expect at_out 0
 said AFTER TOUCH OUT OFF
-# SYS's SEND CLK: the tempo out as MIDI clock, PLAY a start and a stop
+# SYS's SEND CLK (on by default): the tempo out as MIDI clock, PLAY a start and a stop; off, then on again
 tap GLO
 wait 30
 expect page 18
+spin PRESET -1
+wait 30
+expect clk_out 0
 spin PRESET 1
 wait 30
 expect clk_out 1
@@ -270,15 +279,15 @@ said POP-UP TIME ALWAYS
 turn K4 -3
 wait 30
 expect pop 1
-expect hints 0
-turn K3 1
-wait 30
 expect hints 1
-said HINTS ON
 turn K3 -1
 wait 30
 expect hints 0
 said HINTS OFF
+turn K3 1
+wait 30
+expect hints 1
+said HINTS ON
 tap GLO
 tap GLO
 tap GLO

@@ -69,7 +69,7 @@ knob shows its value in a cyan label on it while it turns.
 | Section tabs | SEL, ENV, LFO, FX, ARP, SEQ, EDIT and GLO, the buttons. The section you're in is lit in the panel's cyan, its name white; the others are grey. ARP and SEQ are written in cyan while they play. |
 | Panel | The section: its knobs, switches, LEDs and print, where the Bass Station II has them. A knob's line turns cyan, and its value shows in a cyan label on it, for a moment as it turns. |
 | Keys | The 27 keys, black above white. A held key fills cyan to its velocity, and white over that shows its pressure. A key whose note is held from MIDI in is all cyan. |
-| Bottom lines | Top line: OCT, the octave. P01 to P32, the patch, with * while it has changes that aren't saved. The tempo in BPM, cyan while the arp or the sequencer plays (MIDI clock's while it's followed). AFX while AFX mode is on. VOL, MASTER's volume. Bottom line: the battery (three bars when full, the outline red when it's nearly empty, a cyan bolt while USB powers the FM-1, as it can't tell charging from not, grey until its first reading). BLE, lit while a computer or phone is connected over Bluetooth, and DEV, lit while a Bluetooth MIDI device is. Where the last MIDI message came from (USB, BLE or TRS) and its bytes. At the right, what plays the keys: ARP OFF, ARP and its mode (ARP UP), SEQ PLAY or SEQ REC, cyan while it plays. |
+| Bottom lines | Top line: OCT, the octave. P01 to P32, the patch, with * while it has changes that aren't saved. The tempo in BPM, cyan while the arp or the sequencer plays (MIDI clock's while it's followed). AFX while AFX mode is on. VOL, MASTER's volume. Bottom line: the battery (three bars when full, the outline red when it's nearly empty, a cyan bolt while USB powers the FM-1, as it can't tell charging from not, grey until its first reading). BLE, lit while a computer or phone is connected over Bluetooth, and DEV, lit while a Bluetooth MIDI device is. Where the last MIDI message came from (USB, BLE or TRS) and its bytes. At the right, what plays the keys: ARP OFF, ARP and its mode (ARP UP), SEQ PLAY, or SEQ REC with the steps recorded so far (SEQ REC 5/32), cyan while it plays. |
 
 ### The pages
 
@@ -108,8 +108,10 @@ left, SELECT beside it, PRESET under MASTER, ALGO under SELECT): one switch is o
 and ALGO, two one over the other on SELECT and ALGO, and three where they lie on the page.
 
 **Hints** (GLOBAL DISPLAY, K3) add a few words on what each control does: under the value as you turn a
-knob ("Filter cutoff", "Fade-in time", "Note order"), and over the keys as you press a button
-("Envelopes", "GLO hold: RND Settings"). They're off until you turn them on, and the FM-1 remembers the setting.
+knob ("Filter cutoff", "Fade-in time", "Note order"), and over the keys as you press a button ("Save the patch").
+A section's button (ENV, LFO, FX, EDIT, ARP, SEQ, GLO) names the page its next tap opens, from the page you're on,
+and what holding it does: on GLOBAL MIDI, "GLO tap: System, hold: RND Synth Companion"; on GLOBAL SYSTEM, "GLO tap:
+Display, hold: RND Synth Companion"; on ARP, "ARP tap: Arp Mods, hold: AFX mode". They're on until you turn them off, and the FM-1 remembers the setting.
 
 ![Hints on the FILTERS: Frequency turned to 97, with Filter cutoff under its value](img/screen-hint.png "Hints: what a knob does")
 
@@ -128,7 +130,8 @@ the keys' reach lights OCT-, one above lights OCT+.
 | OCT− · OCT+ | The octave, from −2 to +2. |
 | SEL | MASTER, the patch page. On GLOBAL DUMP, the sound out as a SysEx dump instead; on the RND pages, their own (see RND Synth); on the SEQ page while the sequencer records, the step's legato (see SEQ). |
 | MASTER | The volume. |
-| REC | A random sound (see below). On GLOBAL MIDI it finds a Bluetooth MIDI device instead. |
+| REC | Recording on or off, from any page (see SEQ). On GLOBAL MIDI it finds a Bluetooth MIDI device instead. |
+| Hold REC | Held for a second: a random sound (see below), on every page. |
 | Hold ARP or SEQ | Held for a second: AFX mode on or off. A shorter press opens the page as usual. |
 | Hold GLO | Held for a second: the RND pages, for Cyma Forma's RND Synth; held again, back to GLOBAL. See RND Synth. |
 | PLAY | Plays the sequence at its own key (the arp on, in PLAY), or stops it. |
@@ -140,11 +143,12 @@ touch), NORMAL or HARD.
 
 ### A random sound
 
-Press REC and let go: the oscillators' waves, oscillator 2's tuning, the sync, the pitches' and pulse widths'
+Hold REC for a second: the oscillators' waves, oscillator 2's tuning, the sync, the pitches' and pulse widths'
 modulation, the widths, the filter (its type, frequency, resonance, overdrive and depths), the glide, the ring and the noise, both envelopes and both LFOs are set at
 random. The filter is kept a little open and the attack under a second, so the result is heard at once. The screen
-says SOUND RANDOMIZED. Oscillator 1's tuning and the ranges, the mixer's other levels, the arp and the sequencer are
-left as they were. Press REC again for another, or SAVE to keep
+says SOUND RANDOMIZED, and for a second a card over the panel shows the randomizer at work: four knobs whirl
+and stop one by one, and the letters on its label tumble until they spell RANDOMIZE. Oscillator 1's tuning and the ranges, the mixer's other levels, the arp and the sequencer are
+left as they were. Hold REC again for another, or press SAVE to keep
 it.
 
 ### AFX mode
@@ -427,7 +431,8 @@ hasn't finished. With SEQ RETRIG OFF, it plays all the way through and wraps aro
 16-note rhythm plays twice in the two bars. That's how a short sequence fills a longer pattern, as on the Bass
 Station II: the sequencer has no empty steps to fill.
 
-**Recording:** on the SEQ page, press SEQ again (MODE goes to REC, and SEQ and REC light). The first note you play
+**Recording:** press REC on any page, or SEQ again on the SEQ page (MODE goes to REC, and SEQ and REC light). The
+bottom line's SEQ REC counts the steps recorded so far (SEQ REC 0/32 until the first note). The first note you play
 starts a new sequence from step 1. Each key, or each note from MIDI in, is the next step, and the screen shows it
 (STEP 3 G3). The keys play the voice as you go.
 
@@ -436,7 +441,7 @@ starts a new sequence from step 1. Each key, or each note from MIDI in, is the n
 | FX on the SEQ page, or ALGO turned up on the ARP page | A rest (the Bass Station II's REST). |
 | SEL on the SEQ page, or PRESET turned up on the ARP page | Makes the step just recorded legato (the Bass Station II's LEGATO). That note is held into the next one, which plays without a new attack. The same note on both sides makes a tie: one note held over both steps. Again cancels it. A rest can't be tied. |
 
-Recording stops at 32 steps (SEQ FULL). Press SEQ again to stop: MODE goes to PLAY. Leaving REC before playing a note
+Recording stops at 32 steps (SEQ FULL). Press REC, or SEQ on the SEQ page, again to stop: MODE goes to PLAY. Leaving REC before playing a note
 keeps the sequence as it was.
 
 | Control | Setting |
@@ -621,6 +626,11 @@ Hold GLO for a second for the RND pages, then press GLO for the next one: RND SE
 RND SEED again. Hold GLO for a second again to go back to GLOBAL. They use the whole screen under the tabs, in larger print, so
 the keys' strip and the status line (octave, patch, volume) are hidden while they're open. They're kept off GLO's own pages, as only RND Synth owners need them.
 Opening them asks the RND Synth how it is (its firmware, its patch, its locks, its tracks), and each page shows it.
+As they open, a splash fills the screen for a moment: RND SYNTH, the RND Synth beside the FM-1, then COMPANION, in cyan. Any
+button or knob skips it.
+
+![The RND Synth Companion splash: the RND Synth and the FM-1 side by side on black between RND SYNTH and COMPANION in cyan](img/screen-rnd-splash.png "GLO held: the RND Synth Companion's splash")
+
 At the right of each page's own bar is the seed the RND Synth is playing (PLAYING F34E8559; NOT HEARD YET until it
 has answered).
 
@@ -742,19 +752,19 @@ Holding GLO for a second opens the RND pages, for the RND Synth: see RND Synth.
 
 | Page | Control | Setting |
 | --- | --- | --- |
-| MIDI | PRESET CC CHAN (CC CHANNEL) | OFF (the default), 1 to 16, or ALL. Control changes on that channel turn the sound's knobs (see Control changes). It is separate from CHANNEL, so a controller can use its own channel without playing notes. |
-| MIDI | K1 CHANNEL | OFF, 1 to 16, or ALL (the default). In: notes on that channel play (ALL: any channel; OFF: none). Out: the keys' notes on it (ALL: channel 1; OFF: none). |
-| MIDI | K2 LOCAL (LOCAL CONTROL) | ON: the keys play the voice. OFF: they only send MIDI, for a computer that plays it back. The sequencer, the arp from MIDI notes, and MIDI in still play. |
-| MIDI | K3 AT OUT (AFTER TOUCH OUT) | The keys' pressure out as poly aftertouch: ON or OFF. |
-| MIDI | K4 BLUETOOTH (BLUETOOTH MIDI) | Bluetooth on or off, at once. |
-| MIDI | REC | Finds and connects a Bluetooth MIDI device (below). |
-| SYS | PRESET SEND CLK (SEND MIDI CLOCK) | ON: MIDI clock goes out at the tempo, and PLAY sends start and stop. Not while following MIDI clock. |
-| SYS | K1 TUNE | The master tune, −50 to +50 cents. |
-| SYS | K2 SYNC (CLOCK SYNC) | What the arp and the sequencer follow. AUTO: MIDI clock while it comes in, else the tempo. INT: the tempo only. EXT: MIDI clock only (without it they wait). While following, a MIDI start begins again from the first step. |
-| SYS | K3 VELOCITY | The keys' velocity curve: SOFT (louder for a light touch), NORMAL or HARD. |
+| MIDI | PRESET CC CHAN (CC CHANNEL) | OFF, 1 to 16 (1 is the default), or ALL. Control changes on that channel turn the sound's knobs (see Control changes). It is separate from CHANNEL, so a controller can use its own channel without playing notes. |
+| MIDI | K1 CHANNEL | OFF, 1 to 16 (1 is the default), or ALL. In: notes on that channel play (ALL: any channel; OFF: none). Out: the keys' notes on it (ALL: channel 1; OFF: none). |
+| MIDI | K2 LOCAL (LOCAL CONTROL) | ON (the default): the keys play the voice. OFF: they only send MIDI, for a computer that plays it back. The sequencer, the arp from MIDI notes, and MIDI in still play. |
+| MIDI | K3 AT OUT (AFTER TOUCH OUT) | The keys' pressure out as poly aftertouch: ON (the default) or OFF. |
+| MIDI | K4 BLUETOOTH (BLUETOOTH MIDI) | Bluetooth on (the default) or off, at once. |
+| MIDI | REC | Finds and connects a Bluetooth MIDI device (below). Held a second, a random sound, as on every page. |
+| SYS | PRESET SEND CLK (SEND MIDI CLOCK) | ON (the default): MIDI clock goes out at the tempo, and PLAY sends start and stop. Not while following MIDI clock. |
+| SYS | K1 TUNE | The master tune, −50 to +50 cents (0 is the default). |
+| SYS | K2 SYNC (CLOCK SYNC) | What the arp and the sequencer follow. AUTO (the default): MIDI clock while it comes in, else the tempo. INT: the tempo only. EXT: MIDI clock only (without it they wait). While following, a MIDI start begins again from the first step. |
+| SYS | K3 VELOCITY | The keys' velocity curve: SOFT (louder for a light touch), NORMAL (the default) or HARD. |
 | SYS | K4 KNOBS (KNOB RESPONSE) | How far the knobs go as you turn them faster. FINE: always one step a click. NORMAL (the default): up to 8 steps a click on a quick spin. FAST: up to 12, and sooner. COARSE: two steps a click even turned slowly, up to 16. Only the knobs with a wide range (levels, Frequency, Tune, Tempo, the LFOs' speeds and so on); switches and short lists always move one position a click. |
 | DISPLAY | PRESET KNOB ZOOM | AUTO (the default): as you turn an encoder, the panel zooms in on its control (twice the size) and back out a second after you stop; on HOME, a MIDI CC dives in, one camera move: the small panel zooms in on the control's section until it fills the screen, becomes that section's own page and zooms on in to the control, stays while the CCs come, then pulls the same way back out to HOME (a turn of your own while that page is up keeps you there). OFF: no zoom. |
-| DISPLAY | K3 HINTS | ON: as you turn a knob, a few words on what it does show under its value; as you press a button, over the keys. OFF (the default): none. See The screen. |
+| DISPLAY | K3 HINTS | ON (the default): as you turn a knob, a few words on what it does show under its value; as you press a button, over the keys (a section's button: the page its next tap opens). OFF: none. See The screen. |
 | DISPLAY | K4 POP-UPS (POP-UP TIME) | How long the pop-ups stay: the controls' labels as a page opens, a knob's value after you turn it, and the hints. OFF: no labels or button hints, and a value only while the knob turns. 1.5 S (the default), 2 S or 3 S. ALWAYS: until you turn another knob or open another page. |
 | DUMP | SEL (Sound) | Sends the sound as one Bass Station II patch dump (SysEx). See SysEx. |
 | DUMP | FX (All 32) | Sends all 32 patches as a Bass Station II bank (SysEx), which loads back into the same patches. See SysEx. |
@@ -864,8 +874,8 @@ emulator does the same, with your own screen reader or with its built-in voice.
 **No sound:** turn MASTER up. Check the mixer's levels on SUB OSC + MIXER (EDIT three times) and the Frequency on the FILTERS (FX); a random sound can be
 quiet. On GLOBAL MIDI, LOCAL must be ON for the keys to play.
 
-**A key plays the wrong sound, a different one on each key:** AFX mode is on (AFX at the bottom, left of VOL). Hold REC and
-press OCT+.
+**A key plays the wrong sound, a different one on each key:** AFX mode is on (AFX at the bottom, left of VOL). Hold ARP or
+SEQ for a second to turn it off.
 
 **A note keeps sounding (stuck):** another device sent its note-on but its note-off never arrived. The note's key is
 lit: press it and let go, and the note stops. If OCT- or OCT+ is lit instead, the note is out of the keys' reach: press
