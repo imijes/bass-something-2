@@ -1,7 +1,7 @@
 # Bass Something 2
 
-A monosynth inspired by the legendary Novation Bass Station II, for the M-VAVE FM-1, and a companion for Cyma Forma's RND Synth (firmware 1.4):
-32 seed slots with their locks, and a mixer for its four tracks. It's built on fm1-base, started from fm1-base's `template/`.
+A monosynth inspired by the legendary Novation Bass Station II, built for the M-VAVE FM-1. It's also a companion for Cyma Forma's RND Synth (firmware
+1.4): 32 seed slots with their locks, and a mixer for its four tracks. It runs on an iPhone or iPad in RemoteFM1 too. It's built on fm1-base, started from fm1-base's `template/`.
 The manual (`docs/MANUAL.md`) describes everything it does.
 
 | File | What |

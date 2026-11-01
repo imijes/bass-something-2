@@ -41,14 +41,15 @@ FOOTER = ('<footer>\n  <p class="small">Bass Something 2 by John Brown (<a href=
 # each page's title and summary, as a shared link shows them (fm1-base's are put together from fm1.toml's tagline and
 # read oddly): <title>, the description, and Open Graph's (the front page's screenshot as the picture)
 URL = "https://imijes.github.io/bass-something-2/"
-WHAT = ("a monosynth inspired by the legendary Novation Bass Station II, for the M-VAVE FM-1, and a companion for "
-        "Cyma Forma's RND Synth: seeds, locks and a track mixer")
+WHAT = ("a monosynth inspired by the legendary Novation Bass Station II, built for the M-VAVE FM-1. It's also a "
+        "companion for Cyma Forma's RND Synth (seeds, locks and a track mixer), and it runs on an iPhone or iPad in "
+        "RemoteFM1")
 META = {
-    "": ("Bass Something 2: a monosynth inspired by the legendary Novation Bass Station II, for the M-VAVE FM-1",
+    "": ("Bass Something 2: a monosynth inspired by the legendary Novation Bass Station II, built for the M-VAVE FM-1",
          f"Bass Something 2 is {WHAT}."),
     "install/": ("Install · Bass Something 2", "Install Bass Something 2 on the M-VAVE FM-1 from Chrome or Edge, over USB."),
     "manual/": ("Manual · Bass Something 2", "The manual for Bass Something 2, a monosynth inspired by the legendary Novation "
-                "Bass Station II, for the M-VAVE FM-1: every page and control, the arp and the sequencer, patches, SysEx, "
+                "Bass Station II, built for the M-VAVE FM-1: every page and control, the arp and the sequencer, patches, SysEx, "
                 "MIDI and the RND Synth."),
 }
 

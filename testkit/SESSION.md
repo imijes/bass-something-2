@@ -1,6 +1,6 @@
 # Bass Station II recording session
 
-Bass Something 2 is a monosynth inspired by the legendary Novation Bass Station II, for the M-VAVE FM-1. These recordings let it be tuned against a real Bass
+Bass Something 2 is a monosynth inspired by the legendary Novation Bass Station II, built for the M-VAVE FM-1. These recordings let it be tuned against a real Bass
 Station II: how the filter follows the keys, the cutoff's range, resonance, envelope times, levels, drive,
 distortion, glide and LFO speed. It takes about half an hour.
 
