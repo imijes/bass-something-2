@@ -153,29 +153,29 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
       <li><kbd>Q</kbd> to <kbd>I</kbd>, <kbd>A</kbd> to <kbd>K</kbd>: the white keys, low to high</li>
       <li><kbd>1</kbd> to <kbd>0</kbd>, <kbd>-</kbd>: the black keys</li>
       <li><kbd>Z</kbd> <kbd>X</kbd>: OCT− and OCT+</li>
-      <li><kbd>P</kbd> PLAY, <kbd>O</kbd> REC, <kbd>Esc</kbd> HOME</li>
+      <li><kbd>P</kbd> PLAY, <kbd>O</kbd> REC, <kbd>Esc</kbd> SEL (the patch)</li>
       <li>Drag a knob up or down, or focus it and use the arrow keys</li>
     </ul>
   </section>
   <section>
     <h2>The sections</h2>
     <ul>
-      <li><b>HOME</b> oscillators and filter; again, their mix</li>
-      <li><b>ENV</b> mod envelope; again, amp envelope</li>
-      <li><b>LFO</b> LFO 1; again, LFO 2 and PWM</li>
-      <li><b>FX</b> mixer, sub, ranges, distortion</li>
-      <li><b>ARP</b> arpeggiator; again, on or off</li>
-      <li><b>SEQ</b> sequencer; again, step recording. <b>PLAY</b> starts it</li>
-      <li><b>EDIT</b> the 32 patches; <b>GLO</b> global settings</li>
+      <li><b>SEL</b> the patch: pick, save, the volume</li>
+      <li><b>EDIT</b> oscillators; again, pulse width and sync; again, sub osc and mixer</li>
+      <li><b>FX</b> filters; again, LFO 2 on them; then effects, then their mods</li>
+      <li><b>ENV</b> envelopes; again, triggering; then their mods</li>
+      <li><b>LFO</b> glide and both LFOs; again, their mods</li>
+      <li><b>ARP</b> arpeggiator; again, its mods. <b>SEQ</b> sequencer, <b>PLAY</b> starts it</li>
+      <li><b>GLO</b> global settings (held: the RND Synth's pages)</li>
     </ul>
   </section>
   <section>
     <h2>Try this</h2>
     <ul>
       <li>Press <b>REC</b> for a random sound, <b>SAVE</b> to keep it</li>
-      <li>Hold <b>REC</b>, press <b>OCT+</b>: AFX, a sound on every key</li>
+      <li>Hold <b>ARP</b> or <b>SEQ</b> a second: AFX, a sound on every key</li>
       <li><b>ARP</b> twice, then hold a chord</li>
-      <li>On OSC FILTER turn <b>ALGO</b> to ACID, then <b>K2</b> up</li>
+      <li>On FILTERS (<b>FX</b>) turn <b>SELECT</b> to ACID, then <b>K2</b> (Resonance) up</li>
     </ul>
     <p style="margin-top:.6rem"><a href="../manual/">The manual</a> has every control.</p>
   </section>
@@ -493,7 +493,7 @@ const KEYMAP = {};
 "asdfghjk".split("").forEach((c, i) => KEYMAP["Key" + c.toUpperCase()] = { key: WHITE_K[8 + i] });
 "1234567890".split("").forEach((c, i) => KEYMAP["Digit" + c] = { key: BLACK_K[i] });
 KEYMAP.Minus = { key: BLACK_K[10] };
-Object.assign(KEYMAP, { KeyP: { btn: BTN.PLAY }, KeyO: { btn: BTN.REC }, Escape: { btn: BTN.HOME }, KeyZ: { btn: BTN["OCT-"] }, KeyX: { btn: BTN["OCT+"] } });
+Object.assign(KEYMAP, { KeyP: { btn: BTN.PLAY }, KeyO: { btn: BTN.REC }, Escape: { btn: BTN.SEL }, KeyZ: { btn: BTN["OCT-"] }, KeyX: { btn: BTN["OCT+"] } });
 const shortcuts = $("shortcuts");
 if (prefs.shortcuts === false) shortcuts.checked = false;
 shortcuts.addEventListener("change", () => { prefs.shortcuts = shortcuts.checked; savePrefs(); });
