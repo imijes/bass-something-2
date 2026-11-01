@@ -3,9 +3,10 @@
 Bass Something 2 turns the M-VAVE FM-1 into a monosynth inspired by the Novation Bass Station II: two oscillators and a sub,
 ring modulation and noise, a Classic or Acid filter with drive, two envelopes, two LFOs, distortion, the Bass Station
 II's 32 arp rhythms with its 32-step sequencer (four sequences) and 32 patches. Patches go to and from a Bass Station II editor as SysEx, and
-MIDI goes in and out over USB, Bluetooth and TRS.
+MIDI goes in and out over USB, Bluetooth and TRS. It's also a companion for Cyma Forma's RND Synth (firmware 1.4): 32
+seed slots with their locks, and a mixer for its four tracks.
 
-![Bass Something 2's MASTER page: the Volume knob, the red P01 display with the Org. Value arrows, Save and the Patch buttons, and the BASS SOMETHING 2 name](manual/img/screen-ready.png "Bass Something 2 on the FM-1's screen")
+![Bass Something 2's HOME page: the BASS SOMETHING 2 name, the red P01 display, and the whole Bass Station II panel above the keys](manual/img/screen-ready.png "Bass Something 2 on the FM-1's screen")
 
 Version {{VERSION}}. Installing is at your own risk; the installer can put M-VAVE's own firmware back.
 

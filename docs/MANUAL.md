@@ -7,7 +7,10 @@ arp rhythms with its 32-step sequencer (four sequences) and 32 patches. Patches 
 shows on the FM-1's screen as a small Bass Station II front panel, and MIDI goes in and out over USB, Bluetooth and
 TRS.
 
-![The Bass Something 2 screen at rest: the section tabs with SEL lit cyan, the MASTER panel (Volume, the red P01 display, Save and the Patch buttons), the keys, then OCT +0, P01, VOL 50%](img/screen-ready.png "Bass Something 2 at rest")
+It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of its patches as seeds with their locks
+(type, key, tracks), sends them back, and mixes its four tracks (see [RND Synth](#s8)).
+
+![The Bass Something 2 screen at rest: the section tabs, the HOME page (the name, the red P01 display, the whole Bass Station II panel), the keys, then OCT +0, P01, VOL 50%](img/screen-ready.png "Bass Something 2 at rest")
 
 ---
 
