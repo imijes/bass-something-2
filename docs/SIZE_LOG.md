@@ -43,3 +43,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-01 | fcfb3b8+ | HOME: panel zoomed to equal margins, display to its right edge, scope 2 px shorter | 329,360 | +16 | 252,204 | 77,396 | +0 | 20,908 | 102,832 |
 | 2026-11-01 | fcfb3b8+ | Keys strip centred (8 px each side), HOME panel's margin 8 to match | 329,360 | +0 | 252,204 | 77,396 | +0 | 20,908 | 102,832 |
 | 2026-11-01 | fcfb3b8+ | HOME: no Transpose/Function buttons; manual's RND section opens on its splash | 329,328 | -32 | 252,236 | 77,396 | +0 | 20,908 | 102,832 |
+| 2026-11-01 | 359b098+ | v0.6: version references | 329,328 | +0 | 252,236 | 77,396 | +0 | 20,908 | 102,832 |

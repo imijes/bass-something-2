@@ -49,7 +49,7 @@ the screen, sound and MIDI. There's no Bluetooth or USB host there, and the app 
 doesn't start can be recovered too. For details, see felucca-bsp's `tools/fm1_rescue.sh`.
 
 At power-on the screen shows BASS SOMETHING 2 in cyan, "Inspired by the Bass Station 2" under it, and an oscilloscope whose
-wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.5) is in the bottom
+wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.6) is in the bottom
 right corner. Then the panel opens on the patch you last saved. The emulator shows the same splash when you switch it
 on.
 
@@ -731,7 +731,7 @@ save themselves: two seconds after you change one, once the FM-1 is quiet (see S
 without SAVE (so a GLO change never
 writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar (MIDI, System,
 Display, SysEx Dump) and a red display: GLOBAL MIDI's shows the MIDI channel (ALL, OFF or the number), GLOBAL
-SYSTEM's the tempo (while MIDI clock leads, its tempo as measured over every two beats; dashes until then), with the knobs' response, the clock's state and the firmware's version (VERSION v0.5)
+SYSTEM's the tempo (while MIDI clock leads, its tempo as measured over every two beats; dashes until then), with the knobs' response, the clock's state and the firmware's version (VERSION v0.6)
 beside it, GLOBAL DUMP's the patch. The on/off settings are slide switches.
 
 On every GLO page, the right of the page's own bar shows the audio's load (for a moment after a change, what changed
