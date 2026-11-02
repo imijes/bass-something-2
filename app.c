@@ -510,6 +510,7 @@ static fifo_t keyq;                          /* main loop -> audio: note | veloc
 static fifo_t recq;                          /* audio -> main loop: MIDI in's notes while recording */
 static fifo_t ccq;                           /* audio -> main loop: MIDI in's CCs on CC CHAN, number | value << 8 */
 #define NOTE_ALL_OFF 0xFFu
+#include "bs2_drum.c"                     /* Drum Something: the drum voices (dt_hit, dt_note, dt_next) */
 static volatile uint8_t seq_auto;            /* the main loop's: the PLAY button's, the sequence played with no key held
                                               * (at its own key, until one comes) */
 #define seq_rec (patch.arp_mode == ARP_REC)  /* the arp's REC: the keys play as they are, each a step recorded */
@@ -848,6 +849,9 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
         } else if ((st & 0xF0u) == 0xB0u) {  /* a CC: a knob of the sound's on CC CHAN alone (cc_apply) */
             if (cc)
                 fifo_put(&ccq, d1 | d2 << 8);
+        } else if ((st & 0x0Fu) == DT_CHAN - 1u && ((st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u)) {
+            if ((st & 0xF0u) == 0x90u)       /* the drums' channel: theirs alone (Note Off: nothing, as the 400) */
+                dt_note(d1, d2);
         } else if (!ours)                    /* a note on another channel */
             ;
         else if ((st & 0xF0u) == 0x90u && d2) {
@@ -961,6 +965,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 #endif
     plat_usb_audio_route(patch.lvl_ext != 0u);   /* (from the next render) */
     midi_in();
+    dt_block();
     if (!afx_on)
         ax = (afx_t){-1, 0, 0, 0};
     else if (voice_note >= 0)
@@ -1107,6 +1112,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             dsum += s;
             dabs += fm_fabsf(s);
 #endif
+            s += dt_next() * 0.3f * gain_now;    /* the drums: after the bass's chain, at its level */
             o[0] = (int32_t)s;
             o[1] = (int32_t)s;
         }
@@ -1391,6 +1397,7 @@ void app_init(void)
     int n = plat_store_load(OBJ_SETTINGS, &set, sizeof set);
     uint32_t i;
     settings_defaults(&d);
+    dt_init();
     if (n < (int)SET_V1_SIZE || set.magic != SET_MAGIC || set.octave < -2 || set.octave > 2 || set.slot >= NSLOTS
         || set.ble_off > 1u)
         set = d;
@@ -5600,6 +5607,23 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     FILE *fp;
     size_t n;
     (void)b, (void)c, (void)d;
+    if (!strcmp(cmd, "dt_gain")) {           /* dt_gain X: the drums' output times X (tools/dt_compare.py's: its
+                                              * renders well above the host's 16-bit files' floor) */
+        dt_test_gain = (float)atof(a);
+        return 1;
+    }
+    if (!strcmp(cmd, "drum")) {              /* drum NAME STEP [A]: a hit at tuning step STEP (1..16), full volume,
+                                              * accented with A (tools/dt_compare.py's) */
+        uint32_t k;
+        for (k = 0; k < NDT && strcmp(a, DT_NAME[k]); k++)
+            ;
+        if (k == NDT || atoi(b) < 1 || atoi(b) > 16) {
+            printf("FAIL drum: %s %s\n", a, b);
+            host_fails++;
+        } else
+            fifo_put(&dtq, k | (uint32_t)(atoi(b) - 1) << 4 | (175u + (*c == 'A' ? 80u : 0u)) << 8);
+        return 1;
+    }
     if (!strcmp(cmd, "rnd_words")) {         /* rnd_words WORD..: the slot's names, as RND SEED shows them
                                               * (in capitals) */
         char w[64];

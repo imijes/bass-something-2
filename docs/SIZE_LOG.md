@@ -44,3 +44,19 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-01 | fcfb3b8+ | Keys strip centred (8 px each side), HOME panel's margin 8 to match | 329,360 | +0 | 252,204 | 77,396 | +0 | 20,908 | 102,832 |
 | 2026-11-01 | fcfb3b8+ | HOME: no Transpose/Function buttons; manual's RND section opens on its splash | 329,328 | -32 | 252,236 | 77,396 | +0 | 20,908 | 102,832 |
 | 2026-11-01 | 359b098+ | v0.6: version references | 329,328 | +0 | 252,236 | 77,396 | +0 | 20,908 | 102,832 |
+| 2026-11-01 | 44d415f+ | Drum Something phase 1: Tom and Snare voices (bs2_drum.c), MIDI ch 10 | 330,960 | +1,632 | 250,604 | 77,540 | +144 | 20,764 | 103,240 |
+| 2026-11-01 | 44d415f+ | Drum Something: Tom and Snare as resonator banks (modes from the recordings), VCF after the DAC, fresh noise each hit | 333,300 | +2,340 | 248,264 | 77,556 | +16 | 20,748 | 106,000 |
+| 2026-11-01 | 44d415f+ | Drum Something: Toms' pitch falls in two stages (quick drop, then sinking through the tail) | 333,636 | +336 | 247,928 | 77,556 | +0 | 20,748 | 106,048 |
+| 2026-11-01 | 44d415f+ | Drum Something: a small room (FDN) makes the drums' tails; Toms' body rings half as long | 334,772 | +1,136 | 246,792 | 77,556 | +0 | 20,748 | 129,856 |
+| 2026-11-01 | 44d415f+ | Drum Something: Snare's wires broad (hiss, not ring), a smack, the wires rising | 334,996 | +224 | 246,568 | 77,556 | +0 | 20,748 | 129,904 |
+| 2026-11-01 | 44d415f+ | Drum Something: Toms' VCF envelope (TN400-0), broad bloom; room shorter, darker, four diffusers | 335,172 | +176 | 246,392 | 77,556 | +0 | 20,748 | 135,088 |
+| 2026-11-01 | 44d415f+ | Drum Something: measured Snare ROM rate (17.4 kHz), per-voice rates, Tom click, darker room, DAC option | 335,492 | +320 | 246,072 | 77,556 | +0 | 20,748 | 135,088 |
+| 2026-11-01 | 44d415f+ | Drum Something: Snare's wire bands wider (no ring at the low tunings) | 335,492 | +0 | 246,072 | 77,556 | +0 | 20,748 | 135,088 |
+| 2026-11-01 | 44d415f+ | Drum Something: Snare's first step in tune (5 % flat), less low-mid | 335,492 | +0 | 246,072 | 77,556 | +0 | 20,748 | 135,088 |
+| 2026-11-01 | 44d415f+ | Drum Something: Snare's body longer at the three lowest tunings only | 335,572 | +80 | 245,992 | 77,556 | +0 | 20,748 | 135,088 |
+| 2026-11-01 | 44d415f+ | Drum Something: voices as data (shared Tom voice), decay and ring helpers, Toms' body longer at the lowest tunings | 334,788 | -784 | 246,776 | 77,556 | +0 | 20,748 | 132,680 |
+| 2026-11-01 | 44d415f+ | Drum Something: Rim and Bass voices; per-voice output filter, attack swell and gate; tools/dt_voice.py | 336,036 | +1,248 | 245,528 | 77,556 | +0 | 20,748 | 132,824 |
+| 2026-11-01 | 44d415f+ | Drum Something: Bass's pitch fall and tuning from its first cycles (dt_voice.py --cycles, dt_compare --cycles) | 336,036 | +0 | 245,528 | 77,556 | +0 | 20,748 | 132,824 |
+| 2026-11-01 | 44d415f+ | Drum Something: Bass's attack softer (short swell of the modes; the click apart) | 335,940 | -96 | 245,624 | 77,556 | +0 | 20,748 | 132,824 |
+| 2026-11-01 | 44d415f+ | Drum Something: Bass's beater thud (fixed-pitch modes: mode flags DT_MW/DT_MF), stronger overtones | 336,260 | +320 | 245,304 | 77,556 | +0 | 20,748 | 132,824 |
+| 2026-11-01 | 44d415f+ | Drum Something: Bass's thud lower (200 Hz), darker top (the user's pick of three) | 336,260 | +0 | 245,304 | 77,556 | +0 | 20,748 | 132,824 |
