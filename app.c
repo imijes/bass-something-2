@@ -34,11 +34,16 @@ typedef struct {
     uint8_t hints;                       /* Hints (GLO DISPLAY): a few words on what each control does, as it's used */
     uint8_t pop;                         /* the pop-ups' time (GLO DISPLAY): pop_d's order, 1.5 s stored as 0 */
     uint8_t zoom_off;                    /* KNOB ZOOM (GLO DISPLAY): 0 AUTO, 1 OFF (was a spare byte, 0: AUTO in older
-                                          * records; the record's end, no padding) */
+                                          * records) */
+    uint8_t dchan;                       /* Drum Something's MIDI channel in and out (GLO DRUMS): as chan, its own: the
+                                          * drums and the synth are two devices on one MIDI network */
+    uint8_t dcc_chan;                    /* the drums' CCs (bs2_drum.c's dt_cc) in: as cc_chan */
+    uint8_t dpad[2];                     /* (spare: the record's end, no padding) */
 } settings_t;
 #define SET_V1_SIZE 8u                   /* the record before the GLO pages: magic to ble_off */
 #define SET_V2_SIZE offsetof(settings_t, mem)   /* the record before the sequences (16 bytes stored: a byte of padding) */
 #define SET_V3_SIZE offsetof(settings_t, knobs)  /* the record before the knobs' response */
+#define SET_V4_SIZE offsetof(settings_t, dchan)  /* the record before the drums' MIDI */
 enum { CH_OFF = 0, CH_ALL = 17 };
 enum { CLK_AUTO, CLK_INT, CLK_EXT, NCLK };   /* MIDI clock followed when it comes; never; always (none: stopped) */
 enum { VC_SOFT, VC_NORMAL, VC_HARD, NVC };
@@ -831,6 +836,14 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
         uint32_t st = (pkt >> 8) & 0xFFu, d1 = (pkt >> 16) & 0x7Fu, d2 = pkt >> 24;
         uint32_t ours = set.chan == CH_ALL || (set.chan != CH_OFF && (st & 0x0Fu) == set.chan - 1u);   /* (GLO MIDI) */
         uint32_t cc = set.cc_chan == CH_ALL || (set.cc_chan != CH_OFF && (st & 0x0Fu) == set.cc_chan - 1u);
+        if (st < 0xF0u) {                    /* Drum Something: a device of its own on the network (GLO DRUMS), its
+                                              * channels apart from the synth's (one both are on plays both) */
+            uint32_t ch = (st & 0x0Fu) + 1u;
+            if ((st & 0xF0u) == 0x90u && d2 && (set.dchan == CH_ALL || set.dchan == ch))
+                dt_note(d1, d2);             /* (Note Off: nothing, as the 400) */
+            else if ((st & 0xF0u) == 0xB0u && (set.dcc_chan == CH_ALL || set.dcc_chan == ch))
+                dt_cc(d1, d2);
+        }
         if (st != 0xF8u && st != 0xFEu) {    /* (clock and active sensing would flood the screen) */
             midi_last = pkt;
             midi_last_port = (uint32_t)port;
@@ -849,9 +862,6 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
         } else if ((st & 0xF0u) == 0xB0u) {  /* a CC: a knob of the sound's on CC CHAN alone (cc_apply) */
             if (cc)
                 fifo_put(&ccq, d1 | d2 << 8);
-        } else if ((st & 0x0Fu) == DT_CHAN - 1u && ((st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u)) {
-            if ((st & 0xF0u) == 0x90u)       /* the drums' channel: theirs alone (Note Off: nothing, as the 400) */
-                dt_note(d1, d2);
         } else if (!ours)                    /* a note on another channel */
             ;
         else if ((st & 0xF0u) == 0x90u && d2) {
@@ -1198,6 +1208,8 @@ static void settings_defaults(settings_t *s)
     s->knobs = KN_NORMAL;
     s->hints = 1;
     s->pad = s->pop = s->zoom_off = 0;           /* (pop 0: 1.5 s; zoom_off 0: AUTO) */
+    s->dchan = s->dcc_chan = 10;            /* (the drums: GM's channel) */
+    s->dpad[0] = s->dpad[1] = 0;
     {
         static const seqmem_t L = SEQ_LINE, E = {.len = 0, .step = {SEQ_REST}};
         uint32_t i, j;
@@ -1261,7 +1273,7 @@ _Static_assert(offsetof(patch_t, env_trig) == BANK_V10_PSIZE, "version 10's: 11'
 _Static_assert(offsetof(patch_t, lfo_delay) == BANK_V11_PSIZE, "version 11's: 12's without the LFOs' delay on");
 _Static_assert(offsetof(patch_t, ofm) == BANK_V12_PSIZE, "version 12's: 13's without Osc Filter Mod on");
 _Static_assert(sizeof(settings_t) <= PLAT_STORE_MAX, "the settings fit a store object");
-_Static_assert(sizeof(settings_t) == SET_V3_SIZE + 4u, "the settings end with no padding");
+_Static_assert(sizeof(settings_t) == SET_V4_SIZE + 4u, "the settings end with no padding");
 static bank_t bank PLAT_POOL;
 static void patch_sane(patch_t *p);          /* (the UI's: by its controls' ranges) */
 static void bank_factory(void);              /* (the factory patches: after the dumps' reader) */
@@ -1614,11 +1626,12 @@ static void ble_device_button(void)
  * settings_t field on the GLO pages, from PG_GMIDI on), its range, and its names when it is a choice; a page's
  * empty places set nothing */
 enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GSYS, PG_GDISP, PG_GDUMP,
-       PG_GRND, PG_RPAT, PG_RTRK, NPAGES };
+       PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, NPAGES };   /* (GLO DRUMS last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI", "GLOBAL SYSTEM",
-                                              "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS"};
-#define RND_PAGE(g) ((g) >= PG_GRND)           /* (the RND pages: the last ones) */
+                                              "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
+                                              "GLOBAL DRUMS"};
+#define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 /* the pop-ups' time (GLO DISPLAY), its knob's places; pop_d the place, 0 and 1 swapped in the store so a record from
  * before it (0) is 1.5 s */
@@ -1716,6 +1729,8 @@ static const param_t PARAMS[NPAGES][NE] = {
                  [EN_K3] = {"VELOCITY", SF(vcurve), 0, NVC - 1, VC_NAME},
                  [EN_K4] = {"KNOBS", SF(knobs), 0, NKN - 1, KN_NAME}},
     /* (K1 turned and shown as pop_d's: knob_turn, knob_text) */
+    [PG_GDRUM] = {[EN_SELECT] = {"CC CHAN", SF(dcc_chan), CH_OFF, CH_ALL, CHAN_NAME},
+                  [EN_K1] = {"CHANNEL", SF(dchan), CH_OFF, CH_ALL, CHAN_NAME}},
     [PG_GDISP] = {[EN_PRESET] = {"KNOB ZOOM", SF(zoom_off), 0, 1, AUTO_OFF},
                   [EN_K1] = {"HINTS", SF(hints), 0, 1, OFF_ON}, [EN_K2] = {"POP-UPS", SF(pop), 0, NPOP - 1, 0}},
 };
@@ -1788,6 +1803,7 @@ static const char *const TITLE[NPAGES][NE] = {
     [PG_GMIDI] = {[EN_SELECT] = "CC CHANNEL", [EN_K2] = "LOCAL CONTROL", [EN_K3] = "AFTER TOUCH OUT", [EN_K4] = "BLUETOOTH MIDI"},
     [PG_GSYS] = {[EN_SELECT] = "SEND MIDI CLOCK", [EN_K2] = "CLOCK SYNC", [EN_K4] = "KNOB RESPONSE"},
     [PG_GDISP] = {[EN_PRESET] = "KNOB ZOOM", [EN_K1] = "HINTS", [EN_K2] = "POP-UP TIME"},
+    [PG_GDRUM] = {[EN_SELECT] = "DRUMS CC CHANNEL", [EN_K1] = "DRUMS CHANNEL"},
 };
 static void *page_rec(uint32_t g)            /* what a page's encoders set: the sound, or the settings */
 {
@@ -2081,6 +2097,7 @@ static const uint8_t ENC_MAP[NPAGES] = {
     [PG_AENV] = EMAP(EP_SP, 0), [PG_MENV] = EMAP(EP_SP, 0), [PG_EMOD] = EMAP(EP_SP, 0),   /* Env Select (Triggering beside) */
     [PG_LFO1] = EMAP(EP_SP, 0), [PG_LFO2] = EMAP(EP_SP, 1),   /* Glide, Delay/Speed beside; the mods' LFO, 3 knobs */
     [PG_GMIDI] = EMAP(EP_SP, 0), [PG_GSYS] = EMAP(EP_SP, 0),  /* CC Chan; Send Clk */
+    [PG_GDRUM] = EMAP(EP_SP, 0),                               /* the drums' CC Chan */
     [PG_SEQ] = EMAP(EP_ROW, 0),                                /* SEQ, LENGTH, STEP */
     [PG_FMOD] = EMAP(EP_SAME, 3), [PG_EFX] = EMAP(EP_SAME, 2), [PG_XMOD] = EMAP(EP_SAME, 2),
     [PG_AMOD] = EMAP(EP_SAME, 2), [PG_GDISP] = EMAP(EP_SAME, 2), [PG_RPAT] = EMAP(EP_SAME, 1),
@@ -2758,6 +2775,7 @@ static const char *const HINT[NPAGES][NE] = {
                   "Bluetooth MIDI"},
     [PG_GSYS] = {"Send MIDI clock", [EN_K1] = "Master tune", "Clock to follow", "Touch curve", "Knob speed-up"},
     [PG_GDISP] = {[EN_PRESET] = "Zoom on what turns", [EN_K1] = "These hints", "Pop-up time"},
+    [PG_GDRUM] = {"Drums' CC channel", [EN_K1] = "Drums' note channel"},
     [PG_GRND] = {[EN_PRESET] = "Pick a seed slot"},
     [PG_RPAT] = {"Lock patch type", "Lock track count", [EN_K1] = "Lock root note", "Lock root octave", "Lock scale"},
     [PG_RTRK] = {[EN_PRESET] = "Pick the knobs' row"},
@@ -2798,7 +2816,8 @@ static uint32_t tap_page(uint32_t k)
     case B_GLO:                              /* on the RND pages their next; else the global settings' */
         if (RND_PAGE(g))
             return g == PG_GRND ? PG_RPAT : g == PG_RPAT ? PG_RTRK : PG_GRND;
-        return g == PG_GMIDI ? PG_GSYS : g == PG_GSYS ? PG_GDISP : g == PG_GDISP ? PG_GDUMP : PG_GMIDI;
+        return g == PG_GMIDI ? PG_GDRUM : g == PG_GDRUM ? PG_GSYS : g == PG_GSYS ? PG_GDISP : g == PG_GDISP ? PG_GDUMP
+                                                                                            : PG_GMIDI;
     }
     return NPAGES;
 }
@@ -2811,7 +2830,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods",
         [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI", [PG_GSYS] = "System",
         [PG_GDISP] = "Display", [PG_GDUMP] = "Dump", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
-        [PG_RTRK] = "RND Tracks"};
+        [PG_RTRK] = "RND Tracks", [PG_GDRUM] = "Drums"};
     static char tap[48];                     /* "GLO tap: System, hold: RND Synth Companion" */
     uint32_t g;
     static const char *const H[NB] = {[B_HOME] = "The whole panel", "Save the patch", [B_PLAY] = "Play or stop", [B_OCTDN] = "Octave down",
@@ -2887,7 +2906,7 @@ static void hold_step(uint32_t btn)
         else if (ui.hold_k != B_GLO) {
             afx_on = (uint8_t)!afx_on;
             app_say("AFX", OFF_ON[afx_on]);
-        } else if (ui.page >= PG_GRND)
+        } else if (RND_PAGE(ui.page))
             page_go(PG_GMIDI);
         else {                               /* the RND pages (bs2_rnd.c), the synth asked how it is as they open;
                                               * their splash first (rsplash_draw) */
@@ -3084,7 +3103,7 @@ static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDI
                                          [PG_EMOD] = SEC_ENV, [PG_EFX] = SEC_FX, [PG_XMOD] = SEC_FX, [PG_AMOD] = SEC_ARP, [PG_HOME] = NSEC,
                                          [PG_GMIDI] = SEC_GLO, [PG_GSYS] = SEC_GLO, [PG_GDUMP] = SEC_GLO, [PG_GDISP] = SEC_GLO,
                                          [PG_GRND] = SEC_GLO, [PG_RPAT] = SEC_GLO,
-                                         [PG_RTRK] = SEC_GLO};
+                                         [PG_RTRK] = SEC_GLO, [PG_GDRUM] = SEC_GLO};
 /* the tabs span the panel's bar (x 2..235), a pixel between each; they end 3 rows over it, as its gaps are wide */
 #define TAB_X(i) (2 + (int32_t)(i) * 235 / NSEC)
 static uint8_t ycol[232] PLAT_POOL;          /* a picture's curve: each column's row */
@@ -4022,6 +4041,25 @@ static void glo_midi_draw(void)
     print_switch(150, GLO_ROW, EN_K3, "Off", "On", "AT Out");
     print_switch(208, GLO_ROW, EN_K4, "On", "Off", "Bluetooth");
 }
+/* GLOBAL DRUMS: Drum Something's MIDI, a device of its own beside the synth's (GLOBAL MIDI): its channel on the
+ * display, its knob (K1); its CC Chan (SELECT), and what its CCs do */
+static void glo_drum_draw(void)
+{
+    char t[4], o[8] = "Ch ";
+    glo_frame("Drums");
+    text_cat(o, CHAN_NAME[set.dchan == CH_ALL || set.dchan == CH_OFF ? 1u : set.dchan]);
+    if (set.dchan == CH_OFF || set.dchan == CH_ALL)
+        memcpy(t, set.dchan ? "ALL" : "OFF", 3);
+    else
+        seg_num(set.dchan, t);
+    seg_display(8, 40, t, 3);
+    print_knob(118, 60, 15, knob_param(EN_K1), EN_K1, 1, "Channel", 0);
+    info(146, 42, 46, "Out", o, P_CYAN);
+    info(146, 42, 58, "CC", set.dcc_chan == CH_ALL ? "Any" : set.dcc_chan ? CHAN_NAME[set.dcc_chan] : "Off", P_CYAN);
+    print_knob(34, GLO_ROW, 14, knob_param(EN_SELECT), EN_SELECT, 1, "CC Chan", 0);
+    cv_text(74, GLO_ROW - 12, &FONT_XS, "CC 33-45: each drum's tuning", P_SILK);
+    cv_text(74, GLO_ROW + 3, &FONT_XS, "CC 46-58: its volume", P_SILK);
+}
 /* GLOBAL SYSTEM: the tempo on the display (MIDI clock's, measured, while it leads; dashes until it is), the Send Clk switch (SELECT), the clock
  * and the firmware; Tune, Sync (what the arp follows), the keys' Velocity curve and the knobs' response (K1-K4) along
  * the bottom */
@@ -4907,6 +4945,8 @@ static void panel_draw(void)                 /* the page's section panel, from u
             lfos_draw();
         else if (ui.page == PG_GMIDI)
             glo_midi_draw();
+        else if (ui.page == PG_GDRUM)
+            glo_drum_draw();
         else if (ui.page == PG_GSYS)
             glo_sys_draw();
         else if (ui.page == PG_GDISP)
@@ -5408,6 +5448,14 @@ int app_expect(const char *what, int *got)
         *got = patch.dist;
     else if (!strcmp(what, "pitch_now"))
         *got = pitch_now;
+    else if (!strcmp(what, "dt_hits"))       /* the drums' hits played so far */
+        *got = dt_hits;
+    else if (!strcmp(what, "dchan"))         /* GLO DRUMS: the drums' channel, their CC channel */
+        *got = set.dchan;
+    else if (!strcmp(what, "dcc_chan"))
+        *got = set.dcc_chan;
+    else if (!strncmp(what, "dtune", 5) || !strncmp(what, "dvol", 4))   /* dtuneN, dvolN: drum N's (DT_*) */
+        *got = what[1] == 't' ? dt.tune[atoi(what + 5) % NDT] : dt.vol[atoi(what + 4) % NDT];
     else if (!strcmp(what, "arp"))
         *got = patch.arp_on;
     else if (!strcmp(what, "arp_mode"))

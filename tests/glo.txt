@@ -3,11 +3,16 @@
 #   bs2/build/host/bass-something-2_host bs2/tests/glo.txt bs2/build/host
 wait 600
 listen
-# GLO: MIDI, again SYS, again DISPLAY, again DUMP (the last), again MIDI (RND: GLO held, tests/rnd.txt)
+# GLO: MIDI, again DRUMS, again SYS, again DISPLAY, again DUMP (the last), again MIDI (RND: GLO held, tests/rnd.txt;
+# DRUMS: tests/drums.txt)
 tap GLO
 wait 30
 expect page 17
 said GLOBAL MIDI
+tap GLO
+wait 30
+expect page 24
+said GLOBAL DRUMS
 tap GLO
 wait 30
 expect page 18
@@ -186,6 +191,8 @@ said AFTER TOUCH OUT OFF
 # SYS's SEND CLK (on by default): the tempo out as MIDI clock, PLAY a start and a stop; off, then on again
 tap GLO
 wait 30
+tap GLO
+wait 30
 expect page 18
 spin PRESET -1
 wait 30
@@ -292,6 +299,8 @@ tap GLO
 tap GLO
 tap GLO
 wait 30
+tap GLO
+wait 30
 expect page 18
 spin K1 -12
 wait 30
@@ -302,6 +311,8 @@ wait 30
 turn PRESET 1
 wait 30
 expect arp 1
+tap GLO
+wait 30
 tap GLO
 wait 30
 tap GLO
@@ -360,6 +371,8 @@ tap GLO
 wait 30
 tap GLO
 wait 30
+tap GLO
+wait 30
 expect page 18
 clock 30 25
 expect ext_bpm 0
@@ -380,7 +393,9 @@ said BLUETOOTH MIDI OFF
 spin K4 -1
 wait 30
 expect ble_off 0
-# DUMP: FX sends every slot
+# DUMP: FX sends every slot (from MIDI: DRUMS, SYS, DISPLAY, DUMP)
+tap GLO
+wait 30
 tap GLO
 wait 30
 tap GLO
@@ -396,6 +411,8 @@ tap SAVE
 wait 30
 reboot
 wait 600
+tap GLO
+wait 30
 tap GLO
 wait 30
 tap GLO

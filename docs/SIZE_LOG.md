@@ -67,3 +67,9 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-01 | 99f1a81+ | Drum Something: Claps' strikes spread at random (no slapback) | 337,732 | +80 | 243,832 | 77,556 | +0 | 20,748 | 133,016 |
 | 2026-11-01 | 99f1a81+ | Drum Something: Claps a little more room | 337,732 | +0 | 243,832 | 77,556 | +0 | 20,748 | 133,016 |
 | 2026-11-01 | 99f1a81+ | Drum Something: Claps a hair more high-mids, more room | 337,732 | +0 | 243,832 | 77,556 | +0 | 20,748 | 133,016 |
+| 2026-11-01 | d7f0e44+ | Drum Something: its own MIDI device (GLO DRUMS: channel and CC channel, CCs 33-58); Tom and Bass in tune | 338,612 | +880 | 242,952 | 77,556 | +0 | 20,748 | 133,024 |
+| 2026-11-01 | d7f0e44+ | Drum Something: Snare 35 cents up (the user's pick of four) | 338,612 | +0 | 242,952 | 77,556 | +0 | 20,748 | 133,024 |
+| 2026-11-01 | d7f0e44+ | Drum Something: Tom's body overtones louder at the lowest tunings (low_db) | 338,820 | +208 | 242,744 | 77,556 | +0 | 20,748 | 133,024 |
+| 2026-11-01 | d7f0e44+ | Drum Something: Claps open up in the middle (a tail noise for the upper bands, DT_MT) | 339,572 | +752 | 241,992 | 77,556 | +0 | 20,748 | 133,120 |
+| 2026-11-01 | d7f0e44+ | Drum Something: Claps a hair darker | 339,572 | +0 | 241,992 | 77,556 | +0 | 20,748 | 133,120 |
+| 2026-11-01 | d7f0e44+ | Drum Something: Claps another hair darker | 339,572 | +0 | 241,992 | 77,556 | +0 | 20,748 | 133,120 |

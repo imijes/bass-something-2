@@ -256,6 +256,8 @@ tap GLO
 tap GLO
 tap GLO
 tap GLO
+tap GLO
+wait 30
 wait 30
 expect page 20
 tap SEL
@@ -389,6 +391,8 @@ wait 30
 tap GLO
 wait 30
 tap GLO
+tap GLO
+wait 30
 wait 30
 expect page 20
 tap FX
@@ -464,6 +468,8 @@ tap GLO
 tap GLO
 tap GLO
 tap GLO
+tap GLO
+wait 30
 wait 30
 expect page 20
 tap SEL
@@ -554,6 +560,8 @@ tap GLO
 tap GLO
 tap GLO
 tap GLO
+tap GLO
+wait 30
 wait 30
 expect page 20
 tap SEL
@@ -608,6 +616,8 @@ tap GLO
 tap GLO
 tap GLO
 tap GLO
+tap GLO
+wait 30
 wait 30
 expect page 20
 tap SEL

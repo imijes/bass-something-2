@@ -13,11 +13,11 @@
  *
  * Levels in the 400's units (0..255 into the DAC): the volume step's 11 each (0..175), an accent's 80 more (the
  * recordings' +3.3 dB is 255 against 175). The sound goes into app_render's output after the bass's, not through its
- * filter or distortion. MIDI notes on DT_CHAN play them (the 400's key map); the main loop's hits come in dtq. */
+ * filter or distortion. MIDI notes on GLO DRUMS' channel play them (the 400's key map), its CCs set each drum's
+ * tuning and volume (dt_cc); the main loop's hits come in dtq. */
 enum { DT_BASS, DT_SNARE, DT_RIM, DT_TOM1, DT_TOM2, DT_CRASH, DT_RIDE, DT_CHH, DT_OHH, DT_CLAPS, DT_TAMB, DT_COWBELL,
        DT_CABASA, NDT };
 enum { DTC_BASS, DTC_SNARE, DTC_TOMS, DTC_CYM, DTC_HATS, DTC_PERC, NDTCH };
-#define DT_CHAN 10u                          /* MIDI channel in (the 400's was 15 in Omni; GM's drums are 10) */
 #define DT_DAC_MU 0                          /* 1: the DAC companding (mu-law); 0: linear 8 bits (TN400-0
                                               * names no DAC part: linear until known) */
 #define DT_SN_RATE 17400.0f                  /* the Snare's ROM samples a second at the first step (its recordings'
@@ -27,6 +27,8 @@ enum { DTC_BASS, DTC_SNARE, DTC_TOMS, DTC_CYM, DTC_HATS, DTC_PERC, NDTCH };
 #define DT_NM 16u                            /* resonators a channel */
 /* the tunables (bs2/tools/dt_compare.py against the recordings) */
 #define DT_STICK_TAU 0.0004f                 /* the stick's noise burst's decay, seconds in ROM time */
+#define DT_TOM_SW 0.30f                      /* the Toms' pitch's quick fall: its excess at the hit (sweep) */
+#define DT_TOM_SW_T 0.035f                   /* and its time constant, s in ROM time */
 #define DT_TOM_GAIN 0.5f                     /* the Toms' level */
 #define DT_TOM_STICK 0.15f                   /* the stick's noise burst into their resonators */
 #define DT_TOM_VCF 5000.0f                   /* their VCF's open cutoff at the first step, Hz (follows the tuning) */
@@ -95,21 +97,25 @@ enum { DTC_BASS, DTC_SNARE, DTC_TOMS, DTC_CYM, DTC_HATS, DTC_PERC, NDTCH };
 #define DT_CP_TAIL 0.028f                    /* and after the last, s */
 #define DT_CP_RISE 0.004f                    /* their noise's rise, s (dt_voice_t wires_rise) */
 #define DT_CP_HI 3                           /* their high-mid bands (1.4, 2 kHz), dB more */
+#define DT_CP_TAIL_G 0.72f                   /* their hiss (the upper bands' noise): its level, */
+#define DT_CP_TAIL_T 0.06f                   /* its decay, s in ROM time, */
+#define DT_CP_TAIL_R 0.04f                   /* and its swell */
 #define DT_CP_Q 0.002f                       /* their bands' decay, s: their width */
 #define DT_CP_VCF 4000.0f                    /* their VCF's open cutoff at the first step, Hz */
 #define DT_CP_VCF_LO 1.0f                    /* where its envelope closes it to */
 #define DT_CP_VCF_T 0.1f                     /* its envelope's decay, s */
-#define DT_CP_LP 0.35f                       /* their output filter (dt_voice_t lp; 0: none) */
+#define DT_CP_LP 0.36f                       /* their output filter (dt_voice_t lp; 0: none) */
 #define DT_CP_HP 420.0f                      /* their output high pass at the first step, Hz (dt_voice_t hp) */
-#define DT_CP_ROOM 0.5f                      /* their send into the room */
+#define DT_CP_ROOM 0.3f                      /* their send into the room */
 #define DT_SN_GAIN 0.6f                      /* the Snare's level */
 #define DT_SN_STICK 0.2f                     /* the stick's noise burst into the shell's resonators */
 #define DT_SN_WIRES 0.08f                    /* the wires' decay, seconds in ROM time */
 #define DT_SN_WIRE_G 0.55f                   /* the wires' noise into their bands */
 #define DT_SN_NOISE 0.15f                    /* the wires' noise straight out */
 #define DT_TOM_CLICK 4.0f                    /* the Toms' stick crack, straight out (dt_voice_t click) */
-#define DT_TOM_MID 4                         /* the Toms' bloom's level, dB (three broad modes in the middle) */
+#define DT_TOM_MID 8                         /* the Toms' bloom's level, dB (three broad modes in the middle) */
 #define DT_TOM_LOW 0.8f                      /* the Toms' body longer by this at the first step (dt_voice_t low) */
+#define DT_TOM_LOW_DB 8.0f                   /* the Toms' body louder by this at the first step (dt_voice_t low_db) */
 #define DT_TOM_BODY 0.95f                    /* the Toms' modes' decays against the recordings' (the room the rest) */
 #define DT_TOM_ROOM 0.5f                     /* the Toms' send into the room */
 #define DT_SN_ROOM 0.06f                     /* the Snare's */
@@ -136,13 +142,13 @@ static const uint16_t DT_RATE_CLAPS[16] = {4096, 4215, 4264, 4428, 4858, 5280, 5
                                            8679, 9249, 9941, 10592};   /* (their decays': the spectra alias above 12) */
 /* each tuning step's rate, Q12, 4096 the modes' own (docs/DT_MEASURE.md's spectrum shifts; the Snare's first
  * step set by its pitch, 92 Hz: its shift read it 5 % low) */
-static const uint16_t DT_RATE_TOM[16] = {4096, 4215, 4768, 5710, 6410, 7143, 7959, 8806, 9884, 10777, 11923, 13099,
-                                         14701, 16031, 17740, 19345};
-static const uint16_t DT_RATE_SNARE[16] = {4331, 5878, 6410, 6889, 7459, 7901, 8192, 8557, 8999, 9196, 9601, 9953,
-                                           10248, 10248, 10625, 11096};
+static const uint16_t DT_RATE_TOM[16] = {4161, 4327, 4924, 5831, 6512, 7304, 8186, 8946, 10149, 10997, 12238, 13511,
+                                         15080, 16437, 18123, 19777};   /* (dt_compare.py --pitch) */
+static const uint16_t DT_RATE_SNARE[16] = {4419, 5998, 6541, 7030, 7611, 8062, 8359, 8732, 9183, 9384, 9797,
+                                           10156, 10457, 10457, 10842, 11322};   /* (35 cents up: picked by ear) */
 static const uint16_t DT_RATE_RIM[16] = {4096, 4477, 4791, 4998, 5200, 5430, 5609, 5839, 6052, 6365, 6528, 6774,
                                          7043, 7323, 7620, 8282};
-static const uint16_t DT_RATE_BASS[16] = {4096, 5403, 6405, 6648, 6920, 7195, 7504, 7804, 8122, 8479, 8726, 8726,
+static const uint16_t DT_RATE_BASS[16] = {4211, 5517, 6405, 6648, 6920, 7195, 7504, 7804, 8122, 8479, 8726, 8726,
                                           9053, 9473, 9884, 10263};   /* (tools/dt_voice.py --cycles) */
 /* the MIDI key map (the 400's, 17 Dec 1983): notes 35..58, DT_NONE where nothing plays */
 static const uint8_t DT_KEY[24] = {DT_BASS, DT_BASS, DT_RIM, DT_SNARE, DT_CLAPS, DT_SNARE, DT_TOM1, DT_CHH, DT_TOM1,
@@ -150,17 +156,18 @@ static const uint8_t DT_KEY[24] = {DT_BASS, DT_BASS, DT_RIM, DT_SNARE, DT_CLAPS,
                                    DT_NONE, DT_TAMB, DT_NONE, DT_COWBELL, DT_NONE, DT_CABASA};
 
 /* A voice is a bank of resonators, each a drum's mode: in ROM time its frequency, its level (dB under the
- * strongest), its decay (time constant, s) and its flags: struck by the stick (a click and a burst of noise) or,
- * DT_MW, driven by the wires' noise while it lasts; following the voice's pitch fall or, DT_MF, not (a beater's
- * thud is the beater's, not the head's). The modes are the recordings' strongest tones, divided by each step's rate
- * (bs2/tools/dt_measure.py's tones(): they hold still across the steps, as a ROM's would). The noise is new each
- * hit: no two alike. */
+ * strongest), its decay (time constant, s) and its flags: struck by the stick (a click and a burst of noise), or
+ * DT_MW driven by the wires' noise while it lasts, or DT_MT by the tail's; following the voice's pitch fall or,
+ * DT_MF, not (a beater's thud is the beater's, not the head's). The modes are the recordings' strongest tones,
+ * divided by each step's rate (bs2/tools/dt_measure.py's tones(): they hold still across the steps, as a ROM's
+ * would). The noise is new each hit: no two alike. */
 typedef struct {
     float hz, db, tau;
     uint8_t flags;                           /* DT_MW, DT_MF */
 } dt_mode_t;
 #define DT_MW 1u                             /* a wire: driven by the wires' noise, not struck */
 #define DT_MF 2u                             /* fixed: not following the pitch's fall */
+#define DT_MT 4u                             /* driven by the tail's noise (its own swell and decay), not struck */
 static const dt_mode_t DT_MODES_TOM[] = {    /* the head's modes at rest; all start a third higher (DT_VOICE) */
     {62, 0, 0.35f, 0}, {90, -30, 0.30f, 0}, {101, -21, 0.25f, 0}, {124, -21, 0.20f, 0}, {137, -22, 0.18f, 0},
     {152, -30, 0.12f, 0}, {174, -21, 0.20f, 0}, {193, -26, 0.20f, 0}, {239, -25, 0.18f, 0}, {268, -21, 0.15f, 0},
@@ -193,10 +200,10 @@ static const dt_mode_t DT_MODES_COWBELL[] = {   /* a bell's partials (the upper 
     {735, -31 + DT_CB_HI, 0.022f, 0}, {967, -32 + DT_CB_HI, 0.043f, 0}, {1060, -26 + DT_CB_HI, 0.055f, 0},
     {1238, -36 + DT_CB_HI, 0.067f, 0}, {1411, -28 + DT_CB_HI, 0.041f, 0}, {1752, -36 + DT_CB_HI, 0.044f, 0},
     {2500, DT_CB_CLANG, DT_SN_WIRE_Q, DT_MW}, {4000, DT_CB_CLANG, DT_SN_WIRE_Q, DT_MW}};   /* its clang: noise */
-static const dt_mode_t DT_MODES_CLAPS[] = {  /* hands: noise in a broad band, 350 Hz to 2 kHz */
+static const dt_mode_t DT_MODES_CLAPS[] = {  /* hands: noise in a broad band, 350 Hz to 3 kHz; the upper the hiss */
     {400, 0, DT_CP_Q, DT_MW}, {500, 0, DT_CP_Q, DT_MW}, {620, 0, DT_CP_Q, DT_MW}, {760, 0, DT_CP_Q, DT_MW},
-    {900, 0, DT_CP_Q, DT_MW}, {1050, 0, DT_CP_Q, DT_MW}, {1400, -4 + DT_CP_HI, DT_CP_Q, DT_MW},
-    {2000, -8 + DT_CP_HI, DT_CP_Q, DT_MW}};
+    {900, 0, DT_CP_Q, DT_MW}, {1050, 0, DT_CP_Q, DT_MW}, {1400, -4 + DT_CP_HI, DT_CP_Q, DT_MT},
+    {2000, -8 + DT_CP_HI, DT_CP_Q, DT_MT}, {2800, -10 + DT_CP_HI, DT_CP_Q, DT_MT}};   /* (the upper: the tail's) */
 typedef struct {                             /* a voice: the generic parts dt_hit and dt_gen play from */
     const uint16_t *rate;                    /* the tuning steps' rates */
     const dt_mode_t *m;
@@ -209,6 +216,8 @@ typedef struct {                             /* a voice: the generic parts dt_hi
     float stick, click;                      /* the stick's burst into the modes, and straight out (its crack) */
     float wires, wires_tau, wires_rise, noise;   /* the wires' noise into their bands: its level, decay and rise (s),
                                               * and straight out */
+    float tail, tail_tau, tail_rise;         /* the tail's noise (DT_MT modes): its level, decay and swell (s): what
+                                              * builds and lingers after the strikes (a clap's hiss opening up) */
     uint8_t bursts;                          /* the wires' noise struck this many times (0, 1: once), */
     float burst_gap, burst_tau;              /* gap s apart (ROM time), decaying with burst_tau between (a clap's
                                               * hands); after the last, with wires_tau */
@@ -218,6 +227,9 @@ typedef struct {                             /* a voice: the generic parts dt_hi
     float body, low;                         /* the modes' decays' scale; longer by low at the first step, fading out
                                               * by the fourth (the 400's lowest tunings are their own: the Snare's
                                               * first step is off its others' pitch pattern too) */
+    float low_db;                            /* the body's overtones (the modes after the first, under 300 Hz, not
+                                              * wires or fixed) this many dB louder at the first step, fading out by
+                                              * the fourth: more body in the attack */
     float vcf, vcf_lo, vcf_t;                /* the VCF after the DAC (channels 1 and 3, TN400-0 pg. 7): its cutoff
                                               * open at the first step, Hz, moving with the rate (0: none); its own
                                               * envelope closing it to vcf_lo of that, with time constant vcf_t (s) */
@@ -238,8 +250,9 @@ static const dt_voice_t DT_V_SNARE = {
     .noise = DT_SN_NOISE, .body = DT_SN_BODY, .low = DT_SN_LOW, .lp = DT_SN_LP, .room = DT_SN_ROOM};
 static const dt_voice_t DT_V_TOM = {         /* (both Toms: one ROM, as the 400's) */
     .rate = DT_RATE_TOM, .m = DT_MODES_TOM, .n = 14, .rom = DT_TOM_RATE, .len = 1.33f, .gain = DT_TOM_GAIN,
-    .sweep = 0.22f, .sweep_tau = 0.035f, .sweep2 = 0.20f, .sweep2_tau = 0.33f, .stick = DT_TOM_STICK,
-    .click = DT_TOM_CLICK, .body = DT_TOM_BODY, .low = DT_TOM_LOW, .vcf = DT_TOM_VCF, .vcf_lo = DT_TOM_VCF_LO,
+    .sweep = DT_TOM_SW, .sweep_tau = DT_TOM_SW_T, .sweep2 = 0.20f, .sweep2_tau = 0.33f, .stick = DT_TOM_STICK,
+    .click = DT_TOM_CLICK, .body = DT_TOM_BODY, .low = DT_TOM_LOW,
+    .low_db = DT_TOM_LOW_DB, .vcf = DT_TOM_VCF, .vcf_lo = DT_TOM_VCF_LO,
     .vcf_t = DT_TOM_VCF_T, .lp = DT_TOM_LP, .room = DT_TOM_ROOM};
 static const dt_voice_t DT_V_RIM = {
     .rate = DT_RATE_RIM, .m = DT_MODES_RIM, .n = 15, .rom = DT_RIM_RATE, .len = 0.42f, .gain = DT_RIM_GAIN,
@@ -257,9 +270,10 @@ static const dt_voice_t DT_V_COWBELL = {
     .gate = DT_CB_HOLD, .gate_db = 40.0f, .gate_t = DT_CB_FALL, .attack = DT_CB_ATTACK, .lp = DT_CB_LP,
     .room = DT_CB_ROOM};
 static const dt_voice_t DT_V_CLAPS = {
-    .rate = DT_RATE_CLAPS, .m = DT_MODES_CLAPS, .n = 8, .rom = DT_PERC_RATE, .len = 0.44f, .gain = DT_CP_GAIN,
+    .rate = DT_RATE_CLAPS, .m = DT_MODES_CLAPS, .n = 9, .rom = DT_PERC_RATE, .len = 0.44f, .gain = DT_CP_GAIN,
     .wires = DT_CP_WIRE_G, .wires_tau = DT_CP_TAIL, .wires_rise = DT_CP_RISE, .noise = DT_CP_NOISE,
-    .bursts = DT_CP_BURSTS, .burst_gap = DT_CP_GAP, .burst_tau = DT_CP_BURST_T, .burst_db = DT_CP_BURST_DB,
+    .tail = DT_CP_TAIL_G, .tail_tau = DT_CP_TAIL_T, .tail_rise = DT_CP_TAIL_R, .bursts = DT_CP_BURSTS,
+    .burst_gap = DT_CP_GAP, .burst_tau = DT_CP_BURST_T, .burst_db = DT_CP_BURST_DB,
     .burst_jit = DT_CP_JIT,
     .body = 1.0f, .vcf = DT_CP_VCF,
     .vcf_lo = DT_CP_VCF_LO, .vcf_t = DT_CP_VCF_T, .lp = DT_CP_LP, .hp = DT_CP_HP, .room = DT_CP_ROOM};
@@ -285,6 +299,7 @@ typedef struct {
     float bk;                                /* the last strike's decay, kept till then */
     float bl, bl_k;                          /* the next strike's level, and its fall each strike */
     float rise, rise_k;                      /* the wires' rise: subtracted from their level, falling away */
+    float tl, tl_k, tr, tr_k;                /* the tail's noise: its level and swell, their decays a sample */
     float sw, sw_k, sw2, sw2_k;              /* the pitch's two excesses, their decays every 8 samples */
     float y1[DT_NM], y2[DT_NM];              /* the resonators: their last two outputs, */
     float a1[DT_NM], a2[DT_NM], r[DT_NM], w[DT_NM], g[DT_NM];   /* coefficients, radius, angle, input gain */
@@ -316,6 +331,7 @@ static fifo_t dtq;                           /* main loop -> audio: a hit, drum 
 static uint32_t dt_rng = 1u;                 /* the noise's: never reset, so each hit's is its own */
 #ifdef PLAT_HOST
 static float dt_test_gain = 1.0f;            /* (the host's dt_gain: renders well above its 16-bit files' floor) */
+static uint32_t dt_hits;                     /* (the host's: hits played, for tests/drums.txt) */
 #endif
 
 static void dt_init(void)
@@ -398,7 +414,7 @@ static inline float dt_dac(float x)
 static float dt_gen(dt_ch_t *c)
 {
     const dt_voice_t *v = c->v;
-    float n = dt_noise(), xs, xw, s = 0.0f;
+    float n = dt_noise(), xs, xw, xt, s = 0.0f;
     uint32_t i;
     if (c->sw + c->sw2 > 1e-4f && !(c->k & 7u)) {   /* the pitch falling: the resonators retuned every 8 samples */
         float f = 1.0f + c->sw + c->sw2;
@@ -418,11 +434,15 @@ static float dt_gen(dt_ch_t *c)
             c->wire_k = c->bk;
     }
     xw = n * (c->wire - c->rise);
+    xt = c->tl > 0.0f ? dt_noise() * (c->tl - c->tr) : 0.0f;   /* (its own noise) */
+    c->tl *= c->tl_k;
+    c->tr *= c->tr_k;
     c->burst *= c->burst_k;
     c->wire *= c->wire_k;
     c->rise *= c->rise_k;
     for (i = 0; i < v->n; i++) {
-        float y = c->a1[i] * c->y1[i] - c->a2[i] * c->y2[i] + c->g[i] * (v->m[i].flags & DT_MW ? xw : xs);
+        float x = v->m[i].flags & DT_MW ? xw : v->m[i].flags & DT_MT ? xt : xs;   /* (what drives it) */
+        float y = c->a1[i] * c->y1[i] - c->a2[i] * c->y2[i] + c->g[i] * x;
         c->y2[i] = c->y1[i];
         c->y1[i] = y;
         s += y;
@@ -449,13 +469,18 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
     const dt_voice_t *v = d < NDT ? DT_VOICE[d] : NULL;
     dt_ch_t *c;
     uint32_t i;
-    float rom, body, rate;
+    float rom, body, rate, lowf, lowg;
     if (!v)
         return;
+#ifdef PLAT_HOST
+    dt_hits++;
+#endif
     tune &= 15u;
     rom = v->rom;
     rate = (float)v->rate[tune] * (1.0f / 4096.0f);
-    body = v->body * (1.0f + v->low * (float)(tune < 3u ? 3u - tune : 0u) * (1.0f / 3.0f));
+    lowf = (float)(tune < 3u ? 3u - tune : 0u) * (1.0f / 3.0f);   /* (1 at the first step, 0 from the fourth) */
+    body = v->body * (1.0f + v->low * lowf);
+    lowg = fm_db2lin(v->low_db * lowf);
     c = &dt.ch[DT_CH[d]];
     *c = (dt_ch_t){0};
     c->v = v;
@@ -492,6 +517,9 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
         c->bl = v->wires * c->bl_k;
     }
     c->rise_k = dt_decay(v->wires_rise, rom, 1.0f);
+    c->tl = c->tr = v->tail;
+    c->tl_k = dt_decay(v->tail_tau, rom, 1.0f);
+    c->tr_k = dt_decay(v->tail_rise, rom, 1.0f);
     c->sw = v->sweep;
     c->sw_k = dt_decay(v->sweep_tau, rom, 8.0f);
     c->sw2 = v->sweep2;
@@ -503,15 +531,31 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
         c->a1[i] = 2.0f * c->r[i] * fm_cosf(c->w[i] * (m->flags & DT_MF ? 1.0f : 1.0f + v->sweep + v->sweep2));
         c->a2[i] = c->r[i] * c->r[i];
         c->g[i] = fm_db2lin(m->db) * fm_sinf(c->w[i]);   /* (a struck resonator rings at its gain over sin w) */
+        if (i && !(m->flags & (DT_MW | DT_MF)) && m->hz < 300.0f)   /* (the body's overtones: over the first
+                                              * mode, under the bloom and the smack) */
+            c->g[i] *= lowg;
     }
 }
 
-/* a MIDI note on DT_CHAN (audio interrupt): the 400's velocity, 16 levels of its volume steps, accented at 120 up */
+/* a MIDI note on the drums' channel (audio interrupt): the 400's velocity, 16 levels of its volume steps, accented at
+ * 120 up; under the drum's VOLUME (15: as played) */
 static void dt_note(uint32_t note, uint32_t vel)
 {
     uint32_t d = note >= 35u && note < 35u + 24u ? DT_KEY[note - 35u] : DT_NONE;
     if (d != DT_NONE && vel)
-        dt_hit(d, dt.tune[d], (vel >> 3) * 11u + 10u + (vel >= 120u ? 80u : 0u));
+        dt_hit(d, dt.tune[d], ((vel >> 3) * 11u + 10u + (vel >= 120u ? 80u : 0u)) * dt.vol[d] / 15u);
+}
+
+/* a MIDI CC on the drums' CC channel (audio interrupt): 33..45 each drum's tuning, 46..58 its volume (Bass to
+ * Cabasa, the panel's order; 0..127 to 0..15) */
+#define DT_CC_TUNE 33u
+#define DT_CC_VOL (DT_CC_TUNE + NDT)
+static void dt_cc(uint32_t cc, uint32_t v)
+{
+    if (cc >= DT_CC_TUNE && cc < DT_CC_TUNE + NDT)
+        dt.tune[cc - DT_CC_TUNE] = (uint8_t)(v >> 3);
+    else if (cc >= DT_CC_VOL && cc < DT_CC_VOL + NDT)
+        dt.vol[cc - DT_CC_VOL] = (uint8_t)(v >> 3);
 }
 
 /* the drums' next output sample (audio interrupt), -1..1 at a full level */
