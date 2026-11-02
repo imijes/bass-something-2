@@ -322,7 +322,9 @@ The `PLAT_STORE_MAX` (3,840 B) objects are too small for this, so it goes in raw
 ### Keys and controls in drum mode
 The FM-1 has 27 keys, F3..G5.
 
-- **The 13 drums on the first 13 white keys (F3 → D5)**, in the 400's panel order. The black keys give the
+- **The 13 drums from the low C up the white keys (C4 → F5, Bass .. Tambourine), then Cowbell on F#5
+  and Cabasa on G5**,
+  in the 400's panel order; the bass drum on a C as in General MIDI. The black keys give the
   duplicates (as MIDI's "fast rolls" keys) or stay free.
 - **Volume and tuning:** hold a drum key and turn K1 (VOLUME 0–15) or K2 (TUNING 0–15). That is the 400's own
   gesture, and the value shows on the seg display.

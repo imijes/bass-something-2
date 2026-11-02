@@ -517,6 +517,8 @@ static struct {
     uint32_t idle;                           /* samples since a voice last played (the room stops once it is quiet) */
 } dt_room PLAT_POOL;
 static fifo_t dtq;                           /* main loop -> audio: a hit, drum | tune << 4 | level << 8 */
+static volatile uint32_t dt_flash;           /* audio -> main loop: the drums hit since the screen last looked, a bit
+                                              * each (dt_flash_take) */
 static uint32_t dt_rng = 1u;                 /* the noise's: never reset, so each hit's is its own */
 #ifdef PLAT_HOST
 static float dt_test_gain = 1.0f;            /* (the host's dt_gain: renders well above its 16-bit files' floor) */
@@ -666,6 +668,7 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
 #ifdef PLAT_HOST
     dt_hits++;
 #endif
+    dt_flash |= 1u << d;
     tune &= 15u;
     rom = v->rom;
     rate = (float)v->rate[tune] * (1.0f / 4096.0f);
@@ -756,13 +759,34 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
     c->n = (uint8_t)j;
 }
 
-/* a MIDI note on the drums' channel (audio interrupt): the 400's velocity, 16 levels of its volume steps, accented at
- * 120 up; under the drum's VOLUME (15: as played) */
+/* a hit's level, 0..255: velocity 1..127 as the 400's 16 volume steps, accented (+80), under the drum's VOLUME (15:
+ * as played) */
+static uint32_t dt_level(uint32_t d, uint32_t vel, int acc)
+{
+    return ((vel >> 3) * 11u + 10u + (acc ? 80u : 0u)) * dt.vol[d] / 15u;
+}
+
+/* a MIDI note on the drums' channel (audio interrupt): accented at velocity 120 up, as the 400's */
 static void dt_note(uint32_t note, uint32_t vel)
 {
     uint32_t d = note >= 35u && note < 35u + 24u ? DT_KEY[note - 35u] : DT_NONE;
     if (d != DT_NONE && vel)
-        dt_hit(d, dt.tune[d], ((vel >> 3) * 11u + 10u + (vel >= 120u ? 80u : 0u)) * dt.vol[d] / 15u);
+        dt_hit(d, dt.tune[d], dt_level(d, vel, vel >= 120u));
+}
+
+/* a hit from the main loop (the FM-1's keys, its pads): to the audio through dtq */
+static void dt_play(uint32_t d, uint32_t vel, int acc)
+{
+    if (d < NDT)
+        fifo_put(&dtq, d | (uint32_t)dt.tune[d] << 4 | dt_level(d, vel, acc) << 8);
+}
+
+/* the drums hit since the screen last looked (dt_flash) */
+static uint32_t dt_flash_take(void)
+{
+    uint32_t f = dt_flash;
+    dt_flash &= ~f;                          /* (a hit between the two: kept for the next look, or one look late) */
+    return f;
 }
 
 /* a MIDI CC on the drums' CC channel (audio interrupt): 33..45 each drum's tuning, 46..58 its volume (Bass to

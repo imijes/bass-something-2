@@ -95,3 +95,47 @@ reboot
 wait 600
 expect dchan 10
 expect dcc_chan 9
+# HOME held a second: Drum Something's mode (its splash, then its HOME page); HOME tapped there, its HOME again
+press HOME
+wait 1100
+expect rsplash 1
+release HOME
+wait 2000
+expect drum 1
+expect page 25
+tap SEL
+wait 30
+tap HOME
+wait 30
+expect page 25
+# its keys: from the low C (w4) up the white keys its instruments (Bass .. Tambourine), Cowbell the top F# (b10), Cabasa the top G (w15), not the synth's notes; each lit a moment
+expect dt_hits 3
+key w3 down 100
+wait 30
+expect dt_hits 3
+key w3 up
+key w4 down 100
+wait 30
+expect dt_hits 4
+expect dlit 1
+expect note -1
+key w4 up
+wait 200
+expect dlit 0
+key w15 down 100
+key b10 down 100
+wait 30
+expect dt_hits 6
+key w15 up
+key b10 up
+# HOME held again: the synth's mode, its HOME
+press HOME
+wait 1100
+release HOME
+wait 2000
+expect drum 0
+expect page 16
+key w1 down 100
+wait 30
+expect note 55
+key w1 up

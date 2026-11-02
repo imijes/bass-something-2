@@ -84,3 +84,8 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-01 | a22809c+ | Drum Something: cymbals' tone (Crash brighter, Ride darker) and tuning by ear (dt_voice_t pitch) | 343,940 | +144 | 237,624 | 77,556 | +0 | 20,748 | 138,712 |
 | 2026-11-01 | a22809c+ | Drum Something: cymbals tuned by ear (Crash +115 c, Ride +6 c), Ride's partials rebalanced and shorter | 343,940 | +0 | 237,624 | 77,556 | +0 | 20,748 | 138,712 |
 | 2026-11-02 | a22809c+ | Drum Something: Crash tuned +94 c (by ear, at step 1) | 343,940 | +0 | 237,624 | 77,556 | +0 | 20,748 | 138,712 |
+| 2026-11-02 | 605c31f+ | Drum Something: its mode (HOME held 1 s, splash), the keys its instruments, the drum HOME page (Drumtraks-style panel) | 346,888 | +2,948 | 234,676 | 77,556 | +0 | 20,748 | 138,768 |
+| 2026-11-02 | 605c31f+ | Drum Something: the drum HOME's wooden cheeks, the 400's black face full height | 347,112 | +224 | 234,452 | 77,556 | +0 | 20,748 | 138,768 |
+| 2026-11-02 | 605c31f+ | Drum Something: the drum HOME's cheeks and black face the plate's height only | 347,160 | +48 | 234,404 | 77,556 | +0 | 20,748 | 138,768 |
+| 2026-11-02 | 605c31f+ | Drum Something: the drum HOME's panel a little smaller, as clear below as above | 347,288 | +128 | 234,276 | 77,556 | +0 | 20,748 | 138,768 |
+| 2026-11-02 | 605c31f+ | drum keys from the low C (Cabasa on the top black key) | 347,304 | +16 | 234,260 | 77,556 | +0 | 20,748 | 138,768 |

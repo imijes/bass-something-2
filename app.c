@@ -1464,6 +1464,8 @@ static struct {
     uint8_t env_sel;                     /* the ENVELOPES' Env Select (SELECT): what the faders set, 0 the amp envelope,
                                           * 1 the mod envelope, 2 both (Amp+Mod) */
     uint32_t lit;                        /* the keys whose notes are held (notes_lit): lit, on the keys and on screen */
+    uint8_t drum;                        /* Drum Something's mode (HOME held): the keys its instruments, HOME its page */
+    uint32_t dt_at[NDT];                 /* when each drum was last hit (dt_flash_take): its key lit a moment */
 } ui PLAT_POOL;
 /* Knob Zoom's camera (below, zoom_step) */
 #define ZOOM_MAX 256                         /* Q8, over 1x: 2x (crisp once there: whole pixels) */
@@ -1626,13 +1628,15 @@ static void ble_device_button(void)
  * settings_t field on the GLO pages, from PG_GMIDI on), its range, and its names when it is a choice; a page's
  * empty places set nothing */
 enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GSYS, PG_GDISP, PG_GDUMP,
-       PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, NPAGES };   /* (GLO DRUMS last: the pages' numbers before it kept) */
+       PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, PG_DHOME, NPAGES };   /* (each new page last: the pages' numbers before it
+                                              * kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI", "GLOBAL SYSTEM",
                                               "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
-                                              "GLOBAL DRUMS"};
+                                              "GLOBAL DRUMS", "DRUM HOME"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
+#define DRUM_PAGE(g) ((g) == PG_DHOME)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
 /* the pop-ups' time (GLO DISPLAY), its knob's places; pop_d the place, 0 and 1 swapped in the store so a record from
  * before it (0) is 1.5 s */
 enum { NPOP = 5 };
@@ -1917,10 +1921,12 @@ static void cc_apply(uint32_t cc, uint32_t v)   /* the main loop's: a CC on CC C
     }
 }
 
-/* the RND Synth Companion's splash (rsplash_draw): up until (0: not), RSPLASH_MS as its pages open; a button or a knob
- * ends it */
+/* a splash over the screen: the RND Synth Companion's (rsplash_draw) as its pages open, Drum Something's
+ * (dsplash_draw) or the synth's as HOME held switches; up until (0: not), RSPLASH_MS; a button or a knob ends it */
 #define RSPLASH_MS 1800u
 static uint32_t rsplash_until, rsplash_draws;   /* (draws: how many times it was drawn, once each time it's up) */
+static void rsplash_draw(void);
+static void (*rsplash_fn)(void) = rsplash_draw;   /* (the one up) */
 
 /* the randomizer's moment on screen (rfx_draw): when it began (0: not showing), and what its knobs land on */
 static uint32_t rfx_at, rfx_seed;
@@ -2879,7 +2885,9 @@ static void hint_show(uint32_t k)            /* Hints: button k's, from the page
 
 static void hold_tap(uint32_t k)
 {
-    if (k == B_REC && ui.page != PG_GMIDI)   /* recording, on any page (GLO MIDI's: a Bluetooth device) */
+    if (k == B_HOME)                         /* HOME: the whole panel (the first page), the mode's */
+        page_go(ui.drum ? PG_DHOME : PG_HOME);
+    else if (k == B_REC && ui.page != PG_GMIDI)   /* recording, on any page (GLO MIDI's: a Bluetooth device) */
         rec_toggle();
     else if (k == B_REC && FM1B_BLE_CENTRAL && !set.ble_off)
         ble_device_button();
@@ -2892,6 +2900,29 @@ static void hold_tap(uint32_t k)
     hint_show(k);                            /* (its hint again from where it went: the next tap's) */
 }
 
+/* HOME held: the synth's mode or Drum Something's, its splash first (rsplash_draw's way), then its HOME */
+static void dsplash_draw(void);
+static void mode_switch(void)
+{
+    ui.drum = (uint8_t)!ui.drum;
+    page_go(ui.drum ? PG_DHOME : PG_HOME);
+    rsplash_fn = dsplash_draw;               /* (either way: its mode's name) */
+    rsplash_until = plat_ms() + RSPLASH_MS;
+}
+
+/* Drum Something's keys: its instruments from the low C up the white keys as the 400's panel has them (Bass ..
+ * Tambourine, DT_*'s order; General MIDI's bass drum a C too), then Cowbell F#, Cabasa the top G; the first black key
+ * ACCENT held */
+static const uint8_t DT_PAD[NDT] = {7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 25, 26};
+static void dt_key(uint32_t k, uint32_t v, uint32_t keys)
+{
+    static const uint8_t BK[11] = PLAT_BLACK_KEYS;
+    uint32_t i;
+    for (i = 0; i < NDT; i++)
+        if (DT_PAD[i] == k)
+            dt_play(i, v, (int)(keys >> BK[0] & 1u));
+}
+
 static void hold_step(uint32_t btn)
 {
     if (!ui.hold_live)
@@ -2901,7 +2932,9 @@ static void hold_step(uint32_t btn)
         hold_tap(ui.hold_k);
     } else if (plat_ms() - ui.hold_at >= HOLD_MS) {
         ui.hold_live = 0;
-        if (ui.hold_k == B_REC)
+        if (ui.hold_k == B_HOME)
+            mode_switch();
+        else if (ui.hold_k == B_REC)
             randomize();
         else if (ui.hold_k != B_GLO) {
             afx_on = (uint8_t)!afx_on;
@@ -2912,6 +2945,7 @@ static void hold_step(uint32_t btn)
                                               * their splash first (rsplash_draw) */
             rnd_ask();
             page_go(PG_GRND);
+            rsplash_fn = rsplash_draw;
             rsplash_until = plat_ms() + RSPLASH_MS;
         }
     }
@@ -2931,6 +2965,10 @@ static void input(void)
             ui.vel[k] = (uint8_t)v;
             ui.prs[k] = 0;
             ui.last_key = (int32_t)k;
+            if (ui.drum) {                   /* Drum Something's: its instruments (dt_key) */
+                dt_key(k, v, keys);
+                continue;
+            }
             if (set.local)                   /* (LOCAL off: MIDI out alone) */
                 fifo_put(&keyq, (uint32_t)note | v << 8);
             if (seq_rec)
@@ -2955,7 +2993,8 @@ static void input(void)
             continue;
         rsplash_until = 0;                   /* (the RND splash: over) */
         hint_show(k);                        /* (Hints: what it does, from the page it's pressed on) */
-        if (k == B_ARP || k == B_SEQ || k == B_GLO || k == B_REC) {   /* on release, or once held HOLD_MS (hold_step) */
+        if (k == B_ARP || k == B_SEQ || k == B_GLO || k == B_REC || k == B_HOME) {   /* on release, or once held
+                                              * HOLD_MS (hold_step) */
             ui.hold_k = (uint8_t)k;
             ui.hold_live = 1;
             ui.hold_at = plat_ms();
@@ -2978,8 +3017,6 @@ static void input(void)
             app_say("RND", "ASKED");
         } else if (k == B_SEL)                   /* the MASTER: you select a patch there */
             page_go(PG_PATCH);
-        else if (k == B_HOME)                    /* HOME: the whole panel (the first page) */
-            page_go(PG_HOME);
         else if (k == B_SAVE && ui.page == PG_GRND)   /* the seed shown into its slot */
             rnd_store();
         else if (k == B_SAVE)
@@ -3103,7 +3140,7 @@ static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDI
                                          [PG_EMOD] = SEC_ENV, [PG_EFX] = SEC_FX, [PG_XMOD] = SEC_FX, [PG_AMOD] = SEC_ARP, [PG_HOME] = NSEC,
                                          [PG_GMIDI] = SEC_GLO, [PG_GSYS] = SEC_GLO, [PG_GDUMP] = SEC_GLO, [PG_GDISP] = SEC_GLO,
                                          [PG_GRND] = SEC_GLO, [PG_RPAT] = SEC_GLO,
-                                         [PG_RTRK] = SEC_GLO, [PG_GDRUM] = SEC_GLO};
+                                         [PG_RTRK] = SEC_GLO, [PG_GDRUM] = SEC_GLO, [PG_DHOME] = NSEC};
 /* the tabs span the panel's bar (x 2..235), a pixel between each; they end 3 rows over it, as its gaps are wide */
 #define TAB_X(i) (2 + (int32_t)(i) * 235 / NSEC)
 static uint8_t ycol[232] PLAT_POOL;          /* a picture's curve: each column's row */
@@ -4860,6 +4897,144 @@ static void home_sect(uint32_t g, int16_t *x, int16_t *y, float *lc)   /* page g
     *lc = fm_log2f(fm_minf(fm_minf(240.0f / (float)w, (float)TALL_H / (float)h), 6.0f));
 }
 
+/* Drum Something's HOME: the drum machine's whole panel, after the Sequential Drumtraks' (black, its sections in
+ * thin white frames, red LEDs and displays, black keys, the keypad's grey), in proportion to it: its plate's units (1200
+ * across its sections) at 0.161 px each (dt_px). Its name and its two displays over it; an instrument's key lit as it
+ * plays (dt_lit) */
+#define DT_FACE RGB(32, 32, 32)              /* the plate */
+#define DT_PRINT RGB(208, 208, 208)          /* its frames and print */
+#define DT_LIT_MS 120u                       /* a key lit after its hit */
+static int32_t dt_px(int32_t u) { return 24 + (u - 150) * 161 / 1000; }   /* a plate unit across, to the panel's x */
+static int32_t dt_py(int32_t u) { return 60 + (u - 57) * 161 / 1000; }    /* and down (6 rows clear above, below) */
+static uint32_t dt_lit(void)                 /* the instruments lit: held (ui.drum's keys) or just hit (ui.dt_at) */
+{
+    const uint32_t now = plat_ms();
+    uint32_t i, m = 0;
+    for (i = 0; i < NDT; i++)
+        if ((ui.dt_at[i] && now - ui.dt_at[i] < DT_LIT_MS) || (ui.drum && ui.keys >> DT_PAD[i] & 1u))
+            m |= 1u << i;
+    return m;
+}
+static void dt_frame(int32_t x0, int32_t y0, int32_t x1, int32_t y1)   /* a section's frame, its corners rounded */
+{
+    const int32_t x = dt_px(x0), y = dt_py(y0), w = dt_px(x1) - x, h = dt_py(y1) - y;
+    cv_rect(x + 2, y, w - 4, 1, DT_PRINT);
+    cv_rect(x + 2, y + h - 1, w - 4, 1, DT_PRINT);
+    cv_rect(x, y + 2, 1, h - 4, DT_PRINT);
+    cv_rect(x + w - 1, y + 2, 1, h - 4, DT_PRINT);
+    cv_pset(x + 1, y + 1, DT_PRINT);
+    cv_pset(x + w - 2, y + 1, DT_PRINT);
+    cv_pset(x + 1, y + h - 2, DT_PRINT);
+    cv_pset(x + w - 2, y + h - 2, DT_PRINT);
+}
+static void dt_button(int32_t u, int32_t v, int lit)   /* a black key at plate u, v: its light right edge; lit, white */
+{
+    const int32_t x = dt_px(u) - 4, y = dt_py(v) - 4;
+    cv_rect(x, y, 9, 9, RGB(8, 8, 8));
+    cv_rect(x + 1, y + 1, 7, 7, lit ? P_SILK : RGB(24, 24, 24));
+    cv_rect(x + 7, y + 1, 1, 7, lit ? P_SILK : grey(120));
+}
+static void dt_led(int32_t u, int32_t v, int on)
+{
+    cv_rect(dt_px(u) - 1, dt_py(v) - 1, 2, 2, on ? RGB(255, 40, 48) : RGB(72, 16, 24));
+}
+static void dt_knob(int32_t u, int32_t v, int32_t val)   /* a black knob, its white line at val of 0..10 */
+{
+    const int32_t cx = dt_px(u), cy = dt_py(v);
+    int32_t x, y;
+    disc(cx, cy, 5, RGB(8, 8, 8));
+    disc(cx, cy, 4, grey(40));
+    pt_at(cx, cy, 4, ((float)val / 10.0f - 0.5f) * (FM_PI * 5.0f / 3.0f), &x, &y);
+    cv_line(cx, cy, x, y, P_SILK);
+}
+static void seg_tiny(int32_t x, int32_t y, char c)   /* a digit 4 x 7 (seg7's segments, a pixel thick) */
+{
+    static const int8_t R[7][4] = {{1, 0, 2, 1}, {3, 1, 1, 2}, {3, 4, 1, 2}, {1, 6, 2, 1}, {0, 4, 1, 2}, {0, 1, 1, 2},
+                                   {1, 3, 2, 1}};
+    uint32_t m = seg_mask(c), i;
+    for (i = 0; i < 7u; i++)
+        if (m >> i & 1u)
+            cv_rect(x + R[i][0], y + R[i][1], R[i][2], R[i][3], RGB(252, 60, 72));
+}
+static void dt_display(int32_t x, int32_t y, const char *t)   /* the 400's display: two red digits (seg7) */
+{
+    cv_rect(x, y, 54, 42, RGB(4, 4, 4));
+    cv_rect(x + 3, y + 3, 48, 36, RGB(20, 12, 14));
+    seg7(x + 6, y + 7, t[0]);
+    seg7(x + 28, y + 7, t[1]);
+}
+/* a wooden cheek, 6 wide at x from row y0 down the panel (the 400's wooden ends, the plate's height): streaks a shade
+ * apart down each column, at random but the same every draw (rfx_hash); edge its lit column, shadow its dark one by
+ * the plate */
+static uint32_t rfx_hash(uint32_t a, uint32_t b);
+static void dt_cheek(int32_t x, int32_t y0, int32_t edge, int32_t shadow)
+{
+    static const uint16_t W[4] = {RGB(168, 96, 48), RGB(152, 80, 40), RGB(184, 112, 56), RGB(128, 64, 32)};
+    const int32_t h = pan_h - y0;
+    int32_t i, y;
+    for (i = 0; i < 6; i++) {
+        cv_rect(x + i, y0, 1, h, W[0]);
+        for (y = -4; y < h; y += 8) {
+            const uint32_t r = rfx_hash((uint32_t)(x + i), (uint32_t)(y + 8) / 8u);
+            const int32_t at = y + (int32_t)(r % 6u), n = 3 + (int32_t)(r >> 4 & 7u) % 6;
+            if (at >= 0)                     /* (none above the plate) */
+                cv_rect(x + i, y0 + at, 1, at + n > h ? h - at : n, W[1u + (r >> 8) % 3u]);
+        }
+    }
+    cv_rect(edge, y0, 1, h, RGB(200, 128, 72));
+    cv_rect(shadow, y0, 1, h, RGB(80, 40, 16));
+}
+static void dhome_draw(void)
+{
+    static const int16_t FRAME[13][4] = {
+        {165, 57, 318, 203}, {165, 207, 318, 350}, {330, 57, 640, 350}, {645, 57, 850, 350}, {853, 57, 1165, 350},
+        {1180, 57, 1348, 350},                              /* cassette, tempo, song, display, pattern, volumes */
+        {150, 410, 365, 640}, {415, 410, 485, 640}, {489, 410, 628, 640}, {632, 410, 771, 640}, {775, 410, 913, 640},
+        {918, 410, 1057, 640}, {1061, 410, 1348, 640}};    /* per instrument, CH1 .. CH6 */
+    static const int16_t KEY[9][2] = {{205, 140}, {277, 140}, {205, 285}, {277, 285}, {393, 112}, {475, 284},
+                                      {917, 112}, {193, 558}, {318, 558}};   /* (the last two RUN/STOP, ACCENT) */
+    static const int16_t LED[21][2] = {
+        {205, 107}, {277, 107}, {197, 520},                 /* cassette's, per instrument's */
+        {432, 140}, {432, 154}, {432, 168}, {432, 182}, {455, 196}, {455, 210}, {455, 223}, {455, 237}, {455, 250},
+        {953, 140}, {953, 154}, {978, 168}, {978, 182}, {953, 196}, {953, 209}, {953, 223}, {953, 236}, {953, 250}};
+    static const int16_t INST[NDT] = {452, 522, 593, 665, 737, 808, 880, 951, 1023, 1094, 1166, 1238, 1310};
+    static const uint8_t BK[11] = PLAT_BLACK_KEYS;
+    const uint32_t lit = dt_lit();
+    int32_t i;
+    /* the name, the two displays (the song's, the pattern's: none yet); under them the plate between its wooden ends */
+    cv_text(10, 8, &FONT_B, "DRUM", P_SILK);
+    cv_text(10, 26, &FONT_B, "SOMETHING", P_SILK);
+    cv_rect(10, 45, 96, 2, RGB(252, 60, 72));
+    dt_display(114, 4, "--");
+    dt_display(174, 4, "00");
+    cv_rect(0, 54, 240, pan_h - 54, DT_FACE);
+    dt_cheek(0, 54, 0, 5);
+    dt_cheek(234, 54, 239, 234);
+    for (i = 0; i < 13; i++)
+        dt_frame(FRAME[i][0], FRAME[i][1], FRAME[i][2], FRAME[i][3]);
+    cv_rect(dt_px(443), dt_py(190), 1, dt_py(284) - dt_py(190), DT_PRINT);   /* BUILD MODE's and RECORD MODE's lines */
+    cv_rect(dt_px(443), dt_py(284), dt_px(460) - dt_px(443), 1, DT_PRINT);
+    cv_rect(dt_px(966), dt_py(160), 1, dt_py(182) - dt_py(160), DT_PRINT);
+    for (i = 0; i < 9; i++)
+        dt_button(KEY[i][0], KEY[i][1], i == 8 && ui.drum && ui.keys >> BK[0] & 1u);   /* (ACCENT: its key held) */
+    for (i = 0; i < 21; i++)
+        dt_led(LED[i][0], LED[i][1], i == 12);   /* (PATTERN#: the function shown) */
+    for (i = 0; i < 12; i++)                     /* the keypad: 1-9, then left, 0, right */
+        cv_rect(dt_px(693 + 55 * (i % 3)) - 3, dt_py(150 + 54 * (i / 3)) - 3, 6, 6, grey(160));
+    cv_rect(dt_px(660), dt_py(68), dt_px(725) - dt_px(660), dt_py(103) - dt_py(68), RGB(4, 4, 4));
+    cv_rect(dt_px(770), dt_py(68), dt_px(835) - dt_px(770), dt_py(103) - dt_py(68), RGB(4, 4, 4));
+    seg_tiny(dt_px(678), dt_py(75), '-');
+    seg_tiny(dt_px(678) + 5, dt_py(75), '-');
+    seg_tiny(dt_px(788), dt_py(75), '0');
+    seg_tiny(dt_px(788) + 5, dt_py(75), '0');
+    dt_knob(1268, 120, 5);                       /* METRONOME, MASTER; VOLUME, TUNING */
+    dt_knob(1268, 262, (int32_t)(plat_master() * 10u / 4095u));
+    dt_knob(187, 452, 10);
+    dt_knob(312, 452, 5);
+    for (i = 0; i < (int32_t)NDT; i++)
+        dt_button(INST[i], 558, (int)(lit >> i & 1u));
+}
+
 static void head_draw(void)                  /* the section tabs (each page's panel under them) */
 {
     int32_t x;
@@ -4941,6 +5116,8 @@ static void panel_draw(void)                 /* the page's section panel, from u
             master_draw();
         else if (ui.page == PG_HOME)
             home_draw();
+        else if (ui.page == PG_DHOME)
+            dhome_draw();
         else if (ui.page == PG_LFO1)
             lfos_draw();
         else if (ui.page == PG_GMIDI)
@@ -5065,11 +5242,12 @@ static void keys_draw(void)                  /* the keys; the octave, the slot, 
     }
     t[0] = 0;                                /* what plays the keys, at the right: recording (its steps so far), the
                                               * sequencer, the arp */
-    text_cat(t, seq_rec ? "SEQ REC " : seq_playing() ? "SEQ PLAY" : patch.arp_on ? "ARP " : "ARP OFF");
-    if (seq_rec) {
+    text_cat(t, ui.drum ? "DRUMS" : seq_rec ? "SEQ REC " : seq_playing() ? "SEQ PLAY"
+                : patch.arp_on ? "ARP " : "ARP OFF");
+    if (seq_rec && !ui.drum) {               /* (Drum Something's mode: its name alone, till its sequencer) */
         int_text(ui.rec_n, t + 8);
         text_cat(t, "/32");
-    } else if (patch.arp_on && !seq_playing())
+    } else if (patch.arp_on && !seq_playing() && !ui.drum)
         text_cat(t, ARP_NAME[patch.arp_mode]);
     cv_text(236 - text_w(&FONT_XS, t), 45, &FONT_XS, t, seq_rec || seq_playing() || patch.arp_on ? P_CYAN : P_LABEL);
     cv_blit(0, 180);
@@ -5097,6 +5275,8 @@ static uint32_t live(void)
                | (uint32_t)ext_clock() << 7 | (uint32_t)arp_tempo() << 8;   /* (TEMPO: MIDI clock's as it moves) */
     case PG_SEQ:
         return eng.src == SRC_SEQ ? eng.rpos + 1u : 0u;
+    case PG_DHOME:                           /* (the keys lit, a moment after each hit; ACCENT) */
+        return dt_lit() | (ui.keys >> 1 & 1u) << 31;
     case PG_GMIDI:
     case PG_GSYS:
         return (uint32_t)ext_clock() | (uint32_t)(eng.ext_age < EXT_HOLD) << 1 | (uint32_t)plat_ble_connected() << 2
@@ -5107,6 +5287,7 @@ static uint32_t live(void)
 }
 
 #define SPLASH_SUB "Inspired by the Bass Station 2"
+#define DSPLASH_SUB "Inspired by the Drumtraks"
 /* the splash's ground: pure black, not the panel's matte black. The LCD keeps a faint shadow of the keys after long
  * hours of them (image retention), and a dark grey shows it; black hides it */
 #define S_BG RGB(0, 0, 0)
@@ -5130,10 +5311,10 @@ void app_splash(void)                       /* the platform's, on the panel's bl
 /* the RND Synth Companion's splash, the whole screen: RND SYNTH, the RND Synth beside the FM-1 (rnd/splash.h:
  * bs2/rnd/make_splash.py, 256 colours), COMPANION, in the cyan, the three together in the middle */
 #include "rnd/splash.h"
-static void rsplash_line(uint32_t y, const char *s)   /* a line of the big print, centred */
+static void rsplash_line(uint32_t y, const char *s, uint16_t c)   /* a line of the big print, centred */
 {
     cv_begin(240, FONT_L.h, S_BG);
-    cv_text((240 - text_w(&FONT_L, s)) / 2, 0, &FONT_L, s, P_CYAN);
+    cv_text((240 - text_w(&FONT_L, s)) / 2, 0, &FONT_L, s, c);
     cv_blit(0, y);
 }
 static void rsplash_draw(void)
@@ -5143,12 +5324,48 @@ static void rsplash_draw(void)
     const uint32_t y = (240u - RND_SPLASH_H - 2u * (FONT_L.h + GAP)) / 2u;
     uint32_t i;
     lcd_fill(0, 0, 240, 240, S_BG);
-    rsplash_line(y, "RND SYNTH");
+    rsplash_line(y, "RND SYNTH", P_CYAN);
     cv_begin(RND_SPLASH_W, RND_SPLASH_H, S_BG);
     for (i = 0; i < RND_SPLASH_W * RND_SPLASH_H; i++)   /* (each pixel through the palette: as the panel takes it) */
         cv_px[i] = RND_SPLASH_PAL[RND_SPLASH[i]];
     cv_blit((240 - RND_SPLASH_W) / 2 + DX, y + FONT_L.h + GAP);
-    rsplash_line(y + FONT_L.h + 2u * GAP + RND_SPLASH_H, "COMPANION");
+    rsplash_line(y + FONT_L.h + 2u * GAP + RND_SPLASH_H, "COMPANION", P_CYAN);
+}
+
+/* Drum Something's, as HOME held switches to it: its name in the 400's white over its channels' frames (CH1 .. CH6,
+ * their keys), and in red what it is after; the synth's way back is its own (the RND splash's place) */
+static void dsplash_draw(void)
+{
+    static const uint8_t N[6] = {1, 2, 2, 2, 2, 4};   /* each channel's instruments */
+    const uint32_t y = 64;
+    int32_t x = 18, i, j;
+    if (!ui.drum) {                          /* (back to the synth: its name) */
+        lcd_fill(0, 0, 240, 240, S_BG);
+        rsplash_line(96, "BASS", P_CYAN);
+        rsplash_line(96 + FONT_L.h + 6, "SOMETHING 2", P_CYAN);
+        return;
+    }
+    lcd_fill(0, 0, 240, 240, S_BG);
+    rsplash_line(y, "DRUM", P_SILK);
+    rsplash_line(y + FONT_L.h + 4, "SOMETHING", P_SILK);
+    cv_begin(240, 30, S_BG);
+    for (i = 0; i < 6; i++) {                /* the channels: a frame each round its keys */
+        const int32_t w = 6 + 13 * N[i];
+        cv_rect(x, 2, w, 1, DT_PRINT);
+        cv_rect(x, 27, w, 1, DT_PRINT);
+        cv_rect(x, 2, 1, 26, DT_PRINT);
+        cv_rect(x + w - 1, 2, 1, 26, DT_PRINT);
+        for (j = 0; j < N[i]; j++) {
+            cv_rect(x + 4 + 13 * j, 9, 11, 11, RGB(8, 8, 8));
+            cv_rect(x + 5 + 13 * j, 10, 9, 9, RGB(24, 24, 24));
+            cv_rect(x + 13 + 13 * j, 10, 1, 9, grey(120));
+        }
+        x += w + 3;
+    }
+    cv_blit(0, y + 2 * FONT_L.h + 20);
+    cv_begin(240, FONT_XS.h, S_BG);
+    cv_text((240 - text_w(&FONT_XS, DSPLASH_SUB)) / 2, 0, &FONT_XS, DSPLASH_SUB, RGB(252, 60, 72));
+    cv_blit(0, y + 2 * FONT_L.h + 62);
 }
 
 /* after the platform's start: the splash a while longer, a scope under the name whose wave morphs as the panel's OSC
@@ -5288,14 +5505,20 @@ void app_frame(void)
         if (!splash_shown) {
             splash_shown = 1;
             rsplash_draws++;
-            rsplash_draw();
+            rsplash_fn();
         }
         ui.redraw = 0;
         return;
     }
     splash_shown = 0;
-    if (cpu_meter(now) && ui.page >= PG_GMIDI && !ui.redraw)   /* (the panel alone: its load in the bar) */
+    if (cpu_meter(now) && ui.page >= PG_GMIDI && !DRUM_PAGE(ui.page) && !ui.redraw)   /* (the panel alone: its load in the bar) */
         panel_draw();
+    {
+        const uint32_t hit = dt_flash_take();   /* the drums just hit: their keys lit a moment (live) */
+        for (i = 0; i < NDT; i++)
+            if (hit >> i & 1u)
+                ui.dt_at[i] = now | 1u;
+    }
     i = live();
     moved = zoom_step(now);
     if (rfx_at && now - rfx_at >= RFX_MS) {  /* the randomizer's moment: over, else its next frame (30 a second) */
@@ -5448,6 +5671,10 @@ int app_expect(const char *what, int *got)
         *got = patch.dist;
     else if (!strcmp(what, "pitch_now"))
         *got = pitch_now;
+    else if (!strcmp(what, "drum"))          /* Drum Something's mode (HOME held) */
+        *got = ui.drum;
+    else if (!strcmp(what, "dlit"))          /* the drum HOME's instruments lit (dt_lit), a bit each */
+        *got = (int)dt_lit();
     else if (!strcmp(what, "dt_hits"))       /* the drums' hits played so far */
         *got = dt_hits;
     else if (!strcmp(what, "dchan"))         /* GLO DRUMS: the drums' channel, their CC channel */
