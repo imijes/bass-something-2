@@ -60,3 +60,10 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-01 | 44d415f+ | Drum Something: Bass's attack softer (short swell of the modes; the click apart) | 335,940 | -96 | 245,624 | 77,556 | +0 | 20,748 | 132,824 |
 | 2026-11-01 | 44d415f+ | Drum Something: Bass's beater thud (fixed-pitch modes: mode flags DT_MW/DT_MF), stronger overtones | 336,260 | +320 | 245,304 | 77,556 | +0 | 20,748 | 132,824 |
 | 2026-11-01 | 44d415f+ | Drum Something: Bass's thud lower (200 Hz), darker top (the user's pick of three) | 336,260 | +0 | 245,304 | 77,556 | +0 | 20,748 | 132,824 |
+| 2026-11-01 | 99f1a81+ | Drum Something: Cowbell and Claps voices; repeated strikes, gate fall time, output high pass | 337,220 | +960 | 244,344 | 77,556 | +0 | 20,748 | 132,968 |
+| 2026-11-01 | 99f1a81+ | Drum Something: Claps' strikes swell (no slapback); Cowbell's clang | 337,172 | -48 | 244,392 | 77,556 | +0 | 20,748 | 132,968 |
+| 2026-11-01 | 99f1a81+ | Drum Something: Cowbell in tune at every step (dt_compare.py --pitch) | 337,172 | +0 | 244,392 | 77,556 | +0 | 20,748 | 132,968 |
+| 2026-11-01 | 99f1a81+ | Drum Something: Claps the same shape at every step (high pass follows the tuning, fading strikes, --env) | 337,652 | +480 | 243,912 | 77,556 | +0 | 20,748 | 133,016 |
+| 2026-11-01 | 99f1a81+ | Drum Something: Claps' strikes spread at random (no slapback) | 337,732 | +80 | 243,832 | 77,556 | +0 | 20,748 | 133,016 |
+| 2026-11-01 | 99f1a81+ | Drum Something: Claps a little more room | 337,732 | +0 | 243,832 | 77,556 | +0 | 20,748 | 133,016 |
+| 2026-11-01 | 99f1a81+ | Drum Something: Claps a hair more high-mids, more room | 337,732 | +0 | 243,832 | 77,556 | +0 | 20,748 | 133,016 |

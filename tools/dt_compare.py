@@ -191,6 +191,50 @@ def cycle_report(ours, theirs, steps):
                   + f" | peak {peak:.1f} ms")
 
 
+def rate_table(drum):
+    """The drum's tuning table (Q12) as bs2_drum.c has it, and its name (DT_RATE_<drum>; both Toms' is TOM)."""
+    import re
+    name = "DT_RATE_" + {"TOM1": "TOM", "TOM2": "TOM"}.get(drum, drum)
+    m = re.search(name + r"\[16\] = \{([^}]*)\}", (BS2 / "bs2_drum.c").read_text())
+    if not m:
+        sys.exit(f"no {name} in bs2_drum.c")
+    return [int(v) for v in m.group(1).replace("\n", " ").split(",")], name
+
+
+def pitch_fix(ours, theirs, drum, low=False):
+    """Each step's strongest partial, ours / theirs, and the drum's tuning table corrected so ours lands on
+    theirs (each step's rate times their pitch over ours); low: from the first cycles (a low drum), not the
+    partial."""
+    table, name = rate_table(drum)
+    fixed = []
+    for st in STEPS:
+        o, t = ours[(False, st)], theirs[(False, st)]
+        if low:
+            oh = np.median([h for _, h, _ in cycles(o, 3)[0]])
+            th = np.median([h for _, h, _ in cycles(t, 3)[0]])
+        else:
+            oh, th = o["f0"], t["f0"]
+        fixed.append(int(round(table[st - 1] * th / oh)))
+        print(f"pitch step {st:2d}: {oh:7.1f}/{th:<7.1f} Hz ({1200 * np.log2(oh / th):+5.0f} cents)")
+    print(f"{name} corrected: {{" + ", ".join(str(v) for v in fixed) + "}")
+
+
+def env_report(ours, theirs, steps, drum, bins=22, ms=8.0):
+    """At each step, the RMS envelope in ROM time (bins of ms milliseconds of the sample's own time, from the
+    drum's tuning table: the same shape at every step is a ROM's; one that changes with the step is something in real
+    time), dB under the peak, ours then theirs."""
+    table, _ = rate_table(drum)
+    for st in steps:
+        rate = table[st - 1] / table[0]
+        for who, m in (("ours  ", ours[(False, st)]), ("theirs", theirs[(False, st)])):
+            x, r, on = m["x"], m["rate"], m["onset"]
+            hop = max(1, int(r * ms / 1000 / rate))
+            top = np.abs(x).max()
+            e = [20 * np.log10(np.sqrt(np.mean(x[on + i * hop:on + (i + 1) * hop] ** 2)) / top + 1e-9)
+                 for i in range(bins)]
+            print(f"env step {st:2d} {who} ({ms:.0f} ms ROM a bin): " + " ".join(f"{v:4.0f}" for v in e))
+
+
 def write_ab(path, theirs_paths, ours_paths, steps, seconds):
     """An A/B to listen to: at each step the reference, then ours, each normalised (the recordings are), at 44.1 kHz
     mono 16-bit; a short gap between the pair, a longer one between steps."""
@@ -236,6 +280,10 @@ def main():
     ap.add_argument("--steps", default="1,8,16", help="the steps the detailed reports cover")
     ap.add_argument("--summary", action="store_true", help="the detailed steps' figures and the means only")
     ap.add_argument("--cycles", action="store_true", help="the first cycles too (a low drum's pitch fall)")
+    ap.add_argument("--env", action="store_true", help="the envelopes in ROM time (a real-time effect shows as a "
+                                                       "shape changing with the step)")
+    ap.add_argument("--pitch", action="store_true", help="each step's pitch, ours / theirs, and the tuning table "
+                                                         "corrected to theirs (with --cycles: from the first cycles)")
     ap.add_argument("--ab", type=Path, help="write an A/B to listen to (the reference, then ours, at --ab-steps)")
     ap.add_argument("--ab-steps", default="1,8,16")
     ap.add_argument("--ab-seconds", type=float, default=1.0, help="each A/B hit's length")
@@ -255,6 +303,10 @@ def main():
     attack_report(ours, theirs, steps)
     if a.cycles:
         cycle_report(ours, theirs, steps)
+    if a.env:
+        env_report(ours, theirs, steps, drum)
+    if a.pitch:
+        pitch_fix(ours, theirs, drum, a.cycles)
     if a.ab:
         write_ab(a.ab, their_paths, our_paths, [int(v) for v in a.ab_steps.split(",")], a.ab_seconds)
 

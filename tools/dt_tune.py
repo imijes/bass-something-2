@@ -45,6 +45,7 @@ def main():
     ap.add_argument("settings", nargs="+", help="MACRO=VALUE[,MACRO=VALUE...]")
     ap.add_argument("--steps", default="1,8,16")
     ap.add_argument("--cycles", action="store_true", help="the first cycles too (a low drum's pitch fall)")
+    ap.add_argument("--env", action="store_true", help="the envelopes in ROM time too")
     ap.add_argument("--restore", action="store_true", help="put bs2_drum.c back as it was at the end")
     a = ap.parse_args()
     drum = a.drum.upper()
@@ -62,6 +63,8 @@ def main():
             dc.attack_report(ours, theirs, steps)
             if a.cycles:
                 dc.cycle_report(ours, theirs, steps)
+            if a.env:
+                dc.env_report(ours, theirs, steps, drum)
     finally:
         if a.restore:
             SRC.write_text(original)

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MPL-2.0
  * Copyright (C) 2026 John Brown */
 /* Drum Something: the drum voices, after the Sequential Drumtraks (docs/DRUMTRAKS_RESEARCH.md). Voices so far: Bass,
- * Snare, Rim and the Toms; the other drums have none yet.
+ * Snare, Rim, the Toms, Claps and Cowbell; the other drums have none yet.
  *
  * As the 400: each voice is an 8-bit sample read at a rate the tuning sets (one rate, so a higher tuning is shorter,
  * brighter and higher at once: docs/DT_MEASURE.md), held from one sample to the next with nothing smoothing it (its
@@ -67,6 +67,41 @@ enum { DTC_BASS, DTC_SNARE, DTC_TOMS, DTC_CYM, DTC_HATS, DTC_PERC, NDTCH };
 #define DT_BD_GATE_DB 26.0f                  /* how far it falls, dB */
 #define DT_BD_ROOM 0.0f                      /* its send into the room */
 #define DT_BD_RATE 17400.0f                  /* its ROM samples a second (its VCF hides the notches: a guess) */
+#define DT_PERC_RATE 11100.0f                /* channel 6's ROM samples a second at the first step (the Claps' notches:
+                                              * 11.0 kHz, steps 1-4; the Cabasa's 11.4) */
+#define DT_CB_GAIN 0.7f                      /* the Cowbell's level */
+#define DT_CB_STICK 0.0f                     /* its stick's noise burst into the modes */
+#define DT_CB_BODY 4.0f                      /* its modes' decays against the recordings' */
+#define DT_CB_VCF 6000.0f                    /* its VCF's open cutoff at the first step, Hz (channel 6's: as 1's) */
+#define DT_CB_VCF_LO 0.15f                   /* where its envelope closes it to, against open */
+#define DT_CB_VCF_T 0.05f                    /* its envelope's decay (time constant, s) */
+#define DT_CB_HOLD 0.07f                     /* its hold, s (ROM time): then it falls (dt_voice_t gate) */
+#define DT_CB_FALL 0.04f                     /* with this time constant, s */
+#define DT_CB_LP 0.22f                       /* its output filter (dt_voice_t lp; 0: none) */
+#define DT_CB_HI 4                           /* its upper partials (587 Hz up), dB more */
+#define DT_CB_CLANG 0                        /* its clang's two bands, dB */
+#define DT_CB_WIRE_G 0.1f                    /* the clang's noise into them */
+#define DT_CB_WIRES 0.04f                    /* and its decay, s in ROM time */
+#define DT_CB_ATTACK 0.004f                  /* its swell at the start, s (dt_voice_t attack) */
+#define DT_CB_ROOM 0.1f                      /* its send into the room */
+#define DT_CP_GAIN 0.6f                      /* the Claps' level */
+#define DT_CP_WIRE_G 1.0f                    /* their noise into their bands */
+#define DT_CP_NOISE 0.0f                     /* and straight out */
+#define DT_CP_BURSTS 6                       /* the hands: strikes */
+#define DT_CP_GAP 0.017f                     /* s apart (ROM time) */
+#define DT_CP_BURST_T 0.012f                 /* the noise's decay between them, s */
+#define DT_CP_BURST_DB 2.0f                  /* each strike under the one before, dB */
+#define DT_CP_JIT 0.4f                       /* each gap's random spread, 0..1 */
+#define DT_CP_TAIL 0.028f                    /* and after the last, s */
+#define DT_CP_RISE 0.004f                    /* their noise's rise, s (dt_voice_t wires_rise) */
+#define DT_CP_HI 3                           /* their high-mid bands (1.4, 2 kHz), dB more */
+#define DT_CP_Q 0.002f                       /* their bands' decay, s: their width */
+#define DT_CP_VCF 4000.0f                    /* their VCF's open cutoff at the first step, Hz */
+#define DT_CP_VCF_LO 1.0f                    /* where its envelope closes it to */
+#define DT_CP_VCF_T 0.1f                     /* its envelope's decay, s */
+#define DT_CP_LP 0.35f                       /* their output filter (dt_voice_t lp; 0: none) */
+#define DT_CP_HP 420.0f                      /* their output high pass at the first step, Hz (dt_voice_t hp) */
+#define DT_CP_ROOM 0.5f                      /* their send into the room */
 #define DT_SN_GAIN 0.6f                      /* the Snare's level */
 #define DT_SN_STICK 0.2f                     /* the stick's noise burst into the shell's resonators */
 #define DT_SN_WIRES 0.08f                    /* the wires' decay, seconds in ROM time */
@@ -95,6 +130,10 @@ static const char *const DT_NAME[NDT] = {"BASS", "SNARE", "RIM", "TOM1", "TOM2",
                                          "CLAPS", "TAMB", "COWBELL", "CABASA"};
 static const uint8_t DT_CH[NDT] = {DTC_BASS, DTC_SNARE, DTC_SNARE, DTC_TOMS, DTC_TOMS, DTC_CYM, DTC_CYM, DTC_HATS,
                                    DTC_HATS, DTC_PERC, DTC_PERC, DTC_PERC, DTC_PERC};
+static const uint16_t DT_RATE_COWBELL[16] = {4161, 4350, 5127, 5698, 6311, 6981, 7738, 8539, 9427, 10417, 11495,
+                                             12703, 14044, 15516, 16884, 18126};   /* (dt_compare.py --pitch) */
+static const uint16_t DT_RATE_CLAPS[16] = {4096, 4215, 4264, 4428, 4858, 5280, 5710, 6136, 6578, 7111, 7557, 8098,
+                                           8679, 9249, 9941, 10592};   /* (their decays': the spectra alias above 12) */
 /* each tuning step's rate, Q12, 4096 the modes' own (docs/DT_MEASURE.md's spectrum shifts; the Snare's first
  * step set by its pitch, 92 Hz: its shift read it 5 % low) */
 static const uint16_t DT_RATE_TOM[16] = {4096, 4215, 4768, 5710, 6410, 7143, 7959, 8806, 9884, 10777, 11923, 13099,
@@ -149,6 +188,15 @@ static const dt_mode_t DT_MODES_BASS[] = {   /* the kick at rest (it starts near
     {DT_BD_THUD, DT_BD_MID, 0.004f, DT_MF}, {DT_BD_THUD * 2.17f, DT_BD_MID - 4, 0.003f, DT_MF},
     {DT_BD_THUD * 4.33f, DT_BD_MID - 8, 0.002f, DT_MF}};   /* the
                                               * beater's thud: broad, short, the middle */
+static const dt_mode_t DT_MODES_COWBELL[] = {   /* a bell's partials (the upper ones raised by DT_CB_HI); its clang */
+    {224, 0, 0.042f, 0}, {242, -13, 0.044f, 0}, {482, -16, 0.047f, 0}, {587, -38 + DT_CB_HI, 0.033f, 0},
+    {735, -31 + DT_CB_HI, 0.022f, 0}, {967, -32 + DT_CB_HI, 0.043f, 0}, {1060, -26 + DT_CB_HI, 0.055f, 0},
+    {1238, -36 + DT_CB_HI, 0.067f, 0}, {1411, -28 + DT_CB_HI, 0.041f, 0}, {1752, -36 + DT_CB_HI, 0.044f, 0},
+    {2500, DT_CB_CLANG, DT_SN_WIRE_Q, DT_MW}, {4000, DT_CB_CLANG, DT_SN_WIRE_Q, DT_MW}};   /* its clang: noise */
+static const dt_mode_t DT_MODES_CLAPS[] = {  /* hands: noise in a broad band, 350 Hz to 2 kHz */
+    {400, 0, DT_CP_Q, DT_MW}, {500, 0, DT_CP_Q, DT_MW}, {620, 0, DT_CP_Q, DT_MW}, {760, 0, DT_CP_Q, DT_MW},
+    {900, 0, DT_CP_Q, DT_MW}, {1050, 0, DT_CP_Q, DT_MW}, {1400, -4 + DT_CP_HI, DT_CP_Q, DT_MW},
+    {2000, -8 + DT_CP_HI, DT_CP_Q, DT_MW}};
 typedef struct {                             /* a voice: the generic parts dt_hit and dt_gen play from */
     const uint16_t *rate;                    /* the tuning steps' rates */
     const dt_mode_t *m;
@@ -161,6 +209,12 @@ typedef struct {                             /* a voice: the generic parts dt_hi
     float stick, click;                      /* the stick's burst into the modes, and straight out (its crack) */
     float wires, wires_tau, wires_rise, noise;   /* the wires' noise into their bands: its level, decay and rise (s),
                                               * and straight out */
+    uint8_t bursts;                          /* the wires' noise struck this many times (0, 1: once), */
+    float burst_gap, burst_tau;              /* gap s apart (ROM time), decaying with burst_tau between (a clap's
+                                              * hands); after the last, with wires_tau */
+    float burst_db;                          /* each strike this many dB under the one before (the hands tire) */
+    float burst_jit;                         /* each gap's random spread, 0..1 of it (hands are not a metronome:
+                                              * evenly spaced, the strikes read as a slapback) */
     float body, low;                         /* the modes' decays' scale; longer by low at the first step, fading out
                                               * by the fourth (the 400's lowest tunings are their own: the Snare's
                                               * first step is off its others' pitch pattern too) */
@@ -169,11 +223,13 @@ typedef struct {                             /* a voice: the generic parts dt_hi
                                               * envelope closing it to vcf_lo of that, with time constant vcf_t (s) */
     float lp;                                /* the output low pass (fixed: not in ROM time), a one-pole's step at
                                               * BS2_RATE (1 - e^(-2 pi fc / rate)); 0: none */
+    float hp;                                /* the output high pass's cutoff at the first step, Hz, moving with the
+                                              * rate (a fixed one would cut each step's sound differently); 0: none */
     float attack;                            /* the modes' swell at the start, s in ROM time (a kick's head pushed
                                               * out over its first cycle; the click is not swelled); 0: at once */
-    float gate, gate_db;                     /* at gate s (ROM time) the level falls by gate_db over about 2 ms, and
-                                              * plays on there (a VCA pulled down: the Bass's cliff, the closed
-                                              * hi-hat's); 0: none */
+    float gate, gate_db, gate_t;             /* at gate s (ROM time) the level falls by gate_db, with time constant
+                                              * gate_t s (0: about 2 ms), and plays on there (a VCA pulled down: the
+                                              * Bass's cliff, the closed hi-hat's; a held bell's fall); 0: none */
     float room;                              /* the send into the room */
 } dt_voice_t;
 static const dt_voice_t DT_V_SNARE = {
@@ -194,8 +250,22 @@ static const dt_voice_t DT_V_BASS = {
     .sweep = DT_BD_SW, .sweep_tau = DT_BD_SW_T, .sweep2 = DT_BD_SW2, .sweep2_tau = DT_BD_SW2_T, .stick = DT_BD_STICK,
     .click = DT_BD_CLICK, .body = DT_BD_BODY, .vcf = DT_BD_VCF, .vcf_lo = DT_BD_VCF_LO, .vcf_t = DT_BD_VCF_T,
     .lp = DT_BD_LP, .attack = DT_BD_ATTACK, .gate = DT_BD_GATE, .gate_db = DT_BD_GATE_DB, .room = DT_BD_ROOM};
+static const dt_voice_t DT_V_COWBELL = {
+    .rate = DT_RATE_COWBELL, .m = DT_MODES_COWBELL, .n = 12, .rom = DT_PERC_RATE, .len = 0.36f, .gain = DT_CB_GAIN,
+    .stick = DT_CB_STICK, .wires = DT_CB_WIRE_G, .wires_tau = DT_CB_WIRES, .body = DT_CB_BODY, .vcf = DT_CB_VCF,
+    .vcf_lo = DT_CB_VCF_LO, .vcf_t = DT_CB_VCF_T,
+    .gate = DT_CB_HOLD, .gate_db = 40.0f, .gate_t = DT_CB_FALL, .attack = DT_CB_ATTACK, .lp = DT_CB_LP,
+    .room = DT_CB_ROOM};
+static const dt_voice_t DT_V_CLAPS = {
+    .rate = DT_RATE_CLAPS, .m = DT_MODES_CLAPS, .n = 8, .rom = DT_PERC_RATE, .len = 0.44f, .gain = DT_CP_GAIN,
+    .wires = DT_CP_WIRE_G, .wires_tau = DT_CP_TAIL, .wires_rise = DT_CP_RISE, .noise = DT_CP_NOISE,
+    .bursts = DT_CP_BURSTS, .burst_gap = DT_CP_GAP, .burst_tau = DT_CP_BURST_T, .burst_db = DT_CP_BURST_DB,
+    .burst_jit = DT_CP_JIT,
+    .body = 1.0f, .vcf = DT_CP_VCF,
+    .vcf_lo = DT_CP_VCF_LO, .vcf_t = DT_CP_VCF_T, .lp = DT_CP_LP, .hp = DT_CP_HP, .room = DT_CP_ROOM};
 static const dt_voice_t *const DT_VOICE[NDT] = {[DT_BASS] = &DT_V_BASS, [DT_SNARE] = &DT_V_SNARE,
-                                                [DT_RIM] = &DT_V_RIM, [DT_TOM1] = &DT_V_TOM, [DT_TOM2] = &DT_V_TOM};
+                                                [DT_RIM] = &DT_V_RIM, [DT_TOM1] = &DT_V_TOM, [DT_TOM2] = &DT_V_TOM,
+                                                [DT_CLAPS] = &DT_V_CLAPS, [DT_COWBELL] = &DT_V_COWBELL};
 
 typedef struct {
     uint32_t pos, inc;                       /* the read position (ROM samples, Q16) and its step an output sample */
@@ -205,11 +275,15 @@ typedef struct {
     float vw, vlo, ve, ve_k;                 /* its open cutoff (rad a sample), its floor, its envelope and decay */
     uint32_t vt;                             /* output samples since the hit (the envelope's steps) */
     float lp, lpk;                           /* the output filter (fixed: not in ROM time) and its step */
+    float hz, hpk;                           /* the output high pass: its low part, its step (0: none) */
     float att, att_k;                        /* the attack's swell still to come, its decay a sample */
     uint32_t gate;                           /* the ROM sample where the gate falls (0: none) */
     float gl, glo, gl_k;                     /* the gate's level now, where it falls to, its step a sample */
     float send;                              /* into the room */
     float burst, burst_k, wire, wire_k;      /* the stick's burst and the wires' noise: levels, decays a sample */
+    uint32_t bn, bnext, bgap;                /* the wires' strikes still to come, the next's ROM sample, the gap */
+    float bk;                                /* the last strike's decay, kept till then */
+    float bl, bl_k;                          /* the next strike's level, and its fall each strike */
     float rise, rise_k;                      /* the wires' rise: subtracted from their level, falling away */
     float sw, sw_k, sw2, sw2_k;              /* the pitch's two excesses, their decays every 8 samples */
     float y1[DT_NM], y2[DT_NM];              /* the resonators: their last two outputs, */
@@ -335,6 +409,14 @@ static float dt_gen(dt_ch_t *c)
                 c->a1[i] = 2.0f * c->r[i] * fm_cosf(c->w[i] * f);
     }
     xs = n * c->burst + (c->k ? 0.0f : 1.0f);   /* the stick: a click, then its noise */
+    if (c->bn && c->k >= c->bnext) {         /* the wires struck again: swelling from where they are */
+        c->rise = c->bl - (c->wire - c->rise);
+        c->wire = c->bl;
+        c->bl *= c->bl_k;
+        c->bnext += (uint32_t)((float)c->bgap * (1.0f + v->burst_jit * dt_noise()));   /* (spread: jit <= 1) */
+        if (!--c->bn)
+            c->wire_k = c->bk;
+    }
     xw = n * (c->wire - c->rise);
     c->burst *= c->burst_k;
     c->wire *= c->wire_k;
@@ -382,12 +464,13 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
     c->len = (uint32_t)(v->len * rom);
     c->lvl = (float)level * (1.0f / 255.0f);
     c->lpk = v->lp > 0.0f ? v->lp : 1.0f;
+    c->hpk = v->hp > 0.0f ? 1.0f - fm_expf(-FM_TWO_PI * v->hp * rate / BS2_RATE) : 0.0f;
     c->att = v->attack > 0.0f ? 1.0f : 0.0f;
     c->att_k = dt_decay(v->attack, rom, 1.0f);
     c->gate = (uint32_t)(v->gate * rom);
     c->gl = 1.0f;
     c->glo = fm_db2lin(-v->gate_db);
-    c->gl_k = 1.0f - dt_decay(0.002f, rom, 1.0f);
+    c->gl_k = 1.0f - dt_decay(v->gate_t > 0.0f ? v->gate_t : 0.002f, rom, 1.0f);
     c->send = v->room;
     c->vk = 1.0f;
     if (v->vcf > 0.0f) {
@@ -400,6 +483,14 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
     c->burst_k = dt_decay(DT_STICK_TAU, rom, 1.0f);
     c->wire = c->rise = v->wires;
     c->wire_k = dt_decay(v->wires_tau, rom, 1.0f);
+    if (v->bursts > 1u) {                    /* (between strikes, their own decay; the last's, wires_tau) */
+        c->bn = v->bursts - 1u;
+        c->bgap = c->bnext = (uint32_t)(v->burst_gap * rom);
+        c->bk = c->wire_k;
+        c->wire_k = dt_decay(v->burst_tau, rom, 1.0f);
+        c->bl_k = fm_db2lin(-v->burst_db);
+        c->bl = v->wires * c->bl_k;
+    }
     c->rise_k = dt_decay(v->wires_rise, rom, 1.0f);
     c->sw = v->sweep;
     c->sw_k = dt_decay(v->sweep_tau, rom, 8.0f);
@@ -431,6 +522,7 @@ static inline float dt_next(void)
     for (i = 0; i < NDTCH; i++) {
         dt_ch_t *c = &dt.ch[i];
         uint32_t to;
+        float o;
         if (c->drum == DT_NONE)
             continue;
         dt_room.idle = 0;
@@ -452,8 +544,13 @@ static inline float dt_next(void)
         c->v1 += (c->out - c->v1) * c->vk;
         c->v2 += (c->v1 - c->v2) * c->vk;
         c->lp += (c->v2 - c->lp) * c->lpk;
-        s += c->lp;
-        r += c->lp * c->send;
+        o = c->lp;
+        if (c->hpk > 0.0f) {                  /* the high pass: less its low part */
+            c->hz += (o - c->hz) * c->hpk;
+            o -= c->hz;
+        }
+        s += o;
+        r += o * c->send;
     }
     if (dt_room.idle < (uint32_t)(2.0f * DT_ROOM_RT * BS2_RATE)) {   /* (the room quiet: left alone) */
         dt_room.idle++;
