@@ -80,3 +80,7 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-01 | 3ad0400+ | Drum Something: Snare's body louder (6 dB), not longer, at the lowest tunings | 341,284 | +0 | 240,280 | 77,556 | +0 | 20,748 | 138,640 |
 | 2026-11-01 | 45726b6+ | Drum Something: open and closed hi-hats (one sample; the closed one through a real-time VCA: dt_voice_t vca_*) | 342,484 | +1,200 | 239,080 | 77,556 | +0 | 20,748 | 138,712 |
 | 2026-11-01 | 45726b6+ | Drum Something: hi-hats' metal ringing purer (E) | 342,484 | +0 | 239,080 | 77,556 | +0 | 20,748 | 138,712 |
+| 2026-11-01 | a22809c+ | Drum Something: Crash and Ride (all thirteen voices); dt_tune.py --ms | 343,796 | +1,312 | 237,768 | 77,556 | +0 | 20,748 | 138,712 |
+| 2026-11-01 | a22809c+ | Drum Something: cymbals' tone (Crash brighter, Ride darker) and tuning by ear (dt_voice_t pitch) | 343,940 | +144 | 237,624 | 77,556 | +0 | 20,748 | 138,712 |
+| 2026-11-01 | a22809c+ | Drum Something: cymbals tuned by ear (Crash +115 c, Ride +6 c), Ride's partials rebalanced and shorter | 343,940 | +0 | 237,624 | 77,556 | +0 | 20,748 | 138,712 |
+| 2026-11-02 | a22809c+ | Drum Something: Crash tuned +94 c (by ear, at step 1) | 343,940 | +0 | 237,624 | 77,556 | +0 | 20,748 | 138,712 |

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MPL-2.0
  * Copyright (C) 2026 John Brown */
 /* Drum Something: the drum voices, after the Sequential Drumtraks (docs/DRUMTRAKS_RESEARCH.md). Voices so far: all
- * but the cymbals.
+ * thirteen.
  *
  * As the 400: each voice is an 8-bit sample read at a rate the tuning sets (one rate, so a higher tuning is shorter,
  * brighter and higher at once: docs/DT_MEASURE.md), held from one sample to the next with nothing smoothing it (its
@@ -127,6 +127,37 @@ enum { DTC_BASS, DTC_SNARE, DTC_TOMS, DTC_CYM, DTC_HATS, DTC_PERC, NDTCH };
                                               * at every tuning), */
 #define DT_CHH_HOLD 0.01f                    /* after a hold, s, */
 #define DT_CHH_END 0.117f                    /* and cut here, s */
+#define DT_CR_RATE 10700.0f                  /* the Crash's ROM samples a second at the first step (its notches) */
+#define DT_CR_PITCH 1.0558f                  /* its partials tuned by ear (dt_voice_t pitch) */
+#define DT_CR_GAIN 0.5f                      /* its level */
+#define DT_CR_STICK 0.6f                     /* the stick's noise burst into its partials */
+#define DT_CR_SWELL 0.0f                     /* its partials' swell, s (dt_voice_t attack: a crash blooms) */
+#define DT_CR_LOW 1.0f                       /* its low partials' (140-410 Hz) decays against the recordings' */
+#define DT_CR_MID 0.008f                     /* its mid partials' (0.8-2.5 kHz) decay, s: their width (they ring in
+                                              * the wash's noise, a crash's shimmer: struck, they rang a bell) */
+#define DT_CR_LOMID -4                       /* its lower mids (0.8-1.4 kHz), dB */
+#define DT_CR_HI 4                           /* its wash's lower bands (2.9-4 kHz), dB: its brightness */
+#define DT_CR_WASH 0.3f                      /* its wash (the tail's noise in broad upper bands): level, */
+#define DT_CR_WASH_T 1.2f                    /* decay, s, */
+#define DT_CR_WASH_R 0.02f                   /* and swell, s */
+#define DT_CR_Q 0.001f                       /* the wash's bands' decay, s: their width */
+#define DT_CR_GATE 2.5f                      /* where its sample fades out, s (ROM time: dt_voice_t gate), */
+#define DT_CR_GATE_T 0.25f                   /* how fast */
+#define DT_CR_ROOM 0.1f                      /* its send into the room */
+#define DT_RD_RATE 11600.0f                  /* the Ride's ROM samples a second at the first step (its notches) */
+#define DT_RD_PITCH 1.0035f                  /* its partials tuned by ear (dt_voice_t pitch) */
+#define DT_RD_GAIN 0.5f                      /* its level */
+#define DT_RD_STICK 1.0f                     /* the stick's noise burst: its ping */
+#define DT_RD_LOW -6                         /* its low partials (170-360 Hz), dB */
+#define DT_RD_BELL -3                        /* its bell's partials (400-480 Hz), dB, */
+#define DT_RD_BELL_T 0.8f                    /* their decays against the others' */
+#define DT_RD_HI -6                          /* its upper mids (2.4-3 kHz), dB: its brightness */
+#define DT_RD_BODY 0.45f                     /* its partials' decays against the recordings' */
+#define DT_RD_WASH 0.8f                      /* its wash: level, */
+#define DT_RD_WASH_T 0.7f                    /* decay, s */
+#define DT_RD_GATE 2.4f                      /* where its sample fades out, s (ROM time), */
+#define DT_RD_GATE_T 0.15f                   /* how fast */
+#define DT_RD_ROOM 0.1f                      /* its send into the room */
 #define DT_TB_GAIN 0.5f                      /* the Tambourine's level */
 #define DT_TB_STICK 0.3f                     /* the hand's noise burst into the jingles */
 #define DT_TB_BODY 1.0f                      /* the jingles' decays against the recordings' */
@@ -212,6 +243,10 @@ static const uint16_t DT_RATE_BASS[16] = {4211, 5517, 6405, 6648, 6920, 7195, 75
                                           9053, 9473, 9884, 10263};   /* (tools/dt_voice.py --cycles) */
 static const uint16_t DT_RATE_HAT[16] = {4096, 4467, 4801, 5014, 5198, 5428, 5628, 5835, 6093, 6363, 6549, 6839,
                                          7090, 7351, 7621, 7959};   /* (both hats: one ROM, as the 400's) */
+static const uint16_t DT_RATE_CRASH[16] = {4096, 4371, 4801, 5793, 6790, 7351, 7902, 8493, 9195, 9813, 11337, 13098,
+                                           13098, 15133, 17484, 18658};   /* (steps 12 and 13 alike: the 400's) */
+static const uint16_t DT_RATE_RIDE[16] = {4096, 4871, 5793, 6226, 6790, 7246, 7788, 8432, 9063, 9672, 10471, 11255,
+                                          12453, 13877, 16033, 19344};
 /* the MIDI key map (the 400's, 17 Dec 1983): notes 35..58, DT_NONE where nothing plays */
 static const uint8_t DT_KEY[24] = {DT_BASS, DT_BASS, DT_RIM, DT_SNARE, DT_CLAPS, DT_SNARE, DT_TOM1, DT_CHH, DT_TOM1,
                                    DT_CHH, DT_TOM2, DT_OHH, DT_TOM2, DT_NONE, DT_CRASH, DT_NONE, DT_RIDE, DT_NONE,
@@ -287,6 +322,28 @@ static const dt_mode_t DT_MODES_HAT[] = {    /* a hi-hat's sizzle: noise in broa
     {2342, DT_HH_TONE, DT_HH_RING, DT_MT}, {2574, DT_HH_TONE, DT_HH_RING, DT_MT},
     {3222, DT_HH_TONE + 3, DT_HH_RING, DT_MT}, {3972, DT_HH_TONE + 2, DT_HH_RING, DT_MT},
     {5105, DT_HH_TONE, DT_HH_RING, DT_MT}, {5877, DT_HH_TONE, DT_HH_RING, DT_MT}};
+static const dt_mode_t DT_MODES_CRASH[] = {  /* low partials first, gone soon; the mids carry it; a wash over them */
+    {143, -6, 0.41f * DT_CR_LOW, 0}, {155, -6, 0.40f * DT_CR_LOW, 0}, {183, -10, 0.30f * DT_CR_LOW, 0},
+    {220, 0, 1.10f * DT_CR_LOW, 0}, {240, -4, 1.10f * DT_CR_LOW, 0}, {251, -4, 0.57f * DT_CR_LOW, 0},
+    {274, -1, 0.73f * DT_CR_LOW, 0}, {305, -4, 0.88f * DT_CR_LOW, 0}, {320, -8, 0.80f * DT_CR_LOW, 0},
+    {360, -8, 0.70f * DT_CR_LOW, 0}, {388, -9, 1.40f * DT_CR_LOW, 0}, {411, -10, 0.97f * DT_CR_LOW, 0},
+    {778, -8 + DT_CR_LOMID, DT_CR_MID, DT_MT}, {1045, -5 + DT_CR_LOMID, DT_CR_MID, DT_MT},
+    {1197, -8 + DT_CR_LOMID, DT_CR_MID, DT_MT}, {1370, -6 + DT_CR_LOMID, DT_CR_MID, DT_MT},
+    {1514, -7, DT_CR_MID, DT_MT}, {1591, -2, DT_CR_MID, DT_MT}, {1693, -5, DT_CR_MID, DT_MT},
+    {1803, -7, DT_CR_MID, DT_MT}, {2017, -2, DT_CR_MID, DT_MT}, {2163, -6, DT_CR_MID, DT_MT},
+    {2277, -4, DT_CR_MID, DT_MT}, {2538, -8, DT_CR_MID, DT_MT}, {2900, -6 + DT_CR_HI, DT_CR_Q, DT_MT},
+    {3400, -8 + DT_CR_HI, DT_CR_Q, DT_MT}, {3950, -10 + DT_CR_HI, DT_CR_Q, DT_MT}, {4500, -12, DT_CR_Q, DT_MT},
+    {5000, -12, DT_CR_Q, DT_MT}};
+static const dt_mode_t DT_MODES_RIDE[] = {   /* the bell's and the bow's partials; above 3 kHz gone first */
+    {176, -12 + DT_RD_LOW, 1.5f, 0}, {230, DT_RD_LOW, 1.33f, 0}, {275, -11 + DT_RD_LOW, 2.0f, 0},
+    {299, -8 + DT_RD_LOW, 2.0f, 0}, {314, -6 + DT_RD_LOW, 1.57f, 0}, {362, -10 + DT_RD_LOW, 2.0f, 0},
+    {403, -13 + DT_RD_BELL, 2.0f * DT_RD_BELL_T, 0}, {426, -5 + DT_RD_BELL, 2.0f * DT_RD_BELL_T, 0},
+    {452, -9 + DT_RD_BELL, 1.8f * DT_RD_BELL_T, 0}, {478, -11 + DT_RD_BELL, 1.7f * DT_RD_BELL_T, 0},
+    {628, -9, 2.0f, 0}, {689, -10, 1.0f, 0}, {793, -10, 2.0f, 0}, {1165, -9, 2.0f, 0}, {1287, -4, 1.3f, 0},
+    {1703, -12, 1.2f, 0}, {1884, -6, 1.0f, 0}, {2043, -9, 1.3f, 0}, {2249, -8, 0.9f, 0},
+    {2387, -7 + DT_RD_HI, 0.48f, 0}, {2567, -3 + DT_RD_HI, 0.8f, 0}, {3015, -10, 0.48f, 0}, {3172, -9, 0.8f, 0},
+    {3335, -9, 0.89f, 0}, {3663, -10, 0.8f, 0}, {3871, -5, 0.75f, 0}, {4111, -7, 0.61f, 0}, {4318, -5, 0.61f, 0},
+    {3000, -6 + DT_RD_HI, DT_CR_Q, DT_MT}, {4000, -6, DT_CR_Q, DT_MT}, {5000, -8, DT_CR_Q, DT_MT}};
 static const dt_mode_t DT_MODES_CABASA[] = { /* beads on steel: noise in a broad band, 1.3 to 4.2 kHz, swelling */
     {1300, -3, DT_CA_Q, DT_MT}, {1620, 0, DT_CA_Q, DT_MT}, {2030, -3, DT_CA_Q, DT_MT}, {2500, -3, DT_CA_Q, DT_MT},
     {3180, -5, DT_CA_Q, DT_MT}, {3700, -5, DT_CA_Q, DT_MT}, {4200, -6, DT_CA_Q, DT_MT}};
@@ -310,6 +367,8 @@ typedef struct {                             /* a voice: the generic parts dt_hi
     float burst_db;                          /* each strike this many dB under the one before (the hands tire) */
     float burst_jit;                         /* each gap's random spread, 0..1 of it (hands are not a metronome:
                                               * evenly spaced, the strikes read as a slapback) */
+    float pitch;                             /* the modes' frequencies times this (0: as listed): tuned by ear, the
+                                              * rate and so the length left alone */
     float body, low;                         /* the modes' decays' scale; longer by low at the first step, fading out
                                               * by the fourth (the 400's lowest tunings are their own: the Snare's
                                               * first step is off its others' pitch pattern too) */
@@ -384,6 +443,16 @@ static const dt_voice_t DT_V_TAMB = {
 static const dt_voice_t DT_V_OHH = {DT_V_HAT_, .gain = DT_HH_GAIN};
 static const dt_voice_t DT_V_CHH = {DT_V_HAT_, .gain = DT_CHH_GAIN, .vca_t = DT_CHH_VCA,
     .vca_hold = DT_CHH_HOLD, .vca_end = DT_CHH_END};
+static const dt_voice_t DT_V_CRASH = {
+    .rate = DT_RATE_CRASH, .m = DT_MODES_CRASH, .n = 29, .rom = DT_CR_RATE, .len = 3.45f, .gain = DT_CR_GAIN,
+    .stick = DT_CR_STICK, .tail = DT_CR_WASH, .tail_tau = DT_CR_WASH_T, .tail_rise = DT_CR_WASH_R, .body = 1.0f,
+    .attack = DT_CR_SWELL, .pitch = DT_CR_PITCH, .gate = DT_CR_GATE, .gate_db = 60.0f, .gate_t = DT_CR_GATE_T,
+    .room = DT_CR_ROOM};
+static const dt_voice_t DT_V_RIDE = {
+    .rate = DT_RATE_RIDE, .m = DT_MODES_RIDE, .n = 31, .rom = DT_RD_RATE, .len = 3.1f, .gain = DT_RD_GAIN,
+    .stick = DT_RD_STICK, .tail = DT_RD_WASH, .tail_tau = DT_RD_WASH_T, .body = DT_RD_BODY, .gate = DT_RD_GATE,
+    .gate_db = 60.0f, .gate_t = DT_RD_GATE_T, .pitch = DT_RD_PITCH,
+    .room = DT_RD_ROOM};
 static const dt_voice_t DT_V_CABASA = {
     .rate = DT_RATE_CABASA, .m = DT_MODES_CABASA, .n = 7, .rom = DT_PERC_RATE, .len = 0.39f, .gain = DT_CA_GAIN,
     .tail = DT_CA_TAIL_G, .tail_tau = DT_CA_TAIL_T, .tail_rise = DT_CA_TAIL_R, .body = 1.0f, .vcf = DT_CA_VCF,
@@ -393,7 +462,8 @@ static const dt_voice_t *const DT_VOICE[NDT] = {[DT_BASS] = &DT_V_BASS, [DT_SNAR
                                                 [DT_RIM] = &DT_V_RIM, [DT_TOM1] = &DT_V_TOM, [DT_TOM2] = &DT_V_TOM,
                                                 [DT_CLAPS] = &DT_V_CLAPS, [DT_COWBELL] = &DT_V_COWBELL,
                                                 [DT_TAMB] = &DT_V_TAMB, [DT_CABASA] = &DT_V_CABASA,
-                                                [DT_CHH] = &DT_V_CHH, [DT_OHH] = &DT_V_OHH};
+                                                [DT_CHH] = &DT_V_CHH, [DT_OHH] = &DT_V_OHH,
+                                                [DT_CRASH] = &DT_V_CRASH, [DT_RIDE] = &DT_V_RIDE};
 
 typedef struct {
     uint32_t pos, inc;                       /* the read position (ROM samples, Q16) and its step an output sample */
@@ -589,7 +659,7 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
     const dt_voice_t *v = d < NDT ? DT_VOICE[d] : NULL;
     dt_ch_t *c;
     uint32_t i, j, q, nc;
-    float rom, body, rate, lowf, lowg, cdet[DT_NCOPY], cg;
+    float rom, body, rate, lowf, lowg, cdet[DT_NCOPY], cg, pitch;
     uint16_t cst[DT_NCOPY];
     if (!v)
         return;
@@ -602,6 +672,7 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
     lowf = (float)(tune < 3u ? 3u - tune : 0u) * (1.0f / 3.0f);   /* (1 at the first step, 0 from the fourth) */
     body = v->body * (1.0f + v->low * lowf);
     lowg = fm_db2lin(v->low_db * lowf);
+    pitch = v->pitch > 0.0f ? v->pitch : 1.0f;
     c = &dt.ch[DT_CH[d]];
     *c = (dt_ch_t){0};
     c->v = v;
@@ -668,7 +739,7 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
         const dt_mode_t *m = &v->m[i];
         uint32_t k = m->flags & DT_MC ? nc : 1u;
         for (q = 0; q < k && j < DT_NM; q++, j++) {
-            float hz = m->hz * (k > 1u ? cdet[q] : 1.0f);
+            float hz = m->hz * pitch * (k > 1u ? cdet[q] : 1.0f);
             c->fl[j] = m->flags;
             c->st[j] = k > 1u ? cst[q] : 0u;
             c->w[j] = FM_TWO_PI * hz / rom;

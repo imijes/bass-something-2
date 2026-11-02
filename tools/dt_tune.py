@@ -46,6 +46,7 @@ def main():
     ap.add_argument("--steps", default="1,8,16")
     ap.add_argument("--cycles", action="store_true", help="the first cycles too (a low drum's pitch fall)")
     ap.add_argument("--env", action="store_true", help="the envelopes in ROM time too")
+    ap.add_argument("--ms", type=int, default=2000, help="each render's length (a cymbal's: 4000)")
     ap.add_argument("--restore", action="store_true", help="put bs2_drum.c back as it was at the end")
     a = ap.parse_args()
     drum = a.drum.upper()
@@ -55,7 +56,7 @@ def main():
         for setting in a.settings:
             SRC.write_text(apply(SRC.read_text(), setting))
             build()
-            ours, theirs, _, _ = dc.compare(a.folder, drum)
+            ours, theirs, _, _ = dc.compare(a.folder, drum, ms=a.ms)
             print(f"== {setting}")
             dc.overall_report(ours, theirs, steps)
             dc.tone_report(ours, theirs, steps, 10, detail=False)
