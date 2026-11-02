@@ -78,3 +78,5 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-01 | 3ad0400+ | Drum Something: Tambourine's six jingle pairs, tight (±3 %, 3 ms); 44 resonators a channel | 341,188 | +128 | 240,376 | 77,556 | +0 | 20,748 | 138,640 |
 | 2026-11-01 | 3ad0400+ | Drum Something: Snare's three upper wire bands (1.7-3.2 kHz); low_db option on the Snare (off) | 341,284 | +96 | 240,280 | 77,556 | +0 | 20,748 | 138,640 |
 | 2026-11-01 | 3ad0400+ | Drum Something: Snare's body louder (6 dB), not longer, at the lowest tunings | 341,284 | +0 | 240,280 | 77,556 | +0 | 20,748 | 138,640 |
+| 2026-11-01 | 45726b6+ | Drum Something: open and closed hi-hats (one sample; the closed one through a real-time VCA: dt_voice_t vca_*) | 342,484 | +1,200 | 239,080 | 77,556 | +0 | 20,748 | 138,712 |
+| 2026-11-01 | 45726b6+ | Drum Something: hi-hats' metal ringing purer (E) | 342,484 | +0 | 239,080 | 77,556 | +0 | 20,748 | 138,712 |

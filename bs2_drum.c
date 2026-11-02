@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MPL-2.0
  * Copyright (C) 2026 John Brown */
 /* Drum Something: the drum voices, after the Sequential Drumtraks (docs/DRUMTRAKS_RESEARCH.md). Voices so far: all
- * but the cymbals and the hi-hats.
+ * but the cymbals.
  *
  * As the 400: each voice is an 8-bit sample read at a rate the tuning sets (one rate, so a higher tuning is shorter,
  * brighter and higher at once: docs/DT_MEASURE.md), held from one sample to the next with nothing smoothing it (its
@@ -108,6 +108,25 @@ enum { DTC_BASS, DTC_SNARE, DTC_TOMS, DTC_CYM, DTC_HATS, DTC_PERC, NDTCH };
 #define DT_CP_LP 0.36f                       /* their output filter (dt_voice_t lp; 0: none) */
 #define DT_CP_HP 420.0f                      /* their output high pass at the first step, Hz (dt_voice_t hp) */
 #define DT_CP_ROOM 0.3f                      /* their send into the room */
+#define DT_HH_RATE 17400.0f                  /* the hi-hats' ROM samples a second at the first step (their notches:
+                                              * 17.5 and 35 kHz at the first step, moving with the rate) */
+#define DT_HH_GAIN 0.5f                      /* the open hi-hat's level */
+#define DT_HH_LEN 0.335f                     /* its sample's length, s (ROM time): it ends there, at full level */
+#define DT_HH_Q 0.0005f                      /* its noise bands' decay, s: their width */
+#define DT_HH_RING 0.025f                    /* its metal's tones' decay, s: their width (longer: they ring) */
+#define DT_HH_TONE 0                         /* the metal's tones, dB */
+#define DT_HH_LOW -18                        /* its bands under 2 kHz, dB */
+#define DT_HH_STICK 0.0f                     /* the stick's noise burst into the bands */
+#define DT_HH_VCF 9000.0f                    /* their filter after the DAC, two poles, Hz at the first step (0: none) */
+#define DT_HH_VCF_FIXED 0                    /* fixed, not moving with the rate */
+#define DT_HH_HP 1200.0f                     /* their output high pass at the first step, Hz (dt_voice_t hp) */
+#define DT_HH_LP 0.0f                        /* their output filter (dt_voice_t lp; 0: none) */
+#define DT_HH_ROOM 0.0f                      /* its send into the room (the 400's own was in the sample) */
+#define DT_CHH_GAIN 0.5f                     /* the closed hi-hat's level: the same sample, */
+#define DT_CHH_VCA 0.035f                    /* through a VCA falling with this time constant, s (real time: the same
+                                              * at every tuning), */
+#define DT_CHH_HOLD 0.01f                    /* after a hold, s, */
+#define DT_CHH_END 0.117f                    /* and cut here, s */
 #define DT_TB_GAIN 0.5f                      /* the Tambourine's level */
 #define DT_TB_STICK 0.3f                     /* the hand's noise burst into the jingles */
 #define DT_TB_BODY 1.0f                      /* the jingles' decays against the recordings' */
@@ -191,6 +210,8 @@ static const uint16_t DT_RATE_RIM[16] = {4096, 4477, 4791, 4998, 5200, 5430, 560
                                          7043, 7323, 7620, 8282};
 static const uint16_t DT_RATE_BASS[16] = {4211, 5517, 6405, 6648, 6920, 7195, 7504, 7804, 8122, 8479, 8726, 8726,
                                           9053, 9473, 9884, 10263};   /* (tools/dt_voice.py --cycles) */
+static const uint16_t DT_RATE_HAT[16] = {4096, 4467, 4801, 5014, 5198, 5428, 5628, 5835, 6093, 6363, 6549, 6839,
+                                         7090, 7351, 7621, 7959};   /* (both hats: one ROM, as the 400's) */
 /* the MIDI key map (the 400's, 17 Dec 1983): notes 35..58, DT_NONE where nothing plays */
 static const uint8_t DT_KEY[24] = {DT_BASS, DT_BASS, DT_RIM, DT_SNARE, DT_CLAPS, DT_SNARE, DT_TOM1, DT_CHH, DT_TOM1,
                                    DT_CHH, DT_TOM2, DT_OHH, DT_TOM2, DT_NONE, DT_CRASH, DT_NONE, DT_RIDE, DT_NONE,
@@ -258,6 +279,14 @@ static const dt_mode_t DT_MODES_TAMB[] = {   /* the frame's thump (broad, fixed)
     {3916, -8 + DT_TB_HI, 0.072f, DT_MC}, {5029, -5 + DT_TB_HI, 0.062f, DT_MC}, {6033, -9 + DT_TB_HI, 0.078f, DT_MC},
     {2300, DT_TB_RATTLE, DT_SN_WIRE_Q, DT_MW}, {3500, DT_TB_RATTLE, DT_SN_WIRE_Q, DT_MW},
     {5000, DT_TB_RATTLE, DT_SN_WIRE_Q, DT_MW}, {7000, DT_TB_RATTLE - 3, DT_SN_WIRE_Q, DT_MW}};
+static const dt_mode_t DT_MODES_HAT[] = {    /* a hi-hat's sizzle: noise in broad bands, 1.2 to 8.3 kHz, and the
+                                              * metal's tones in it; held, the open hat's sample a steady wash */
+    {1250, DT_HH_LOW, DT_HH_Q, DT_MT}, {1770, DT_HH_LOW + 3, DT_HH_Q, DT_MT}, {2150, DT_HH_LOW + 6, DT_HH_Q, DT_MT},
+    {2600, -4, DT_HH_Q, DT_MT}, {3200, 0, DT_HH_Q, DT_MT}, {3900, -1, DT_HH_Q, DT_MT}, {4700, -2, DT_HH_Q, DT_MT},
+    {5500, -2, DT_HH_Q, DT_MT}, {6400, -1, DT_HH_Q, DT_MT}, {7400, -2, DT_HH_Q, DT_MT}, {8300, -6, DT_HH_Q, DT_MT},
+    {2342, DT_HH_TONE, DT_HH_RING, DT_MT}, {2574, DT_HH_TONE, DT_HH_RING, DT_MT},
+    {3222, DT_HH_TONE + 3, DT_HH_RING, DT_MT}, {3972, DT_HH_TONE + 2, DT_HH_RING, DT_MT},
+    {5105, DT_HH_TONE, DT_HH_RING, DT_MT}, {5877, DT_HH_TONE, DT_HH_RING, DT_MT}};
 static const dt_mode_t DT_MODES_CABASA[] = { /* beads on steel: noise in a broad band, 1.3 to 4.2 kHz, swelling */
     {1300, -3, DT_CA_Q, DT_MT}, {1620, 0, DT_CA_Q, DT_MT}, {2030, -3, DT_CA_Q, DT_MT}, {2500, -3, DT_CA_Q, DT_MT},
     {3180, -5, DT_CA_Q, DT_MT}, {3700, -5, DT_CA_Q, DT_MT}, {4200, -6, DT_CA_Q, DT_MT}};
@@ -301,6 +330,9 @@ typedef struct {                             /* a voice: the generic parts dt_hi
     float gate, gate_db, gate_t;             /* at gate s (ROM time) the level falls by gate_db, with time constant
                                               * gate_t s (0: about 2 ms), and plays on there (a VCA pulled down: the
                                               * Bass's cliff, the closed hi-hat's; a held bell's fall); 0: none */
+    float vca_t, vca_hold, vca_end;          /* a VCA after the DAC, in real time (the same at every tuning): held
+                                              * vca_hold s, then falling with time constant vca_t s, cut at vca_end s
+                                              * (the closed hi-hat: the open one's sample, choked); 0: none */
     uint8_t copies;                          /* the DT_MC modes played this many times (2..DT_NCOPY; 0, 1: once), */
     float copy_detune, copy_gap;             /* each copy detuned across +-copy_detune (a ratio) and struck about
                                               * copy_gap s (ROM time) after the one before, at random around both */
@@ -346,6 +378,12 @@ static const dt_voice_t DT_V_TAMB = {
     .burst_gap = DT_TB_GAP, .burst_tau = DT_TB_BURST_T, .burst_db = DT_TB_BURST_DB, .burst_jit = DT_TB_JIT,
     .body = DT_TB_BODY, .vcf = DT_TB_VCF, .vcf_lo = 1.0f, .vcf_fixed = 1, .hp = DT_TB_HP, .attack = DT_TB_ATTACK,
     .copies = DT_TB_COPIES, .copy_detune = DT_TB_DETUNE, .copy_gap = DT_TB_CGAP, .room = DT_TB_ROOM};
+#define DT_V_HAT_ .rate = DT_RATE_HAT, .m = DT_MODES_HAT, .n = 17, .rom = DT_HH_RATE, .len = DT_HH_LEN, \
+    .stick = DT_HH_STICK, .tail = 1.0f, .tail_tau = 10.0f, .body = 1.0f, .vcf = DT_HH_VCF, .vcf_lo = 1.0f, \
+    .vcf_fixed = DT_HH_VCF_FIXED, .lp = DT_HH_LP, .hp = DT_HH_HP, .room = DT_HH_ROOM   /* (both hats') */
+static const dt_voice_t DT_V_OHH = {DT_V_HAT_, .gain = DT_HH_GAIN};
+static const dt_voice_t DT_V_CHH = {DT_V_HAT_, .gain = DT_CHH_GAIN, .vca_t = DT_CHH_VCA,
+    .vca_hold = DT_CHH_HOLD, .vca_end = DT_CHH_END};
 static const dt_voice_t DT_V_CABASA = {
     .rate = DT_RATE_CABASA, .m = DT_MODES_CABASA, .n = 7, .rom = DT_PERC_RATE, .len = 0.39f, .gain = DT_CA_GAIN,
     .tail = DT_CA_TAIL_G, .tail_tau = DT_CA_TAIL_T, .tail_rise = DT_CA_TAIL_R, .body = 1.0f, .vcf = DT_CA_VCF,
@@ -354,7 +392,8 @@ static const dt_voice_t DT_V_CABASA = {
 static const dt_voice_t *const DT_VOICE[NDT] = {[DT_BASS] = &DT_V_BASS, [DT_SNARE] = &DT_V_SNARE,
                                                 [DT_RIM] = &DT_V_RIM, [DT_TOM1] = &DT_V_TOM, [DT_TOM2] = &DT_V_TOM,
                                                 [DT_CLAPS] = &DT_V_CLAPS, [DT_COWBELL] = &DT_V_COWBELL,
-                                                [DT_TAMB] = &DT_V_TAMB, [DT_CABASA] = &DT_V_CABASA};
+                                                [DT_TAMB] = &DT_V_TAMB, [DT_CABASA] = &DT_V_CABASA,
+                                                [DT_CHH] = &DT_V_CHH, [DT_OHH] = &DT_V_OHH};
 
 typedef struct {
     uint32_t pos, inc;                       /* the read position (ROM samples, Q16) and its step an output sample */
@@ -369,6 +408,8 @@ typedef struct {
     uint32_t gate;                           /* the ROM sample where the gate falls (0: none) */
     float gl, glo, gl_k;                     /* the gate's level now, where it falls to, its step a sample */
     float send;                              /* into the room */
+    float va, va_k;                          /* the VCA's level (over 1: held) and its fall a sample (va_k 0: none) */
+    uint32_t vn;                             /* output samples till it is cut */
     float burst, burst_k, wire, wire_k;      /* the stick's burst and the wires' noise: levels, decays a sample */
     uint32_t bn, bnext, bgap;                /* the wires' strikes still to come, the next's ROM sample, the gap */
     float bk;                                /* the last strike's decay, kept till then */
@@ -577,6 +618,11 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
     c->glo = fm_db2lin(-v->gate_db);
     c->gl_k = 1.0f - dt_decay(v->gate_t > 0.0f ? v->gate_t : 0.002f, rom, 1.0f);
     c->send = v->room;
+    if (v->vca_t > 0.0f) {
+        c->va = fm_expf(v->vca_hold / v->vca_t);
+        c->va_k = dt_decay(v->vca_t, BS2_RATE, 1.0f);
+        c->vn = (uint32_t)(v->vca_end * BS2_RATE);
+    }
     c->vk = 1.0f;
     if (v->vcf > 0.0f) {
         c->vw = FM_TWO_PI * v->vcf * (v->vcf_fixed ? 1.0f : rate) / BS2_RATE;
@@ -691,6 +737,12 @@ static inline float dt_next(void)
         c->v2 += (c->v1 - c->v2) * c->vk;
         c->lp += (c->v2 - c->lp) * c->lpk;
         o = c->lp;
+        if (c->va_k > 0.0f) {                 /* the VCA: held, falling, then cut (in about 2 ms) */
+            o *= fm_minf(c->va, 1.0f);
+            c->va *= c->va_k;
+            if (c->vn && !--c->vn)
+                c->va_k = dt_decay(0.002f, BS2_RATE, 1.0f);
+        }
         if (c->hpk > 0.0f) {                  /* the high pass: less its low part */
             c->hz += (o - c->hz) * c->hpk;
             o -= c->hz;
