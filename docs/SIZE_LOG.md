@@ -73,3 +73,8 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-01 | d7f0e44+ | Drum Something: Claps open up in the middle (a tail noise for the upper bands, DT_MT) | 339,572 | +752 | 241,992 | 77,556 | +0 | 20,748 | 133,120 |
 | 2026-11-01 | d7f0e44+ | Drum Something: Claps a hair darker | 339,572 | +0 | 241,992 | 77,556 | +0 | 20,748 | 133,120 |
 | 2026-11-01 | d7f0e44+ | Drum Something: Claps another hair darker | 339,572 | +0 | 241,992 | 77,556 | +0 | 20,748 | 133,120 |
+| 2026-11-01 | 3ad0400+ | Drum Something: Tambourine and Cabasa; channel 6's VCF fixed (vcf_fixed) | 340,388 | +816 | 241,176 | 77,556 | +0 | 20,748 | 133,120 |
+| 2026-11-01 | 3ad0400+ | Drum Something: jingle copies (DT_MC: the Tambourine's four pairs), 32 resonators a channel | 341,060 | +672 | 240,504 | 77,556 | +0 | 20,748 | 136,408 |
+| 2026-11-01 | 3ad0400+ | Drum Something: Tambourine's six jingle pairs, tight (±3 %, 3 ms); 44 resonators a channel | 341,188 | +128 | 240,376 | 77,556 | +0 | 20,748 | 138,640 |
+| 2026-11-01 | 3ad0400+ | Drum Something: Snare's three upper wire bands (1.7-3.2 kHz); low_db option on the Snare (off) | 341,284 | +96 | 240,280 | 77,556 | +0 | 20,748 | 138,640 |
+| 2026-11-01 | 3ad0400+ | Drum Something: Snare's body louder (6 dB), not longer, at the lowest tunings | 341,284 | +0 | 240,280 | 77,556 | +0 | 20,748 | 138,640 |
