@@ -2267,14 +2267,14 @@ static int dt_value(uint32_t k, int32_t e)
             dq_cmd(DQC_CUE, ui.dt_pat, 0);
         return 1;
     }
-    if (f >= DTF_BPAT) {                     /* BUILD MODE: ALGO the step, PRESET what goes there */
+    if (f >= DTF_BPAT) {                     /* BUILD MODE: PRESET the step (the left display), ALGO what goes there (the right) */
         ds_song_t *t = &dsm.s[ui.dt_song < DS_NSONG ? ui.dt_song : 0];
         if (ui.dt_song >= DS_NSONG)
             return 0;
-        if (k == EN_ALGO && (f == DTF_BPAT || f >= DTF_BINS)) {
+        if (k == EN_PRESET && (f == DTF_BPAT || f >= DTF_BINS)) {
             ui.dt_step = (uint8_t)clamp((int32_t)ui.dt_step + e, 0, (int32_t)(ds_end(t) < DS_NSTEP ? ds_end(t) : DS_NSTEP - 1u));
             ui.dt_pend = 0;
-        } else if (f == DTF_BPAT && k == EN_PRESET) {
+        } else if (f == DTF_BPAT && k == EN_ALGO) {
             const uint32_t c = t->step[ui.dt_step];
             ui.dt_ent = (int16_t)clamp((ui.dt_pend ? ui.dt_ent : c < DQ_NPAT ? (int32_t)c : 0) + e, 0, 99);
             ui.dt_pend = 1;
@@ -2570,6 +2570,8 @@ static const char *knob_name(uint32_t k)
             return k == EN_SELECT ? "SWING LOCK" : "TRANSPORT";
         if (k == EN_SELECT)
             return "TEMPO";
+        if (ui.dt_fn >= DTF_BPAT && ui.dt_fn != DTF_BVOL && ui.dt_fn != DTF_BTEMPO && (k == EN_PRESET || ui.dt_fn == DTF_BPAT))
+            return k == EN_PRESET ? "STEP" : "PATTERN";
         return k == EN_PRESET ? (ui.dt_fn >= DTF_SONG ? "SONG" : ui.dt_fn == DTF_PAT || ui.dt_fn == DTF_REC ? "PATTERN" : "VALUE")
                : k == EN_ALGO ? "VALUE" : N[k];
     }
@@ -2635,6 +2637,11 @@ static int32_t arp_tempo(void)
     return !ext_clock() ? (dq.run || ui.drum ? (int32_t)dt.tempo : (int32_t)patch.tempo) : eng.ext_age < EXT_HOLD ? (int32_t)eng.ext_shown : 0;
 }
 static void dt_digits(char *l, char *r);
+static int dt_knobs_split(void)              /* PRESET the left display, ALGO the right (the rest: both the one display) */
+{
+    const uint32_t f = ui.dt_fn;
+    return f == DTF_TIME || f == DTF_BPAT || f >= DTF_BINS;
+}
 static void knob_text(uint32_t k, char *t)
 {
     const param_t *q = knob_param(k);
@@ -2655,6 +2662,10 @@ static void knob_text(uint32_t k, char *t)
         else if (k == EN_PRESET || k == EN_ALGO) {   /* (as the displays have it) */
             char l[3], r[3];
             dt_digits(l, r);
+            if (dt_knobs_split() && ui.dt_show != DTS_TEMPO) {   /* (its own display's) */
+                text_cat(t, k == EN_PRESET ? l : r);
+                return;
+            }
             if (l[0] != ' ' || l[1] != ' ')
                 text_cat(t, l);
             text_cat(t, r);
@@ -3087,6 +3098,9 @@ static const char *hint_of(uint32_t k)       /* encoder k's here (as its page's 
     if (DRUM_PAGE(ui.page))
         return ui.page == PG_DMOD && k == EN_SELECT ? "Bass follows drums' swing"
                : ui.page == PG_DMOD && k == EN_ALGO ? "Drums start and stop bass" : k == EN_SELECT ? "Tempo" : k == EN_K3 || k == EN_K4 ? DT_NAME[ui.dt_sel] : k == EN_K1 ? "Click level" : k == EN_K2 ? "Drums' level"
+               : ui.dt_fn == DTF_TIME && k == EN_PRESET ? "Beats in a bar" : ui.dt_fn == DTF_TIME && k == EN_ALGO ? "The note that's a beat"
+               : dt_knobs_split() && k == EN_PRESET ? "Pick the step" : ui.dt_fn == DTF_BPAT && k == EN_ALGO ? "Pick the pattern"
+               : ui.dt_fn >= DTF_BINS && k == EN_ALGO ? 0
                : k == EN_PRESET ? "Pick the number" : k == EN_ALGO ? "Change the value" : 0;
     if (ui.page == PG_MIX && k == EN_K4)
         return PW_H[ui.pw_src];
@@ -3307,8 +3321,8 @@ static void dt_fn_go(uint32_t f)
         [DTF_ERROR] = "ALGO: timing grid, 96 = off", [DTF_SWING] = "ALGO: swing amount", [DTF_TIME] = "PRESET beats, ALGO note",
         [DTF_MEAS] = "ALGO: bars in the pattern", [DTF_ERASEP] = "ALGO which, SEL erases", [DTF_COPYP] = "ALGO where, SEL copies",
         [DTF_SONG] = "PRESET: pick the song", [DTF_ERASES] = "ALGO which, SEL erases", [DTF_COPYS] = "ALGO where, SEL copies",
-        [DTF_BUILD] = "SEL: enter Build Mode", [DTF_BPAT] = "PRESET pattern, SEL enters", [DTF_BVOL] = "PRESET level, SEL enters",
-        [DTF_BTEMPO] = "PRESET tempo, SEL enters", [DTF_BINS] = "SEL: insert a step here", [DTF_BDEL] = "SEL: delete this step"};
+        [DTF_BUILD] = "SEL: enter Build Mode", [DTF_BPAT] = "ALGO pattern, SEL enters", [DTF_BVOL] = "ALGO level, SEL enters",
+        [DTF_BTEMPO] = "ALGO tempo, SEL enters", [DTF_BINS] = "PRESET step, SEL inserts", [DTF_BDEL] = "PRESET step, SEL deletes"};
     ui.dt_fn = (uint8_t)f;
     dt_show(DTS_FN);
     zoom.fn_at = plat_ms() | 1u;
@@ -5950,9 +5964,10 @@ static void dt_head(int right)               /* (right: its right cheek too) */
  * their value in a tag while they turn, the camera staying out */
 static void dt_tag_preset(void)
 {
-    tag(ui.dt_fn >= DTF_SONG ? 141 : 201, 22, EN_PRESET);
-    if (!ui.map_until)                       /* (ALGO the same display's: no second name in the map) */
-        tag(ui.dt_fn >= DTF_SONG ? 141 : 201, 22, EN_ALGO);
+    const int left = ui.dt_fn >= DTF_SONG && ui.dt_fn != DTF_BVOL && ui.dt_fn != DTF_BTEMPO;
+    tag(left || dt_knobs_split() ? 141 : 201, 22, EN_PRESET);
+    if (!ui.map_until || dt_knobs_split())   /* (ALGO the same display's: no second name in the map) */
+        tag(left && !dt_knobs_split() ? 141 : 201, 22, EN_ALGO);
 }
 static void dt_tag_away(uint32_t k, int32_t x)
 {
@@ -6063,32 +6078,36 @@ static void dfn_display(int32_t x, int32_t y, const char *t)   /* a display at t
     dfn_digit(x + 3, y + 2, t[0]);
     dfn_digit(x + 15, y + 2, t[1]);
 }
-static void dfn_pair(int32_t x0, int32_t xm, int32_t x1, int32_t y0, int32_t y1)   /* two boxes sharing a wall, in pixels (the
-                                              * walls' middles and the rails' inner rows; the second may run off the screen) */
+static void dfn_chain(const int32_t *w, int32_t n, int32_t y0, int32_t y1)   /* n boxes side by side, sharing walls w[0..n], in
+                                              * pixels (the walls' middles and the rails' inner rows; the last may run off the screen) */
 {
     const int32_t R_ = (int32_t)DFN_R;
     const uint16_t line = grey(DT_LINE_G);
-    const int32_t xs[4] = {x0 - 1, xm - R_ - 2, xm - 1, x1 - R_ - 2};
     int32_t i, x, y, c;
-    cv_rect(x0 - 1 + R_, y0 - 1, xm - x0 - 2 * R_, 2, line);   /* the rails, between the curves */
-    cv_rect(x0 - 1 + R_, y1 - 1, xm - x0 - 2 * R_, 2, line);
-    cv_rect(xm + R_, y0 - 1, x1 - xm - 2 * R_, 2, line);
-    cv_rect(xm + R_, y1 - 1, x1 - xm - 2 * R_, 2, line);
-    cv_rect(x0 - 1, y0 - 1 + R_, 2, y1 - y0 - 2 * R_, line);   /* the walls */
-    cv_rect(xm - 1, y0 - 1 + R_, 2, y1 - y0 - 2 * R_, line);
-    cv_rect(x1 - 1, y0 - 1 + R_, 2, y1 - y0 - 2 * R_, line);
-    for (i = 0; i < 4; i++)                  /* the curves: each pixel as the more of either box covers it */
-        for (c = 0; c < 2; c++) {
+    for (i = 0; i <= n && w[i] - R_ - 2 < 240; i++) {
+        const int32_t xa = i ? w[i] - R_ - 2 : w[i] - 1, xb = i < n ? w[i] + R_ + 1 : w[i];
+        if (i < n) {                         /* the rails, between the curves */
+            cv_rect(w[i] - 1 + R_, y0 - 1, w[i + 1] - w[i] + 1 - 2 * R_, 2, line);
+            cv_rect(w[i] - 1 + R_, y1 - 1, w[i + 1] - w[i] + 1 - 2 * R_, 2, line);
+        }
+        cv_rect(w[i] - 1, y0 - 1 + R_, 2, y1 - y0 - 2 * R_, line);   /* the wall */
+        for (c = 0; c < 2; c++) {            /* the curves: each pixel as the more of either box covers it */
             const int32_t Y0 = c ? y1 - R_ - 1 : y0 - 1;
             for (y = Y0; y < Y0 + R_ + 2; y++)
-                for (x = xs[i]; x < xs[i] + R_ + 3; x++) {
+                for (x = xa; x <= xb; x++) {
                     const float px = (float)x + 0.5f, py = (float)y + 0.5f;
-                    const float a = dfn_cover((float)x0 - 1.0f, (float)y0 - 1.0f, (float)xm + 1.0f, (float)y1 + 1.0f, px, py);
-                    const float b = dfn_cover((float)xm - 1.0f, (float)y0 - 1.0f, (float)x1 + 1.0f, (float)y1 + 1.0f, px, py);
+                    const float a = i ? dfn_cover((float)w[i - 1] - 1.0f, (float)y0 - 1.0f, (float)w[i] + 1.0f, (float)y1 + 1.0f, px, py) : 0.0f;
+                    const float b = i < n ? dfn_cover((float)w[i] - 1.0f, (float)y0 - 1.0f, (float)w[i + 1] + 1.0f, (float)y1 + 1.0f, px, py) : 0.0f;
                     const float k = fm_maxf(a, b);
                     cv_pset(x, y, grey(DT_FACE_G + (int32_t)((float)(DT_LINE_G - DT_FACE_G) * k)));
                 }
         }
+    }
+}
+static void dfn_pair(int32_t x0, int32_t xm, int32_t x1, int32_t y0, int32_t y1)
+{
+    const int32_t w[3] = {x0, xm, x1};
+    dfn_chain(w, 2, y0, y1);
 }
 static void dfn_frames(int32_t u0, int32_t um, int32_t u1)   /* the two boxes, u0..um and um..u1 across */
 {
@@ -6131,10 +6150,11 @@ static void dt_crop(int32_t u0)              /* the section page's measures: u0 
 static void dt_crop_end(void) { dt_ux0 = 151, dt_x0 = HOME_L, dt_sx = 187, dt_vy0 = 56, dt_y0 = 47, dt_sy = 187; }
 static void dfn_tags(void)                   /* what turns here: PRESET and ALGO on the display they show on; the rest, in a tag */
 {
-    const int32_t x = dt_px(ui.dt_fn >= DTF_SONG ? 660 : 770) + 13, y = dt_py(61) + 11;
-    tag(x, y, EN_PRESET);
-    if (!ui.map_until)
-        tag(x, y, EN_ALGO);
+    const int left = ui.dt_fn >= DTF_SONG && ui.dt_fn != DTF_BVOL && ui.dt_fn != DTF_BTEMPO;
+    const int32_t y = dt_py(61) + 11, xl = dt_px(660) + 13, xr = dt_px(770) + 13;
+    tag(left || dt_knobs_split() ? xl : xr, y, EN_PRESET);
+    if (!ui.map_until || dt_knobs_split())
+        tag(left && !dt_knobs_split() ? xl : xr, y, EN_ALGO);
     dt_tag_away(EN_SELECT, 50);
     dt_tag_away(EN_K1, 100);
     dt_tag_away(EN_K2, 150);
@@ -6193,6 +6213,13 @@ static void dsong_draw(void)
  * the drum selected, its LED lit */
 #define DCH_ACTIVE_G 64                      /* the active channel's plate (the rest: DT_FACE_G) */
 #define DCH_SLIDE_MS 280u                    /* the header coming down, once the camera's landed */
+static int32_t dch_width(uint32_t c)         /* a channel's frame: 31 a key */
+{
+    int32_t i, n = 0;
+    for (i = 0; i < (int32_t)NDT; i++)
+        n += DT_CH[i] == c;
+    return 31 * n + 5;
+}
 static void dch_draw(void)
 {
     static const char *const SHORT[NDT] = {"BASS", "SNARE", "RIM", "TOM 1", "TOM 2", "CRASH", "RIDE", "CLOSED", "OPEN",
@@ -6201,7 +6228,7 @@ static void dch_draw(void)
     const uint32_t c = ui.page - PG_DCH1, lit = dt_lit();
     const uint16_t print = grey(216);
     char t[5] = "CH 1";
-    int32_t n = 0, i, x0, X, j = 0, top, low, ky, ly, tk;
+    int32_t i, k, x0, X, j = 0, top, low, ky, ly, tk;
     const uint32_t sl = ui.dt_slide_at ? plat_ms() - ui.dt_slide_at : DCH_SLIDE_MS;
     /* the faceplate's lower row, one scale both ways, from where HOME's camera lands (dt_open): the cut unseen */
     dt_ux0 = 151, dt_x0 = 9, dt_sx = 430, dt_vy0 = 409, dt_y0 = 49, dt_sy = 430;
@@ -6233,14 +6260,17 @@ static void dch_draw(void)
     dch_key(dt_px(289), ky, ui.drum && ui.keys >> BK[0] & 1u);
     dt_tiny(dt_px(168) - 3, ly, "RUN/STOP", print);
     dt_tiny(dt_px(289), ly, "ACCENT", print);
-    for (i = 0; i < (int32_t)NDT; i++)
-        n += DT_CH[i] == c;
     x0 = c == 5u ? 105 : dt_px(415);         /* where the faceplate has it (CH 6 fills the rest: a little nearer) */
-    X = x0 + 31 * n + 5;
+    X = x0 + dch_width(c);
     if (c == 5u)
         dfn_box(x0, top, X, low);
-    else                                     /* (the next channel's rails, off the screen's edge: still the faceplate) */
-        dfn_pair(x0 + 1, X, X + 120, top + 1, low - 1);
+    else {                                   /* the channels after it, their own widths: on until the screen's edge cuts one */
+        int32_t w[NDTCH + 1], m = 1;
+        w[0] = x0 + 1, w[1] = X;
+        for (k = (int32_t)c + 1; k < (int32_t)NDTCH; k++, m++)
+            w[m + 1] = w[m] + dch_width((uint32_t)k);
+        dfn_chain(w, m, top + 1, low - 1);
+    }
     {                                        /* the active channel: its plate a shade lighter, to its frame's inner curve */
         static const uint8_t IN[4] = {3, 2, 1, 0};
         const int32_t l_ = x0 + 2, r_ = c == 5u ? X - 2 : X - 1, t_ = top + 2, b_ = low - 2;
@@ -6261,20 +6291,17 @@ static void dch_draw(void)
             dch_key(kx, ky, (int)(lit >> i & 1u));
             dt_tiny(kx + 12 - w / 2, ly, SHORT[i], sel ? P_SILK : grey(170));
         }
-    if (c < 5u) {                            /* the next channel, as the faceplate has it, off the screen's edge */
-        t[3] = (char)('2' + c);
+    for (k = (int32_t)c + 1; k < (int32_t)NDTCH && X < 240; X += dch_width((uint32_t)k), k++) {   /* the ones after, as the faceplate has them */
+        t[3] = (char)('1' + k);
         j = 0;
         for (i = 0; i < (int32_t)NDT; i++)
-            if (DT_CH[i] == c + 1u) {
+            if (DT_CH[i] == (uint32_t)k) {
                 const int32_t kx = X + 4 + 31 * j++, w = 4 * (int32_t)strlen(SHORT[i]) - 1;
                 cv_rect(kx + 10, ky - 6, 5, 3, RGB(96, 16, 32));
                 dch_key(kx, ky, (int)(lit >> i & 1u));
                 dt_tiny(kx + 12 - w / 2, ly, SHORT[i], grey(170));
             }
-        n = 0;
-        for (i = 0; i < (int32_t)NDT; i++)
-            n += DT_CH[i] == c + 1u;
-        dt_tiny(X + (31 * n + 5) / 2 - 7, top + 7, t, print);
+        dt_tiny(X + dch_width((uint32_t)k) / 2 - 7, top + 7, t, print);
     }
     dt_tag_preset();
     dt_tag_away(EN_SELECT, 50);

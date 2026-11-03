@@ -644,7 +644,8 @@ tap SEL
 wait 30
 expect dt_fn 13
 expect dt_step 0
-spin PRESET 20
+# PRESET the step (the left display), ALGO the pattern (the right)
+spin ALGO 20
 wait 30
 tap SEL
 wait 30
@@ -660,16 +661,16 @@ tap ARP
 tap ARP
 tap SEL
 wait 30
-spin ALGO 1
+spin PRESET 1
 wait 30
 expect dt_step 1
-spin PRESET 20
+spin ALGO 20
 wait 30
 tap SEL
 wait 30
 expect dt_slen 2
 # a volume change at step 1: INSERT, then VOL CHANGE (the manual's 7-7)
-spin ALGO -1
+spin PRESET -1
 wait 30
 tap ARP
 tap ARP
@@ -681,7 +682,7 @@ expect dt_fn 13
 expect dt_slen 3
 tap ARP
 expect dt_fn 14
-spin PRESET -2
+spin ALGO -2
 wait 30
 tap SEL
 wait 30
