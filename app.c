@@ -1538,7 +1538,7 @@ static struct {
 #define ZOOM_HOLD_MS 1000u
 #define ZOOM_IN_MS 64u                       /* the damping's time constants */
 #define ZOOM_OUT_MS 96u
-enum { ZH_NONE, ZH_DIVE, ZH_PAGE, ZH_RISE };   /* zoom.home: a CC on HOME (zoom_cc_in): the camera going in, on its
+enum { ZH_NONE, ZH_DIVE, ZH_PAGE, ZH_RISE, ZH_OPEN };   /* zoom.home: a CC on HOME (zoom_cc_in): the camera going in, on its
                                                 * section page, coming out */
 #define ZOOM_DIVE_MS 450u                    /* HOME's dive, the whole way in (and out: ZOOM_RISE_MS) */
 #define ZOOM_RISE_MS 550u
@@ -1696,12 +1696,12 @@ static void ble_device_button(void)
  * empty places set nothing */
 enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GSYS, PG_GDISP, PG_GDUMP,
        PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
-       PG_DMOD, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
+       PG_DMOD, PG_DPAT, PG_DSONG, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI", "GLOBAL SYSTEM",
                                               "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
                                               "GLOBAL DRUMS", "DRUM HOME", "CHANNEL 1", "CHANNEL 2", "CHANNEL 3",
-                                              "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS"};
+                                              "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
@@ -2328,6 +2328,21 @@ static int dt_value(uint32_t k, int32_t e)
     dq.dirty = 1;
     return 1;
 }
+/* GLO SYS's KNOBS on the drums' too, by the bass's rule (knob_accel): a control of 48 steps or more speeds up as it's spun; the
+ * few-valued (K3, K4, Swing, a beat, Error Correct, the mods) a step a click */
+static int dt_knob_wide(uint32_t k)
+{
+    const uint32_t f = ui.dt_fn;
+    if (ui.page == PG_DMOD && (k == EN_SELECT || k == EN_ALGO))
+        return 0;
+    if (k == EN_K1 || k == EN_K2 || k == EN_SELECT)
+        return 1;
+    if (k == EN_PRESET)
+        return f != DTF_ERROR && f != DTF_SWING && f != DTF_BVOL && (f != DTF_BTEMPO || !ui.dt_step);
+    if (k == EN_ALGO)
+        return f != DTF_ERROR && f != DTF_SWING && f != DTF_TIME && f != DTF_BVOL && (f != DTF_BTEMPO || !ui.dt_step);
+    return 0;
+}
 static void dt_tempo_step(int32_t e)         /* the manual's tempos, a step a click (MIDI clock's while it leads) */
 {
     if (!ext_clock()) {
@@ -2368,7 +2383,7 @@ static int dt_turn(uint32_t k, int32_t e)
 static int knob_turn(uint32_t k, int32_t e)
 {
     static const param_t RT_SPAN = {"RND", 0, 0, 127, 0};   /* (RND TRACKS' levels and sends: turned as a 0..127's) */
-    const param_t *q = (ui.page == PG_RTRK && k >= EN_K1 && rnd_row != RR_ENG) || (DRUM_PAGE(ui.page) && (k == EN_K1 || k == EN_K2 || (k == EN_SELECT && ui.page != PG_DMOD)))
+    const param_t *q = (ui.page == PG_RTRK && k >= EN_K1 && rnd_row != RR_ENG) || (DRUM_PAGE(ui.page) && dt_knob_wide(k))
                        ? &RT_SPAN : knob_param(k);
     e = knob_accel(k, e, q);
     if (DRUM_PAGE(ui.page))                  /* Drum Something's, the same on each of its pages (said there) */
@@ -3119,11 +3134,11 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
     uint32_t g;
     static const char *const H[NB] = {[B_HOME] = "The whole panel", "Save the patch", [B_PLAY] = "Play or stop", [B_OCTDN] = "Octave down",
                                       "Octave up"};
-    static const char *const DH[NB] = {[B_SEL] = "Enter", [B_EDIT] = "Each drum's channel", [B_GLO] = "Settings", [B_HOME] = "The whole panel",
-                                       [B_ARP] = "Song functions", [B_SEQ] = "Pattern functions", [B_PLAY] = "Run or stop", [B_SAVE] = "Save the drums",
+    static const char *const DH[NB] = {[B_SEL] = "Enter", [B_EDIT] = "Each drum's channel", [B_GLO] = "Settings; hold: RND", [B_HOME] = "The whole panel",
+                                       [B_ARP] = "Songs; again: next", [B_SEQ] = "Patterns; again: next", [B_PLAY] = "Run or stop", [B_SAVE] = "Save the drums",
                                        [B_REC] = "Rec on/off; hold: Erase", [B_FX] = "Drum mods", [B_ENV] = "Pattern length", [B_OCTDN] = "Slower", [B_OCTUP] = "Faster"};
     const int rec = seq_rec && ui.page == PG_SEQ;
-    if (ui.drum)                             /* (every button the drums', as dt_button) */
+    if (ui.drum && !RND_PAGE(ui.page))       /* (every button the drums', as dt_button) */
         return DH[k];
     if (k == B_SEL)
         return rec ? "Tie last step" : ui.page == PG_GDUMP ? "Send this sound" : ui.page == PG_RPAT ? "Unlock everything"
@@ -3166,6 +3181,7 @@ static void hint_show(uint32_t k)            /* Hints: button k's, from the page
     }
 }
 
+static void dt_button(uint32_t k);
 static void dt_rec_tap(void);
 static void dt_rec_erase(void);
 /* TRANSPORT (DRUM MODS, on by default): the drums' run and stop reach the bass as MIDI's start and stop would: it plays its
@@ -3201,7 +3217,9 @@ static void dt_bass_transport(int run)
 }
 static void hold_tap(uint32_t k)
 {
-    if (k == B_REC && ui.drum && (ui.page != PG_GMIDI || !FM1B_BLE_CENTRAL || set.ble_off))
+    if (k == B_GLO && ui.drum && !RND_PAGE(ui.page))
+        dt_button(k);
+    else if (k == B_REC && ui.drum && (ui.page != PG_GMIDI || !FM1B_BLE_CENTRAL || set.ble_off))
         dt_rec_tap();
     else if (k == B_HOME)                         /* HOME: the whole panel (the first page), the mode's */
         page_go(ui.drum ? PG_DHOME : PG_HOME);
@@ -3401,9 +3419,14 @@ static void dt_song_enter(uint32_t f)
         break;
     }
 }
+static void dt_open(uint32_t g);
 static void dt_button(uint32_t k)
 {
-    const uint32_t f = ui.dt_fn;
+    uint32_t f = ui.dt_fn;
+    if (zoom.home == ZH_OPEN) {              /* (a press as it dives: there at once) */
+        zoom.z = 0;
+        page_go(zoom.g);
+    }
     switch (k) {
     case B_EDIT: {                           /* the Channel pages: from the selected drum's, then the next */
         const uint32_t c = DCH_PAGE(ui.page) ? (ui.page - PG_DCH1 + 1u) % NDTCH : DT_CH[ui.dt_sel];
@@ -3417,7 +3440,12 @@ static void dt_button(uint32_t k)
     case B_SEQ:                              /* the 400's SELECT PATTERN FUNCTIONS: running in RECORD MODE, round what's
                                               * used in the loop (Record, Erase Instrument, Error Correct, and Swing, ours);
                                               * stopped, RECORD MODE and those two arm it */
-        if (dq.run && dq.rec)
+        if (ui.page != PG_DPAT) {            /* first, its page: the list as it is (from the songs', the number) */
+            ui.dt_pend = 0;
+            if (f >= DTF_SONG)
+                dt_fn_go(DTF_PAT);
+            dt_open(PG_DPAT);
+        } else if (dq.run && dq.rec)
             dt_list(f == DTF_REC ? DTF_ERASEI : f == DTF_ERASEI ? DTF_ERROR : f == DTF_ERROR ? DTF_SWING : DTF_REC);
         else if (dq.run)                     /* (playing: the number and the swing, nothing that arms it) */
             dt_list(f == DTF_SWING ? DTF_PAT : DTF_SWING);
@@ -3427,7 +3455,15 @@ static void dt_button(uint32_t k)
     case B_ARP:                              /* its SELECT SONG FUNCTIONS (BUILD MODE: its own five); not while it runs: only
                                               * the number */
         ui.dt_pend = 0;
-        if (dq.run)
+        if (ui.page != PG_DSONG) {           /* first, its page: the list as it is (from the patterns', the number) */
+            if (f < DTF_SONG) {
+                if (!dq.run)
+                    dq.rec = DQR_OFF;
+                ui.dt_tgt = ui.dt_song < DS_NSONG ? ui.dt_song : 0;
+                dt_fn_go(DTF_SONG);
+            }
+            dt_open(PG_DSONG);
+        } else if (dq.run)
             dt_fn_go(DTF_SONG);
         else if (f >= DTF_BPAT)
             dt_fn_go(f < DTF_BDEL ? f + 1u : DTF_BPAT);
@@ -3541,7 +3577,7 @@ static void hold_step(uint32_t btn)
             afx_on = (uint8_t)!afx_on;
             app_say("AFX", OFF_ON[afx_on]);
         } else if (RND_PAGE(ui.page))
-            page_go(PG_GMIDI);
+            page_go(ui.drum ? PG_GDRUM : PG_GMIDI);
         else {                               /* the RND pages (bs2_rnd.c), the synth asked how it is as they open;
                                               * their splash first (rsplash_draw) */
             rnd_ask();
@@ -3594,7 +3630,8 @@ static void input(void)
             continue;
         rsplash_until = 0;                   /* (the RND splash: over) */
         hint_show(k);                        /* (Hints: what it does, from the page it's pressed on) */
-        if (ui.drum && k != B_HOME && k != B_REC)
+        if (ui.drum && k != B_HOME && k != B_REC && k != B_GLO
+            && !(RND_PAGE(ui.page) && (k == B_SEL || k == B_FX || k == B_SAVE)))   /* (the RND pages keep their own) */
             dt_button(k);
         else if (k == B_ARP || k == B_SEQ || k == B_GLO || k == B_REC || k == B_HOME) {   /* on release, or once held
                                               * HOLD_MS (hold_step) */
@@ -3693,6 +3730,10 @@ static void input(void)
         if ((l = enc_logical(k)) >= NE)      /* (none on this page) */
             continue;
         ui.turned_at[l] = plat_ms();
+        if (zoom.home == ZH_OPEN) {          /* (a section's page on its way: there at once, the knob's) */
+            zoom.z = 0;
+            page_go(zoom.g);
+        }
         zoom.home = ZH_NONE;                 /* (HOME's CC's page: kept, the user's now) */
         ui.map_until = ui.hint_until = 0;    /* (a knob turned: the map goes, and a button's hint; its value stays) */
         ui.last_enc = (uint8_t)l;
@@ -3784,7 +3825,7 @@ static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDI
                                          [PG_GRND] = SEC_GLO, [PG_RPAT] = SEC_GLO,
                                          [PG_RTRK] = SEC_GLO, [PG_GDRUM] = SEC_GLO, [PG_DHOME] = NSEC,
                                          [PG_DCH1] = SEC_EDIT, [PG_DCH2] = SEC_EDIT, [PG_DCH3] = SEC_EDIT,
-                                         [PG_DCH4] = SEC_EDIT, [PG_DCH5] = SEC_EDIT, [PG_DCH6] = SEC_EDIT, [PG_DMOD] = SEC_FX};
+                                         [PG_DCH4] = SEC_EDIT, [PG_DCH5] = SEC_EDIT, [PG_DCH6] = SEC_EDIT, [PG_DMOD] = SEC_FX, [PG_DPAT] = SEC_SEQ, [PG_DSONG] = SEC_ARP};
 /* the tabs span the panel's bar (x 2..235), a pixel between each; they end 3 rows over it, as its gaps are wide */
 #define TAB_X(i) (2 + (int32_t)(i) * 235 / NSEC)
 static uint8_t ycol[232] PLAT_POOL;          /* a picture's curve: each column's row */
@@ -4048,6 +4089,17 @@ static int zoom_step(uint32_t now)           /* a frame: 1 when the camera moved
                     && now - last < ZOOM_HOLD_MS;
     const int16_t z = zoom.z, x = zoom.x, y = zoom.y;
     zoom.at = now;
+    if (zoom.home == ZH_OPEN) {              /* (a section's button on the drums' HOME: in on its box, its page at the end) */
+        const float u = fm_clampf(zoom.u + (float)dt / ZOOM_DIVE_MS, 0.0f, 1.0f);
+        zoom.u = u;
+        zoom.x = zoom.hx, zoom.y = zoom.hy, zoom.pg = ui.page;
+        zoom.z = (int16_t)(256.0f * fm_exp2f(u * u * (3.0f - 2.0f * u) * zoom.lc) - 255.5f);
+        if (u >= 1.0f) {
+            zoom.z = 0;
+            page_go(zoom.g);
+        }
+        return 1;
+    }
     if (zoom.home == ZH_PAGE && !aim)        /* (the CCs done: back out) */
         zoom.home = ZH_RISE;
     if (zoom.home == ZH_DIVE || zoom.home == ZH_RISE) {   /* (HOME's dive: along its path) */
@@ -5951,6 +6003,120 @@ static void dch_draw(void)
                 cv_rect(kx + 4, ky - 5, 17, 2, RGB(255, 40, 72));
         }
 }
+/* the two sections' pages (SEQ, ARP): the 400's LED lists in words, the function lit as it is on HOME */
+static void dfn_row(int32_t x, int32_t y, int lit, const char *s)
+{
+    cv_rect(x, y + 4, 5, 3, lit ? RGB(255, 40, 72) : RGB(96, 16, 32));
+    cv_text(x + 9, y, &FONT_T, s, lit ? P_SILK : grey(150));
+}
+static void dfn_stat(int32_t x, int32_t y, const char *a, const char *b)
+{
+    cv_text(x, y, &FONT_T, a, grey(150));
+    cv_text(x + 46, y, &FONT_T, b, P_SILK);
+}
+static void dpat_draw(void)
+{
+    static const struct { uint8_t f; uint8_t in; const char *s; } L[9] = {
+        {DTF_PAT, 0, "PATTERN #"}, {DTF_REC, 0, "RECORD MODE"}, {DTF_ERASEI, 1, "ERASE INSTRUMENT"}, {DTF_ERROR, 1, "ERROR CORRECT"},
+        {DTF_SWING, 0, "SWING %"}, {DTF_TIME, 0, "TIME SIGNATURE"}, {DTF_MEAS, 0, "# OF MEASURES"}, {DTF_ERASEP, 0, "ERASE PATTERN"},
+        {DTF_COPYP, 0, "COPY / APPEND TO"}};
+    const dq_pat_t *p = &dqm.pat[ui.dt_pat < DQ_NPAT ? ui.dt_pat : 0];
+    char t[12], n[6];
+    uint32_t i;
+    dt_head();
+    dt_frame_at(8, 48, 231, 156, 0);
+    for (i = 0; i < 9u; i++)
+        dfn_row(14 + 8 * L[i].in, 50 + 11 * (int32_t)i, ui.dt_fn == L[i].f, L[i].s);
+    t[0] = 0;
+    int_text(p->num, n), text_cat(t, n), text_cat(t, "/"), int_text(DQ_BEAT[p->beat], n), text_cat(t, n);
+    dfn_stat(136, 52, "TIME", t);
+    int_text(p->meas, t);
+    dfn_stat(136, 66, "BARS", t);
+    t[0] = 0;
+    text_cat(t, "1/"), int_text(DQ_EC[p->ec], n), text_cat(t, n);
+    dfn_stat(136, 80, "GRID", t);
+    t[0] = 0;
+    int_text(DQ_SWING[p->swing], n), text_cat(t, n), text_cat(t, "%");
+    dfn_stat(136, 94, "SWING", t);
+    int_text(p->n, t);
+    dfn_stat(136, 108, "HITS", t);
+    t[0] = 0;
+    int_text((int32_t)((DQ_HITS - dqm.used) * 100u / DQ_HITS), n), text_cat(t, n), text_cat(t, "%");
+    dfn_stat(136, 122, "FREE", t);
+    dt_tag_preset();
+    dt_tag_away(EN_SELECT, 50);
+    dt_tag_away(EN_K1, 100);
+    dt_tag_away(EN_K2, 150);
+    dt_tag_away(EN_K3, 100);
+    dt_tag_away(EN_K4, 150);
+}
+static void dsong_draw(void)
+{
+    static const struct { uint8_t f; const char *s; } A[4] = {{DTF_SONG, "SONG #"}, {DTF_ERASES, "ERASE SONG"}, {DTF_COPYS, "COPY / APPEND TO"}, {DTF_BUILD, "BUILD MODE"}};
+    static const struct { uint8_t f; const char *s; } B[5] = {{DTF_BPAT, "PATTERN #"}, {DTF_BVOL, "VOL CHANGE"}, {DTF_BTEMPO, "TEMPO CHANGE"}, {DTF_BINS, "INSERT"}, {DTF_BDEL, "DELETE"}};
+    const uint32_t song = dq.run && dq.in_song ? dq.song : ui.dt_song < DS_NSONG ? ui.dt_song : 0u;
+    const ds_song_t *t = &dsm.s[song];
+    const int32_t at = dq.run && dq.in_song ? (dq.sstep ? dq.sstep - 1 : 0) : ui.dt_fn >= DTF_BPAT ? ui.dt_step : 0;
+    const int32_t from = at > 2 ? at - 2 : 0;
+    int32_t i;
+    dt_head();
+    dt_frame_at(8, 48, 231, 156, 0);
+    for (i = 0; i < 4; i++)
+        dfn_row(14, 50 + 12 * i, ui.dt_fn == A[i].f || (A[i].f == DTF_BUILD && ui.dt_fn >= DTF_BPAT), A[i].s);
+    for (i = 0; i < 5; i++)
+        dfn_row(124, 50 + 11 * i, ui.dt_fn == B[i].f, B[i].s);
+    for (i = 0; i < 6; i++) {                /* the steps round the one it's on: each its number, what's there */
+        const int32_t st = from + i, x = 14 + 36 * i;
+        char w[6] = "";
+        if (st < (int32_t)DS_NSTEP) {
+            const uint32_t c = t->step[st];
+            const int on = st == at;
+            char n[6];
+            int_text(st, w);
+            cv_rect(x, 112, 33, 40, on ? grey(72) : grey(44));
+            cv_text(x + 3, 113, &FONT_T, w, grey(170));
+            w[0] = 0;
+            if (c < DQ_NPAT + 1u)
+                dt_two(w, c), w[2] = 0;
+            else if (c == DS_END)
+                text_cat(w, "END");
+            else if (c == DS_EMPTY)
+                text_cat(w, "--");
+            else {
+                text_cat(w, (c & 0xE0u) == DS_VOL ? "V" : "T");
+                int_text(DS_VAL(c), n);
+                text_cat(w, n);
+            }
+            cv_text(x + 3, 130, &FONT_XS, w, on ? P_SILK : grey(200));
+            if (c == DS_END)
+                break;
+        }
+    }
+    dt_tag_preset();
+    dt_tag_away(EN_SELECT, 50);
+    dt_tag_away(EN_K1, 100);
+    dt_tag_away(EN_K2, 150);
+    dt_tag_away(EN_K3, 100);
+    dt_tag_away(EN_K4, 150);
+}
+/* a section's button: its page, the camera going in on its box if from the drums' HOME */
+static void dt_open(uint32_t g)
+{
+    const int song = g == PG_DSONG;
+    const int32_t x = dt_px(song ? 166 : 852), X = dt_px(song ? 643 : 1348), y = dt_py(56), Y = dt_py(350);
+    if (set.zoom_off || ui.page != PG_DHOME || zoom.home) {
+        page_go(g);
+        return;
+    }
+    zoom_keep(PG_DHOME);
+    zoom.hx = (int16_t)((x + X) / 2);
+    zoom.hy = (int16_t)((y + Y) / 2);
+    zoom.lc = fm_log2f(fm_minf(fm_minf(240.0f / (float)(X - x), (float)TALL_H / (float)(Y - y)), 6.0f));
+    zoom.g = (uint8_t)g;
+    zoom.u = 0.0f;
+    zoom.home = ZH_OPEN;
+    ui.redraw = 1;
+}
 /* DRUM MODS: what the 400 hasn't, on a plate as the synth's mods (one so far) */
 static void dmod_draw(void)
 {
@@ -6145,6 +6311,10 @@ static void panel_draw(void)                 /* the page's section panel, from u
             dch_draw();
         else if (ui.page == PG_DMOD)
             dmod_draw();
+        else if (ui.page == PG_DPAT)
+            dpat_draw();
+        else if (ui.page == PG_DSONG)
+            dsong_draw();
         else if (ui.page == PG_LFO1)
             lfos_draw();
         else if (ui.page == PG_GMIDI)
@@ -6310,6 +6480,8 @@ static uint32_t live(void)
     case PG_DCH5:
     case PG_DCH6:
     case PG_DMOD:
+    case PG_DPAT:
+    case PG_DSONG:
         return dt_lit() | (ui.keys >> 1 & 1u) << 31 | (uint32_t)dt_blink() << 30 | (uint32_t)(dq.run != 0u) << 29
                | (uint32_t)(dq.full && plat_ms() / 300u % 2u) << 28;
     case PG_GMIDI:

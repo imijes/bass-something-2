@@ -65,8 +65,18 @@ for n, ((x0, y0, x1, y1), acrylic) in enumerate(BOXES):
     ImageDraw.Draw(mask).polygon(hull(pts), fill=255)
 box = mask.getbbox()
 out = Image.composite(im, Image.new("RGB", im.size, (0, 0, 0)), mask).crop(box)
-out = out.resize((W, round(W * out.height / out.width)), Image.LANCZOS)
-out = out.quantize(COLOURS, dither=Image.Dither.NONE)   # (flat: dither is what an LZ block can't find)
+size = (W, round(W * out.height / out.width))
+out = out.resize(size, Image.LANCZOS)
+keep = np.asarray(mask.crop(box).resize(size, Image.BILINEAR)) >= 128
+# the devices in all the colours but one (flat: dither is what an LZ block can't find); the last, the ground: pure black,
+# the screen's own, every pixel outside their outlines, so nothing shows round or between them
+fg = Image.fromarray(np.asarray(out)[keep].reshape(1, -1, 3)).quantize(COLOURS - 1, dither=Image.Dither.NONE)
+out = out.quantize(palette=fg, dither=Image.Dither.NONE)
+a_ = np.array(out)
+a_[~keep] = COLOURS - 1
+pal_ = fg.getpalette()[:(COLOURS - 1) * 3] + [0, 0, 0]
+out = Image.fromarray(a_.astype(np.uint8), "P")
+out.putpalette(pal_)
 out.save(os.path.join(here, "splash.png"))
 
 pal = out.getpalette()[:COLOURS * 3]

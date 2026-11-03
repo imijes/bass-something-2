@@ -62,6 +62,7 @@ expect page 25
 expect afx 0
 # SEQ steps the pattern list, ARP the song list, ENTER (SEL) into BUILD MODE and out
 tap SEQ
+tap SEQ
 wait 30
 expect dt_fn 1
 tap SEQ
@@ -208,6 +209,7 @@ tap REC
 wait 30
 tap REC
 wait 3000
+tap SEQ
 tap SEQ
 tap SEQ
 tap SEQ

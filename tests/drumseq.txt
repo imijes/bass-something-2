@@ -86,6 +86,7 @@ expect dt_rec 1
 expect dt_fn 1
 # SEQ goes round Record, Erase, Error Correct, Swing as it runs
 tap SEQ
+tap SEQ
 expect dt_rec 2
 tap SEQ
 expect dt_fn 3
@@ -278,6 +279,7 @@ tap SEQ
 tap SEQ
 tap SEQ
 tap SEQ
+tap SEQ
 expect dt_fn 4
 expect dt_swing 2
 expect dt_rec 0
@@ -432,6 +434,7 @@ expect bass_on_drums 1
 tap HOME
 wait 30
 tap SEQ
+tap SEQ
 expect dt_fn 4
 spin ALGO 2
 wait 2400
@@ -476,6 +479,7 @@ spin PRESET 1
 wait 30
 expect dt_pat 21
 tap REC
+tap SEQ
 tap SEQ
 tap SEQ
 expect dt_fn 3
@@ -727,6 +731,7 @@ expect dt_slen 3
 tap ARP
 tap ARP
 tap ARP
+tap ARP
 expect dt_fn 12
 tap SEL
 wait 30
@@ -749,3 +754,54 @@ wait 30
 expect dt_slen 0
 tap SEQ
 expect dt_fn 0
+# the RND pages from the drums: GLO held; their own SEL there; HOME, the drums'; back by GLO held, the drums' settings
+tap HOME
+wait 30
+expect page 25
+press GLO
+wait 1100
+release GLO
+wait 2500
+expect drum 1
+expect page 21
+tap SEL
+wait 30
+expect page 21
+press GLO
+wait 1100
+release GLO
+wait 30
+expect page 24
+tap HOME
+wait 30
+expect page 25
+# ARP and SEQ: from HOME the camera goes in, their page at its end; again, their list
+tap SEQ
+wait 100
+expect page 25
+wait 500
+expect page 33
+expect dt_fn 0
+tap SEQ
+expect dt_fn 1
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 0
+tap ARP
+wait 30
+expect page 34
+expect dt_fn 9
+shot drum-song.png
+tap SEQ
+wait 30
+expect page 33
+expect dt_fn 0
+shot drum-pat.png
+tap HOME
+wait 30
