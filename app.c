@@ -6191,6 +6191,7 @@ static void dsong_draw(void)
 /* a Channel page: the faceplate's lower row, closer: PER INSTRUMENT, the channel's frame beside it, at one scale for all six so
  * VOLUME and TUNING stay put from page to page, the two displays over them; its keys the FM-1's piano keys', lit as they are;
  * the drum selected, its LED lit */
+#define DCH_ACTIVE_G 64                      /* the active channel's plate (the rest: DT_FACE_G) */
 #define DCH_SLIDE_MS 280u                    /* the header coming down, once the camera's landed */
 static void dch_draw(void)
 {
@@ -6240,6 +6241,16 @@ static void dch_draw(void)
         dfn_box(x0, top, X, low);
     else                                     /* (the next channel's rails, off the screen's edge: still the faceplate) */
         dfn_pair(x0 + 1, X, X + 120, top + 1, low - 1);
+    {                                        /* the active channel: its plate a shade lighter, to its frame's inner curve */
+        static const uint8_t IN[4] = {3, 2, 1, 0};
+        const int32_t l_ = x0 + 2, r_ = c == 5u ? X - 2 : X - 1, t_ = top + 2, b_ = low - 2;
+        int32_t y;
+        for (y = t_; y < b_; y++) {
+            const int32_t e = y - t_ < 4 ? y - t_ : b_ - 1 - y < 4 ? b_ - 1 - y : 4;
+            const int32_t k = e < 4 ? IN[e] : 0;
+            cv_rect(l_ + k, y, r_ - l_ - 2 * k, 1, grey(DCH_ACTIVE_G));
+        }
+    }
     t[3] = (char)('1' + c);
     dt_tiny((x0 + X) / 2 - 7, top + 7, t, print);
     for (i = 0; i < (int32_t)NDT; i++)
@@ -6250,6 +6261,21 @@ static void dch_draw(void)
             dch_key(kx, ky, (int)(lit >> i & 1u));
             dt_tiny(kx + 12 - w / 2, ly, SHORT[i], sel ? P_SILK : grey(170));
         }
+    if (c < 5u) {                            /* the next channel, as the faceplate has it, off the screen's edge */
+        t[3] = (char)('2' + c);
+        j = 0;
+        for (i = 0; i < (int32_t)NDT; i++)
+            if (DT_CH[i] == c + 1u) {
+                const int32_t kx = X + 4 + 31 * j++, w = 4 * (int32_t)strlen(SHORT[i]) - 1;
+                cv_rect(kx + 10, ky - 6, 5, 3, RGB(96, 16, 32));
+                dch_key(kx, ky, (int)(lit >> i & 1u));
+                dt_tiny(kx + 12 - w / 2, ly, SHORT[i], grey(170));
+            }
+        n = 0;
+        for (i = 0; i < (int32_t)NDT; i++)
+            n += DT_CH[i] == c + 1u;
+        dt_tiny(X + (31 * n + 5) / 2 - 7, top + 7, t, print);
+    }
     dt_tag_preset();
     dt_tag_away(EN_SELECT, 50);
     dt_tag_away(EN_K1, 100);

@@ -108,3 +108,5 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-03 | ce3e8f6+ | Drum Something: Channel pages keep the header and the left cheek | 496,372 | +100 | 85,192 | 77,764 | +16 | 20,540 | 157,896 |
 | 2026-11-03 | ce3e8f6+ | Drum Something: the camera on the function SEQ or ARP lights | 497,076 | +704 | 84,488 | 77,764 | +0 | 20,540 | 157,896 |
 | 2026-11-03 | d2beaff+ | Drum Something: Channel pages on the faceplate's own places, the next channel's rails, the header sliding in | 497,572 | +496 | 83,992 | 77,764 | +0 | 20,540 | 157,904 |
+| 2026-11-03 | 233b1bf+ | Drum Something: the next channel's keys and print on the Channel pages | 497,796 | +224 | 83,768 | 77,764 | +0 | 20,540 | 157,904 |
+| 2026-11-03 | 233b1bf+ | Drum Something: the active channel's plate a shade lighter | 497,844 | +48 | 83,720 | 77,764 | +0 | 20,540 | 157,904 |
