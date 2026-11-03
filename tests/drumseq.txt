@@ -816,3 +816,13 @@ expect dt_fn 0
 shot drum-pat.png
 tap HOME
 wait 30
+# EDIT from HOME: the camera in on the lower row, as SEQ and ARP on theirs; from elsewhere, straight there
+expect page 25
+tap EDIT
+wait 100
+expect page 25
+wait 500
+expect page 26
+tap HOME
+wait 30
+expect page 25

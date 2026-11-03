@@ -3439,7 +3439,7 @@ static void dt_button(uint32_t k)
         for (i = NDT; DCH_PAGE(ui.page) && i-- > 0;)   /* (moved on: the channel's first, K3 and K4 on what shows) */
             if (DT_CH[i] == c)
                 ui.dt_sel = (uint8_t)i;
-        page_go(PG_DCH1 + c);
+        dt_open(PG_DCH1 + c);
         break;
     }
     case B_SEQ:                              /* the 400's SELECT PATTERN FUNCTIONS: running in RECORD MODE, round what's
@@ -6306,8 +6306,13 @@ static void dt_open(uint32_t g)
         return;
     }
     zoom_keep(PG_DHOME);                     /* (in on what its page shows, to its scale: the cut hardly seen) */
-    zoom.hx = (int16_t)dt_px(song ? 591 : 904);
-    zoom.hy = (int16_t)dt_py(203);
+    if (g >= PG_DCH1 && g <= PG_DCH6) {      /* (a Channel page: PER INSTRUMENT and that channel, the lower row) */
+        zoom.hx = (int16_t)((dt_px(151) + dt_px(DT_CH_U[g - PG_DCH1 + 1u])) / 2);
+        zoom.hy = (int16_t)dt_py(500);
+    } else {
+        zoom.hx = (int16_t)dt_px(song ? 591 : 904);
+        zoom.hy = (int16_t)dt_py(203);
+    }
     zoom.lc = 1.2f;
     zoom.g = (uint8_t)g;
     zoom.u = 0.0f;
