@@ -1696,12 +1696,12 @@ static void ble_device_button(void)
  * empty places set nothing */
 enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GSYS, PG_GDISP, PG_GDUMP,
        PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
-       PG_DMOD, PG_DPAT, PG_DSONG, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
+       PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI", "GLOBAL SYSTEM",
                                               "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
                                               "GLOBAL DRUMS", "DRUM HOME", "CHANNEL 1", "CHANNEL 2", "CHANNEL 3",
-                                              "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG"};
+                                              "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
@@ -3136,7 +3136,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
                                       "Octave up"};
     static const char *const DH[NB] = {[B_SEL] = "Enter", [B_EDIT] = "Each drum's channel", [B_GLO] = "Settings; hold: RND", [B_HOME] = "The whole panel",
                                        [B_ARP] = "Songs; again: next", [B_SEQ] = "Patterns; again: next", [B_PLAY] = "Run or stop", [B_SAVE] = "Save the drums",
-                                       [B_REC] = "Rec on/off; hold: Erase", [B_FX] = "Drum mods", [B_ENV] = "Pattern length", [B_OCTDN] = "Slower", [B_OCTUP] = "Faster"};
+                                       [B_REC] = "Rec on/off; hold: Erase", [B_FX] = "Mods; again: info", [B_ENV] = "Pattern length", [B_OCTDN] = "Slower", [B_OCTUP] = "Faster"};
     const int rec = seq_rec && ui.page == PG_SEQ;
     if (ui.drum && !RND_PAGE(ui.page))       /* (every button the drums', as dt_button) */
         return DH[k];
@@ -3519,8 +3519,8 @@ static void dt_button(uint32_t k)
     case B_OCTUP:
         dt_tempo_step(k == B_OCTUP ? 1 : -1);
         break;
-    case B_FX:
-        page_go(PG_DMOD);
+    case B_FX:                               /* the mods, then the plates with more to read */
+        page_go(ui.page == PG_DMOD ? PG_DPINFO : ui.page == PG_DPINFO ? PG_DSINFO : PG_DMOD);
         break;
     case B_ENV:                              /* the pattern's length, straight there: its bars, again its time signature */
         if (dq.run)
@@ -3825,7 +3825,7 @@ static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDI
                                          [PG_GRND] = SEC_GLO, [PG_RPAT] = SEC_GLO,
                                          [PG_RTRK] = SEC_GLO, [PG_GDRUM] = SEC_GLO, [PG_DHOME] = NSEC,
                                          [PG_DCH1] = SEC_EDIT, [PG_DCH2] = SEC_EDIT, [PG_DCH3] = SEC_EDIT,
-                                         [PG_DCH4] = SEC_EDIT, [PG_DCH5] = SEC_EDIT, [PG_DCH6] = SEC_EDIT, [PG_DMOD] = SEC_FX, [PG_DPAT] = SEC_SEQ, [PG_DSONG] = SEC_ARP};
+                                         [PG_DCH4] = SEC_EDIT, [PG_DCH5] = SEC_EDIT, [PG_DCH6] = SEC_EDIT, [PG_DMOD] = SEC_FX, [PG_DPAT] = SEC_SEQ, [PG_DSONG] = SEC_ARP, [PG_DPINFO] = SEC_FX, [PG_DSINFO] = SEC_FX};
 /* the tabs span the panel's bar (x 2..235), a pixel between each; they end 3 rows over it, as its gaps are wide */
 #define TAB_X(i) (2 + (int32_t)(i) * 235 / NSEC)
 static uint8_t ycol[232] PLAT_POOL;          /* a picture's curve: each column's row */
@@ -5619,8 +5619,11 @@ static void home_sect(uint32_t g, int16_t *x, int16_t *y, float *lc)   /* page g
 #define DT_THIN grey(160)                    /* its thin lines (3 of them) */
 #define DT_PRINT grey(208)                   /* the splash's frames */
 #define DT_LIT_MS 120u                       /* a key lit after its hit */
-static int32_t dt_px(int32_t u) { return HOME_L + (u - 151) * 187 / 1000; }   /* a photo's x, to the column it's in */
-static int32_t dt_py(int32_t v) { return 47 + (v - 56) * 187 / 1000; }        /* and y (the plate from row 45) */
+/* a photo's x and y, to the column and row they're in: HOME's whole panel; the section pages' zoomed crops set these while
+ * they draw (dt_crop) */
+static int32_t dt_ux0 = 151, dt_x0 = HOME_L, dt_sx = 187, dt_vy0 = 56, dt_y0 = 47, dt_sy = 187;
+static int32_t dt_px(int32_t u) { return dt_x0 + (u - dt_ux0) * dt_sx / 1000; }
+static int32_t dt_py(int32_t v) { return dt_y0 + (v - dt_vy0) * dt_sy / 1000; }
 static uint32_t dt_lit(void)                 /* the instruments lit: held (ui.drum's keys) or just hit (ui.dt_at) */
 {
     const uint32_t now = plat_ms();
@@ -6003,78 +6006,211 @@ static void dch_draw(void)
                 cv_rect(kx + 4, ky - 5, 17, 2, RGB(255, 40, 72));
         }
 }
-/* the two sections' pages (SEQ, ARP): the 400's LED lists in words, the function lit as it is on HOME */
-static void dfn_row(int32_t x, int32_t y, int lit, const char *s)
+/* the two sections' pages (SEQ, ARP): the faceplate itself, closer: the section and the displays and keypad beside it, on
+ * the photo's measures at 0.43 px across, 0.5 down (the print's rows want the height); its print in small capitals */
+static void dt_tiny(int32_t x, int32_t y, const char *s, uint16_t c)   /* 3 x 5 capitals: the photo's print at this size */
 {
-    cv_rect(x, y + 4, 5, 3, lit ? RGB(255, 40, 72) : RGB(96, 16, 32));
-    cv_text(x + 9, y, &FONT_T, s, lit ? P_SILK : grey(150));
+    static const char CH[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%/";
+    static const uint16_t G[sizeof CH - 1] = {   /* five rows of three bits, the top row high */
+        0x2BED, 0x6BAE, 0x3923, 0x6B6E, 0x79A7, 0x79A4, 0x396B, 0x5BED, 0x7497, 0x126A, 0x5BAD, 0x4927, 0x5FED,
+        0x6B6D, 0x2B6A, 0x6BA4, 0x2B7B, 0x6BAD, 0x388E, 0x7492, 0x5B6F, 0x5B6A, 0x5BFD, 0x5AAD, 0x5A92, 0x72A7,
+        0x2B6A, 0x2C97, 0x62A7, 0x628E, 0x5BC9, 0x798E, 0x39AA, 0x7292, 0x2AAA, 0x2ACE, 0x5F7D, 0x52A5, 0x12A4,};
+    for (; *s; s++, x += 4) {
+        uint32_t i, r, b;
+        for (i = 0; CH[i] && CH[i] != *s; i++)
+            ;
+        if (*s == ' ') {
+            x -= 2;
+            continue;
+        }
+        if (!CH[i])
+            continue;
+        for (r = 0; r < 5u; r++)
+            for (b = 0; b < 3u; b++)
+                if (G[i] >> (14u - r * 3u - b) & 1u)
+                    cv_pset(x + (int32_t)b, y + (int32_t)r, c);
+    }
 }
-static void dfn_stat(int32_t x, int32_t y, const char *a, const char *b)
+static void dfn_row(int32_t led_u, int32_t text_u, int32_t v, int lit, const char *s)
 {
-    cv_text(x, y, &FONT_T, a, grey(150));
-    cv_text(x + 46, y, &FONT_T, b, P_SILK);
+    const int32_t y = dt_py(v);
+    cv_rect(dt_px(led_u) - 2, y - 1, 5, 3, lit ? RGB(255, 40, 72) : RGB(96, 16, 32));
+    dt_tiny(dt_px(text_u), y - 2, s, lit ? P_SILK : grey(190));
 }
-static void dpat_draw(void)
+static void dfn_key(int32_t u, int32_t v, int lit)   /* an upper black key at this size: its recess, its cap, its wall */
 {
-    static const struct { uint8_t f; uint8_t in; const char *s; } L[9] = {
-        {DTF_PAT, 0, "PATTERN #"}, {DTF_REC, 0, "RECORD MODE"}, {DTF_ERASEI, 1, "ERASE INSTRUMENT"}, {DTF_ERROR, 1, "ERROR CORRECT"},
-        {DTF_SWING, 0, "SWING %"}, {DTF_TIME, 0, "TIME SIGNATURE"}, {DTF_MEAS, 0, "# OF MEASURES"}, {DTF_ERASEP, 0, "ERASE PATTERN"},
-        {DTF_COPYP, 0, "COPY / APPEND TO"}};
-    const dq_pat_t *p = &dqm.pat[ui.dt_pat < DQ_NPAT ? ui.dt_pat : 0];
-    char t[12], n[6];
-    uint32_t i;
-    dt_head();
-    dt_frame_at(8, 48, 231, 156, 0);
-    for (i = 0; i < 9u; i++)
-        dfn_row(14 + 8 * L[i].in, 50 + 11 * (int32_t)i, ui.dt_fn == L[i].f, L[i].s);
-    t[0] = 0;
-    int_text(p->num, n), text_cat(t, n), text_cat(t, "/"), int_text(DQ_BEAT[p->beat], n), text_cat(t, n);
-    dfn_stat(136, 52, "TIME", t);
-    int_text(p->meas, t);
-    dfn_stat(136, 66, "BARS", t);
-    t[0] = 0;
-    text_cat(t, "1/"), int_text(DQ_EC[p->ec], n), text_cat(t, n);
-    dfn_stat(136, 80, "GRID", t);
-    t[0] = 0;
-    int_text(DQ_SWING[p->swing], n), text_cat(t, n), text_cat(t, "%");
-    dfn_stat(136, 94, "SWING", t);
-    int_text(p->n, t);
-    dfn_stat(136, 108, "HITS", t);
-    t[0] = 0;
-    int_text((int32_t)((DQ_HITS - dqm.used) * 100u / DQ_HITS), n), text_cat(t, n), text_cat(t, "%");
-    dfn_stat(136, 122, "FREE", t);
-    dt_tag_preset();
+    const int32_t x = dt_px(u), y = dt_py(v);
+    cv_rect(x, y, 19, 19, RGB(0, 0, 0));
+    cv_rect(x + 2, y + 2, 15, 15, lit ? P_SILK : grey(48));
+    cv_rect(x + 14, y + 2, 3, 15, lit ? P_SILK : grey(88));
+}
+static void dfn_digit(int32_t x, int32_t y, char c)   /* a display's digit at this size, 10 x 14, unlit segments showing */
+{
+    static const int8_t R_[7][4] = {{2, 0, 8, 2}, {8, 1, 2, 6}, {7, 7, 2, 6}, {0, 12, 7, 2}, {0, 7, 2, 6}, {1, 1, 2, 6}, {2, 6, 6, 2}};   /* a..g */
+    const uint32_t m = seg_mask(c);
+    uint32_t i, on;
+    for (on = 0; on < 2u; on++)
+        for (i = 0; i < 7u; i++)
+            if (!on || (m >> i & 1u))
+                cv_rect(x + R_[i][0], y + R_[i][1], R_[i][2], R_[i][3], on ? RGB(252, 60, 96) : RGB(72, 16, 24));
+}
+static void dfn_center(int32_t ux0)          /* the plate, its wooden ends, the display's frame, its two displays, its keypad */
+{
+    static const char PAD[] = "123456789<0>";
+    char l[3], r[3];
+    int32_t i;
+    (void)ux0;
+    cv_rect(0, 0, 240, pan_h, DT_FACE);
+    dt_cheek(0, 0, 0, 5);
+    dt_cheek(234, 0, 239, 234);
+    dt_frame(643, 57, 852, 350, 0);
+    dt_digits(l, r);
+    for (i = 0; i < 2; i++) {
+        const int32_t x = dt_px(i ? 770 : 660), y = dt_py(61) + 2;
+        const char *t = i ? r : l;
+        cv_rect(x, y, 27, 19, RGB(32, 16, 20));
+        cv_rect(x, y, 1, 19, grey(112));
+        dfn_digit(x + 3, y + 2, t[0]);
+        dfn_digit(x + 15, y + 2, t[1]);
+    }
+    for (i = 0; i < 12; i++) {               /* 1-9, then left, 0, right */
+        const int32_t x = dt_px(676 + 55 * (i % 3)), y = dt_py(133 + 54 * (i / 3) + (i / 3 == 3));
+        const char c = PAD[i];
+        cv_rect(x, y, 15, 15, grey(184));
+        cv_rect(x, y + 1, 1, 13, grey(120));
+        cv_rect(x + 14, y + 1, 1, 13, grey(216));
+        cv_rect(x + 1, y + 14, 14, 1, grey(232));
+        cv_rect(x + 1, y + 1, 13, 13, grey(176));
+        cv_rect(x + 2, y + 2, 11, 11, grey(128));
+        if (c == '<' || c == '>') {
+            int32_t k;
+            for (k = 0; k < 4; k++)
+                cv_rect(c == '<' ? x + 5 + k : x + 9 - k, y + 7 - k, 1, 2 * k + 1, P_SILK);
+        } else {
+            char d[2];
+            d[0] = c, d[1] = 0;
+            dt_tiny(x + 6, y + 5, d, P_SILK);
+        }
+    }
+}
+static void dt_crop(int32_t u0)              /* the section page's measures: u0 at the plate's left, down the height */
+{
+    dt_ux0 = u0, dt_x0 = 8, dt_sx = 430, dt_vy0 = 57, dt_y0 = 7, dt_sy = 500;
+}
+static void dt_crop_end(void) { dt_ux0 = 151, dt_x0 = HOME_L, dt_sx = 187, dt_vy0 = 56, dt_y0 = 47, dt_sy = 187; }
+static void dfn_tags(void)                   /* what turns here: PRESET and ALGO on the display they show on; the rest, in a tag */
+{
+    const int32_t x = dt_px(ui.dt_fn >= DTF_SONG ? 660 : 770) + 13, y = dt_py(61) + 11;
+    tag(x, y, EN_PRESET);
+    if (!ui.map_until)
+        tag(x, y, EN_ALGO);
     dt_tag_away(EN_SELECT, 50);
     dt_tag_away(EN_K1, 100);
     dt_tag_away(EN_K2, 150);
     dt_tag_away(EN_K3, 100);
     dt_tag_away(EN_K4, 150);
 }
+static void dpat_draw(void)
+{
+    static const struct { int16_t led, text, v; uint8_t f; const char *s; } L[9] = {
+        {950, 971, 141, DTF_PAT, "PATTERN #"}, {950, 971, 155, DTF_REC, "RECORD MODE"}, {978, 1000, 168, DTF_ERASEI, "ERASE INSTRUMENT"},
+        {979, 1000, 183, DTF_ERROR, "ERROR CORRECT"}, {951, 972, 196, DTF_SWING, "SWING %"}, {951, 972, 210, DTF_TIME, "TIME SIGNATURE"},
+        {951, 972, 223, DTF_MEAS, "# OF MEASURES"}, {951, 972, 237, DTF_ERASEP, "ERASE PATTERN"}, {951, 972, 251, DTF_COPYP, "COPY / APPEND TO"}};
+    uint32_t i;
+    dt_crop(643);
+    dfn_center(643);
+    dt_frame(852, 56, 1166, 350, 0);
+    dfn_key(896, 92, 0);
+    dt_tiny(dt_px(951), dt_py(111) - 2, "SELECT", grey(216));
+    dt_tiny(dt_px(1006) + 2, dt_py(111) - 2, "PATTERN", grey(216));
+    dt_tiny(dt_px(1071) + 3, dt_py(111) - 2, "FUNCTIONS", grey(216));
+    dt_vline(951, 161, 183);
+    dt_hline(951, 975, 169);
+    dt_hline(951, 975, 183);
+    for (i = 0; i < 9u; i++)
+        dfn_row(L[i].led, L[i].text, L[i].v, ui.dt_fn == L[i].f, L[i].s);
+    dfn_tags();
+    dt_crop_end();
+}
 static void dsong_draw(void)
 {
-    static const struct { uint8_t f; const char *s; } A[4] = {{DTF_SONG, "SONG #"}, {DTF_ERASES, "ERASE SONG"}, {DTF_COPYS, "COPY / APPEND TO"}, {DTF_BUILD, "BUILD MODE"}};
-    static const struct { uint8_t f; const char *s; } B[5] = {{DTF_BPAT, "PATTERN #"}, {DTF_BVOL, "VOL CHANGE"}, {DTF_BTEMPO, "TEMPO CHANGE"}, {DTF_BINS, "INSERT"}, {DTF_BDEL, "DELETE"}};
+    static const struct { int16_t led, text, v; uint8_t f; const char *s; } L[9] = {
+        {429, 442, 141, DTF_SONG, "SONG #"}, {429, 442, 154, DTF_ERASES, "ERASE SONG"}, {429, 442, 168, DTF_COPYS, "COPY / APPEND TO"},
+        {429, 442, 182, DTF_BUILD, "BUILD MODE"}, {457, 473, 196, DTF_BPAT, "PATTERN #"}, {457, 473, 209, DTF_BVOL, "VOL CHANGE"},
+        {457, 473, 223, DTF_BTEMPO, "TEMPO CHANGE"}, {457, 473, 236, DTF_BINS, "INSERT"}, {457, 473, 250, DTF_BDEL, "DELETE"}};
+    static const int16_t TREE[5] = {197, 211, 224, 238, 251};
+    uint32_t i;
+    dt_crop(330);
+    dfn_center(330);
+    dt_frame(330, 57, 643, 350, 0);
+    dfn_key(373, 92, 0);
+    dfn_key(453, 263, 0);
+    dt_tiny(dt_px(424), dt_py(111) - 2, "SELECT", grey(216));
+    dt_tiny(dt_px(476) + 6, dt_py(111) - 2, "SONG", grey(216));
+    dt_tiny(dt_px(519) + 5, dt_py(111) - 2, "FUNCTIONS", grey(216));
+    dt_tiny(dt_px(507), dt_py(284) - 2, "ENTER", grey(216));
+    dt_vline(429, 188, 251);
+    for (i = 0; i < 5u; i++)
+        dt_hline(429, 452, TREE[i]);
+    for (i = 0; i < 9u; i++)
+        dfn_row(L[i].led, L[i].text, L[i].v, ui.dt_fn == L[i].f || (L[i].f == DTF_BUILD && ui.dt_fn >= DTF_BPAT), L[i].s);
+    dfn_tags();
+    dt_crop_end();
+}
+/* FX again: plates with more to read than the faceplate shows */
+static void dinfo_line(int32_t y, const char *a, const char *b)
+{
+    print_c(90, y, a, grey(36));
+    print_c(160, y, b, grey(36));
+}
+static void dpinfo_draw(void)
+{
+    const dq_pat_t *p = &dqm.pat[ui.dt_pat < DQ_NPAT ? ui.dt_pat : 0];
+    char t[14], n[6];
+    plate("DRUM SOMETHING");
+    dymo(120, 30, "PATTERN INFO", RGB(235, 235, 235));
+    t[0] = 0;
+    int_text(ui.dt_pat, t);
+    dinfo_line(44, "PATTERN", t);
+    t[0] = 0;
+    int_text(p->num, n), text_cat(t, n), text_cat(t, "/"), int_text(DQ_BEAT[p->beat], n), text_cat(t, n);
+    dinfo_line(55, "TIME", t);
+    int_text(p->meas, t);
+    dinfo_line(66, "BARS", t);
+    t[0] = 0;
+    text_cat(t, "1/"), int_text(DQ_EC[p->ec], n), text_cat(t, n);
+    dinfo_line(77, "GRID", t);
+    t[0] = 0;
+    int_text(DQ_SWING[p->swing], n), text_cat(t, n), text_cat(t, "%");
+    dinfo_line(88, "SWING", t);
+    int_text(p->n, t);
+    dinfo_line(99, "HITS", t);
+    t[0] = 0;
+    int_text((int32_t)((DQ_HITS - dqm.used) * 100u / DQ_HITS), n), text_cat(t, n), text_cat(t, "%");
+    dinfo_line(110, "MEMORY FREE", t);
+}
+static void dsinfo_draw(void)
+{
     const uint32_t song = dq.run && dq.in_song ? dq.song : ui.dt_song < DS_NSONG ? ui.dt_song : 0u;
     const ds_song_t *t = &dsm.s[song];
     const int32_t at = dq.run && dq.in_song ? (dq.sstep ? dq.sstep - 1 : 0) : ui.dt_fn >= DTF_BPAT ? ui.dt_step : 0;
     const int32_t from = at > 2 ? at - 2 : 0;
+    char w[8], n[6];
     int32_t i;
-    dt_head();
-    dt_frame_at(8, 48, 231, 156, 0);
-    for (i = 0; i < 4; i++)
-        dfn_row(14, 50 + 12 * i, ui.dt_fn == A[i].f || (A[i].f == DTF_BUILD && ui.dt_fn >= DTF_BPAT), A[i].s);
-    for (i = 0; i < 5; i++)
-        dfn_row(124, 50 + 11 * i, ui.dt_fn == B[i].f, B[i].s);
+    plate("DRUM SOMETHING");
+    dymo(120, 30, "SONG INFO", RGB(235, 235, 235));
+    w[0] = 0;
+    text_cat(w, "SONG ");
+    int_text((int32_t)song, n);
+    text_cat(w, n);
+    print_c(120, 48, w, grey(36));
     for (i = 0; i < 6; i++) {                /* the steps round the one it's on: each its number, what's there */
-        const int32_t st = from + i, x = 14 + 36 * i;
-        char w[6] = "";
+        const int32_t st = from + i, x = 22 + 33 * i;
         if (st < (int32_t)DS_NSTEP) {
             const uint32_t c = t->step[st];
-            const int on = st == at;
-            char n[6];
             int_text(st, w);
-            cv_rect(x, 112, 33, 40, on ? grey(72) : grey(44));
-            cv_text(x + 3, 113, &FONT_T, w, grey(170));
+            cv_rect(x, 68, 30, 44, st == at ? RGB(0, 0, 0) : grey(60));
+            cv_text(x + 3, 70, &FONT_T, w, grey(190));
             w[0] = 0;
             if (c < DQ_NPAT + 1u)
                 dt_two(w, c), w[2] = 0;
@@ -6087,31 +6223,24 @@ static void dsong_draw(void)
                 int_text(DS_VAL(c), n);
                 text_cat(w, n);
             }
-            cv_text(x + 3, 130, &FONT_XS, w, on ? P_SILK : grey(200));
+            cv_text(x + 3, 88, &FONT_XS, w, P_SILK);
             if (c == DS_END)
                 break;
         }
     }
-    dt_tag_preset();
-    dt_tag_away(EN_SELECT, 50);
-    dt_tag_away(EN_K1, 100);
-    dt_tag_away(EN_K2, 150);
-    dt_tag_away(EN_K3, 100);
-    dt_tag_away(EN_K4, 150);
 }
 /* a section's button: its page, the camera going in on its box if from the drums' HOME */
 static void dt_open(uint32_t g)
 {
     const int song = g == PG_DSONG;
-    const int32_t x = dt_px(song ? 166 : 852), X = dt_px(song ? 643 : 1348), y = dt_py(56), Y = dt_py(350);
     if (set.zoom_off || ui.page != PG_DHOME || zoom.home) {
         page_go(g);
         return;
     }
-    zoom_keep(PG_DHOME);
-    zoom.hx = (int16_t)((x + X) / 2);
-    zoom.hy = (int16_t)((y + Y) / 2);
-    zoom.lc = fm_log2f(fm_minf(fm_minf(240.0f / (float)(X - x), (float)TALL_H / (float)(Y - y)), 6.0f));
+    zoom_keep(PG_DHOME);                     /* (in on what its page shows, to its scale: the cut hardly seen) */
+    zoom.hx = (int16_t)dt_px(song ? 591 : 904);
+    zoom.hy = (int16_t)dt_py(203);
+    zoom.lc = 1.2f;
     zoom.g = (uint8_t)g;
     zoom.u = 0.0f;
     zoom.home = ZH_OPEN;
@@ -6315,6 +6444,10 @@ static void panel_draw(void)                 /* the page's section panel, from u
             dpat_draw();
         else if (ui.page == PG_DSONG)
             dsong_draw();
+        else if (ui.page == PG_DPINFO)
+            dpinfo_draw();
+        else if (ui.page == PG_DSINFO)
+            dsinfo_draw();
         else if (ui.page == PG_LFO1)
             lfos_draw();
         else if (ui.page == PG_GMIDI)
@@ -6482,6 +6615,8 @@ static uint32_t live(void)
     case PG_DMOD:
     case PG_DPAT:
     case PG_DSONG:
+    case PG_DPINFO:
+    case PG_DSINFO:
         return dt_lit() | (ui.keys >> 1 & 1u) << 31 | (uint32_t)dt_blink() << 30 | (uint32_t)(dq.run != 0u) << 29
                | (uint32_t)(dq.full && plat_ms() / 300u % 2u) << 28;
     case PG_GMIDI:
