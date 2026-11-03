@@ -5942,11 +5942,6 @@ static void dt_tag_away(uint32_t k, int32_t x)
 }
 static const int16_t DT_CH_U[NDTCH + 1] = {415, 487, 630, 773, 916, 1059, 1348};   /* its channels' frames across HOME */
 
-/* a Channel page: PER INSTRUMENT as the 400 has it at the left, the channel's frame beside it, at one scale for all six
- * (PER INSTRUMENT + CH 6 fill the width: 0.446 px each of the photo's) so VOLUME and TUNING stay put from page to page;
- * its keys the FM-1's piano keys', lit as they are; the drum selected named in white */
-static int32_t dch_x(int32_t u) { return 8 + (u - 151) * 446 / 1000; }
-static int32_t dch_y(int32_t v) { return 49 + (v - 409) * 446 / 1000; }
 static void dch_key(int32_t x, int32_t y, int lit)   /* a black key, 25 x 25: its recess, its walls, the cap, the bright
                                               * wall at its right; lit, the cap white */
 {
@@ -5954,57 +5949,6 @@ static void dch_key(int32_t x, int32_t y, int lit)   /* a black key, 25 x 25: it
     cv_rect(x + 2, y + 2, 21, 21, grey(16));
     cv_rect(x + 4, y + 4, 15, 17, lit ? P_SILK : grey(40));
     cv_rect(x + 19, y + 4, 2, 17, lit ? P_SILK : grey(200));
-}
-static void dch_label(int32_t cx, int32_t y, const char *s, uint16_t c)
-{
-    cv_text(cx - text_w(&FONT_T, s) / 2, y, &FONT_T, s, c);
-}
-static void dch_draw(void)
-{
-    static const char *const SHORT[NDT] = {"BASS", "SNARE", "RIM", "TOM 1", "TOM 2", "CRASH", "RIDE", "CLOSED", "OPEN",
-                                           "CLAPS", "TAMB", "COW", "CABASA"};
-    static const uint8_t BK[11] = PLAT_BLACK_KEYS;
-    const uint32_t c = ui.page - PG_DCH1, lit = dt_lit();
-    const int32_t top = dch_y(409), low = dch_y(642), ky = dch_y(530);
-    int32_t n = 0, i, x0, X, j = 0;
-    char t[6] = "CH 1";
-    dt_head();
-    dt_frame_at(dch_x(151), top, dch_x(364), low, 0);
-    dch_label(dch_x(180) + 8, top + 31, "VOLUME", P_SILK);
-    dch_label(dch_x(309) + 8, top + 31, "TUNING", P_SILK);
-    dch_label((dch_x(180) + dch_x(309)) / 2 + 8, top + 41, "PER INSTRUMENT", grey(200));
-    dt_knob_at((float)dch_x(180) + 8.0f, (float)dch_y(453) + 2.0f, 9.5f, (float)dt.vol[ui.dt_sel] / 15.0f, 150, 100, 1.0f, 1, 0);
-    dt_knob_at((float)dch_x(309) + 8.0f, (float)dch_y(453) + 2.0f, 9.5f, (float)dt.tune[ui.dt_sel] / 15.0f, 150, 100, 1.0f, 1, 0);
-    tag(dch_x(180) + 8, dch_y(453) + 2, EN_K3);
-    tag(dch_x(309) + 8, dch_y(453) + 2, EN_K4);
-    dt_tag_away(EN_K1, 100);
-    dt_tag_away(EN_K2, 150);
-    dt_tag_away(EN_SELECT, 50);
-    dt_tag_preset();
-    cv_rect(dch_x(168) + 1, ky - 5, 4, 2, dq.run && !dt_blink() ? RGB(255, 40, 72) : RGB(128, 16, 32));   /* RUN/STOP's LED */
-    dch_key(dch_x(168), ky, dq.run && !dt_blink());
-    dch_key(dch_x(289), ky, ui.drum && ui.keys >> BK[0] & 1u);
-    dch_label(dch_x(168) + 12, ky + 26, "RUN", P_SILK);
-    dch_label(dch_x(289) + 12, ky + 26, "ACCENT", P_SILK);
-    for (i = 0; i < (int32_t)NDT; i++)
-        n += DT_CH[i] == c;
-    X = (dch_x(364) + 4 + 231) / 2;          /* (centred in what's left) */
-    x0 = X - (31 * n + 3) / 2;
-    X = x0 + 31 * n + 3;
-    dt_frame_at(x0, top, X, low, 0);
-    t[3] = (char)('1' + c);
-    dch_label((x0 + X) / 2, dch_y(452), t, P_SILK);
-    for (i = 0; i < (int32_t)NDT; i++)
-        if (DT_CH[i] == c) {
-            const int32_t kx = x0 + 3 + 31 * j++, sel = i == (int32_t)ui.dt_sel;
-            const uint16_t col = sel ? P_SILK : grey(144);
-            dch_key(kx, ky, (int)(lit >> i & 1u));
-            dch_label(kx + 12, ky + 26, SHORT[i], col);
-            if (i == DT_COWBELL)
-                dch_label(kx + 12, ky + 35, "BELL", col);
-            if (sel)
-                cv_rect(kx + 4, ky - 5, 17, 2, RGB(255, 40, 72));
-        }
 }
 /* the two sections' pages (SEQ, ARP): the faceplate itself, closer: the section and the displays and keypad beside it, on
  * the photo's measures at 0.43 px across, 0.5 down (the print's rows want the height); its print in small capitals */
@@ -6054,25 +5998,79 @@ static void dfn_digit(int32_t x, int32_t y, char c)   /* a display's digit at th
             if (!on || (m >> i & 1u))
                 cv_rect(x + R_[i][0], y + R_[i][1], R_[i][2], R_[i][3], on ? RGB(252, 60, 96) : RGB(72, 16, 24));
 }
-static void dfn_center(int32_t ux0)          /* the plate, its wooden ends, the display's frame, its two displays, its keypad */
+/* the section's frames at this size, the photo's: two boxes sharing a wall, their lines 2 px, corners of 6, smooth, so at the
+ * shared wall both rails curve into it (its Y). How much of a pixel a box's line covers: a rounded box's distance */
+#define DFN_R 6.0f
+#define DFN_T 2.0f
+static float dfn_cover(float l, float t, float r, float b, float px, float py)
+{
+    const float qx = fm_fabsf(px - (l + r) * 0.5f) - (r - l) * 0.5f + DFN_R, qy = fm_fabsf(py - (t + b) * 0.5f) - (b - t) * 0.5f + DFN_R;
+    const float ax = fm_maxf(qx, 0.0f), ay = fm_maxf(qy, 0.0f);
+    const float d = fm_sqrtf(ax * ax + ay * ay) + fm_minf(fm_maxf(qx, qy), 0.0f) - DFN_R;   /* (0 on its outside edge, < 0 within) */
+    return fm_clampf(DFN_T * 0.5f + 0.5f - fm_fabsf(d + DFN_T * 0.5f), 0.0f, 1.0f);
+}
+static void dfn_box(int32_t x0, int32_t y0, int32_t x1, int32_t y1)   /* one box, in the panel's pixels */
+{
+    const int32_t R_ = (int32_t)DFN_R;
+    const uint16_t line = grey(DT_LINE_G);
+    int32_t a, c, x, y;
+    cv_rect(x0 + R_, y0, x1 - x0 - 2 * R_, 2, line);
+    cv_rect(x0 + R_, y1 - 2, x1 - x0 - 2 * R_, 2, line);
+    cv_rect(x0, y0 + R_, 2, y1 - y0 - 2 * R_, line);
+    cv_rect(x1 - 2, y0 + R_, 2, y1 - y0 - 2 * R_, line);
+    for (a = 0; a < 2; a++)
+        for (c = 0; c < 2; c++) {
+            const int32_t X = a ? x1 - R_ : x0, Y = c ? y1 - R_ : y0;
+            for (y = Y; y < Y + R_; y++)
+                for (x = X; x < X + R_; x++) {
+                    const float k = dfn_cover((float)x0, (float)y0, (float)x1, (float)y1, (float)x + 0.5f, (float)y + 0.5f);
+                    cv_pset(x, y, grey(DT_FACE_G + (int32_t)((float)(DT_LINE_G - DT_FACE_G) * k)));
+                }
+        }
+}
+static void dfn_display(int32_t x, int32_t y, const char *t)   /* a display at this size: its window, its pale left edge, two digits */
+{
+    cv_rect(x, y, 27, 19, RGB(32, 16, 20));
+    cv_rect(x, y, 1, 19, grey(112));
+    dfn_digit(x + 3, y + 2, t[0]);
+    dfn_digit(x + 15, y + 2, t[1]);
+}
+static void dfn_frames(int32_t u0, int32_t um, int32_t u1)   /* the two boxes, u0..um and um..u1 across */
+{
+    const int32_t x0 = dt_px(u0), xm = dt_px(um), x1 = dt_px(u1), y0 = dt_py(57), y1 = dt_py(350), R_ = (int32_t)DFN_R;
+    const uint16_t line = grey(DT_LINE_G);
+    const int32_t xs[4] = {x0 - 1, xm - R_ - 2, xm - 1, x1 - R_ - 2};
+    int32_t i, x, y, c;
+    cv_rect(x0 - 1 + R_, y0 - 1, xm - x0 - 2 * R_, 2, line);   /* the rails, between the curves */
+    cv_rect(x0 - 1 + R_, y1 - 1, xm - x0 - 2 * R_, 2, line);
+    cv_rect(xm + R_, y0 - 1, x1 - xm - 2 * R_, 2, line);
+    cv_rect(xm + R_, y1 - 1, x1 - xm - 2 * R_, 2, line);
+    cv_rect(x0 - 1, y0 - 1 + R_, 2, y1 - y0 - 2 * R_, line);   /* the walls */
+    cv_rect(xm - 1, y0 - 1 + R_, 2, y1 - y0 - 2 * R_, line);
+    cv_rect(x1 - 1, y0 - 1 + R_, 2, y1 - y0 - 2 * R_, line);
+    for (i = 0; i < 4; i++)                  /* the curves: each pixel as the more of either box covers it */
+        for (c = 0; c < 2; c++) {
+            const int32_t Y0 = c ? y1 - R_ - 1 : y0 - 1;
+            for (y = Y0; y < Y0 + R_ + 2; y++)
+                for (x = xs[i]; x < xs[i] + R_ + 3; x++) {
+                    const float px = (float)x + 0.5f, py = (float)y + 0.5f;
+                    const float a = dfn_cover((float)x0 - 1.0f, (float)y0 - 1.0f, (float)xm + 1.0f, (float)y1 + 1.0f, px, py);
+                    const float b = dfn_cover((float)xm - 1.0f, (float)y0 - 1.0f, (float)x1 + 1.0f, (float)y1 + 1.0f, px, py);
+                    const float k = fm_maxf(a, b);
+                    cv_pset(x, y, grey(DT_FACE_G + (int32_t)((float)(DT_LINE_G - DT_FACE_G) * k)));
+                }
+        }
+}
+static void dfn_center(int32_t ux0)          /* the plate, its two displays, its keypad */
 {
     static const char PAD[] = "123456789<0>";
     char l[3], r[3];
     int32_t i;
     (void)ux0;
     cv_rect(0, 0, 240, pan_h, DT_FACE);
-    dt_cheek(0, 0, 0, 5);
-    dt_cheek(234, 0, 239, 234);
-    dt_frame(643, 57, 852, 350, 0);
     dt_digits(l, r);
-    for (i = 0; i < 2; i++) {
-        const int32_t x = dt_px(i ? 770 : 660), y = dt_py(61) + 2;
-        const char *t = i ? r : l;
-        cv_rect(x, y, 27, 19, RGB(32, 16, 20));
-        cv_rect(x, y, 1, 19, grey(112));
-        dfn_digit(x + 3, y + 2, t[0]);
-        dfn_digit(x + 15, y + 2, t[1]);
-    }
+    dfn_display(dt_px(660), dt_py(61) + 2, l);
+    dfn_display(dt_px(770), dt_py(61) + 2, r);
     for (i = 0; i < 12; i++) {               /* 1-9, then left, 0, right */
         const int32_t x = dt_px(676 + 55 * (i % 3)), y = dt_py(133 + 54 * (i / 3) + (i / 3 == 3));
         const char c = PAD[i];
@@ -6119,7 +6117,7 @@ static void dpat_draw(void)
     uint32_t i;
     dt_crop(643);
     dfn_center(643);
-    dt_frame(852, 56, 1166, 350, 0);
+    dfn_frames(643, 852, 1166);
     dfn_key(896, 92, 0);
     dt_tiny(dt_px(951), dt_py(111) - 2, "SELECT", grey(216));
     dt_tiny(dt_px(1006) + 2, dt_py(111) - 2, "PATTERN", grey(216));
@@ -6142,7 +6140,7 @@ static void dsong_draw(void)
     uint32_t i;
     dt_crop(330);
     dfn_center(330);
-    dt_frame(330, 57, 643, 350, 0);
+    dfn_frames(330, 643, 852);
     dfn_key(373, 92, 0);
     dfn_key(453, 263, 0);
     dt_tiny(dt_px(424), dt_py(111) - 2, "SELECT", grey(216));
@@ -6155,6 +6153,63 @@ static void dsong_draw(void)
     for (i = 0; i < 9u; i++)
         dfn_row(L[i].led, L[i].text, L[i].v, ui.dt_fn == L[i].f || (L[i].f == DTF_BUILD && ui.dt_fn >= DTF_BPAT), L[i].s);
     dfn_tags();
+    dt_crop_end();
+}
+/* a Channel page: the faceplate's lower row, closer: PER INSTRUMENT, the channel's frame beside it, at one scale for all six so
+ * VOLUME and TUNING stay put from page to page, the two displays over them; its keys the FM-1's piano keys', lit as they are;
+ * the drum selected, its LED lit */
+static void dch_draw(void)
+{
+    static const char *const SHORT[NDT] = {"BASS", "SNARE", "RIM", "TOM 1", "TOM 2", "CRASH", "RIDE", "CLOSED", "OPEN",
+                                           "CLAPS", "TAMB", "COWBELL", "CABASA"};
+    static const uint8_t BK[11] = PLAT_BLACK_KEYS;
+    const uint32_t c = ui.page - PG_DCH1, lit = dt_lit();
+    const uint16_t print = grey(216);
+    char l[3], r[3], t[5] = "CH 1";
+    int32_t n = 0, i, x0, X, j = 0, top, low, ky, ly, tk;
+    dt_ux0 = 151, dt_x0 = 8, dt_sx = 430, dt_vy0 = 409, dt_y0 = 38, dt_sy = 500;
+    top = dt_py(409), low = dt_py(642), ky = dt_py(530), ly = dt_py(603);
+    cv_rect(0, 0, 240, pan_h, DT_FACE);
+    dfn_box(8, 3, 232, 33);
+    dt_digits(l, r);
+    dfn_display(44, 8, l);
+    dfn_display(170, 8, r);
+    t[3] = (char)('1' + c);
+    dt_tiny(110, 15, t, print);
+    dfn_box(dt_px(151), top, dt_px(364), low);
+    dt_knob_at((float)dt_px(180) + 8.0f, (float)dt_py(453) + 2.0f, 9.5f, (float)dt.vol[ui.dt_sel] / 15.0f, 150, 100, 1.0f, 1, 0);
+    dt_knob_at((float)dt_px(309) + 8.0f, (float)dt_py(453) + 2.0f, 9.5f, (float)dt.tune[ui.dt_sel] / 15.0f, 150, 100, 1.0f, 1, 0);
+    tk = dt_py(453) + 2;
+    dt_tiny(dt_px(180) + 8 - 11, top + 34, "VOLUME", print);
+    dt_tiny(dt_px(309) + 8 - 11, top + 34, "TUNING", print);
+    dt_tiny((dt_px(151) + dt_px(364)) / 2 - 26, top + 44, "PER INSTRUMENT", grey(190));
+    tag(dt_px(180) + 8, tk, EN_K3);
+    tag(dt_px(309) + 8, tk, EN_K4);
+    cv_rect(dt_px(168) + 3, ky - 6, 5, 3, dq.run && !dt_blink() ? RGB(255, 40, 72) : RGB(96, 16, 32));   /* RUN's LED */
+    dch_key(dt_px(168), ky, dq.run && !dt_blink());
+    dch_key(dt_px(289), ky, ui.drum && ui.keys >> BK[0] & 1u);
+    dt_tiny(dt_px(168) - 3, ly, "RUN/STOP", print);
+    dt_tiny(dt_px(289), ly, "ACCENT", print);
+    for (i = 0; i < (int32_t)NDT; i++)
+        n += DT_CH[i] == c;
+    X = (dt_px(364) + 4 + 232) / 2;          /* (centred in what's left) */
+    x0 = X - (31 * n + 5) / 2;
+    X = x0 + 31 * n + 5;
+    dfn_box(x0, top, X, low);
+    for (i = 0; i < (int32_t)NDT; i++)
+        if (DT_CH[i] == c) {
+            const int32_t kx = x0 + 4 + 31 * j++, sel = i == (int32_t)ui.dt_sel;
+            const int32_t w = 4 * (int32_t)strlen(SHORT[i]) - 1;
+            cv_rect(kx + 10, ky - 6, 5, 3, sel ? RGB(255, 40, 72) : RGB(96, 16, 32));
+            dch_key(kx, ky, (int)(lit >> i & 1u));
+            dt_tiny(kx + 12 - w / 2, ly, SHORT[i], sel ? P_SILK : grey(170));
+        }
+    tag(170 + 13, 17, EN_PRESET);
+    if (!ui.map_until)
+        tag(170 + 13, 17, EN_ALGO);
+    dt_tag_away(EN_SELECT, 50);
+    dt_tag_away(EN_K1, 100);
+    dt_tag_away(EN_K2, 150);
     dt_crop_end();
 }
 /* FX again: plates with more to read than the faceplate shows */

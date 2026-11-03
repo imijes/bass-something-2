@@ -104,3 +104,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-03 | e831006+ | RND splash: 8 colours in an LZ4 block | 487,428 | -12,064 | 94,136 | 77,732 | +0 | 20,572 | 157,896 |
 | 2026-11-03 | f5d32c7+ | Drum Something: PATTERN and SONG pages with the camera, GLO KNOBS on all its knobs, RND pages from the drums; splash ground black | 490,052 | +2,624 | 91,512 | 77,732 | +0 | 20,572 | 157,896 |
 | 2026-11-03 | 99308e4+ | Drum Something: PATTERN and SONG pages as the faceplate, INFO plates | 494,520 | +4,468 | 87,044 | 77,748 | +16 | 20,556 | 157,896 |
+| 2026-11-03 | 7d84e80+ | Drum Something: Channel pages and zoomed pages in the faceplate's style, no wood, smooth frames | 496,272 | +1,752 | 85,292 | 77,748 | +0 | 20,556 | 157,896 |
