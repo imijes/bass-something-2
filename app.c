@@ -1532,6 +1532,7 @@ static struct {
     uint8_t dt_show;                     /* DTS_*: what the header shows for a moment, till dt_until */
     uint32_t dt_until;
     uint32_t dt_mid;                     /* the keys at the lights' middle level (a channel's others) */
+    uint32_t dt_slide_at;                /* a Channel page's header sliding in since (0: in place) */
 } ui PLAT_POOL;
 /* Knob Zoom's camera (below, zoom_step) */
 #define ZOOM_MAX 256                         /* Q8, over 1x: 2x (crisp once there: whole pixels) */
@@ -4108,6 +4109,10 @@ static int zoom_step(uint32_t now)           /* a frame: 1 when the camera moved
         if (u >= 1.0f) {
             zoom.z = 0;
             page_go(zoom.g);
+            if (DCH_PAGE(zoom.g)) {          /* (its header slides in: the map after it) */
+                ui.dt_slide_at = now | 1u;
+                ui.map_until = 0;
+            }
         }
         return 1;
     }
@@ -5916,7 +5921,7 @@ static void dt_digits(char *l, char *r)
     else if (s == DTS_TUNE)
         dt_two(l, dt.tune[ui.dt_sel]);
 }
-static void dt_head(int right)               /* (right: its right cheek too) */
+static void dt_head_top(void)                /* the name and the two displays, on their dark ground */
 {
     static const char *const NAME[NDTF][2] = {
         {"PATTERN", "NUMBER"}, {"RECORD", "MODE"}, {"ERASE", "INSTRUMENT"}, {"ERROR", "CORRECT"}, {"SWING", "PERCENT"},
@@ -5926,11 +5931,16 @@ static void dt_head(int right)               /* (right: its right cheek too) */
     const int fn = ui.dt_show == DTS_FN || dq.rec;   /* (recording or erasing: said all the while) */
     char l[3], r[3];
     dt_digits(l, r);
+    cv_rect(0, 0, 240, 45, P_BG);
     cv_text(10, 6, &FONT_B, fn ? NAME[ui.dt_fn][0] : "DRUM", P_SILK);
     cv_text(10, 24, &FONT_B, fn ? NAME[ui.dt_fn][1] : "SOMETHING", P_SILK);
     cv_rect(10, 42, 96, 2, RGB(252, 60, 72));
     dt_display(114, 1, l);
     dt_display(174, 1, r);
+}
+static void dt_head(int right)               /* (right: its right cheek too) */
+{
+    dt_head_top();
     cv_rect(0, 45, 240, pan_h - 45, DT_FACE);
     dt_cheek(0, 45, 0, 5);
     if (right)
@@ -6053,9 +6063,10 @@ static void dfn_display(int32_t x, int32_t y, const char *t)   /* a display at t
     dfn_digit(x + 3, y + 2, t[0]);
     dfn_digit(x + 15, y + 2, t[1]);
 }
-static void dfn_frames(int32_t u0, int32_t um, int32_t u1)   /* the two boxes, u0..um and um..u1 across */
+static void dfn_pair(int32_t x0, int32_t xm, int32_t x1, int32_t y0, int32_t y1)   /* two boxes sharing a wall, in pixels (the
+                                              * walls' middles and the rails' inner rows; the second may run off the screen) */
 {
-    const int32_t x0 = dt_px(u0), xm = dt_px(um), x1 = dt_px(u1), y0 = dt_py(57), y1 = dt_py(350), R_ = (int32_t)DFN_R;
+    const int32_t R_ = (int32_t)DFN_R;
     const uint16_t line = grey(DT_LINE_G);
     const int32_t xs[4] = {x0 - 1, xm - R_ - 2, xm - 1, x1 - R_ - 2};
     int32_t i, x, y, c;
@@ -6078,6 +6089,10 @@ static void dfn_frames(int32_t u0, int32_t um, int32_t u1)   /* the two boxes, u
                     cv_pset(x, y, grey(DT_FACE_G + (int32_t)((float)(DT_LINE_G - DT_FACE_G) * k)));
                 }
         }
+}
+static void dfn_frames(int32_t u0, int32_t um, int32_t u1)   /* the two boxes, u0..um and um..u1 across */
+{
+    dfn_pair(dt_px(u0), dt_px(um), dt_px(u1), dt_py(57), dt_py(350));
 }
 static void dfn_center(int32_t ux0)          /* the plate, its two displays, its keypad */
 {
@@ -6176,6 +6191,7 @@ static void dsong_draw(void)
 /* a Channel page: the faceplate's lower row, closer: PER INSTRUMENT, the channel's frame beside it, at one scale for all six so
  * VOLUME and TUNING stay put from page to page, the two displays over them; its keys the FM-1's piano keys', lit as they are;
  * the drum selected, its LED lit */
+#define DCH_SLIDE_MS 280u                    /* the header coming down, once the camera's landed */
 static void dch_draw(void)
 {
     static const char *const SHORT[NDT] = {"BASS", "SNARE", "RIM", "TOM 1", "TOM 2", "CRASH", "RIDE", "CLOSED", "OPEN",
@@ -6185,10 +6201,23 @@ static void dch_draw(void)
     const uint16_t print = grey(216);
     char t[5] = "CH 1";
     int32_t n = 0, i, x0, X, j = 0, top, low, ky, ly, tk;
-    dt_head(0);                              /* the name, the two displays, the plate with its left cheek: PER INSTRUMENT's
-                                              * end of the faceplate */
-    dt_ux0 = 151, dt_x0 = 9, dt_sx = 430, dt_vy0 = 409, dt_y0 = 49, dt_sy = 450;
+    const uint32_t sl = ui.dt_slide_at ? plat_ms() - ui.dt_slide_at : DCH_SLIDE_MS;
+    /* the faceplate's lower row, one scale both ways, from where HOME's camera lands (dt_open): the cut unseen */
+    dt_ux0 = 151, dt_x0 = 9, dt_sx = 430, dt_vy0 = 409, dt_y0 = 49, dt_sy = 430;
     top = dt_py(409), low = dt_py(642), ky = dt_py(530), ly = dt_py(603);
+    if (sl < DCH_SLIDE_MS) {                 /* just landed: the plate on up, the upper row's feet, the header coming down */
+        const float u = (float)sl / (float)DCH_SLIDE_MS, e = u * u * (3.0f - 2.0f * u);
+        const int32_t d = (int32_t)(-45.0f * (1.0f - e));
+        cv_rect(0, 0, 240, pan_h, DT_FACE);
+        dt_cheek(0, 0, 0, 5);
+        dt_frame(166, 205, 318, 350, 1);
+        dt_frame(330, 57, 643, 350, 0);
+        cv_oy += d;
+        dt_head_top();
+        cv_oy -= d;
+    } else
+        dt_head(0);                          /* the name, the two displays, the plate with its left cheek: PER INSTRUMENT's
+                                              * end of the faceplate */
     dfn_box(dt_px(151), top, dt_px(364), low);
     dt_knob_at((float)dt_px(180) + 8.0f, (float)dt_py(453) + 2.0f, 9.5f, (float)dt.vol[ui.dt_sel] / 15.0f, 150, 100, 1.0f, 1, 0);
     dt_knob_at((float)dt_px(309) + 8.0f, (float)dt_py(453) + 2.0f, 9.5f, (float)dt.tune[ui.dt_sel] / 15.0f, 150, 100, 1.0f, 1, 0);
@@ -6205,10 +6234,12 @@ static void dch_draw(void)
     dt_tiny(dt_px(289), ly, "ACCENT", print);
     for (i = 0; i < (int32_t)NDT; i++)
         n += DT_CH[i] == c;
-    X = (dt_px(364) + 3 + 237) / 2;          /* (centred in what's left) */
-    x0 = X - (31 * n + 5) / 2;
+    x0 = c == 5u ? 105 : dt_px(415);         /* where the faceplate has it (CH 6 fills the rest: a little nearer) */
     X = x0 + 31 * n + 5;
-    dfn_box(x0, top, X, low);
+    if (c == 5u)
+        dfn_box(x0, top, X, low);
+    else                                     /* (the next channel's rails, off the screen's edge: still the faceplate) */
+        dfn_pair(x0 + 1, X, X + 120, top + 1, low - 1);
     t[3] = (char)('1' + c);
     dt_tiny((x0 + X) / 2 - 7, top + 7, t, print);
     for (i = 0; i < (int32_t)NDT; i++)
@@ -6307,8 +6338,8 @@ static void dt_open(uint32_t g)
     }
     zoom_keep(PG_DHOME);                     /* (in on what its page shows, to its scale: the cut hardly seen) */
     if (g >= PG_DCH1 && g <= PG_DCH6) {      /* (a Channel page: PER INSTRUMENT and that channel, the lower row) */
-        zoom.hx = (int16_t)((dt_px(151) + dt_px(DT_CH_U[g - PG_DCH1 + 1u])) / 2);
-        zoom.hy = (int16_t)dt_py(500);
+        zoom.hx = 56;                        /* (so HOME's lower row lands on the page's, at 2.3x: PER INSTRUMENT and CH 1 exact) */
+        zoom.hy = 127;
     } else {
         zoom.hx = (int16_t)dt_px(song ? 591 : 904);
         zoom.hy = (int16_t)dt_py(203);
@@ -6690,7 +6721,7 @@ static uint32_t live(void)
     case PG_DSONG:
     case PG_DPINFO:
     case PG_DSINFO:
-        return dt_lit() | (ui.keys >> 1 & 1u) << 31 | (uint32_t)dt_blink() << 30 | (uint32_t)(dq.run != 0u) << 29
+        return (ui.dt_slide_at ? (plat_ms() / 16u & 0x3FFFu) << 14 : 0u) ^ dt_lit() | (ui.keys >> 1 & 1u) << 31 | (uint32_t)dt_blink() << 30 | (uint32_t)(dq.run != 0u) << 29
                | (uint32_t)(dq.full && plat_ms() / 300u % 2u) << 28;
     case PG_GMIDI:
     case PG_GSYS:
@@ -6932,6 +6963,12 @@ void app_frame(void)
     }
     if (ui.map_until && now >= ui.map_until) {   /* the map's moment over */
         ui.map_until = 0;
+        ui.redraw = 1;
+    }
+    if (ui.dt_slide_at && (ui.page < PG_DCH1 || ui.page > PG_DCH6 || now - ui.dt_slide_at >= 280u)) {
+        if (DCH_PAGE(ui.page))
+            ui.map_until = pop_until();
+        ui.dt_slide_at = 0;
         ui.redraw = 1;
     }
     if (ui.dt_show && now >= ui.dt_until) {  /* the drums' header's moment */
