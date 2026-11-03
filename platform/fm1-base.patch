@@ -200,3 +200,25 @@ index 772a7c2..a1fa934 100644
  
  /* the keys' velocity and pressure (an app with APP_KEY_SENSE): on, the scan reads the keys on the analog rows and
   * hands each reading to the app (app_key_sample, app_key_probe); off by default */
+diff --git a/tools/build.py b/tools/build.py
+index a6607e3..46bd7e8 100755
+--- a/tools/build.py
++++ b/tools/build.py
+@@ -48,6 +48,8 @@ APP_DIR holds the app (app.h, app.c, its sources) and its fm1.toml:
+   usb_audio_first = true     the USB audio streaming interfaces listed first in the audio control collection
+                              (felucca-bsp FELUCCA_UAC_AS_FIRST, from Felucca 1.5.1): macOS then shows the FM-1 as an audio
+                              device beside its MIDI; bcdDevice +0.08 (a changed device to the computer)
++  usb_audio_midi_ac = true   MIDI on an audio control interface of its own, after the audio function (felucca-bsp
++                             FELUCCA_UAC_MIDI_AC); use instead of usb_audio_first; bcdDevice +0.80
+   usb_host = true            the USB port as a MIDI host when the app asks (FM1B_USB_HOST: felucca-bsp's
+                              FELUCCA_USB_HOST, docs/USB_HOST.md; plat_usb_host in plat.h): a USB-MIDI controller or
+                              synth, directly or behind one powered hub (the FM-1 gives no power). Boot is a device
+@@ -579,6 +581,8 @@ def build_app():
+             flags.append(f"-D{flag}={int(bool(CONF[key]))}")
+     if CONF.get("usb_audio_first"):
+         flags.append("-DFELUCCA_UAC_AS_FIRST=1")
++    if CONF.get("usb_audio_midi_ac"):
++        flags.append("-DFELUCCA_UAC_MIDI_AC=1")
+     for flag in ("FM1B_CDC", "FM1B_UAC", "FM1B_UAC_OUT", "FM1B_TRS"):
+         v = os.environ.get(flag)    # unset: fm1.toml's, the app's (app.h) or the platform's default (device/unity.c)
+         if v in ("0", "1"):
