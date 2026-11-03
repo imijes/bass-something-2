@@ -21,9 +21,10 @@ int bs2_ble_off(void);
 
 /* the store: the app's objects, the panel calibration (the platform's) and Bluetooth's address and pairing among
  * them, and their flash offsets; OBJ_PATCHES, the patch bank (bank_t, app.c), in the data area under the panel's;
- * OBJ_SEEDS, the RND seed table (seeds_t, bs2_rnd.c), under the bank */
-enum { OBJ_SETTINGS, OBJ_PANEL, OBJ_BLE, OBJ_PATCHES, OBJ_SEEDS, OBJ_NOBJ };
-#define APP_STORE_MAP {0xFC000u, 0xDC000u, 0xDE000u, 0xDA000u, 0xD8000u}
+ * OBJ_SEEDS, the RND seed table (seeds_t, bs2_rnd.c), under the bank; OBJ_DQ*, Drum Something's patterns (dq_mem_t,
+ * bs2_dseq.c), under that */
+enum { OBJ_SETTINGS, OBJ_PANEL, OBJ_BLE, OBJ_PATCHES, OBJ_SEEDS, OBJ_DQ0, OBJ_DQ1, OBJ_DQ2, OBJ_DQ3, OBJ_DQ4, OBJ_NOBJ };
+#define APP_STORE_MAP {0xFC000u, 0xDC000u, 0xDE000u, 0xDA000u, 0xD8000u, 0xD6000u, 0xD4000u, 0xD2000u, 0xD0000u, 0xCE000u}
 
 /* the voice (app.c): two oscillators (saw, square, sine, triangle or a pulse of its own width, each at its own
  * footage, 2 hard-synced to 1 if asked), a sub (a sine, a narrow pulse or a square) and noise, mixed at their levels (1

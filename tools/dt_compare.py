@@ -46,7 +46,7 @@ def find_refs(folder, drum, chain):
 
 def render(drum, out, ms):
     """Each step's hit, plain and accented, as out/<drum>_<n>.wav and out/<drum>_A<n>.wav: {(accented, step): path}."""
-    lines = ["wait 600", "dt_gain 10"]       # (+20 dB: the host's files are 16-bit, a quiet tail in their floor)
+    lines = ["wait 600", "dt_eprom 0\ndt_gain 10"]       # (+20 dB: the host's files are 16-bit, a quiet tail in their floor)
     for acc in ("", "A"):
         for n in STEPS:
             lines += [f"wav {drum}_{acc}{n}.wav", f"drum {drum} {n} {acc}".rstrip(), f"wait {ms}", "wavstop",

@@ -91,3 +91,11 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-02 | 605c31f+ | drum keys from the low C (Cabasa on the top black key) | 347,304 | +16 | 234,260 | 77,556 | +0 | 20,748 | 138,768 |
 | 2026-11-02 | c39ddb9+ | Drum Something: the drum HOME redrawn from the photo's measures (tools/dt_face.py): BS2 HOME's width, shared walls, rounded corners, silver-sided knobs, recessed keys, the keypad, little displays | 349,384 | +2,080 | 232,180 | 77,556 | +0 | 20,748 | 138,768 |
 | 2026-11-02 | c39ddb9+ | Drum Something: drum HOME's print as white lines, the drumsomething logo, the little displays below their frame's line | 350,712 | +1,328 | 230,852 | 77,556 | +0 | 20,748 | 138,768 |
+| 2026-11-02 | f587152+ | Drum Something: every button the drums', tap to select, K1-K4, Channel pages, key lights, Knob Zoom | 355,784 | +5,072 | 225,780 | 77,556 | +0 | 20,748 | 138,792 |
+| 2026-11-02 | f587152+ | Drum Something: its sequencer (patterns, recording, Erase Instrument, Error Correct, metronome, cues, copy/append, saved) | 361,320 | +5,536 | 220,244 | 77,700 | +144 | 20,604 | 156,512 |
+| 2026-11-02 | f587152+ | Drum Something: virtual EPROM playback, Snare and Crash tables (test) | 408,824 | +47,504 | 172,740 | 77,700 | +0 | 20,604 | 156,536 |
+| 2026-11-02 | f587152+ | Drum Something: swing adjustable whenever | 408,920 | +96 | 172,644 | 77,700 | +0 | 20,604 | 156,536 |
+| 2026-11-02 | f587152+ | Drum Something: clock master, MIDI Start/Stop, DRUM MODS plate with Swing Lock | 410,840 | +1,920 | 170,724 | 77,732 | +32 | 20,572 | 156,536 |
+| 2026-11-02 | f587152+ | Drum Something: all thirteen voices from virtual EPROMs | 518,792 | +107,952 | 62,772 | 77,732 | +0 | 20,572 | 156,536 |
+| 2026-11-02 | f587152+ | Drum Something: recorded as played, saved data repaired on load, PLAY and REC in time, length on ENV, function hints | 519,752 | +960 | 61,812 | 77,732 | +0 | 20,572 | 156,536 |
+| 2026-11-03 | f587152+ | Drum Something: Bass drum +12 dB, TRANSPORT mod, REC steady | 520,072 | +320 | 61,492 | 77,732 | +0 | 20,572 | 156,568 |

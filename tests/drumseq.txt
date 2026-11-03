@@ -1,0 +1,626 @@
+# Drum Something's sequencer, as the operation manual has it: length (time signature x measures), set while empty; a
+# recorded hit on the Error Correct's grid, heard from the next pass; REC on and off as it plays; REC held: Erase Instrument;
+# cues; erase, copy, append; saved. tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/drumseq.txt bs2/build/host
+wait 600
+press HOME
+wait 1100
+release HOME
+wait 2000
+expect drum 1
+# the drums' tempo, their own: the manual's 100 at first (here 120, for the timings below)
+expect dt_tempo 100
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+expect dt_tempo 120
+expect tempo 120
+# the defaults: 4/4, one measure (96 ticks), recorded as played (Error Correct 1/96, off; the 400's was 1/16)
+expect dt_len 96
+expect dt_ec 9
+# an empty pattern won't run
+tap PLAY
+wait 30
+expect dt_run 0
+# RECORD MODE (REC tapped) and RUN: the metronome on each beat
+tap REC
+wait 30
+expect dt_rec 1
+expect dt_fn 1
+tap PLAY
+wait 2300
+expect dt_run 1
+# at 120 BPM a measure is 2 s: 5 beats in 2.3 s
+expect dt_clicks 5
+# a key while it records: one hit, where it was played
+expect dt_n 0
+tapkey w4 100
+wait 30
+expect dt_n 1
+expect dt_used 1
+# heard then, then only once a pass: not twice this pass
+expect dt_hits 1
+wait 2000
+expect dt_hits 2
+# REC tapped: recording off, it plays on, no metronome, a key not recorded
+tap REC
+wait 30
+expect dt_rec 0
+expect dt_run 1
+expect dt_fn 0
+tapkey w5 100
+wait 30
+expect dt_n 1
+# again on: a snare; ALGO moves nothing while recording but what's lit
+tap REC
+wait 30
+turn ALGO -2
+wait 30
+expect dt_ec 9
+tapkey w5 100
+wait 30
+expect dt_n 2
+# REC held: Erase Instrument, its key silent; held a whole pass, that drum's gone
+press REC
+wait 1100
+release REC
+wait 30
+expect dt_rec 2
+expect dt_fn 2
+key w5 down 100
+wait 2100
+key w5 up
+wait 30
+expect dt_n 1
+# a tap: recording again
+tap REC
+wait 30
+expect dt_rec 1
+expect dt_fn 1
+# SEQ goes round Record, Erase, Error Correct, Swing as it runs
+tap SEQ
+expect dt_rec 2
+tap SEQ
+expect dt_fn 3
+expect dt_rec 1
+tap SEQ
+expect dt_fn 4
+expect dt_rec 1
+tap SEQ
+expect dt_fn 1
+# STOP: out of RECORD MODE, the number
+tap PLAY
+wait 30
+expect dt_run 0
+expect dt_rec 0
+expect dt_fn 0
+# it has hits: its length can't change (the manual), an empty one's can
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 6
+expect dt_rec 0
+spin PRESET 3
+wait 30
+expect dt_meas 1
+expect dt_len 96
+# erase it: back to the defaults, then two measures of 3/4
+tap SEQ
+expect dt_fn 7
+tap SEL
+wait 30
+expect dt_fn 0
+expect dt_n 0
+expect dt_used 0
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 5
+spin PRESET -1
+wait 30
+expect dt_num 3
+tap SEQ
+spin ALGO 1
+wait 30
+expect dt_meas 2
+expect dt_len 144
+# swing is stored: 58 %
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 4
+spin ALGO 2
+wait 30
+expect dt_swing 2
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 0
+# record a bass, then cue the next pattern (empty, so it stops exactly at its end)
+tap REC
+tap PLAY
+wait 200
+tapkey w4 100
+wait 30
+expect dt_n 1
+tap REC
+wait 30
+expect dt_rec 0
+spin PRESET 1
+wait 30
+expect dt_pat 1
+expect dt_cur 0
+expect dt_run 1
+wait 3200
+expect dt_run 0
+# copy 00 to 05 (empty): its settings and hit; onto itself: appended, twice as long
+spin PRESET -1
+wait 30
+expect dt_pat 0
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 8
+spin PRESET 5
+tap SEL
+wait 30
+expect dt_fn 0
+expect dt_used 2
+spin PRESET 5
+wait 30
+expect dt_pat 5
+expect dt_n 1
+expect dt_num 3
+expect dt_len 144
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 8
+tap SEL
+wait 30
+expect dt_n 2
+expect dt_len 288
+expect dt_meas 4
+# saved: a reboot brings them back
+tap SAVE
+wait 30
+reboot
+wait 600
+tap HOME
+wait 30
+expect page 25
+expect dt_pat 5
+expect dt_n 2
+expect dt_len 288
+expect dt_used 3
+# a drum not programmed plays at its knob's level; programmed (a key in RECORD MODE, stopped), its hits keep their volume
+expect dt_v0 0
+spin PRESET 5
+wait 30
+expect dt_pat 10
+tapkey w4 100
+wait 30
+expect dt_sel 0
+spin K3 -5
+wait 30
+expect dt_vol 10
+tap REC
+wait 30
+tapkey w4 100
+wait 30
+expect dt_n 0
+tap PLAY
+wait 300
+tapkey w4 100
+wait 30
+expect dt_n 1
+expect dt_v0 10
+tap PLAY
+wait 30
+expect dt_run 0
+# the background saves wait for the drums too: not while it runs, once it's been stopped a while
+wait 2000
+expect hushed 1
+tap REC
+tap PLAY
+wait 800
+expect hushed 0
+tap PLAY
+wait 30
+expect dt_run 0
+expect dt_rec 0
+wait 1500
+expect hushed 1
+# 99: never records, never runs
+spin PRESET 89
+wait 30
+expect dt_pat 99
+tap REC
+wait 30
+expect dt_rec 0
+tap PLAY
+wait 30
+expect dt_run 0
+# Swing whenever (ours; the 400's only stopped): stopped, playing, recording. Playing, SEQ goes straight to it and back,
+# arming nothing; RUN from it stays on it
+spin PRESET -94
+wait 30
+expect dt_pat 5
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 4
+expect dt_swing 2
+expect dt_rec 0
+tap PLAY
+wait 30
+expect dt_run 1
+expect dt_fn 4
+spin ALGO 2
+wait 30
+expect dt_swing 4
+expect dt_pat 5
+spin PRESET -1
+wait 30
+expect dt_swing 3
+tap SEQ
+expect dt_fn 0
+expect dt_rec 0
+tap SEQ
+expect dt_fn 4
+expect dt_rec 0
+tap SEQ
+expect dt_fn 0
+# recording: SEQ goes on to Swing, still recording; ALGO is the swing there, Error Correct elsewhere
+tap REC
+wait 30
+expect dt_rec 1
+expect dt_fn 1
+tap SEQ
+tap SEQ
+expect dt_fn 3
+tap SEQ
+expect dt_fn 4
+expect dt_rec 1
+spin ALGO -1
+wait 30
+expect dt_swing 2
+tap SEQ
+expect dt_fn 1
+expect dt_rec 1
+tap PLAY
+wait 30
+expect dt_run 0
+# the clock: the drums the master while they run, the bass's patch tempo untouched
+tap OCT-
+wait 30
+expect dt_tempo 119
+expect tempo 120
+# DRUM MODS (FX): Swing Lock, off by default: the swings independent
+tap FX
+wait 30
+expect page 32
+expect dswing_lock 0
+tap PLAY
+wait 100
+expect dt_run 1
+expect dt_lock 0
+# on: the bass's 16ths on the running pattern's swing (58 %: a first 8th of 13.92 ticks); off again: independent
+turn SELECT 1
+wait 50
+expect dswing_lock 1
+expect dt_lock 1392
+turn SELECT -1
+wait 50
+expect dswing_lock 0
+expect dt_lock 0
+tap PLAY
+wait 50
+expect dt_run 0
+tap HOME
+wait 30
+expect page 25
+# MIDI Start and Stop run the drums (SYNC AUTO)
+midi FA
+wait 50
+expect dt_run 1
+midi FC
+wait 50
+expect dt_run 0
+expect dt_fn 0
+# a bass arp under a running pattern (tempo 60 for the drums, the patch's stays): on the drums' clock, restarted with
+# them; with Swing Lock on, each 16th on their curve, checked over a bar and through the swing changing
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+tap OCT-
+expect dt_tempo 60
+expect tempo 120
+midi B0 6C 7F
+midi 90 30 64
+wait 50
+tap PLAY
+wait 2000
+expect dt_run 1
+expect rpos 8
+expect tempo 120
+tap FX
+wait 30
+turn SELECT 1
+wait 30
+tap PLAY
+wait 50
+tap PLAY
+wait 730
+expect dt_lock 1392
+expect bass_on_drums 1
+wait 1370
+expect bass_on_drums 1
+wait 1900
+expect bass_on_drums 1
+wait 3100
+expect bass_on_drums 1
+# the swing changed as it plays: the same curve still (from HOME: ALGO on the mods' plate is TRANSPORT)
+tap HOME
+wait 30
+tap SEQ
+expect dt_fn 4
+spin ALGO 2
+wait 2400
+expect dt_lock 1584
+expect bass_on_drums 1
+wait 2111
+expect bass_on_drums 1
+# (and it moved on: a 16th every step, the arp heard on them)
+expect dt_run 1
+shot drum-mods-lock.png
+tap PLAY
+wait 50
+expect dt_lock 0
+tap FX
+wait 30
+turn SELECT -1
+wait 30
+expect dswing_lock 0
+tap HOME
+wait 30
+midi 80 30 00
+midi B0 6C 00
+# as played: hits apart stay apart, none moved together; with Error Correct asked for (1/2), they do fall on its grid
+spin PRESET 15
+wait 30
+expect dt_pat 20
+tap REC
+tap PLAY
+wait 300
+midi 99 24 64
+wait 330
+midi 99 26 64
+wait 330
+midi 99 24 64
+wait 330
+midi 99 26 64
+wait 100
+expect dt_n 4
+tap PLAY
+wait 30
+spin PRESET 1
+wait 30
+expect dt_pat 21
+tap REC
+tap SEQ
+tap SEQ
+expect dt_fn 3
+spin ALGO -9
+wait 30
+expect dt_ec 0
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap REC
+wait 30
+expect dt_rec 1
+expect dt_ec 0
+tap PLAY
+wait 300
+midi 99 24 64
+wait 330
+midi 99 26 64
+wait 330
+midi 99 24 64
+wait 330
+midi 99 26 64
+wait 330
+midi 99 24 64
+wait 330
+midi 99 26 64
+wait 330
+midi 99 24 64
+wait 330
+midi 99 26 64
+wait 100
+expect dt_n 4
+tap PLAY
+wait 30
+# ENV: the length, straight there: bars, again the time signature; running, refused and left where it was
+expect dt_rec 0
+spin PRESET 1
+wait 30
+tap ENV
+expect dt_fn 6
+tap ENV
+expect dt_fn 5
+tap ENV
+expect dt_fn 6
+spin ALGO 1
+wait 30
+expect dt_meas 2
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 1
+tap REC
+wait 30
+expect dt_fn 0
+# TRANSPORT (DRUM MODS, ALGO): on by default: the drums' run and stop start and stop the bass's sequence, its arp mode as it
+# was after; off: each its own
+expect dtrans_off 0
+expect arp_on 0
+spin PRESET -2
+wait 30
+expect dt_pat 20
+expect dt_n 4
+tap PLAY
+wait 200
+expect dt_run 1
+expect arp_on 1
+expect bass_src 2
+tap PLAY
+wait 100
+expect dt_run 0
+expect arp_on 0
+expect bass_src 0
+tap FX
+wait 30
+turn ALGO -1
+wait 30
+expect dtrans_off 1
+tap PLAY
+wait 200
+expect dt_run 1
+expect arp_on 0
+expect bass_src 0
+tap PLAY
+wait 100
+turn ALGO 1
+wait 30
+expect dtrans_off 0
+tap HOME
+wait 30
+expect page 25
+# an arp on: stopped and started with them
+midi B0 6C 7F
+midi 90 30 64
+wait 100
+expect bass_src 1
+tap PLAY
+wait 200
+expect bass_src 1
+tap PLAY
+wait 100
+expect arp_on 0
+tap PLAY
+wait 100
+expect arp_on 1
+expect bass_src 1
+tap PLAY
+wait 100
+midi 80 30 00
+midi B0 6C 00
+wait 50
+# REC's light: steady recording, off otherwise
+expect rec_light 0
+tap REC
+wait 30
+expect rec_light 1
+tap REC
+wait 30
+expect rec_light 0

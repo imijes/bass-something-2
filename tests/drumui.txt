@@ -1,0 +1,215 @@
+# Drum Something's controls: every button the drums', the same knobs on every page (K1 METRONOME, K2 MASTER, K3 VOLUME and
+# K4 TUNING of the drum last tapped, PRESET the number), six Channel pages under EDIT, their keys lit, Knob Zoom.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/drumui.txt bs2/build/host
+wait 600
+press HOME
+wait 1100
+release HOME
+wait 2000
+expect drum 1
+expect page 25
+shot drum-home.png
+# a tap selects: K3, K4 on it, no hold; a turn shows on the left display
+tapkey w4 100
+wait 30
+expect dt_sel 0
+spin K3 -3
+wait 30
+expect dt_vol 12
+tapkey w5 100
+wait 30
+expect dt_sel 1
+expect dt_vol 15
+spin K4 2
+wait 30
+expect dt_tune 9
+shot drum-home-tune.png
+wait 2600
+tapkey w4 100
+wait 30
+expect dt_vol 12
+expect dt_tune 7
+# K1, K2 the same whichever drum
+spin K1 10
+expect dt_metro 100
+spin K2 -27
+expect dt_master 100
+# PRESET: the number, to 99
+spin PRESET 3
+wait 30
+expect dt_pat 3
+spin PRESET 200
+expect dt_pat 99
+spin PRESET -99
+expect dt_pat 0
+wait 1100
+# the synth's buttons do nothing of the synth's here
+expect octave 0
+tap OCT+
+wait 30
+expect octave 0
+expect dt_tempo 101
+expect tempo 120
+shot drum-tempo.png
+tap OCT-
+tap SEL
+wait 30
+expect page 25
+tap LFO
+wait 30
+expect page 25
+expect afx 0
+# SEQ steps the pattern list, ARP the song list, ENTER (SEL) into BUILD MODE and out
+tap SEQ
+wait 30
+expect dt_fn 1
+tap SEQ
+tap SEQ
+expect dt_fn 3
+shot drum-fn.png
+tap ARP
+expect dt_fn 9
+tap ARP
+tap ARP
+tap ARP
+expect dt_fn 12
+tap SEL
+expect dt_fn 13
+tap ARP
+expect dt_fn 14
+tap SEL
+expect dt_fn 9
+spin PRESET 5
+expect dt_song 5
+expect dt_pat 0
+tap SEQ
+expect dt_fn 0
+# PLAY and REC on any page; recording, SEQ goes round Record, Erase, Error Correct; stopped, back to the number
+tap REC
+wait 30
+expect dt_rec 1
+expect dt_fn 1
+tap PLAY
+wait 30
+expect dt_run 1
+tap SEQ
+tap SEQ
+expect dt_fn 3
+tap SEQ
+expect dt_fn 4
+tap SEQ
+expect dt_fn 1
+tap PLAY
+wait 30
+expect dt_run 0
+expect dt_rec 0
+expect dt_fn 0
+# EDIT: the selected drum's channel (Bass's: its low C lit), then the next, the channel's first selected
+tap EDIT
+wait 30
+expect page 26
+expect lit 128
+expect dt_mid 0
+shot drum-ch1.png
+tap EDIT
+wait 30
+expect page 27
+expect dt_sel 1
+expect lit 512
+expect dt_mid 2048
+shot drum-ch2.png
+tap EDIT
+tap EDIT
+tap EDIT
+tap EDIT
+wait 30
+expect page 31
+expect dt_sel 9
+shot drum-ch6.png
+spin K4 1
+wait 30
+shot drum-ch6-zoom.png
+tap EDIT
+wait 30
+expect page 26
+# a key tapped on a Channel page: its channel's page (the top G: Cabasa, channel 6)
+tapkey w15 100
+wait 30
+expect page 31
+expect dt_sel 12
+tap HOME
+wait 30
+expect page 25
+expect dt_mid 0
+# PLAY and REC here too; GLO from the drums' own, no DUMP
+tap GLO
+wait 30
+expect page 24
+tap REC
+tap PLAY
+wait 30
+expect dt_run 1
+tap PLAY
+wait 30
+expect dt_run 0
+tap GLO
+tap GLO
+tap GLO
+wait 30
+expect page 19
+tap GLO
+wait 30
+expect page 24
+tap HOME
+wait 1200
+# Knob Zoom on HOME: K3 turned closes in
+spin K3 1
+wait 400
+expect zoom 256
+shot drum-home-zoom.png
+wait 1500
+# a drum's CC on HOME dives to its channel (tune, Tom 1: CC 36) and back to the drum it had selected
+expect dt_sel 12
+midi B9 24 40
+wait 800
+expect page 28
+expect dt_sel 3
+shot drum-dive.png
+wait 2000
+expect page 25
+expect dt_sel 12
+# back to the synth: its buttons its own
+press HOME
+wait 1100
+release HOME
+wait 2000
+expect drum 0
+expect page 16
+tap SEL
+wait 30
+expect page 5
+# (for the eye: recording, erasing, the length's functions)
+press HOME
+wait 1100
+release HOME
+wait 2000
+tap REC
+wait 30
+shot drum-rec.png
+press REC
+wait 1100
+release REC
+wait 30
+shot drum-erase.png
+tap REC
+wait 30
+tap REC
+wait 3000
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+wait 30
+shot drum-time.png

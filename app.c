@@ -38,7 +38,9 @@ typedef struct {
     uint8_t dchan;                       /* Drum Something's MIDI channel in and out (GLO DRUMS): as chan, its own: the
                                           * drums and the synth are two devices on one MIDI network */
     uint8_t dcc_chan;                    /* the drums' CCs (bs2_drum.c's dt_cc) in: as cc_chan */
-    uint8_t dpad[2];                     /* (spare: the record's end, no padding) */
+    uint8_t dswing_lock;                 /* Swing Lock (DRUM MODS): the bass's swing the running pattern's (was spare, 0: off) */
+    uint8_t dtrans_off;                  /* TRANSPORT (DRUM MODS) off: the drums' run and stop leave the bass alone (was spare,
+                                          * 0: on, as MIDI's start and stop) */
 } settings_t;
 #define SET_V1_SIZE 8u                   /* the record before the GLO pages: magic to ble_off */
 #define SET_V2_SIZE offsetof(settings_t, mem)   /* the record before the sequences (16 bytes stored: a byte of padding) */
@@ -516,6 +518,9 @@ static fifo_t recq;                          /* audio -> main loop: MIDI in's no
 static fifo_t ccq;                           /* audio -> main loop: MIDI in's CCs on CC CHAN, number | value << 8 */
 #define NOTE_ALL_OFF 0xFFu
 #include "bs2_drum.c"                     /* Drum Something: the drum voices (dt_hit, dt_note, dt_next) */
+/* the clock's BPM: the drums', the master, while a pattern runs (the bass on the same clock, as on a 400 sending MIDI
+ * clock to a Bass Station II); else the patch's */
+static float clock_bpm(void) { return dt_running ? (float)dt.tempo : (float)patch.tempo; }
 static volatile uint8_t seq_auto;            /* the main loop's: the PLAY button's, the sequence played with no key held
                                               * (at its own key, until one comes) */
 #define seq_rec (patch.arp_mode == ARP_REC)  /* the arp's REC: the keys play as they are, each a step recorded */
@@ -744,6 +749,9 @@ static void eng_run(uint32_t m)              /* each modulation step, m samples 
                     : eng.nheld ? SRC_ARP : SRC_NONE;
     float len = STEP_TICKS * (float)(eng.rpos & 1u ? 100u - patch.swing : patch.swing) * 0.02f;   /* swing: a pair's
                                                                                                    * first longer */
+    const float lock = dt_lock_h;
+    if (lock > 0.0f)                         /* (Swing Lock: the 16ths where the drums' swung 8ths put them) */
+        len = (eng.rpos & 2u ? 24.0f - lock : lock) * 0.5f;
     if (!patch.latch)                        /* (latch turned off: the notes no longer down go) */
         for (i = eng.nheld; i-- > 0u;)
             if (!(eng.down[eng.held[i] >> 5] >> (eng.held[i] & 31u) & 1u))
@@ -751,7 +759,7 @@ static void eng_run(uint32_t m)              /* each modulation step, m samples 
     eng.ext_age = eng.ext_age < EXT_HOLD ? eng.ext_age + m : EXT_HOLD;
     eng.ext_span += m;
     if (set.clk_out && !ext_clock())         /* the tempo out as MIDI clock, whether anything plays or not */
-        for (eng.clk_out += (float)patch.tempo * (24.0f / 60.0f / BS2_RATE) * (float)m; eng.clk_out >= 1.0f;
+        for (eng.clk_out += clock_bpm() * (24.0f / 60.0f / BS2_RATE) * (float)m; eng.clk_out >= 1.0f;
              eng.clk_out -= 1.0f)
             plat_midi_send(0x0Fu | 0xF8u << 8, TO_USB | TO_BLE);
     if (src != eng.src) {                    /* started, stopped, the other took over, or MIDI's start */
@@ -759,6 +767,17 @@ static void eng_run(uint32_t m)              /* each modulation step, m samples 
         eng.src = src;
         eng.tick = 0.0f;
         eng.apos = eng.spos = eng.rpos = 0;
+        if (dt_running && !set.dtrans_off && src != SRC_NONE) {   /* (started under a running pattern: on its 16ths, in
+                                              * its phase; TRANSPORT off, where it falls) */
+            const float h = lock > 0.0f ? lock : 12.0f, p = dt_pos, b[4] = {0.0f, h * 0.5f, h, h + (24.0f - h) * 0.5f};
+            const uint32_t q = (uint32_t)p / 24u;
+            const float at = p - (float)q * 24.0f;
+            uint32_t r = 3u;
+            while (r && at < b[r])
+                r--;
+            eng.rpos = q * 4u + r;
+            eng.tick = at - b[r];
+        }
         eng.scur = NSTEPS;
         eng.tie = eng.leg = 0;
         eng.ext_ticks = 0;
@@ -774,7 +793,28 @@ static void eng_run(uint32_t m)              /* each modulation step, m samples 
     }
     if (src == SRC_NONE)
         return;
-    eng.tick += ext_clock() ? (float)eng.ext_ticks : (float)patch.tempo * (24.0f / 60.0f / BS2_RATE) * (float)m;
+    if (lock > 0.0f) {                       /* Swing Lock: its place read from the pattern's, not counted, so a swing
+                                              * changed as it plays leaves no drift */
+        const float b4[4] = {0.0f, lock * 0.5f, lock, lock + (24.0f - lock) * 0.5f}, p = dt_pos;
+        const float at = p - (float)((uint32_t)p / 24u * 24u);
+        uint32_t r = 3u;
+        while (r && at < b4[r])
+            r--;
+        eng.tick = at - b4[r];
+        eng.ext_ticks = 0;
+        if (r != (eng.rpos & 3u)) {
+            eng.rpos += (r - eng.rpos) & 3u;
+            eng.tie = 0;
+            if (src == SRC_ARP)
+                arp_beat();
+            else
+                seq_beat();
+        }
+        if (eng.sounding && !eng.tie && eng.tick >= (r & 2u ? 24.0f - lock : lock) * 0.5f * (float)patch.gate * 0.01f)
+            eng_quiet();
+        return;
+    }
+    eng.tick += ext_clock() ? (float)eng.ext_ticks : clock_bpm() * (24.0f / 60.0f / BS2_RATE) * (float)m;
     eng.ext_ticks = 0;
     if (eng.tick >= len) {
         eng.tick = eng.tick >= 2.0f * len ? 0.0f : eng.tick - len;
@@ -826,6 +866,7 @@ static const char *midi_in_text(char *h)     /* the last message in as hex, "90 
     }
     return midi_last_port < NPORTS ? PORT[midi_last_port] : "";
 }
+#include "bs2_dseq.c"                     /* Drum Something: its sequencer (dq_block, dq_sample, dq_click_next) */
 static void midi_in(void)                    /* audio interrupt: the keys' notes, and the packets that came in */
 {
     uint32_t pkt, e;
@@ -852,13 +893,20 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
         if (st == 0xF8u) {                   /* MIDI clock: the arp and the sequencer follow it (CLOCK not INT) */
             if (set.clock != CLK_INT) {
                 eng.ext_ticks++;
+                dq.ext++;
                 eng.lfo_ticks++;
                 ext_measure();
                 eng.ext_age = 0;
             }
         } else if (st == 0xFAu) {            /* start: from the first step */
-            if (set.clock != CLK_INT)
+            if (set.clock != CLK_INT) {
                 eng.src = SRC_RESTART;
+                if (dq.sel < DQ_NPAT && dqm.pat[dq.sel].n)   /* (the drums too: the manual's slave) */
+                    dq_start(dq.sel);
+            }
+        } else if (st == 0xFCu) {            /* stop: the drums */
+            if (set.clock != CLK_INT)
+                dq_stop();
         } else if ((st & 0xF0u) == 0xB0u) {  /* a CC: a knob of the sound's on CC CHAN alone (cc_apply) */
             if (cc)
                 fifo_put(&ccq, d1 | d2 << 8);
@@ -880,7 +928,7 @@ static float lfo_ticks(uint32_t n)
 {
     uint32_t t = eng.lfo_ticks;
     eng.lfo_ticks = 0;
-    return ext_clock() ? (float)t : (float)patch.tempo * (24.0f / 60.0f / BS2_RATE) * (float)n;
+    return ext_clock() ? (float)t : clock_bpm() * (24.0f / 60.0f / BS2_RATE) * (float)n;
 }
 static float mod_step(const adsr_t *menv, uint32_t n, float *mod, float *lv)
 {
@@ -976,6 +1024,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     plat_usb_audio_route(patch.lvl_ext != 0u);   /* (from the next render) */
     midi_in();
     dt_block();
+    dq_block();
     if (!afx_on)
         ax = (afx_t){-1, 0, 0, 0};
     else if (voice_note >= 0)
@@ -1122,7 +1171,9 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             dsum += s;
             dabs += fm_fabsf(s);
 #endif
-            s += dt_next() * 0.3f * gain_now;    /* the drums: after the bass's chain, at its level */
+            dq_sample();
+            s += (dt_next() + dq_click_next()) * 0.3f * gain_now * ((float)dt.master / 127.0f);   /* the drums: after the bass's chain, at
+                                                  * its level, under their own MASTER VOLUME (K2) */
             o[0] = (int32_t)s;
             o[1] = (int32_t)s;
         }
@@ -1209,7 +1260,7 @@ static void settings_defaults(settings_t *s)
     s->hints = 1;
     s->pad = s->pop = s->zoom_off = 0;           /* (pop 0: 1.5 s; zoom_off 0: AUTO) */
     s->dchan = s->dcc_chan = 10;            /* (the drums: GM's channel) */
-    s->dpad[0] = s->dpad[1] = 0;
+    s->dswing_lock = s->dtrans_off = 0;
     {
         static const seqmem_t L = SEQ_LINE, E = {.len = 0, .step = {SEQ_REST}};
         uint32_t i, j;
@@ -1410,6 +1461,7 @@ void app_init(void)
     uint32_t i;
     settings_defaults(&d);
     dt_init();
+    dq_init();
     if (n < (int)SET_V1_SIZE || set.magic != SET_MAGIC || set.octave < -2 || set.octave > 2 || set.slot >= NSLOTS
         || set.ble_off > 1u)
         set = d;
@@ -1466,6 +1518,16 @@ static struct {
     uint32_t lit;                        /* the keys whose notes are held (notes_lit): lit, on the keys and on screen */
     uint8_t drum;                        /* Drum Something's mode (HOME held): the keys its instruments, HOME its page */
     uint32_t dt_at[NDT];                 /* when each drum was last hit (dt_flash_take): its key lit a moment */
+    uint8_t dt_sel;                      /* the drum last tapped: what VOLUME and TUNING (K3, K4) set */
+    uint8_t dt_fn;                       /* the function lit in the 400's LED lists (DTF_*): SEQ and ARP step them */
+    uint8_t dt_pat, dt_song, dt_tgt;     /* the number each list's first function shows (a cue while it runs); the one
+                                          * ERASE PATTERN or COPY/APPEND TO would act on */
+    uint8_t dt_b_saved, dt_b_mode, dt_b_paused;   /* TRANSPORT: the drums started the bass's sequence (its arp mode before);
+                                          * they stopped its arp, to come back with them */
+    uint8_t dt_was;                      /* it was running (its stopping seen: the list back at its number) */
+    uint8_t dt_show;                     /* DTS_*: what the header shows for a moment, till dt_until */
+    uint32_t dt_until;
+    uint32_t dt_mid;                     /* the keys at the lights' middle level (a channel's others) */
 } ui PLAT_POOL;
 /* Knob Zoom's camera (below, zoom_step) */
 #define ZOOM_MAX 256                         /* Q8, over 1x: 2x (crisp once there: whole pixels) */
@@ -1483,6 +1545,7 @@ static struct {                             /* (all 0 at rest: in the pool) */
     uint8_t k, pg;                           /* the encoder (+1: 0 none) and page its target is of */
     uint8_t home, g, ke;                     /* ZH_*; the CC's section page, its encoder */
     uint8_t sv[5], v[5];                     /* HOME's views (zoom_views); the CC's page's */
+    uint8_t hp, dsv, dnew;                   /* the HOME it dives from; Drum Something's: its selected drum, the CC's */
     uint32_t at, cc_at;                      /* the last step's time; the last CC's from HOME */
 } zoom PLAT_POOL;
 #define ORG_SHOW_MS 1500u                    /* a control's value on the MASTER's display, after its change */
@@ -1628,15 +1691,23 @@ static void ble_device_button(void)
  * settings_t field on the GLO pages, from PG_GMIDI on), its range, and its names when it is a choice; a page's
  * empty places set nothing */
 enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GSYS, PG_GDISP, PG_GDUMP,
-       PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, PG_DHOME, NPAGES };   /* (each new page last: the pages' numbers before it
-                                              * kept) */
+       PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
+       PG_DMOD, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI", "GLOBAL SYSTEM",
                                               "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
-                                              "GLOBAL DRUMS", "DRUM HOME"};
+                                              "GLOBAL DRUMS", "DRUM HOME", "CHANNEL 1", "CHANNEL 2", "CHANNEL 3",
+                                              "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
-#define DRUM_PAGE(g) ((g) == PG_DHOME)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
+#define DRUM_PAGE(g) ((g) >= PG_DHOME)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
+#define DCH_PAGE(g) ((g) >= PG_DCH1 && (g) <= PG_DCH6)   /* its Channel pages */
+/* the 400's two LED lists, one number each: PATTERN's, then SONG's, BUILD MODE's own under it */
+enum { DTF_PAT, DTF_REC, DTF_ERASEI, DTF_ERROR, DTF_SWING, DTF_TIME, DTF_MEAS, DTF_ERASEP, DTF_COPYP,
+       DTF_SONG, DTF_ERASES, DTF_COPYS, DTF_BUILD, DTF_BPAT, DTF_BVOL, DTF_BTEMPO, DTF_BINS, DTF_BDEL, NDTF };
+enum { DTS_NONE, DTS_FN, DTS_TEMPO, DTS_VOL, DTS_TUNE };   /* the header's moment: a function's name, the tempo over both
+                                              * displays, the selected drum's level or pitch on the left one */
+#define DT_SHOW_MS 2500u                     /* (past Knob Zoom's way back out: the left display seen, its knob just left) */
 /* the pop-ups' time (GLO DISPLAY), its knob's places; pop_d the place, 0 and 1 swapped in the store so a record from
  * before it (0) is 1.5 s */
 enum { NPOP = 5 };
@@ -1735,6 +1806,8 @@ static const param_t PARAMS[NPAGES][NE] = {
     /* (K1 turned and shown as pop_d's: knob_turn, knob_text) */
     [PG_GDRUM] = {[EN_SELECT] = {"CC CHAN", SF(dcc_chan), CH_OFF, CH_ALL, CHAN_NAME},
                   [EN_K1] = {"CHANNEL", SF(dchan), CH_OFF, CH_ALL, CHAN_NAME}},
+    [PG_DMOD] = {[EN_SELECT] = {"SWING LOCK", SF(dswing_lock), 0, 1, OFF_ON},
+                 [EN_ALGO] = {"TRANSPORT", SF(dtrans_off), 0, 1, ON_OFF}},
     [PG_GDISP] = {[EN_PRESET] = {"KNOB ZOOM", SF(zoom_off), 0, 1, AUTO_OFF},
                   [EN_K1] = {"HINTS", SF(hints), 0, 1, OFF_ON}, [EN_K2] = {"POP-UPS", SF(pop), 0, NPOP - 1, 0}},
 };
@@ -1888,12 +1961,14 @@ static const cc_map_t CC_MAP[] = {
     {113, &EMODM_P[EN_K1]},        {115, CCP(PG_EFX, EN_K2)},
 };
 static void zoom_cc_in(const param_t *q);
+static void zoom_dt_cc(uint32_t cc);
 static void zoom_views(const uint8_t *v);
 static void cc_apply(uint32_t cc, uint32_t v)   /* the main loop's: a CC on CC CHAN, number and value */
 {
     uint32_t i;
     if (cc == 108u) {                        /* (the arp's On: a button, no encoder) */
         patch.arp_on = v != 0u;
+        ui.dt_b_saved = ui.dt_b_paused = 0;  /* (the user's now: TRANSPORT forgets what it was keeping) */
         set_dirty = 1;
         ui.redraw = 1;
         return;
@@ -2148,11 +2223,128 @@ static int32_t knob_accel(uint32_t k, int32_t e, const param_t *q)
     return e * ((q->hi - q->lo + 1) / 128 > 1 ? (q->hi - q->lo + 1) / 128 : 1) *
            MUL[set.knobs < NKN ? set.knobs : KN_NORMAL][gap < 20u ? 0 : gap < 35u ? 1 : gap < 60u ? 2 : gap < 100u ? 3 : 4];
 }
+/* Drum Something's knobs, on every one of its pages: the 400's four on K1-K4 (K3, K4 the drum last tapped's, shown on
+ * the left display), PRESET the number its list's first function shows */
+static void dt_show(uint32_t what)
+{
+    ui.dt_show = (uint8_t)what;
+    ui.dt_until = (plat_ms() + DT_SHOW_MS) | 1u;
+    ui.redraw = 1;
+}
+static void dt_refuse(const char *why)       /* (the manual's own limits, said as it happens) */
+{
+    ui.hint = why;
+    ui.hint_until = (plat_ms() + DT_SHOW_MS) | 1u;
+    ui.redraw = 1;
+}
+/* PRESET and ALGO are the 400's keypad and its INC/DEC, on whatever function is lit; recording, ALGO is Error Correct's,
+ * whichever is lit */
+static int dt_value(uint32_t k, int32_t e)
+{
+    dq_pat_t *p = &dqm.pat[ui.dt_pat < DQ_NPAT ? ui.dt_pat : 0];
+    const uint32_t f = ui.dt_fn;
+    const int none = ui.dt_pat >= DQ_NPAT, live = f == DTF_SWING;   /* (swing whenever: the 400 only stopped) */
+    if (dq.run && (f == DTF_TIME || f == DTF_MEAS)) {   /* (the manual's: a length is set stopped, on an empty pattern) */
+        dt_refuse("Stop to change length");
+        return 0;
+    }
+    if (dq.run && dq.rec && f != DTF_ERROR && !live)   /* (recording: only what's lit, nothing moved by chance) */
+        return 0;
+    if (f == DTF_PAT || (!dq.run && f == DTF_REC) || (dq.run && f < DTF_SONG && f != DTF_ERROR && !live)) {   /* running: a cue, the current one's till its end */
+        if (dq.rec)
+            return 0;
+        ui.dt_pat = (uint8_t)clamp((int32_t)ui.dt_pat + e, 0, 99);
+        ui.dt_show = DTS_NONE;
+        if (dq.run)
+            dq_cmd(DQC_CUE, ui.dt_pat, 0);
+        return 1;
+    }
+    if (f >= DTF_SONG) {
+        ui.dt_song = (uint8_t)clamp((int32_t)ui.dt_song + e, 0, 99);
+        ui.dt_show = DTS_NONE;
+        return 1;
+    }
+    if (f == DTF_ERASEP || f == DTF_COPYP) {
+        ui.dt_tgt = (uint8_t)clamp((int32_t)ui.dt_tgt + e, 0, 98);
+        return 1;
+    }
+    if (none)
+        return 0;
+    if (f == DTF_ERROR)
+        p->ec = (uint8_t)clamp((int32_t)p->ec + e, 0, 9);
+    else if (f == DTF_SWING) {
+        if (!dq_can_swing(p)) {
+            dt_refuse("Swing needs x/4");
+            return 0;
+        }
+        p->swing = (uint8_t)clamp((int32_t)p->swing + e, 0, 5);
+    } else if (f == DTF_TIME || f == DTF_MEAS) {
+        if (p->n) {
+            dt_refuse("Erase pattern first");
+            return 0;
+        }
+        if (f == DTF_MEAS)
+            p->meas = (uint8_t)clamp((int32_t)p->meas + e, 1, 99);
+        else if (k == EN_PRESET)
+            p->num = (uint8_t)clamp((int32_t)p->num + e, 1, 99);
+        else
+            p->beat = (uint8_t)clamp((int32_t)p->beat + e, 0, 7);
+        p->len = dq_bar(p) * p->meas;
+        if (!dq_can_swing(p))
+            p->swing = 0;
+    } else
+        return 0;
+    dq.dirty = 1;
+    return 1;
+}
+static int dt_turn(uint32_t k, int32_t e)
+{
+    if (k == EN_K1)
+        dt.metro = (uint8_t)clamp((int32_t)dt.metro + e, 0, 127);
+    else if (k == EN_K2)
+        dt.master = (uint8_t)clamp((int32_t)dt.master + e, 0, 127);
+    else if (k == EN_K3) {
+        dt.vol[ui.dt_sel] = (uint8_t)clamp((int32_t)dt.vol[ui.dt_sel] + e, 0, 15);
+        dt_show(DTS_VOL);
+    } else if (k == EN_K4) {
+        dt.tune[ui.dt_sel] = (uint8_t)clamp((int32_t)dt.tune[ui.dt_sel] + e, 0, 15);
+        dt_show(DTS_TUNE);
+    } else if (ui.page == PG_DMOD && (k == EN_SELECT || k == EN_ALGO)) {   /* (mods: kept with the settings, glo_keep) */
+        if (k == EN_SELECT)
+            set.dswing_lock = e > 0;
+        else
+            set.dtrans_off = e < 0;
+        return 1;
+    } else if (k == EN_PRESET || k == EN_ALGO)
+        return dt_value(k, e);
+    else
+        return 0;
+    dq.dirty = 1;
+    return 1;
+}
 static int knob_turn(uint32_t k, int32_t e)
 {
     static const param_t RT_SPAN = {"RND", 0, 0, 127, 0};   /* (RND TRACKS' levels and sends: turned as a 0..127's) */
-    const param_t *q = ui.page == PG_RTRK && k >= EN_K1 && rnd_row != RR_ENG ? &RT_SPAN : knob_param(k);
+    const param_t *q = (ui.page == PG_RTRK && k >= EN_K1 && rnd_row != RR_ENG) || (DRUM_PAGE(ui.page) && (k == EN_K1 || k == EN_K2))
+                       ? &RT_SPAN : knob_param(k);
     e = knob_accel(k, e, q);
+    if (DRUM_PAGE(ui.page))                  /* Drum Something's, the same on each of its pages (said there) */
+        return dt_turn(k, e);
+    if (ui.page == PG_AMOD && k == EN_K2 && dt_lock_h > 0.0f) {   /* Swing Lock: this knob the running pattern's swing */
+        static char w[24];
+        dq_pat_t *p = &dqm.pat[dq.cur];
+        char n[6];
+        if (dq_can_swing(p)) {
+            p->swing = (uint8_t)clamp((int32_t)p->swing + (e > 0 ? 1 : -1), 0, 5);
+            dq.dirty = 1;
+        }
+        w[0] = 0;
+        text_cat(w, "Drums' swing ");
+        int_text(DQ_SWING[p->swing], n);
+        text_cat(w, n);
+        dt_refuse(w);
+        return 0;
+    }
     if (ui.page == PG_GDISP && k == EN_K2) {   /* the pop-ups' time: its place (pop_d), stored swapped */
         const uint32_t d = (uint32_t)clamp((int32_t)pop_d() + e, 0, NPOP - 1);
         set.pop = (uint8_t)(d < 2u ? 1u - d : d);
@@ -2164,6 +2356,7 @@ static int knob_turn(uint32_t k, int32_t e)
         if (s != set.slot) {
             uint8_t on = patch.arp_on, mode = patch.arp_mode, latch = patch.latch;
             seq_keep(1);                     /* (the sequence made here, kept before it goes) */
+            ui.dt_b_saved = ui.dt_b_paused = 0;   /* (TRANSPORT's memory: of the sound that was) */
             set.slot = (uint8_t)s;
             patch = bank.p[s];
             ui.org = 0;
@@ -2178,7 +2371,7 @@ static int knob_turn(uint32_t k, int32_t e)
         }
         return 1;
     }
-    if (ui.page == PG_ARP && k == EN_K1 && ext_clock())   /* TEMPO: MIDI clock's while it leads (the patch's kept) */
+    if (ui.page == PG_ARP && k == EN_K1 && (ext_clock() || dq.run))   /* TEMPO: MIDI clock's while it leads (the patch's kept) */
         return 1;
     if (ui.page == PG_GRND && k == EN_PRESET) {   /* a seed slot: its seed shown */
         rnd_pick(e);
@@ -2196,8 +2389,10 @@ static int knob_turn(uint32_t k, int32_t e)
             else
                 step_enter(SEQ_REST);
         } else if (!seq_rec) {
-            if (k == EN_PRESET)
+            if (k == EN_PRESET) {
                 patch.arp_on = e > 0;
+                ui.dt_b_saved = ui.dt_b_paused = 0;
+            }
             else
                 patch.latch = e > 0;
             set_dirty = 1;
@@ -2307,6 +2502,13 @@ static const char *knob_name(uint32_t k)
         return k == EN_PRESET ? (seq_rec ? "LEGATO" : "ARP") : seq_rec ? "REST" : "LATCH";
     if (ui.page == PG_ARP && k == EN_K4 && patch.arp_mode >= ARP_PLAY)   /* (the switch: the sequence in REC, PLAY) */
         return "SEQ";
+    if (DRUM_PAGE(ui.page)) {
+        static const char *const N[NE] = {[EN_K1] = "METRONOME", "MASTER", "VOLUME", "TUNING"};
+        if (ui.page == PG_DMOD && (k == EN_SELECT || k == EN_ALGO))
+            return k == EN_SELECT ? "SWING LOCK" : "TRANSPORT";
+        return k == EN_PRESET ? (ui.dt_fn >= DTF_SONG ? "SONG" : ui.dt_fn == DTF_PAT || ui.dt_fn == DTF_REC ? "PATTERN" : "VALUE")
+               : k == EN_ALGO ? "VALUE" : N[k];
+    }
     if (k == EN_PRESET && (PATCH_PAGE(ui.page) || ui.page == PG_GRND))
         return ui.page == PG_GRND ? "SEED" : "PATCH";
     if (ui.page == PG_FX && k == EN_K3)
@@ -2329,6 +2531,8 @@ static const char *knob_title(uint32_t k)    /* over the header: the whole name 
 {
     static char w[32];
     const char *t = knob_name(k) == PARAMS[ui.page][k].name ? TITLE[ui.page][k] : 0;
+    if (DRUM_PAGE(ui.page))
+        return knob_name(k);
     if ((ui.page == PG_LFO1 && (k == EN_K2 || k == EN_K3)) || (ui.page == PG_LFO2 && k != EN_SELECT && knob_param(k)->name)) {
         static const char *const WHAT[NE] = {[EN_K1] = "KEYSYNC", [EN_K2] = "SPEED/SYNC", [EN_K3] = "SLEW"};
         uint32_t i = ui.page == PG_LFO1 ? k - EN_K2 : ui.lfo_sel;   /* "LFO 2 DELAY", "LFO 1 SYNC", "LFO 1 SLEW" */
@@ -2364,18 +2568,40 @@ static const char *knob_title(uint32_t k)    /* over the header: the whole name 
 /* the tempo ARP's TEMPO shows: MIDI clock's, measured, while it leads (0: not yet, or lost), else the patch's */
 static int32_t arp_tempo(void)
 {
-    return !ext_clock() ? (int32_t)patch.tempo : eng.ext_age < EXT_HOLD ? (int32_t)eng.ext_shown : 0;
+    return !ext_clock() ? (dq.run || ui.drum ? (int32_t)dt.tempo : (int32_t)patch.tempo) : eng.ext_age < EXT_HOLD ? (int32_t)eng.ext_shown : 0;
 }
+static void dt_digits(char *l, char *r);
 static void knob_text(uint32_t k, char *t)
 {
     const param_t *q = knob_param(k);
     int32_t v;
     t[0] = 0;
+    if (DRUM_PAGE(ui.page)) {                /* (two digits, as its displays show them; the volumes 0..127) */
+        if (ui.page == PG_DMOD && (k == EN_SELECT || k == EN_ALGO)) {
+            text_cat(t, OFF_ON[k == EN_SELECT ? set.dswing_lock != 0u : !set.dtrans_off]);
+            return;
+        }
+        v = k == EN_K1 ? dt.metro : k == EN_K2 ? dt.master : k == EN_K3 ? dt.vol[ui.dt_sel] : k == EN_K4 ? dt.tune[ui.dt_sel] : -1;
+        if (v >= 0 && k >= EN_K3) {
+            t[0] = (char)('0' + v / 10);
+            t[1] = (char)('0' + v % 10);
+            t[2] = 0;
+        } else if (v >= 0)
+            int_text(v, t);
+        else if (k == EN_PRESET || k == EN_ALGO) {   /* (as the displays have it) */
+            char l[3], r[3];
+            dt_digits(l, r);
+            if (l[0] != ' ' || l[1] != ' ')
+                text_cat(t, l);
+            text_cat(t, r);
+        }
+        return;
+    }
     if (ui.page == PG_ARP && (k == EN_PRESET || k == EN_ALGO)) {   /* the buttons: what they set (recording, its step) */
         text_cat(t, seq_rec ? (k == EN_PRESET ? "LEGATO" : "REST") : OFF_ON[k == EN_PRESET ? patch.arp_on : patch.latch]);
         return;
     }
-    if (ui.page == PG_ARP && k == EN_K1 && ext_clock()) {   /* MIDI clock's tempo (dashes until it is measured) */
+    if (ui.page == PG_ARP && k == EN_K1 && (ext_clock() || dq.run)) {   /* MIDI clock's tempo (dashes until it is measured) */
         if (arp_tempo())
             int_text(arp_tempo(), t);
         else
@@ -2502,7 +2728,10 @@ static uint8_t hushed;                       /* quiet_step's: 1 when silent QUIE
 static void quiet_step(void)                 /* the main loop's (input), before the keepers */
 {
     static uint32_t loud_at;
-    if (eng.src != SRC_NONE || seq_auto || voice_note >= 0 || voice.amp.stage != ENV_IDLE) {
+    uint32_t i, drums = dq.run;              /* (the drums too: a write under them is a dropout) */
+    for (i = 0; i < NDTCH; i++)
+        drums |= dt.ch[i].drum != DT_NONE;
+    if (drums || eng.src != SRC_NONE || seq_auto || voice_note >= 0 || voice.amp.stage != ENV_IDLE) {
         loud_at = plat_ms();
         hushed = 0;
     } else {
@@ -2791,6 +3020,10 @@ static const char *hint_of(uint32_t k)       /* encoder k's here (as its page's 
     static const char *const PW_H[NPW] = {"Pulse width", "Envelope to width", "LFO 2 to width"};
     static const char *const MS_H[NMS] = {"Noise level", "Ring mod level", "USB audio level"};
     static const char *const ROW_H[NRR] = {"Track's engine", "Track's level", "Track's reverb"};
+    if (DRUM_PAGE(ui.page))
+        return ui.page == PG_DMOD && k == EN_SELECT ? "Bass follows drums' swing"
+               : ui.page == PG_DMOD && k == EN_ALGO ? "Drums start and stop bass" : k == EN_K3 || k == EN_K4 ? DT_NAME[ui.dt_sel] : k == EN_K1 ? "Click level" : k == EN_K2 ? "Drums' level"
+               : k == EN_PRESET ? "Pick the number" : k == EN_ALGO ? "Change the value" : 0;
     if (ui.page == PG_MIX && k == EN_K4)
         return PW_H[ui.pw_src];
     if (ui.page == PG_FX && k == EN_K4)
@@ -2841,7 +3074,12 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
     uint32_t g;
     static const char *const H[NB] = {[B_HOME] = "The whole panel", "Save the patch", [B_PLAY] = "Play or stop", [B_OCTDN] = "Octave down",
                                       "Octave up"};
+    static const char *const DH[NB] = {[B_SEL] = "Enter", [B_EDIT] = "Each drum's channel", [B_GLO] = "Settings", [B_HOME] = "The whole panel",
+                                       [B_ARP] = "Song functions", [B_SEQ] = "Pattern functions", [B_PLAY] = "Run or stop", [B_SAVE] = "Save the drums",
+                                       [B_REC] = "Rec on/off; hold: Erase", [B_FX] = "Drum mods", [B_ENV] = "Pattern length", [B_OCTDN] = "Slower", [B_OCTUP] = "Faster"};
     const int rec = seq_rec && ui.page == PG_SEQ;
+    if (ui.drum)                             /* (every button the drums', as dt_button) */
+        return DH[k];
     if (k == B_SEL)
         return rec ? "Tie last step" : ui.page == PG_GDUMP ? "Send this sound" : ui.page == PG_RPAT ? "Unlock everything"
                : ui.page == PG_GRND ? "Ask the RND Synth" : "Patch";
@@ -2883,9 +3121,44 @@ static void hint_show(uint32_t k)            /* Hints: button k's, from the page
     }
 }
 
+static void dt_rec_tap(void);
+static void dt_rec_erase(void);
+/* TRANSPORT (DRUM MODS, on by default): the drums' run and stop reach the bass as MIDI's start and stop would: it plays its
+ * sequence, or its arp if that's on, and stops with them; left as they found it */
+static void dt_bass_transport(int run)
+{
+    if (seq_rec)
+        return;
+    if (run) {
+        if (ui.dt_b_paused) {
+            patch.arp_on = 1;
+            ui.dt_b_paused = 0;
+        } else if (!patch.arp_on) {
+            ui.dt_b_saved = 1;
+            ui.dt_b_mode = patch.arp_mode;
+            patch.arp_mode = ARP_PLAY;
+            patch.arp_on = 1;
+            seq_auto = 1;
+        } else if (patch.arp_mode == ARP_PLAY)
+            seq_auto = 1;
+    } else if (ui.dt_b_saved) {
+        patch.arp_mode = ui.dt_b_mode;
+        patch.arp_on = 0;
+        seq_auto = 0;
+        ui.dt_b_saved = 0;
+    } else if (seq_playing()) {
+        seq_auto = 0;
+        patch.arp_on = 0;
+    } else if (patch.arp_on && patch.arp_mode != ARP_REC) {
+        patch.arp_on = 0;
+        ui.dt_b_paused = 1;
+    }
+}
 static void hold_tap(uint32_t k)
 {
-    if (k == B_HOME)                         /* HOME: the whole panel (the first page), the mode's */
+    if (k == B_REC && ui.drum && (ui.page != PG_GMIDI || !FM1B_BLE_CENTRAL || set.ble_off))
+        dt_rec_tap();
+    else if (k == B_HOME)                         /* HOME: the whole panel (the first page), the mode's */
         page_go(ui.drum ? PG_DHOME : PG_HOME);
     else if (k == B_REC && ui.page != PG_GMIDI)   /* recording, on any page (GLO MIDI's: a Bluetooth device) */
         rec_toggle();
@@ -2919,10 +3192,197 @@ static void dt_key(uint32_t k, uint32_t v, uint32_t keys)
     static const uint8_t BK[11] = PLAT_BLACK_KEYS;
     uint32_t i;
     for (i = 0; i < NDT; i++)
-        if (DT_PAD[i] == k)
-            dt_play(i, v, (int)(keys >> BK[0] & 1u));
+        if (DT_PAD[i] == k) {
+            const uint32_t acc = keys >> BK[0] & 1u;
+            if (dq.rec == DQR_ERASE)         /* (silent, as the manual: it takes the drum's hits out) */
+                dq_cmd(DQC_EKEY, i, 0);
+            else {
+                dt_play(i, v, (int)acc);
+                if (dq.rec == DQR_REC && dq.run)
+                    dq_cmd(DQC_HIT, i, acc);
+                else if (dq.rec == DQR_REC && ui.dt_pat < DQ_NPAT) {   /* (stopped: its volume and tuning programmed) */
+                    dqm.pat[ui.dt_pat].prog |= (uint16_t)(1u << i);
+                    dq.dirty = 1;
+                }
+            }
+            ui.dt_sel = (uint8_t)i;          /* (tapped: VOLUME and TUNING are its now) */
+            if (DCH_PAGE(ui.page) && ui.page != PG_DCH1 + DT_CH[i])   /* (a Channel page: its channel's) */
+                page_go(PG_DCH1 + DT_CH[i]);
+        }
 }
 
+/* the keys lit in Drum Something's mode: each as it's hit; on a Channel page the drum selected, and at the lights'
+ * middle level the rest of its channel */
+static uint32_t dt_lit(void);
+static uint32_t dt_keys_lit(uint32_t *mid)
+{
+    const uint32_t hit = dt_lit();
+    uint32_t i, m = 0;
+    *mid = 0;
+    for (i = 0; i < NDT; i++) {
+        if (hit >> i & 1u)
+            m |= 1u << DT_PAD[i];
+        if (DCH_PAGE(ui.page) && DT_CH[i] == ui.page - PG_DCH1) {
+            if (i == ui.dt_sel)
+                m |= 1u << DT_PAD[i];
+            else
+                *mid |= 1u << DT_PAD[i];
+        }
+    }
+    return m;
+}
+
+/* Drum Something's buttons, on all its pages and its GLO's: none does what it does for the synth */
+static void dt_fn_go(uint32_t f)
+{
+    static const char *const H[NDTF] = {
+        [DTF_PAT] = "PRESET: pick the pattern", [DTF_REC] = "PLAY, then play the keys", [DTF_ERASEI] = "Hold a drum as it loops",
+        [DTF_ERROR] = "ALGO: timing grid, 96 = off", [DTF_SWING] = "ALGO: swing amount", [DTF_TIME] = "PRESET beats, ALGO note",
+        [DTF_MEAS] = "ALGO: bars in the pattern", [DTF_ERASEP] = "ALGO which, SEL erases", [DTF_COPYP] = "ALGO where, SEL copies",
+        [DTF_SONG] = "Songs: not built yet", [DTF_ERASES] = "Songs: not built yet", [DTF_COPYS] = "Songs: not built yet",
+        [DTF_BUILD] = "Songs: not built yet", [DTF_BPAT] = "Songs: not built yet", [DTF_BVOL] = "Songs: not built yet",
+        [DTF_BTEMPO] = "Songs: not built yet", [DTF_BINS] = "Songs: not built yet", [DTF_BDEL] = "Songs: not built yet"};
+    ui.dt_fn = (uint8_t)f;
+    dt_show(DTS_FN);
+    if (set.hints) {
+        ui.hint = H[f];
+        ui.hint_until = (plat_ms() + DT_SHOW_MS) | 1u;
+    }
+}
+static void dt_list(uint32_t f)              /* the pattern list's: its function, and what that arms */
+{
+    if (f == DTF_ERASEP || f == DTF_COPYP)
+        ui.dt_tgt = ui.dt_pat < DQ_NPAT ? ui.dt_pat : 0;
+    if (ui.dt_pat < DQ_NPAT && !(f == DTF_SWING && dq.run))   /* (at the swing as it runs: recording or not, as it was) */
+        dq.rec = f == DTF_REC || f == DTF_ERROR ? DQR_REC : f == DTF_ERASEI ? DQR_ERASE : DQR_OFF;
+    dt_fn_go(f);
+}
+static void dt_rec_tap(void)                 /* REC: recording on or off, it plays on; from Erase, back to recording */
+{
+    if (ui.dt_pat >= DQ_NPAT) {
+        dt_refuse("99 can't record");
+        return;
+    }
+    dq.rec = dq.rec == DQR_REC ? DQR_OFF : DQR_REC;
+    dt_fn_go(dq.rec ? DTF_REC : DTF_PAT);
+}
+static void dt_rec_erase(void)               /* REC held: Erase Instrument (a tap, recording again) */
+{
+    if (ui.dt_pat >= DQ_NPAT) {
+        dt_refuse("99 can't record");
+        return;
+    }
+    dq.rec = DQR_ERASE;
+    dt_fn_go(DTF_ERASEI);
+}
+static void dt_button(uint32_t k)
+{
+    const uint32_t f = ui.dt_fn;
+    switch (k) {
+    case B_EDIT: {                           /* the Channel pages: from the selected drum's, then the next */
+        const uint32_t c = DCH_PAGE(ui.page) ? (ui.page - PG_DCH1 + 1u) % NDTCH : DT_CH[ui.dt_sel];
+        uint32_t i;
+        for (i = NDT; DCH_PAGE(ui.page) && i-- > 0;)   /* (moved on: the channel's first, K3 and K4 on what shows) */
+            if (DT_CH[i] == c)
+                ui.dt_sel = (uint8_t)i;
+        page_go(PG_DCH1 + c);
+        break;
+    }
+    case B_SEQ:                              /* the 400's SELECT PATTERN FUNCTIONS: running in RECORD MODE, round what's
+                                              * used in the loop (Record, Erase Instrument, Error Correct, and Swing, ours);
+                                              * stopped, RECORD MODE and those two arm it */
+        if (dq.run && dq.rec)
+            dt_list(f == DTF_REC ? DTF_ERASEI : f == DTF_ERASEI ? DTF_ERROR : f == DTF_ERROR ? DTF_SWING : DTF_REC);
+        else if (dq.run)                     /* (playing: the number and the swing, nothing that arms it) */
+            dt_list(f == DTF_SWING ? DTF_PAT : DTF_SWING);
+        else
+            dt_list(f < DTF_COPYP ? f + 1u : DTF_PAT);
+        break;
+    case B_ARP:                              /* its SELECT SONG FUNCTIONS (BUILD MODE: its own five) */
+        if (f >= DTF_BPAT)
+            dt_fn_go(f < DTF_BDEL ? f + 1u : DTF_BPAT);
+        else
+            dt_fn_go(f >= DTF_SONG && f < DTF_BUILD ? f + 1u : DTF_SONG);
+        break;
+    case B_SEL:                              /* its ENTER: into BUILD MODE, and out; what the two digits do on the 400:
+                                              * ERASE PATTERN, COPY/APPEND TO (stopped), back at the number */
+        if (f == DTF_BUILD)
+            dt_fn_go(DTF_BPAT);
+        else if (f >= DTF_BPAT)
+            dt_fn_go(DTF_SONG);
+        else if ((f == DTF_ERASEP || f == DTF_COPYP) && !dq.run) {
+            if (f == DTF_ERASEP)
+                dq_cmd(DQC_ERASE, ui.dt_tgt, 0);
+            else if (ui.dt_pat < DQ_NPAT)
+                dq_cmd(DQC_COPY, ui.dt_pat, ui.dt_tgt);
+            dt_fn_go(DTF_PAT);
+        }
+        break;
+    case B_PLAY:                             /* RUN/STOP: an empty pattern won't run but in RECORD MODE; a function that
+                                              * needs it stopped gives way to the number */
+        if (dq.run)
+            dq_cmd(DQC_STOP, 0, 0);
+        else if (ui.dt_pat < DQ_NPAT && (dq.rec || dqm.pat[ui.dt_pat].n)) {
+            if (f > DTF_SWING && f < DTF_SONG)
+                ui.dt_fn = DTF_PAT;
+            dq_cmd(DQC_RUN, ui.dt_pat, 0);
+        }
+        break;
+    case B_SAVE:                             /* the drums' memory (a flash write stops the audio a moment: stopped) */
+        if (dq.run)
+            dt_refuse("Stop first");
+        else if (dq_save() == 0)
+            app_say("DRUMS", "SAVED");
+        else
+            app_say("SAVE", "FAILED");
+        break;
+    case B_OCTDN:                            /* TEMPO, SLOWER and FASTER (the one clock's, MIDI's while it leads) */
+    case B_OCTUP:
+        if (!ext_clock()) {
+            dt.tempo = (uint8_t)clamp((int32_t)dt.tempo + (k == B_OCTUP ? 1 : -1), 40, 250);
+            dq.dirty = 1;
+        }
+        dt_show(DTS_TEMPO);
+        break;
+    case B_FX:
+        page_go(PG_DMOD);
+        break;
+    case B_ENV:                              /* the pattern's length, straight there: its bars, again its time signature */
+        if (dq.run)
+            dt_refuse("Stop to change length");
+        else if (ui.dt_pat < DQ_NPAT) {
+            dt_list(f == DTF_MEAS ? DTF_TIME : DTF_MEAS);
+            if (dqm.pat[ui.dt_pat].n)
+                dt_refuse("Has notes: erase to change");
+        }
+        break;
+    case B_GLO:                              /* the settings the two share, from the drums' own (no DUMP: only the
+                                              * synth's so far) */
+        page_go(ui.page == PG_GDRUM ? PG_GMIDI : ui.page == PG_GMIDI ? PG_GSYS : ui.page == PG_GSYS ? PG_GDISP : PG_GDRUM);
+        break;
+    default:
+        break;
+    }
+    ui.redraw = 1;
+}
+
+static int dt_blink(void) { return dq.run && dt_pos < 4.0f; }   /* the 400's blink on each loop's first beat */
+/* REC's light: recording, steady (PLAY has the beat); erasing, two quick pulses each beat (stopped: on the clock's time) */
+static float dt_beat_phase(void)             /* where in its beat the running pattern is, 0..1 */
+{
+    const dq_pat_t *p = &dqm.pat[dq.cur < DQ_NPAT ? dq.cur : 0];
+    const float bt = (float)(96u / DQ_BEAT[p->beat]), b = dt_pos / bt;
+    return b - (float)(uint32_t)b;
+}
+static int dt_play_light(void) { return dq.run && dt_beat_phase() < 0.3f; }   /* PLAY: the tempo, a pulse each beat */
+static int dt_rec_light(void)
+{
+    float ph;
+    if (dq.rec != DQR_ERASE)
+        return dq.rec == DQR_REC;
+    ph = dq.run ? dt_beat_phase() : (float)(plat_ms() % 600u) / 600.0f;
+    return ph < 0.12f || (ph >= 0.24f && ph < 0.36f);
+}
 static void hold_step(uint32_t btn)
 {
     if (!ui.hold_live)
@@ -2934,6 +3394,8 @@ static void hold_step(uint32_t btn)
         ui.hold_live = 0;
         if (ui.hold_k == B_HOME)
             mode_switch();
+        else if (ui.hold_k == B_REC && ui.drum)
+            dt_rec_erase();
         else if (ui.hold_k == B_REC)
             randomize();
         else if (ui.hold_k != B_GLO) {
@@ -2953,7 +3415,7 @@ static void hold_step(uint32_t btn)
 
 static void input(void)
 {
-    uint32_t keys, btn = plat_buttons(), k, lit, below, above;
+    uint32_t keys, btn = plat_buttons(), k, lit, below, above, mid;
     int32_t e;
     touch_poll();                            /* the sensed keys' presses, velocities and pressure */
     keys = touch_keys();
@@ -2993,7 +3455,9 @@ static void input(void)
             continue;
         rsplash_until = 0;                   /* (the RND splash: over) */
         hint_show(k);                        /* (Hints: what it does, from the page it's pressed on) */
-        if (k == B_ARP || k == B_SEQ || k == B_GLO || k == B_REC || k == B_HOME) {   /* on release, or once held
+        if (ui.drum && k != B_HOME && k != B_REC)
+            dt_button(k);
+        else if (k == B_ARP || k == B_SEQ || k == B_GLO || k == B_REC || k == B_HOME) {   /* on release, or once held
                                               * HOLD_MS (hold_step) */
             ui.hold_k = (uint8_t)k;
             ui.hold_live = 1;
@@ -3047,11 +3511,38 @@ static void input(void)
         else {
             app_say("BUTTON", BTN_NAME[k]);
         }
-        if (k == B_ENV || k == B_LFO || k == B_EDIT || k == B_FX)   /* (a section's: its hint again from the page it
-                                                  * went to, the next tap's) */
+        if (!ui.drum && (k == B_ENV || k == B_LFO || k == B_EDIT || k == B_FX))   /* (a section's: its hint again from the
+                                                  * page it went to, the next tap's) */
             hint_show(k);
     }
     hold_step(btn);
+    if (ui.dt_was && !dq.run) {              /* stopped (STOP, or an empty cue): out of RECORD MODE, the number */
+        dq.rec = DQR_OFF;
+        dq.full = 0;
+        if (ui.dt_fn < DTF_SONG)
+            ui.dt_fn = DTF_PAT;
+        ui.redraw = 1;
+    }
+    if (ui.dt_was != dq.run && set.clk_out && !ext_clock())   /* (SEND CLK: the drums the master, start and stop out) */
+        plat_midi_send(0x0Fu | (dq.run ? 0xFAu : 0xFCu) << 8, TO_USB | TO_BLE);
+    if (ui.dt_was != dq.run && !set.dtrans_off)
+        dt_bass_transport(dq.run);
+    ui.dt_was = dq.run;
+    dq.sel = ui.dt_pat;
+    {                                        /* the drums' keys held: what Erase Instrument takes out as it passes */
+        uint32_t h = 0;
+        for (k = 0; k < NDT; k++)
+            if (ui.drum && keys >> DT_PAD[k] & 1u)
+                h |= 1u << k;
+        dq.held = h;
+    }
+    if (dt_cc_last) {                        /* the drums' CCs: from their HOME, Knob Zoom's dive to the drum's channel */
+        const uint32_t c = dt_cc_last;
+        dt_cc_last = 0;
+        ui.redraw = 1;
+        if (ui.drum && !set.zoom_off && (ui.page == PG_DHOME || zoom.home))
+            zoom_dt_cc(c);
+    }
     for (k = 0; k < NE; k++) {               /* an encoder turned (physical k): what it sets, and its count */
         char t[12];
         uint32_t l;
@@ -3096,13 +3587,24 @@ static void input(void)
     glo_keep();
     rnd_step();
     lit = notes_lit(&below, &above);
+    mid = 0;
+    if (ui.drum)
+        lit = dt_keys_lit(&mid);
     if (lit != ui.lit)
         ui.redraw = 1;
     ui.lit = lit;
     plat_glow(1);                            /* the unlit buttons glow, readable in the dark */
-    plat_leds(btn | (set_dirty ? 1u << B_SAVE : 0u) | (uint32_t)patch.arp_on << B_ARP | (uint32_t)seq_rec << B_SEQ
-              | (uint32_t)seq_rec << B_REC              | (uint32_t)seq_playing() << B_PLAY | below << B_OCTDN | above << B_OCTUP, keys | lit);   /* (OCT-, OCT+: a
+    plat_play_red(ui.drum && dq.rec);        /* (PLAY: red while it records) */
+    if (ui.drum)
+        plat_leds(btn | (dq.dirty ? 1u << B_SAVE : 0u) | (uint32_t)dt_play_light() << B_PLAY
+                  | (uint32_t)dt_rec_light() << B_REC, keys | lit);
+    else
+        plat_leds(btn | (set_dirty ? 1u << B_SAVE : 0u) | (uint32_t)patch.arp_on << B_ARP | (uint32_t)seq_rec << B_SEQ
+                  | (uint32_t)seq_rec << B_REC              | (uint32_t)seq_playing() << B_PLAY | below << B_OCTDN | above << B_OCTUP, keys | lit);   /* (OCT-, OCT+: a
                                               * note held out of the keys' reach, that way) */
+    if (mid || ui.dt_mid)                    /* (a channel's other keys; none: let go once) */
+        plat_lights_mid(0, mid);
+    ui.dt_mid = mid;
 }
 
 void app_input_only(void) { input(); }
@@ -3140,7 +3642,9 @@ static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDI
                                          [PG_EMOD] = SEC_ENV, [PG_EFX] = SEC_FX, [PG_XMOD] = SEC_FX, [PG_AMOD] = SEC_ARP, [PG_HOME] = NSEC,
                                          [PG_GMIDI] = SEC_GLO, [PG_GSYS] = SEC_GLO, [PG_GDUMP] = SEC_GLO, [PG_GDISP] = SEC_GLO,
                                          [PG_GRND] = SEC_GLO, [PG_RPAT] = SEC_GLO,
-                                         [PG_RTRK] = SEC_GLO, [PG_GDRUM] = SEC_GLO, [PG_DHOME] = NSEC};
+                                         [PG_RTRK] = SEC_GLO, [PG_GDRUM] = SEC_GLO, [PG_DHOME] = NSEC,
+                                         [PG_DCH1] = SEC_EDIT, [PG_DCH2] = SEC_EDIT, [PG_DCH3] = SEC_EDIT,
+                                         [PG_DCH4] = SEC_EDIT, [PG_DCH5] = SEC_EDIT, [PG_DCH6] = SEC_EDIT, [PG_DMOD] = SEC_FX};
 /* the tabs span the panel's bar (x 2..235), a pixel between each; they end 3 rows over it, as its gaps are wide */
 #define TAB_X(i) (2 + (int32_t)(i) * 235 / NSEC)
 static uint8_t ycol[232] PLAT_POOL;          /* a picture's curve: each column's row */
@@ -3354,6 +3858,8 @@ static uint32_t zoom_find(const param_t *q, uint8_t *v, uint32_t *kp)   /* q's s
 static void zoom_page(void)                  /* the CC's page up, its control as though turned */
 {
     zoom_views(zoom.v);
+    if (zoom.hp == PG_DHOME)
+        ui.dt_sel = zoom.dnew;
     ui.page = zoom.g;
     ui.redraw = 1;
     ui.turned_at[zoom.ke] = plat_ms();
@@ -3361,17 +3867,17 @@ static void zoom_page(void)                  /* the CC's page up, its control as
     ui.map_until = ui.hint_until = 0;
     ui.val_until = pop_until();
 }
-static void zoom_cc_in(const param_t *q)     /* a CC's control q changed (on HOME, or on the way from it) */
+static void zoom_keep(uint32_t home)         /* a dive from this HOME about to start: its views, for the way back */
 {
-    uint8_t v[5];
-    uint32_t k, g, i;
-    if (!zoom.home)                          /* (HOME's views, for the way back) */
-        zoom.sv[0] = ui.osc_sel, zoom.sv[1] = ui.env_sel, zoom.sv[2] = ui.mix_src, zoom.sv[3] = ui.pw_src,
-        zoom.sv[4] = ui.lfo_delay, zoom.u = 0.0f;
-    if ((g = zoom_find(q, v, &k)) == PG_HOME)   /* (none: as it is) */
+    if (zoom.home)
         return;
-    if (g != zoom.g || !zoom.home)
-        home_sect(g, &zoom.hx, &zoom.hy, &zoom.lc);
+    zoom.sv[0] = ui.osc_sel, zoom.sv[1] = ui.env_sel, zoom.sv[2] = ui.mix_src, zoom.sv[3] = ui.pw_src,
+    zoom.sv[4] = ui.lfo_delay, zoom.u = 0.0f;
+    zoom.hp = (uint8_t)home, zoom.dsv = ui.dt_sel;
+}
+static void zoom_go(uint32_t g, uint32_t k, const uint8_t *v)   /* the CC's page g and its encoder k: in */
+{
+    uint32_t i;
     zoom.g = (uint8_t)g, zoom.ke = (uint8_t)k;
     for (i = 0; i < 5u; i++)
         zoom.v[i] = v[i];
@@ -3383,6 +3889,17 @@ static void zoom_cc_in(const param_t *q)     /* a CC's control q changed (on HOM
     } else {
         zoom.home = ZH_DIVE;
     }
+}
+static void zoom_cc_in(const param_t *q)     /* a CC's control q changed (on HOME, or on the way from it) */
+{
+    uint8_t v[5];
+    uint32_t k, g;
+    zoom_keep(PG_HOME);
+    if ((g = zoom_find(q, v, &k)) == PG_HOME)   /* (none: as it is) */
+        return;
+    if (g != zoom.g || !zoom.home)
+        home_sect(g, &zoom.hx, &zoom.hy, &zoom.lc);
+    zoom_go(g, k, v);
 }
 static int zoom_step(uint32_t now)           /* a frame: 1 when the camera moved (the panel drawn again) */
 {
@@ -3400,9 +3917,11 @@ static int zoom_step(uint32_t now)           /* a frame: 1 when the camera moved
         zoom.u = u;
         l = u * u * (3.0f - 2.0f * u) * (zoom.lc + 1.0f);
         if (l < zoom.lc) {                   /* (HOME, on the section) */
-            if (ui.page != PG_HOME) {
+            if (ui.page != zoom.hp) {
                 zoom_views(zoom.sv);
-                ui.page = PG_HOME;
+                if (zoom.hp == PG_DHOME)
+                    ui.dt_sel = zoom.dsv;
+                ui.page = zoom.hp;
                 ui.redraw = 1;
             }
             zoom.x = zoom.hx, zoom.y = zoom.hy;
@@ -3889,10 +4408,10 @@ static void effects_draw(void)
  * letters more, -, space); its segments' ghosts (all 8s) dim under it, its lit ones glowing */
 static uint32_t seg_mask(char c)             /* c's lit segments, gfedcba (0: blank) */
 {
-    static const char CH[] = "0123456789ABCDEFP-LnOtS";
+    static const char CH[] = "0123456789ABCDEFP-LnOtSrU";
     static const uint8_t SEG[sizeof CH - 1] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F, 0x77, 0x7C,
                                                0x39, 0x5E, 0x79, 0x71, 0x73, 0x40, 0x38, 0x54, 0x3F, 0x78,
-                                               0x6D};   /* gfedcba */
+                                               0x6D, 0x50, 0x3E};   /* gfedcba */
     uint32_t i;
     for (i = 0; CH[i]; i++)
         if (CH[i] == c)
@@ -4106,7 +4625,7 @@ static void glo_sys_draw(void)
     if (ext_clock() && (eng.ext_age >= EXT_HOLD || !eng.ext_shown))
         memcpy(t, "---", 3);
     else
-        seg_num(ext_clock() ? eng.ext_shown : patch.tempo, t);
+        seg_num(ext_clock() ? eng.ext_shown : (uint32_t)arp_tempo(), t);
     glo_frame("System");
     seg_display(8, 40, t, 3);
     print_c(50, 90, ext_clock() ? (eng.ext_age < EXT_HOLD ? "MIDI clock" : "Waiting for clock") : "Tempo", P_SILK);
@@ -4919,12 +5438,17 @@ static uint32_t dt_lit(void)                 /* the instruments lit: held (ui.dr
             m |= 1u << i;
     return m;
 }
+static void dt_frame_at(int32_t x, int32_t y, int32_t X, int32_t Y, int r3);
 static void dt_frame(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int r3)   /* a section's frame on the photo's
                                               * lines; its corners' arcs (r 2.3 or, r3, 3.2 px) in eighths of the line */
 {
+    dt_frame_at(dt_px(x0), dt_py(y0), dt_px(x1), dt_py(y1), r3);
+}
+static void dt_frame_at(int32_t x, int32_t y, int32_t X, int32_t Y, int r3)   /* (in the panel's pixels) */
+{
     static const uint8_t A2[3][3] = {{0, 5, 8}, {5, 5, 0}, {8, 0, 0}};
     static const uint8_t A3[4][4] = {{0, 3, 6, 8}, {3, 7, 2, 0}, {6, 2, 0, 0}, {8, 0, 0, 0}};
-    const int32_t x = dt_px(x0), y = dt_py(y0), X = dt_px(x1), Y = dt_py(y1), r = r3 ? 3 : 2;
+    const int32_t r = r3 ? 3 : 2;
     int32_t i, j;
     cv_rect(x + r, y, X - x - 2 * r + 1, 1, grey(DT_LINE_G));
     cv_rect(x + r, Y, X - x - 2 * r + 1, 1, grey(DT_LINE_G));
@@ -4988,15 +5512,21 @@ static void dt_vline(int32_t u, int32_t v0, int32_t v1) { cv_rect(dt_px(u), dt_p
 static void dt_hline(int32_t u0, int32_t u1, int32_t v) { cv_rect(dt_px(u0), dt_py(v), dt_px(u1) - dt_px(u0) + 1, 1, DT_THIN); }
 /* a black knob at the photo's u, v (r 22.5 there), a pixel at a time: nothing but its silver side tells it from the
  * plate, the side seen from a little off top-down, brightest towards 15 degrees below the right (the photo's rim by
- * angle, base + amp * cos), thick by wide where it's lit; its shadow out at sx, sy; its short line at val of 0..10 */
+ * angle, base + amp * cos), thick by wide where it's lit; its shadow out at sx, sy; its short line at val of 0..10
+ * (dt_knob_at: anywhere, radius R, val 0..1) */
+static void dt_knob_at(float X, float Y, float R, float val, int32_t base, int32_t amp, float wide, int32_t sx, int32_t sy);
 static void dt_knob(int32_t u, int32_t v, int32_t val, int32_t base, int32_t amp, float wide, int32_t sx, int32_t sy)
 {
     const float X = (float)HOME_L + (float)(u - 151) * 0.187f + 0.5f, Y = 47.0f + (float)(v - 56) * 0.187f + 0.5f;
-    const float R = 4.2f, a = ((float)val / 10.0f - 0.5f) * (FM_PI * 5.0f / 3.0f);
-    const int32_t cx = (int32_t)X, cy = (int32_t)Y;
+    dt_knob_at(X, Y, 4.2f, (float)val / 10.0f, base, amp, wide, sx, sy);
+}
+static void dt_knob_at(float X, float Y, float R, float val, int32_t base, int32_t amp, float wide, int32_t sx, int32_t sy)
+{
+    const float a = (val - 0.5f) * (FM_PI * 5.0f / 3.0f);
+    const int32_t cx = (int32_t)X, cy = (int32_t)Y, n = (int32_t)R + 3;
     int32_t x, y, x0, y0, x1, y1;
-    for (y = cy - 7; y <= cy + 7; y++)
-        for (x = cx - 7; x <= cx + 7; x++) {
+    for (y = cy - n; y <= cy + n; y++)
+        for (x = cx - n; x <= cx + n; x++) {
             const float dx = (float)x + 0.5f - X, dy = (float)y + 0.5f - Y, d = fm_sqrtf(dx * dx + dy * dy);
             const float sd = fm_sqrtf((dx - (float)sx) * (dx - (float)sx) + (dy - (float)sy) * (dy - (float)sy));
             const float c = d > 0.01f ? (dx * 0.966f + dy * 0.259f) / d : 0.0f;
@@ -5011,8 +5541,8 @@ static void dt_knob(int32_t u, int32_t v, int32_t val, int32_t base, int32_t amp
             g += ((float)base + (float)amp * c - g) * rim;
             cv_pset(x, y, grey((int32_t)g));
         }
-    pt_at(cx, cy, 2, a, &x0, &y0);
-    pt_at(cx, cy, 4, a, &x1, &y1);
+    pt_at(cx, cy, (int32_t)(R * 0.48f), a, &x0, &y0);
+    pt_at(cx, cy, (int32_t)(R * 0.95f), a, &x1, &y1);
     cv_line(x0, y0, x1, y1, grey(216));
 }
 static void dt_digit(int32_t x, int32_t y, char c)   /* the plate's little display's digit, 5 x 6, leaning as the
@@ -5107,6 +5637,181 @@ static void dt_logo(void)
             if (R[y][x] != ' ')
                 cv_pset(232 - 75 + x, 104 + y, grey(R[y][x] == '#' ? 240 : R[y][x] == '+' ? 168 : 96));
 }
+/* the top of each of its pages: its name (for a moment the function just picked), and the two displays: the pattern's
+ * number on the right, the song's on the left, as the 400; for a moment the tempo over both ("t1" "20"), or on the left
+ * the level or pitch just turned */
+static void dt_two(char *d, uint32_t v) { d[0] = (char)('0' + v / 10u); d[1] = (char)('0' + v % 10u); }
+static void dt_digits(char *l, char *r)
+{
+    const uint32_t s = ui.dt_show, f = ui.dt_fn;
+    const dq_pat_t *p = &dqm.pat[ui.dt_pat < DQ_NPAT ? ui.dt_pat : 0];
+    const int32_t t = arp_tempo();
+    l[0] = l[1] = r[0] = r[1] = ' ';
+    l[2] = r[2] = 0;
+    if (dq.full) {                           /* (blinking on the 400) */
+        if (plat_ms() / 300u % 2u) {
+            l[0] = 'F', l[1] = 'U', r[0] = 'L', r[1] = 'L';
+        }
+        return;
+    }
+    if (s == DTS_TEMPO) {
+        l[0] = 't';
+        l[1] = t >= 100 ? (char)('0' + t / 100) : ' ';
+        dt_two(r, (uint32_t)t % 100u);
+        return;
+    }
+    if (f >= DTF_SONG)
+        dt_two(l, ui.dt_song);
+    else if (f == DTF_ERASEI)
+        r[0] = 'E', r[1] = 'r';
+    else if (f == DTF_ERROR)
+        l[0] = '1', l[1] = '-', dt_two(r, DQ_EC[p->ec]);
+    else if (f == DTF_SWING)
+        dt_two(r, DQ_SWING[p->swing]);
+    else if (f == DTF_TIME)
+        dt_two(l, p->num), dt_two(r, DQ_BEAT[p->beat]);
+    else if (f == DTF_MEAS)
+        dt_two(r, p->meas);
+    else if (f == DTF_ERASEP || f == DTF_COPYP)
+        dt_two(r, ui.dt_tgt);
+    else
+        dt_two(r, ui.dt_pat);
+    if (s == DTS_VOL)
+        dt_two(l, dt.vol[ui.dt_sel]);
+    else if (s == DTS_TUNE)
+        dt_two(l, dt.tune[ui.dt_sel]);
+}
+static void dt_head(void)
+{
+    static const char *const NAME[NDTF][2] = {
+        {"PATTERN", "NUMBER"}, {"RECORD", "MODE"}, {"ERASE", "INSTRUMENT"}, {"ERROR", "CORRECT"}, {"SWING", "PERCENT"},
+        {"TIME", "SIGNATURE"}, {"NUMBER OF", "MEASURES"}, {"ERASE", "PATTERN"}, {"COPY OR", "APPEND TO"}, {"SONG", "NUMBER"},
+        {"ERASE", "SONG"}, {"COPY OR", "APPEND TO"}, {"BUILD", "MODE"}, {"BUILD:", "PATTERN"}, {"BUILD:", "VOLUME"},
+        {"BUILD:", "TEMPO"}, {"BUILD:", "INSERT"}, {"BUILD:", "DELETE"}};
+    const int fn = ui.dt_show == DTS_FN || dq.rec;   /* (recording or erasing: said all the while) */
+    char l[3], r[3];
+    dt_digits(l, r);
+    cv_text(10, 6, &FONT_B, fn ? NAME[ui.dt_fn][0] : "DRUM", P_SILK);
+    cv_text(10, 24, &FONT_B, fn ? NAME[ui.dt_fn][1] : "SOMETHING", P_SILK);
+    cv_rect(10, 42, 96, 2, RGB(252, 60, 72));
+    dt_display(114, 1, l);
+    dt_display(174, 1, r);
+    cv_rect(0, 45, 240, pan_h - 45, DT_FACE);
+    dt_cheek(0, 45, 0, 5);
+    dt_cheek(234, 45, 239, 234);
+}
+/* PRESET's tag and Knob Zoom's aim: the display it shows on. K1, K2 (on the Channel pages, their knobs off the page):
+ * their value in a tag while they turn, the camera staying out */
+static void dt_tag_preset(void)
+{
+    tag(ui.dt_fn >= DTF_SONG ? 141 : 201, 22, EN_PRESET);
+    if (!ui.map_until)                       /* (ALGO the same display's: no second name in the map) */
+        tag(ui.dt_fn >= DTF_SONG ? 141 : 201, 22, EN_ALGO);
+}
+static void dt_tag_away(uint32_t k, int32_t x)
+{
+    if (ui.map_until)
+        return;
+    tag(x, 62, k);
+    if (zoom.k == k + 1u)
+        zoom.k = 0;
+}
+static const int16_t DT_CH_U[NDTCH + 1] = {415, 487, 630, 773, 916, 1059, 1348};   /* its channels' frames across HOME */
+
+/* a Channel page: PER INSTRUMENT as the 400 has it at the left, the channel's frame beside it, at one scale for all six
+ * (PER INSTRUMENT + CH 6 fill the width: 0.446 px each of the photo's) so VOLUME and TUNING stay put from page to page;
+ * its keys the FM-1's piano keys', lit as they are; the drum selected named in white */
+static int32_t dch_x(int32_t u) { return 8 + (u - 151) * 446 / 1000; }
+static int32_t dch_y(int32_t v) { return 49 + (v - 409) * 446 / 1000; }
+static void dch_key(int32_t x, int32_t y, int lit)   /* a black key, 25 x 25: its recess, its walls, the cap, the bright
+                                              * wall at its right; lit, the cap white */
+{
+    cv_rect(x, y, 25, 25, RGB(0, 0, 0));
+    cv_rect(x + 2, y + 2, 21, 21, grey(16));
+    cv_rect(x + 4, y + 4, 15, 17, lit ? P_SILK : grey(40));
+    cv_rect(x + 19, y + 4, 2, 17, lit ? P_SILK : grey(200));
+}
+static void dch_label(int32_t cx, int32_t y, const char *s, uint16_t c)
+{
+    cv_text(cx - text_w(&FONT_T, s) / 2, y, &FONT_T, s, c);
+}
+static void dch_draw(void)
+{
+    static const char *const SHORT[NDT] = {"BASS", "SNARE", "RIM", "TOM 1", "TOM 2", "CRASH", "RIDE", "CLOSED", "OPEN",
+                                           "CLAPS", "TAMB", "COW", "CABASA"};
+    static const uint8_t BK[11] = PLAT_BLACK_KEYS;
+    const uint32_t c = ui.page - PG_DCH1, lit = dt_lit();
+    const int32_t top = dch_y(409), low = dch_y(642), ky = dch_y(530);
+    int32_t n = 0, i, x0, X, j = 0;
+    char t[6] = "CH 1";
+    dt_head();
+    dt_frame_at(dch_x(151), top, dch_x(364), low, 0);
+    dch_label(dch_x(180) + 8, top + 31, "VOLUME", P_SILK);
+    dch_label(dch_x(309) + 8, top + 31, "TUNING", P_SILK);
+    dch_label((dch_x(180) + dch_x(309)) / 2 + 8, top + 41, "PER INSTRUMENT", grey(200));
+    dt_knob_at((float)dch_x(180) + 8.0f, (float)dch_y(453) + 2.0f, 9.5f, (float)dt.vol[ui.dt_sel] / 15.0f, 150, 100, 1.0f, 1, 0);
+    dt_knob_at((float)dch_x(309) + 8.0f, (float)dch_y(453) + 2.0f, 9.5f, (float)dt.tune[ui.dt_sel] / 15.0f, 150, 100, 1.0f, 1, 0);
+    tag(dch_x(180) + 8, dch_y(453) + 2, EN_K3);
+    tag(dch_x(309) + 8, dch_y(453) + 2, EN_K4);
+    dt_tag_away(EN_K1, 100);
+    dt_tag_away(EN_K2, 150);
+    dt_tag_preset();
+    cv_rect(dch_x(168) + 1, ky - 5, 4, 2, dq.run && !dt_blink() ? RGB(255, 40, 72) : RGB(128, 16, 32));   /* RUN/STOP's LED */
+    dch_key(dch_x(168), ky, dq.run && !dt_blink());
+    dch_key(dch_x(289), ky, ui.drum && ui.keys >> BK[0] & 1u);
+    dch_label(dch_x(168) + 12, ky + 26, "RUN", P_SILK);
+    dch_label(dch_x(289) + 12, ky + 26, "ACCENT", P_SILK);
+    for (i = 0; i < (int32_t)NDT; i++)
+        n += DT_CH[i] == c;
+    X = (dch_x(364) + 4 + 231) / 2;          /* (centred in what's left) */
+    x0 = X - (31 * n + 3) / 2;
+    X = x0 + 31 * n + 3;
+    dt_frame_at(x0, top, X, low, 0);
+    t[3] = (char)('1' + c);
+    dch_label((x0 + X) / 2, dch_y(452), t, P_SILK);
+    for (i = 0; i < (int32_t)NDT; i++)
+        if (DT_CH[i] == c) {
+            const int32_t kx = x0 + 3 + 31 * j++, sel = i == (int32_t)ui.dt_sel;
+            const uint16_t col = sel ? P_SILK : grey(144);
+            dch_key(kx, ky, (int)(lit >> i & 1u));
+            dch_label(kx + 12, ky + 26, SHORT[i], col);
+            if (i == DT_COWBELL)
+                dch_label(kx + 12, ky + 35, "BELL", col);
+            if (sel)
+                cv_rect(kx + 4, ky - 5, 17, 2, RGB(255, 40, 72));
+        }
+}
+/* DRUM MODS: what the 400 hasn't, on a plate as the synth's mods (one so far) */
+static void dmod_draw(void)
+{
+    plate("DRUM SOMETHING");
+    dymo(120, 30, "DRUM MODS", RGB(235, 235, 235));
+    bs2_knob(70, 76, 20, set.dswing_lock != 0u, 1, KF_PLATE | (knob_lit(EN_SELECT) ? KF_LIT : 0u));
+    tag(70, 76, EN_SELECT);
+    dymo(70, 101, "SWING LOCK", RGB(235, 235, 235));
+    print_c(70, 117, OFF_ON[set.dswing_lock != 0u], grey(36));
+    bs2_knob(170, 76, 20, !set.dtrans_off, 1, KF_PLATE | (knob_lit(EN_ALGO) ? KF_LIT : 0u));
+    tag(170, 76, EN_ALGO);
+    dymo(170, 101, "TRANSPORT", RGB(235, 235, 235));
+    print_c(170, 117, OFF_ON[!set.dtrans_off], grey(36));
+}
+static void zoom_dt_cc(uint32_t cc)          /* a drum's CC (dt_cc): its channel's page, its knob */
+{
+    const uint32_t vol = cc >= DT_CC_VOL, d = cc - (vol ? DT_CC_VOL : DT_CC_TUNE), c = DT_CH[d], g = PG_DCH1 + c;
+    uint8_t v[5];
+    uint32_t i;
+    zoom_keep(PG_DHOME);
+    for (i = 0; i < 5u; i++)
+        v[i] = zoom.sv[i];
+    if (g != zoom.g || !zoom.home) {
+        const int32_t x = dt_px(DT_CH_U[c]), X = dt_px(DT_CH_U[c + 1u]), h = dt_py(642) - dt_py(409);
+        zoom.hx = (int16_t)((x + X) / 2);
+        zoom.hy = (int16_t)(dt_py(409) + h / 2);
+        zoom.lc = fm_log2f(fm_minf(fm_minf(240.0f / (float)(X - x), (float)TALL_H / (float)h), 6.0f));
+    }
+    zoom.dnew = (uint8_t)d;
+    zoom_go(g, vol ? EN_K3 : EN_K4, v);
+}
 static void dhome_draw(void)
 {
     static const int16_t FRAME[13][5] = {                   /* (the last: its corners' wider arc) */
@@ -5123,17 +5828,11 @@ static void dhome_draw(void)
     static const int16_t TREE[5] = {197, 211, 224, 238, 251};   /* BUILD MODE's lines */
     static const char PAD[] = "123456789<0>";
     static const uint8_t BK[11] = PLAT_BLACK_KEYS;
-    const uint32_t lit = dt_lit();
+    const uint32_t lit = dt_lit(), fl = ui.dt_fn < DTF_SONG ? 12u + ui.dt_fn : 3u + (ui.dt_fn - DTF_SONG);
+    char l[3], r[3];
     int32_t i;
-    /* the name, the two displays (the song's, the pattern's: none yet); under them the plate between its wooden ends */
-    cv_text(10, 6, &FONT_B, "DRUM", P_SILK);
-    cv_text(10, 24, &FONT_B, "SOMETHING", P_SILK);
-    cv_rect(10, 42, 96, 2, RGB(252, 60, 72));
-    dt_display(114, 1, "--");
-    dt_display(174, 1, "00");
-    cv_rect(0, 45, 240, pan_h - 45, DT_FACE);
-    dt_cheek(0, 45, 0, 5);
-    dt_cheek(234, 45, 239, 234);
+    dt_digits(l, r);
+    dt_head();                                   /* the name, the two displays; under them the plate */
     for (i = 0; i < 13; i++)
         dt_frame(FRAME[i][0], FRAME[i][1], FRAME[i][2], FRAME[i][3], FRAME[i][4]);
     dt_vline(429, 188, 285);                     /* BUILD MODE's and RECORD MODE's lines */
@@ -5159,12 +5858,12 @@ static void dhome_draw(void)
     dt_logo();
     for (i = 0; i < 7; i++)
         dt_ukey(UKEY[i][0], UKEY[i][1]);
-    for (i = 0; i < 21; i++)
-        dt_led(LED[i][0], LED[i][1], i == 12);   /* (PATTERN#: the function shown) */
+    for (i = 0; i < 21; i++)                     /* (the function picked, BUILD MODE's own over it; RUN's) */
+        dt_led(LED[i][0], LED[i][1], (uint32_t)i == fl || (i == 6 && ui.dt_fn >= DTF_BPAT) || (i == 2 && dq.run && !dt_blink()));
     for (i = 0; i < 12; i++)                     /* the keypad: 1-9, then left, 0, right */
         dt_gkey(676 + 55 * (i % 3), 133 + 54 * (i / 3) + (i / 3 == 3), PAD[i]);
-    dt_small(660, "--");
-    dt_small(770, "00");
+    dt_small(660, l);
+    dt_small(770, r);
     for (i = 0; i < 11; i++) {                   /* the volumes' scales: a dot for each number, 0..10 */
         int32_t x, y;
         pt_at(dt_px(1276), dt_py(120), 8, ((float)i / 10.0f - 0.5f) * (FM_PI * 5.0f / 3.0f), &x, &y);
@@ -5172,14 +5871,20 @@ static void dhome_draw(void)
         pt_at(dt_px(1276), dt_py(260), 8, ((float)i / 10.0f - 0.5f) * (FM_PI * 5.0f / 3.0f), &x, &y);
         cv_pset(x, y, grey(200));
     }
-    dt_knob(1276, 120, 5, 178, 78, 0.5f, -2, 1);  /* METRONOME, MASTER; VOLUME, TUNING (lit from their other side) */
-    dt_knob(1276, 260, (int32_t)(plat_master() * 10u / 4095u), 178, 78, 0.5f, -2, 1);
-    dt_knob(180, 453, 10, 150, 100, 1.0f, 1, 0);
-    dt_knob(309, 453, 5, 150, 100, 1.0f, 1, 0);
-    dt_bkey(168, 530, 0);                         /* RUN/STOP, ACCENT (its key held) */
+    dt_knob(1276, 120, dt.metro * 10 / 127, 178, 78, 0.5f, -2, 1);   /* METRONOME, MASTER; VOLUME, TUNING (lit from their
+                                                                      * other side), the drum selected's */
+    dt_knob(1276, 260, dt.master * 10 / 127, 178, 78, 0.5f, -2, 1);
+    dt_knob(180, 453, dt.vol[ui.dt_sel] * 10 / 15, 150, 100, 1.0f, 1, 0);
+    dt_knob(309, 453, dt.tune[ui.dt_sel] * 10 / 15, 150, 100, 1.0f, 1, 0);
+    dt_bkey(168, 530, dq.run && !dt_blink());                 /* RUN/STOP, ACCENT (its key held) */
     dt_bkey(289, 530, ui.drum && ui.keys >> BK[0] & 1u);
     for (i = 0; i < (int32_t)NDT; i++)
         dt_bkey(INST[i], 530, (int)(lit >> i & 1u));
+    tag(dt_px(1276), dt_py(120), EN_K1);          /* (the encoders on the panel, Knob Zoom's aims) */
+    tag(dt_px(1276), dt_py(260), EN_K2);
+    tag(dt_px(180), dt_py(453), EN_K3);
+    tag(dt_px(309), dt_py(453), EN_K4);
+    dt_tag_preset();
 }
 
 static void head_draw(void)                  /* the section tabs (each page's panel under them) */
@@ -5188,7 +5893,7 @@ static void head_draw(void)                  /* the section tabs (each page's pa
     uint32_t i;
     cv_begin(240, 20, P_BG);
     for (i = 0; i < NSEC; i++) {
-        int on = PAGE_SEC[ui.page] == i, run = (i == SEC_ARP && patch.arp_on) || (i == SEC_SEQ && (seq_playing() || seq_rec));
+        int on = PAGE_SEC[ui.page] == i, run = !ui.drum && ((i == SEC_ARP && patch.arp_on) || (i == SEC_SEQ && (seq_playing() || seq_rec)));
         int32_t w = TAB_X(i + 1) - TAB_X(i) - 1;
         x = TAB_X(i);
         cv_rect(x, 1, w, 17, on ? P_BAR : P_CARD);   /* (the one you're in: the bars' cyan, its name white) */
@@ -5265,6 +5970,10 @@ static void panel_draw(void)                 /* the page's section panel, from u
             home_draw();
         else if (ui.page == PG_DHOME)
             dhome_draw();
+        else if (DCH_PAGE(ui.page))
+            dch_draw();
+        else if (ui.page == PG_DMOD)
+            dmod_draw();
         else if (ui.page == PG_LFO1)
             lfos_draw();
         else if (ui.page == PG_GMIDI)
@@ -5423,7 +6132,15 @@ static uint32_t live(void)
     case PG_SEQ:
         return eng.src == SRC_SEQ ? eng.rpos + 1u : 0u;
     case PG_DHOME:                           /* (the keys lit, a moment after each hit; ACCENT) */
-        return dt_lit() | (ui.keys >> 1 & 1u) << 31;
+    case PG_DCH1:
+    case PG_DCH2:
+    case PG_DCH3:
+    case PG_DCH4:
+    case PG_DCH5:
+    case PG_DCH6:
+    case PG_DMOD:
+        return dt_lit() | (ui.keys >> 1 & 1u) << 31 | (uint32_t)dt_blink() << 30 | (uint32_t)(dq.run != 0u) << 29
+               | (uint32_t)(dq.full && plat_ms() / 300u % 2u) << 28;
     case PG_GMIDI:
     case PG_GSYS:
         return (uint32_t)ext_clock() | (uint32_t)(eng.ext_age < EXT_HOLD) << 1 | (uint32_t)plat_ble_connected() << 2
@@ -5628,6 +6345,10 @@ void app_frame(void)
         ui.map_until = 0;
         ui.redraw = 1;
     }
+    if (ui.dt_show && now >= ui.dt_until) {  /* the drums' header's moment */
+        ui.dt_show = DTS_NONE;
+        ui.redraw = 1;
+    }
     if (ui.hint_until && now >= ui.hint_until) {   /* a button's hint's */
         ui.hint_until = 0;
         ui.redraw = 1;
@@ -5822,6 +6543,77 @@ int app_expect(const char *what, int *got)
         *got = ui.drum;
     else if (!strcmp(what, "dlit"))          /* the drum HOME's instruments lit (dt_lit), a bit each */
         *got = (int)dt_lit();
+    else if (!strcmp(what, "hushed"))        /* quiet long enough for a flash write */
+        *got = hushed;
+    else if (!strcmp(what, "dtrans_off"))    /* TRANSPORT off; the bass's arp on; its engine running */
+        *got = set.dtrans_off;
+    else if (!strcmp(what, "arp_on"))
+        *got = patch.arp_on;
+    else if (!strcmp(what, "bass_src"))
+        *got = (int)eng.src;
+    else if (!strcmp(what, "rec_light"))
+        *got = dt_rec_light();
+    else if (!strcmp(what, "dt_tempo"))      /* the drums' tempo; Swing Lock's setting, its first 8th (x100); the bass's 16th */
+        *got = dt.tempo;
+    else if (!strcmp(what, "dswing_lock"))
+        *got = set.dswing_lock;
+    else if (!strcmp(what, "dt_lock"))
+        *got = (int)(dt_lock_h * 100.0f + 0.5f);
+    else if (!strcmp(what, "rpos"))
+        *got = (int)eng.rpos;
+    else if (!strcmp(what, "bass_on_drums")) {   /* the bass's place against the running pattern's, on its swing's curve: 1 if
+                                              * within half a tick */
+        const dq_pat_t *p = &dqm.pat[dq.cur];
+        const float h = dt_lock_h > 0.0f ? dt_lock_h : 12.0f, b[4] = {0.0f, h * 0.5f, h, h + (24.0f - h) * 0.5f};
+        const float at = b[eng.rpos % 4u] + eng.tick, pos = dt_pos - (float)((uint32_t)dt_pos / 24u * 24u);
+        const float d = fm_fabsf(at - pos);
+        (void)p;
+        *got = d < 0.5f || d > 23.5f;
+    }
+    else if (!strcmp(what, "dt_sel"))        /* the drum selected; what K1-K4, PRESET, SEQ, ARP, PLAY and REC set */
+        *got = ui.dt_sel;
+    else if (!strcmp(what, "dt_vol"))
+        *got = dt.vol[ui.dt_sel];
+    else if (!strcmp(what, "dt_tune"))
+        *got = dt.tune[ui.dt_sel];
+    else if (!strcmp(what, "dt_metro"))
+        *got = dt.metro;
+    else if (!strcmp(what, "dt_master"))
+        *got = dt.master;
+    else if (!strcmp(what, "dt_fn"))
+        *got = ui.dt_fn;
+    else if (!strcmp(what, "dt_run"))
+        *got = dq.run;
+    else if (!strcmp(what, "dt_rec"))
+        *got = dq.rec;
+    else if (!strcmp(what, "dt_n"))          /* the pattern shown's hits, its length in ticks; the pool's; the beats */
+        *got = dqm.pat[ui.dt_pat].n;
+    else if (!strcmp(what, "dt_len"))
+        *got = (int)dqm.pat[ui.dt_pat].len;
+    else if (!strcmp(what, "dt_used"))
+        *got = dqm.used;
+    else if (!strcmp(what, "dt_clicks"))
+        *got = (int)dq_clicks;
+    else if (!strcmp(what, "dt_v0"))         /* its first hit's programmed volume (0: not programmed) */
+        *got = dqm.pat[ui.dt_pat].n ? (int)DQ_V(dqm.ev[dqm.pat[ui.dt_pat].start]) : -1;
+    else if (!strcmp(what, "dt_t0"))         /* the pattern shown's first hit's time */
+        *got = dqm.pat[ui.dt_pat].n ? (int)DQ_T(dqm.ev[dqm.pat[ui.dt_pat].start]) : -1;
+    else if (!strcmp(what, "dt_cur"))
+        *got = dq.cur;
+    else if (!strcmp(what, "dt_num"))
+        *got = dqm.pat[ui.dt_pat].num;
+    else if (!strcmp(what, "dt_meas"))
+        *got = dqm.pat[ui.dt_pat].meas;
+    else if (!strcmp(what, "dt_ec"))
+        *got = dqm.pat[ui.dt_pat].ec;
+    else if (!strcmp(what, "dt_swing"))
+        *got = dqm.pat[ui.dt_pat].swing;
+    else if (!strcmp(what, "dt_pat"))
+        *got = ui.dt_pat;
+    else if (!strcmp(what, "dt_song"))
+        *got = ui.dt_song;
+    else if (!strcmp(what, "dt_mid"))
+        *got = (int)ui.dt_mid;
     else if (!strcmp(what, "dt_hits"))       /* the drums' hits played so far */
         *got = dt_hits;
     else if (!strcmp(what, "dchan"))         /* GLO DRUMS: the drums' channel, their CC channel */
@@ -6023,12 +6815,98 @@ static uint8_t *bank_old(uint32_t v, uint32_t ps)
 
 static int host_fails;                       /* the app's own checks failed (rnd_words) */
 int app_host_fails(void) { return host_fails; }
+#include <time.h>
+static long dt_prof_ns(void)
+{
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return t.tv_sec * 1000000000L + t.tv_nsec;
+}
 int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, const char *d)
 {
     static uint8_t syx[32768];
     FILE *fp;
     size_t n;
     (void)b, (void)c, (void)d;
+    if (!strcmp(cmd, "dt_dump")) {           /* the pattern shown: its settings and hits */
+        const dq_pat_t *p = &dqm.pat[ui.dt_pat];
+        uint32_t i;
+        printf("pattern %u: %u/%u x%u len %u ec %u swing %u, %u hits (cur %u):", ui.dt_pat, p->num, DQ_BEAT[p->beat], p->meas, (unsigned)p->len,
+               DQ_EC[p->ec], DQ_SWING[p->swing], p->n, dq.cur);
+        for (i = 0; i < p->n; i++)
+            printf(" %u:%s", (unsigned)DQ_T(dqm.ev[p->start + i]), DT_NAME[DQ_D(dqm.ev[p->start + i])]);
+        printf("\n");
+        return 1;
+    }
+    if (!strcmp(cmd, "dt_eprom")) {          /* dt_eprom 0|1: every voice live, or from its EPROM if it has one (the A/B) */
+        dt_use_eprom = (uint8_t)atoi(a);
+        return 1;
+    }
+    if (!strcmp(cmd, "dt_export")) {         /* dt_export NAME STEP FILE: a voice's ROM, as its DAC's numbers (tools/dt_eprom.py) */
+        uint32_t k;
+        const uint8_t was = dt_use_eprom;
+        for (k = 0; k < NDT && strcmp(a, DT_NAME[k]); k++)
+            ;
+        if (k < NDT) {
+            dt_ch_t *ch = &dt.ch[DT_CH[k]];
+            FILE *f = fopen(c, "wb");
+            dt_use_eprom = 0;
+            dt_hit(k, (uint32_t)atoi(b) - 1u, 255u);
+            while (f && ch->k < ch->len) {
+                const float x = dt_dac(dt_gen(ch));
+                const signed char o = (signed char)(int32_t)(x * 127.0f + (x < 0.0f ? -0.5f : 0.5f));
+                fwrite(&o, 1, 1, f);
+                ch->k++;
+            }
+            ch->drum = DT_NONE;
+            dt_use_eprom = was;
+            if (f)
+                fclose(f);
+        }
+        return 1;
+    }
+    if (!strcmp(cmd, "dt_prof")) {           /* each drum's cost, a block at a time, against a bass note's (the FM-1's load
+                                              * is known for that: GLO's CPU meter) */
+        static int32_t lr[2 * APP_BLOCK];
+        uint32_t d, st, i;
+        long t0, base = 0;
+        fifo_put(&keyq, 60u | 100u << 8);
+        for (i = 0; i < 200u; i++) {
+            app_render(lr, APP_BLOCK, 2048u);
+            if (i >= 100u) {
+                t0 = dt_prof_ns();
+                app_render(lr, APP_BLOCK, 2048u);
+                base += dt_prof_ns() - t0;
+            }
+        }
+        base /= 100;
+        fifo_put(&keyq, 60u);
+        for (i = 0; i < 2000u; i++)
+            app_render(lr, APP_BLOCK, 2048u);
+        printf("bass block %ld ns\n", base);
+        for (d = 0; d < NDT; d++)
+            for (st = 0; st < 16u; st += 7u + (st == 14u)) {
+                long pk = 0, sum = 0, h;
+                uint32_t b = 0;
+                t0 = dt_prof_ns();
+                dt_hit(d, st, 175u);
+                h = dt_prof_ns() - t0;
+                while (dt.ch[DT_CH[d]].drum != DT_NONE && b < 4000u) {
+                    long e;
+                    t0 = dt_prof_ns();
+                    for (i = 0; i < APP_BLOCK; i++)
+                        (void)dt_next();
+                    e = dt_prof_ns() - t0;
+                    sum += e;
+                    if (e > pk)
+                        pk = e;
+                    b++;
+                }
+                printf("%-8s step %2u  res %2u  hit %3ld%%  peak %3ld%%  avg %3ld%%  blocks %u\n", DT_NAME[d], st + 1u,
+                       (unsigned)dt.ch[DT_CH[d]].n, h * 20 / base, pk * 20 / base, b ? sum / b * 20 / base : 0, b);
+            }
+        return 1;
+    }
     if (!strcmp(cmd, "dt_gain")) {           /* dt_gain X: the drums' output times X (tools/dt_compare.py's: its
                                               * renders well above the host's 16-bit files' floor) */
         dt_test_gain = (float)atof(a);

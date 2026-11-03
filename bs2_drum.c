@@ -69,6 +69,7 @@ enum { DTC_BASS, DTC_SNARE, DTC_TOMS, DTC_CYM, DTC_HATS, DTC_PERC, NDTCH };
 #define DT_BD_GATE 0.098f                    /* its cliff, s in ROM time (dt_voice_t gate) */
 #define DT_BD_GATE_DB 26.0f                  /* how far it falls, dB */
 #define DT_BD_ROOM 0.0f                      /* its send into the room */
+#define DT_BD_POST 4.0f                      /* +12 dB out: its filters leave it 10 dB under the others' peaks, 14 dB above 120 Hz */
 #define DT_BD_RATE 17400.0f                  /* its ROM samples a second (its VCF hides the notches: a guess) */
 #define DT_PERC_RATE 11100.0f                /* channel 6's ROM samples a second at the first step (the Claps' notches:
                                               * 11.0 kHz, steps 1-4; the Cabasa's 11.4) */
@@ -396,6 +397,7 @@ typedef struct {                             /* a voice: the generic parts dt_hi
     float copy_detune, copy_gap;             /* each copy detuned across +-copy_detune (a ratio) and struck about
                                               * copy_gap s (ROM time) after the one before, at random around both */
     float room;                              /* the send into the room */
+    float post;                              /* its level after the VCF and filters (0: as it is) */
 } dt_voice_t;
 static const dt_voice_t DT_V_SNARE = {
     .rate = DT_RATE_SNARE, .m = DT_MODES_SNARE, .n = 16 + DT_SN_NHI, .rom = DT_SN_RATE, .len = 0.40f,
@@ -416,7 +418,8 @@ static const dt_voice_t DT_V_BASS = {
     .rate = DT_RATE_BASS, .m = DT_MODES_BASS, .n = 9, .rom = DT_BD_RATE, .len = DT_BD_LEN, .gain = DT_BD_GAIN,
     .sweep = DT_BD_SW, .sweep_tau = DT_BD_SW_T, .sweep2 = DT_BD_SW2, .sweep2_tau = DT_BD_SW2_T, .stick = DT_BD_STICK,
     .click = DT_BD_CLICK, .body = DT_BD_BODY, .vcf = DT_BD_VCF, .vcf_lo = DT_BD_VCF_LO, .vcf_t = DT_BD_VCF_T,
-    .lp = DT_BD_LP, .attack = DT_BD_ATTACK, .gate = DT_BD_GATE, .gate_db = DT_BD_GATE_DB, .room = DT_BD_ROOM};
+    .lp = DT_BD_LP, .attack = DT_BD_ATTACK, .gate = DT_BD_GATE, .gate_db = DT_BD_GATE_DB, .room = DT_BD_ROOM,
+    .post = DT_BD_POST};
 static const dt_voice_t DT_V_COWBELL = {
     .rate = DT_RATE_COWBELL, .m = DT_MODES_COWBELL, .n = 12, .rom = DT_PERC_RATE, .len = 0.36f, .gain = DT_CB_GAIN,
     .stick = DT_CB_STICK, .wires = DT_CB_WIRE_G, .wires_tau = DT_CB_WIRES, .body = DT_CB_BODY, .vcf = DT_CB_VCF,
@@ -478,6 +481,7 @@ typedef struct {
     uint32_t gate;                           /* the ROM sample where the gate falls (0: none) */
     float gl, glo, gl_k;                     /* the gate's level now, where it falls to, its step a sample */
     float send;                              /* into the room */
+    float post;                              /* its level out (dt_voice_t post) */
     float va, va_k;                          /* the VCA's level (over 1: held) and its fall a sample (va_k 0: none) */
     uint32_t vn;                             /* output samples till it is cut */
     float burst, burst_k, wire, wire_k;      /* the stick's burst and the wires' noise: levels, decays a sample */
@@ -493,11 +497,15 @@ typedef struct {
     float y1[DT_NM], y2[DT_NM];              /* the resonators: their last two outputs, */
     float a1[DT_NM], a2[DT_NM], r[DT_NM], w[DT_NM], g[DT_NM];   /* coefficients, radius, angle, input gain */
     const dt_voice_t *v;
+    const int8_t *tab;                       /* its virtual EPROM (0: made live) */
     uint8_t drum;                            /* DT_*, or DT_NONE: silent */
 } dt_ch_t;
 
 static struct {
     uint8_t vol[NDT], tune[NDT];             /* each drum's VOLUME and TUNING, 0..15 */
+    uint8_t metro, master;                   /* the METRONOME's and the drums' MASTER VOLUME, 0..127 */
+    uint8_t tempo;                           /* their TEMPO, BPM, their own (the manual's 100 at first): running, the clock
+                                              * master, the bass on it (clock_bpm) */
     dt_ch_t ch[NDTCH];
 } dt PLAT_POOL;
 /* The room: a drum's tail is mostly the space it was played in (the 400's own samples had theirs in them), and a
@@ -525,6 +533,7 @@ static float dt_test_gain = 1.0f;            /* (the host's dt_gain: renders wel
 static uint32_t dt_hits;                     /* (the host's: hits played, for tests/drums.txt) */
 #endif
 
+#define DT_CYM_VOL 10u                       /* the cymbals' first VOLUME: about 3.5 dB under the rest (user: too loud at 15) */
 static void dt_init(void)
 {
     uint32_t i;
@@ -532,6 +541,10 @@ static void dt_init(void)
         dt.vol[i] = 15u;
         dt.tune[i] = 7u;
     }
+    dt.metro = 90u;
+    dt.vol[DT_CRASH] = dt.vol[DT_RIDE] = DT_CYM_VOL;
+    dt.tempo = 100u;
+    dt.master = 127u;
     dt.tune[DT_TOM1] = 9u;                   /* (placeholders until the 400's own defaults are known) */
     dt.tune[DT_TOM2] = 5u;
     for (i = 0; i < NDTCH; i++)
@@ -655,6 +668,20 @@ static float dt_decay(float tau, float rate, float per)
     return tau > 0.0f ? fm_expf(-per / (tau * rate)) : 0.0f;
 }
 
+/* the virtual EPROMs (dt_eprom.h, tools/dt_eprom.py): a voice made once, offline, by dt_gen at its full cost, kept as the
+ * 8-bit numbers its DAC would be given, and read at the tuned rate as the 400's ROMs were; the VCF, the level, the
+ * output filters and the room stay live. [1] the low tunings' take where a voice has one (its low fields: steps 1-3) */
+#include "dt_eprom.h"
+static uint8_t dt_use_eprom = 1;             /* 0: every voice made live (the host's A/B) */
+static const int8_t *dt_eprom_of(uint32_t d, uint32_t tune, uint32_t *n)
+{
+    const uint32_t low = tune < 3u && d < sizeof DT_EPROM / sizeof DT_EPROM[0] && DT_EPROM[d][1].d;
+    if (!dt_use_eprom || d >= sizeof DT_EPROM / sizeof DT_EPROM[0] || !DT_EPROM[d][0].d)
+        return NULL;
+    *n = DT_EPROM[d][low].n;
+    return DT_EPROM[d][low].d;
+}
+
 /* a hit: its channel restarted on drum d at tuning step tune (0..15), level 0..255 */
 static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
 {
@@ -683,6 +710,9 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
     c->inc = (uint32_t)(rate * rom * (65536.0f / BS2_RATE));
     c->len = (uint32_t)(v->len * rom);
     c->lvl = (float)level * (1.0f / 255.0f);
+    c->tab = dt_eprom_of(d, tune, &c->len);
+    if (!c->tab)
+        c->len = (uint32_t)(v->len * rom);
     c->lpk = v->lp > 0.0f ? v->lp : 1.0f;
     c->hpk = v->hp > 0.0f ? 1.0f - fm_expf(-FM_TWO_PI * v->hp * rate / BS2_RATE) : 0.0f;
     c->att = v->attack > 0.0f ? 1.0f : 0.0f;
@@ -692,6 +722,7 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
     c->glo = fm_db2lin(-v->gate_db);
     c->gl_k = 1.0f - dt_decay(v->gate_t > 0.0f ? v->gate_t : 0.002f, rom, 1.0f);
     c->send = v->room;
+    c->post = v->post > 0.0f ? v->post : 1.0f;
     if (v->vca_t > 0.0f) {
         c->va = fm_expf(v->vca_hold / v->vca_t);
         c->va_k = dt_decay(v->vca_t, BS2_RATE, 1.0f);
@@ -738,7 +769,7 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
             cst[q] = (uint16_t)(at < 65535u ? at : 65535u);
         }
     }
-    for (i = 0, j = 0; i < v->n && j < DT_NM; i++) {
+    for (i = 0, j = 0; !c->tab && i < v->n && j < DT_NM; i++) {   /* (from an EPROM: no resonators) */
         const dt_mode_t *m = &v->m[i];
         uint32_t k = m->flags & DT_MC ? nc : 1u;
         for (q = 0; q < k && j < DT_NM; q++, j++) {
@@ -766,12 +797,15 @@ static uint32_t dt_level(uint32_t d, uint32_t vel, int acc)
     return ((vel >> 3) * 11u + 10u + (acc ? 80u : 0u)) * dt.vol[d] / 15u;
 }
 
-/* a MIDI note on the drums' channel (audio interrupt): accented at velocity 120 up, as the 400's */
+/* a MIDI note on the drums' channel (audio interrupt): accented at velocity 120 up, as the 400's; recorded as a key's */
+static void dq_hit_in(uint32_t d, uint32_t acc);
 static void dt_note(uint32_t note, uint32_t vel)
 {
     uint32_t d = note >= 35u && note < 35u + 24u ? DT_KEY[note - 35u] : DT_NONE;
-    if (d != DT_NONE && vel)
+    if (d != DT_NONE && vel) {
         dt_hit(d, dt.tune[d], dt_level(d, vel, vel >= 120u));
+        dq_hit_in(d, vel >= 120u);
+    }
 }
 
 /* a hit from the main loop (the FM-1's keys, its pads): to the audio through dtq */
@@ -793,12 +827,20 @@ static uint32_t dt_flash_take(void)
  * Cabasa, the panel's order; 0..127 to 0..15) */
 #define DT_CC_TUNE 33u
 #define DT_CC_VOL (DT_CC_TUNE + NDT)
+/* the sequencer's (bs2_dseq.c), for the bass's clock, which comes first in app.c */
+static volatile uint8_t dt_running;          /* a pattern runs */
+static volatile float dt_pos;                /* where in its loop, ticks */
+static volatile float dt_lock_h;             /* Swing Lock (GLO: DRUM MODS) on and running: a quarter's first 8th in ticks, 0 off */
+static volatile uint8_t dt_cc_last;          /* audio -> main loop: the last of those CCs (0: none since it looked) */
 static void dt_cc(uint32_t cc, uint32_t v)
 {
     if (cc >= DT_CC_TUNE && cc < DT_CC_TUNE + NDT)
         dt.tune[cc - DT_CC_TUNE] = (uint8_t)(v >> 3);
     else if (cc >= DT_CC_VOL && cc < DT_CC_VOL + NDT)
         dt.vol[cc - DT_CC_VOL] = (uint8_t)(v >> 3);
+    else
+        return;
+    dt_cc_last = (uint8_t)cc;
 }
 
 /* the drums' next output sample (audio interrupt), -1..1 at a full level */
@@ -816,8 +858,7 @@ static inline float dt_next(void)
         c->pos += c->inc;
         to = c->pos >> 16;
         while (c->k < to) {                  /* each ROM sample passed: made, to 8 bits, through the DAC */
-            float x = dt_gen(c);
-            c->out = dt_dac(x) * c->lvl;
+            c->out = c->tab ? (float)c->tab[c->k] * (1.0f / 127.0f) * c->lvl : dt_dac(dt_gen(c)) * c->lvl;
             if (++c->k >= c->len) {
                 c->drum = DT_NONE;
                 c->out = 0.0f;
@@ -842,7 +883,7 @@ static inline float dt_next(void)
             c->hz += (o - c->hz) * c->hpk;
             o -= c->hz;
         }
-        s += o;
+        s += o * c->post;
         r += o * c->send;
     }
     if (dt_room.idle < (uint32_t)(2.0f * DT_ROOM_RT * BS2_RATE)) {   /* (the room quiet: left alone) */
