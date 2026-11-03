@@ -1536,6 +1536,7 @@ static struct {
 /* Knob Zoom's camera (below, zoom_step) */
 #define ZOOM_MAX 256                         /* Q8, over 1x: 2x (crisp once there: whole pixels) */
 #define ZOOM_HOLD_MS 1000u
+#define DFN_ZOOM_MS 2200u                    /* the camera on a drum function just picked (SEQ, ARP) */
 #define ZOOM_IN_MS 64u                       /* the damping's time constants */
 #define ZOOM_OUT_MS 96u
 enum { ZH_NONE, ZH_DIVE, ZH_PAGE, ZH_RISE, ZH_OPEN };   /* zoom.home: a CC on HOME (zoom_cc_in): the camera going in, on its
@@ -1550,6 +1551,8 @@ static struct {                             /* (all 0 at rest: in the pool) */
     uint8_t home, g, ke;                     /* ZH_*; the CC's section page, its encoder */
     uint8_t sv[5], v[5];                     /* HOME's views (zoom_views); the CC's page's */
     uint8_t hp, dsv, dnew;                   /* the HOME it dives from; Drum Something's: its selected drum, the CC's */
+    uint8_t fn_ok;                           /* the drums' lit function drawn: tx, ty its LED and words */
+    uint32_t fn_at;                          /* when SEQ or ARP last moved it (0: none): the camera goes to it a while */
     uint32_t at, cc_at;                      /* the last step's time; the last CC's from HOME */
 } zoom PLAT_POOL;
 #define ORG_SHOW_MS 1500u                    /* a control's value on the MASTER's display, after its change */
@@ -3307,6 +3310,8 @@ static void dt_fn_go(uint32_t f)
         [DTF_BTEMPO] = "PRESET tempo, SEL enters", [DTF_BINS] = "SEL: insert a step here", [DTF_BDEL] = "SEL: delete this step"};
     ui.dt_fn = (uint8_t)f;
     dt_show(DTS_FN);
+    zoom.fn_at = plat_ms() | 1u;
+    zoom.fn_ok = 0;
     if (set.hints) {
         ui.hint = H[f];
         ui.hint_until = (plat_ms() + DT_SHOW_MS) | 1u;
@@ -3440,6 +3445,8 @@ static void dt_button(uint32_t k)
     case B_SEQ:                              /* the 400's SELECT PATTERN FUNCTIONS: running in RECORD MODE, round what's
                                               * used in the loop (Record, Erase Instrument, Error Correct, and Swing, ours);
                                               * stopped, RECORD MODE and those two arm it */
+        zoom.fn_at = plat_ms() | 1u;         /* (each press: the camera on the function lit) */
+        zoom.fn_ok = 0;
         if (ui.page != PG_DPAT) {            /* first, its page: the list as it is (from the songs', the number) */
             ui.dt_pend = 0;
             if (f >= DTF_SONG)
@@ -3455,6 +3462,8 @@ static void dt_button(uint32_t k)
     case B_ARP:                              /* its SELECT SONG FUNCTIONS (BUILD MODE: its own five); not while it runs: only
                                               * the number */
         ui.dt_pend = 0;
+        zoom.fn_at = plat_ms() | 1u;
+        zoom.fn_ok = 0;
         if (ui.page != PG_DSONG) {           /* first, its page: the list as it is (from the patterns', the number) */
             if (f < DTF_SONG) {
                 if (!dq.run)
@@ -3730,6 +3739,7 @@ static void input(void)
         if ((l = enc_logical(k)) >= NE)      /* (none on this page) */
             continue;
         ui.turned_at[l] = plat_ms();
+        zoom.fn_at = 0;                      /* (a knob: the camera on it) */
         if (zoom.home == ZH_OPEN) {          /* (a section's page on its way: there at once, the knob's) */
             zoom.z = 0;
             page_go(zoom.g);
@@ -4085,8 +4095,9 @@ static void zoom_cc_in(const param_t *q)     /* a CC's control q changed (on HOM
 static int zoom_step(uint32_t now)           /* a frame: 1 when the camera moved (the panel drawn again) */
 {
     const uint32_t dt = zoom.at ? now - zoom.at : 0u, last = ui.turned_at[ui.last_enc];
-    const int aim = !set.zoom_off && zoom.k == ui.last_enc + 1u && zoom.pg == ui.page && last
-                    && now - last < ZOOM_HOLD_MS;
+    const int fn = zoom.fn_at && zoom.fn_ok && now - zoom.fn_at < DFN_ZOOM_MS;   /* (a function just picked: to read it) */
+    const int aim = !set.zoom_off && zoom.pg == ui.page
+                    && (fn || (zoom.k == ui.last_enc + 1u && last && now - last < ZOOM_HOLD_MS));
     const int16_t z = zoom.z, x = zoom.x, y = zoom.y;
     zoom.at = now;
     if (zoom.home == ZH_OPEN) {              /* (a section's button on the drums' HOME: in on its box, its page at the end) */
@@ -5905,7 +5916,7 @@ static void dt_digits(char *l, char *r)
     else if (s == DTS_TUNE)
         dt_two(l, dt.tune[ui.dt_sel]);
 }
-static void dt_head(void)
+static void dt_head(int right)               /* (right: its right cheek too) */
 {
     static const char *const NAME[NDTF][2] = {
         {"PATTERN", "NUMBER"}, {"RECORD", "MODE"}, {"ERASE", "INSTRUMENT"}, {"ERROR", "CORRECT"}, {"SWING", "PERCENT"},
@@ -5922,7 +5933,8 @@ static void dt_head(void)
     dt_display(174, 1, r);
     cv_rect(0, 45, 240, pan_h - 45, DT_FACE);
     dt_cheek(0, 45, 0, 5);
-    dt_cheek(234, 45, 239, 234);
+    if (right)
+        dt_cheek(234, 45, 239, 234);
 }
 /* PRESET's tag and Knob Zoom's aim: the display it shows on. K1, K2 (on the Channel pages, their knobs off the page):
  * their value in a tag while they turn, the camera staying out */
@@ -5978,6 +5990,12 @@ static void dt_tiny(int32_t x, int32_t y, const char *s, uint16_t c)   /* 3 x 5 
 static void dfn_row(int32_t led_u, int32_t text_u, int32_t v, int lit, const char *s)
 {
     const int32_t y = dt_py(v);
+    if (lit && zoom.fn_at) {                 /* (the camera's aim: its LED and its words together) */
+        zoom.tx = (int16_t)((dt_px(led_u) + dt_px(text_u) + 4 * (int32_t)strlen(s)) / 2);
+        zoom.ty = (int16_t)y;
+        zoom.pg = ui.page;
+        zoom.fn_ok = 1;
+    }
     cv_rect(dt_px(led_u) - 2, y - 1, 5, 3, lit ? RGB(255, 40, 72) : RGB(96, 16, 32));
     dt_tiny(dt_px(text_u), y - 2, s, lit ? P_SILK : grey(190));
 }
@@ -6165,24 +6183,19 @@ static void dch_draw(void)
     static const uint8_t BK[11] = PLAT_BLACK_KEYS;
     const uint32_t c = ui.page - PG_DCH1, lit = dt_lit();
     const uint16_t print = grey(216);
-    char l[3], r[3], t[5] = "CH 1";
+    char t[5] = "CH 1";
     int32_t n = 0, i, x0, X, j = 0, top, low, ky, ly, tk;
-    dt_ux0 = 151, dt_x0 = 8, dt_sx = 430, dt_vy0 = 409, dt_y0 = 38, dt_sy = 500;
+    dt_head(0);                              /* the name, the two displays, the plate with its left cheek: PER INSTRUMENT's
+                                              * end of the faceplate */
+    dt_ux0 = 151, dt_x0 = 9, dt_sx = 430, dt_vy0 = 409, dt_y0 = 49, dt_sy = 450;
     top = dt_py(409), low = dt_py(642), ky = dt_py(530), ly = dt_py(603);
-    cv_rect(0, 0, 240, pan_h, DT_FACE);
-    dfn_box(8, 3, 232, 33);
-    dt_digits(l, r);
-    dfn_display(44, 8, l);
-    dfn_display(170, 8, r);
-    t[3] = (char)('1' + c);
-    dt_tiny(110, 15, t, print);
     dfn_box(dt_px(151), top, dt_px(364), low);
     dt_knob_at((float)dt_px(180) + 8.0f, (float)dt_py(453) + 2.0f, 9.5f, (float)dt.vol[ui.dt_sel] / 15.0f, 150, 100, 1.0f, 1, 0);
     dt_knob_at((float)dt_px(309) + 8.0f, (float)dt_py(453) + 2.0f, 9.5f, (float)dt.tune[ui.dt_sel] / 15.0f, 150, 100, 1.0f, 1, 0);
     tk = dt_py(453) + 2;
-    dt_tiny(dt_px(180) + 8 - 11, top + 34, "VOLUME", print);
-    dt_tiny(dt_px(309) + 8 - 11, top + 34, "TUNING", print);
-    dt_tiny((dt_px(151) + dt_px(364)) / 2 - 26, top + 44, "PER INSTRUMENT", grey(190));
+    dt_tiny(dt_px(180) + 8 - 11, top + 32, "VOLUME", print);
+    dt_tiny(dt_px(309) + 8 - 11, top + 32, "TUNING", print);
+    dt_tiny((dt_px(151) + dt_px(364)) / 2 - 26, top + 41, "PER INSTRUMENT", grey(190));
     tag(dt_px(180) + 8, tk, EN_K3);
     tag(dt_px(309) + 8, tk, EN_K4);
     cv_rect(dt_px(168) + 3, ky - 6, 5, 3, dq.run && !dt_blink() ? RGB(255, 40, 72) : RGB(96, 16, 32));   /* RUN's LED */
@@ -6192,10 +6205,12 @@ static void dch_draw(void)
     dt_tiny(dt_px(289), ly, "ACCENT", print);
     for (i = 0; i < (int32_t)NDT; i++)
         n += DT_CH[i] == c;
-    X = (dt_px(364) + 4 + 232) / 2;          /* (centred in what's left) */
+    X = (dt_px(364) + 3 + 237) / 2;          /* (centred in what's left) */
     x0 = X - (31 * n + 5) / 2;
     X = x0 + 31 * n + 5;
     dfn_box(x0, top, X, low);
+    t[3] = (char)('1' + c);
+    dt_tiny((x0 + X) / 2 - 7, top + 7, t, print);
     for (i = 0; i < (int32_t)NDT; i++)
         if (DT_CH[i] == c) {
             const int32_t kx = x0 + 4 + 31 * j++, sel = i == (int32_t)ui.dt_sel;
@@ -6204,9 +6219,7 @@ static void dch_draw(void)
             dch_key(kx, ky, (int)(lit >> i & 1u));
             dt_tiny(kx + 12 - w / 2, ly, SHORT[i], sel ? P_SILK : grey(170));
         }
-    tag(170 + 13, 17, EN_PRESET);
-    if (!ui.map_until)
-        tag(170 + 13, 17, EN_ALGO);
+    dt_tag_preset();
     dt_tag_away(EN_SELECT, 50);
     dt_tag_away(EN_K1, 100);
     dt_tag_away(EN_K2, 150);
@@ -6352,7 +6365,7 @@ static void dhome_draw(void)
     char l[3], r[3];
     int32_t i;
     dt_digits(l, r);
-    dt_head();                                   /* the name, the two displays; under them the plate */
+    dt_head(1);                                  /* the name, the two displays; under them the plate */
     for (i = 0; i < 13; i++)
         dt_frame(FRAME[i][0], FRAME[i][1], FRAME[i][2], FRAME[i][3], FRAME[i][4]);
     dt_vline(429, 188, 285);                     /* BUILD MODE's and RECORD MODE's lines */

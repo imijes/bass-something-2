@@ -105,3 +105,5 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-03 | f5d32c7+ | Drum Something: PATTERN and SONG pages with the camera, GLO KNOBS on all its knobs, RND pages from the drums; splash ground black | 490,052 | +2,624 | 91,512 | 77,732 | +0 | 20,572 | 157,896 |
 | 2026-11-03 | 99308e4+ | Drum Something: PATTERN and SONG pages as the faceplate, INFO plates | 494,520 | +4,468 | 87,044 | 77,748 | +16 | 20,556 | 157,896 |
 | 2026-11-03 | 7d84e80+ | Drum Something: Channel pages and zoomed pages in the faceplate's style, no wood, smooth frames | 496,272 | +1,752 | 85,292 | 77,748 | +0 | 20,556 | 157,896 |
+| 2026-11-03 | ce3e8f6+ | Drum Something: Channel pages keep the header and the left cheek | 496,372 | +100 | 85,192 | 77,764 | +16 | 20,540 | 157,896 |
+| 2026-11-03 | ce3e8f6+ | Drum Something: the camera on the function SEQ or ARP lights | 497,076 | +704 | 84,488 | 77,764 | +0 | 20,540 | 157,896 |

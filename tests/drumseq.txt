@@ -794,10 +794,21 @@ tap SEQ
 tap SEQ
 expect dt_fn 0
 tap ARP
-wait 30
+wait 400
 expect page 34
 expect dt_fn 9
+expect zoom 256
+wait 2400
+expect zoom 0
+tap ARP
+wait 300
+expect dt_fn 10
+expect zoom 256
 shot drum-song.png
+spin PRESET 0
+turn K1 1
+wait 2500
+expect zoom 0
 tap SEQ
 wait 30
 expect page 33
