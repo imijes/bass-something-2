@@ -89,3 +89,5 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-02 | 605c31f+ | Drum Something: the drum HOME's cheeks and black face the plate's height only | 347,160 | +48 | 234,404 | 77,556 | +0 | 20,748 | 138,768 |
 | 2026-11-02 | 605c31f+ | Drum Something: the drum HOME's panel a little smaller, as clear below as above | 347,288 | +128 | 234,276 | 77,556 | +0 | 20,748 | 138,768 |
 | 2026-11-02 | 605c31f+ | drum keys from the low C (Cabasa on the top black key) | 347,304 | +16 | 234,260 | 77,556 | +0 | 20,748 | 138,768 |
+| 2026-11-02 | c39ddb9+ | Drum Something: the drum HOME redrawn from the photo's measures (tools/dt_face.py): BS2 HOME's width, shared walls, rounded corners, silver-sided knobs, recessed keys, the keypad, little displays | 349,384 | +2,080 | 232,180 | 77,556 | +0 | 20,748 | 138,768 |
+| 2026-11-02 | c39ddb9+ | Drum Something: drum HOME's print as white lines, the drumsomething logo, the little displays below their frame's line | 350,712 | +1,328 | 230,852 | 77,556 | +0 | 20,748 | 138,768 |

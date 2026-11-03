@@ -4718,15 +4718,16 @@ static void h_fader(int32_t x, int32_t y, int32_t v)   /* v 0..127 */
     cv_rect(cx - 2, cy - 1, 5, 4, grey(56));   /* its cap, the line on it */
     cv_rect(cx - 2, cy, 5, 1, P_SILK);
 }
-static void h_digit(int32_t x, int32_t y, char c)   /* the display's digit, 3 x 5 */
+static void h_digit_c(int32_t x, int32_t y, char c, uint16_t col)   /* a digit, 3 x 5 */
 {
     static const int8_t R[7][4] = {{0, 0, 3, 1}, {2, 0, 1, 3}, {2, 2, 1, 3}, {0, 4, 3, 1},
                                    {0, 2, 1, 3}, {0, 0, 1, 3}, {0, 2, 3, 1}};   /* a..g */
     uint32_t m = seg_mask(c), i;
     for (i = 0; i < 7u; i++)
         if (m >> i & 1u)
-            cv_rect(x + R[i][0], y + R[i][1], R[i][2], R[i][3], RGB(252, 78, 112));
+            cv_rect(x + R[i][0], y + R[i][1], R[i][2], R[i][3], col);
 }
+static void h_digit(int32_t x, int32_t y, char c) { h_digit_c(x, y, c, RGB(252, 78, 112)); }   /* the display's */
 static void home_draw(void)
 {
     static const int16_t TOP_GAP[3] = {333, 753, 924}, MID_GAP[4] = {333, 402, 693, 1140};
@@ -4898,14 +4899,17 @@ static void home_sect(uint32_t g, int16_t *x, int16_t *y, float *lc)   /* page g
 }
 
 /* Drum Something's HOME: the drum machine's whole panel, after the Sequential Drumtraks' (black, its sections in
- * thin white frames, red LEDs and displays, black keys, the keypad's grey), in proportion to it: its plate's units (1200
- * across its sections) at 0.161 px each (dt_px). Its name and its two displays over it; an instrument's key lit as it
- * plays (dt_lit) */
-#define DT_FACE RGB(32, 32, 32)              /* the plate */
-#define DT_PRINT RGB(208, 208, 208)          /* its frames and print */
+ * thin white frames sharing their walls, red LEDs and displays, black keys, the keypad's grey). Places are a photo's
+ * pixels measured (tools/dt_face.py), its frames across 151..1348 onto HOME's 224 columns (HOME_L's margin, as the
+ * BS2's panel: 0.187 px each). Its name and its two displays over it; an instrument's key lit as it plays (dt_lit) */
+#define DT_FACE_G 32                         /* the plate's grey */
+#define DT_FACE grey(DT_FACE_G)
+#define DT_LINE_G 232                        /* its frames (4.5 of the photo's pixels: nearly a whole pixel) */
+#define DT_THIN grey(160)                    /* its thin lines (3 of them) */
+#define DT_PRINT grey(208)                   /* the splash's frames */
 #define DT_LIT_MS 120u                       /* a key lit after its hit */
-static int32_t dt_px(int32_t u) { return 24 + (u - 150) * 161 / 1000; }   /* a plate unit across, to the panel's x */
-static int32_t dt_py(int32_t u) { return 60 + (u - 57) * 161 / 1000; }    /* and down (6 rows clear above, below) */
+static int32_t dt_px(int32_t u) { return HOME_L + (u - 151) * 187 / 1000; }   /* a photo's x, to the column it's in */
+static int32_t dt_py(int32_t v) { return 47 + (v - 56) * 187 / 1000; }        /* and y (the plate from row 45) */
 static uint32_t dt_lit(void)                 /* the instruments lit: held (ui.drum's keys) or just hit (ui.dt_at) */
 {
     const uint32_t now = plat_ms();
@@ -4915,46 +4919,121 @@ static uint32_t dt_lit(void)                 /* the instruments lit: held (ui.dr
             m |= 1u << i;
     return m;
 }
-static void dt_frame(int32_t x0, int32_t y0, int32_t x1, int32_t y1)   /* a section's frame, its corners rounded */
+static void dt_frame(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int r3)   /* a section's frame on the photo's
+                                              * lines; its corners' arcs (r 2.3 or, r3, 3.2 px) in eighths of the line */
 {
-    const int32_t x = dt_px(x0), y = dt_py(y0), w = dt_px(x1) - x, h = dt_py(y1) - y;
-    cv_rect(x + 2, y, w - 4, 1, DT_PRINT);
-    cv_rect(x + 2, y + h - 1, w - 4, 1, DT_PRINT);
-    cv_rect(x, y + 2, 1, h - 4, DT_PRINT);
-    cv_rect(x + w - 1, y + 2, 1, h - 4, DT_PRINT);
-    cv_pset(x + 1, y + 1, DT_PRINT);
-    cv_pset(x + w - 2, y + 1, DT_PRINT);
-    cv_pset(x + 1, y + h - 2, DT_PRINT);
-    cv_pset(x + w - 2, y + h - 2, DT_PRINT);
+    static const uint8_t A2[3][3] = {{0, 5, 8}, {5, 5, 0}, {8, 0, 0}};
+    static const uint8_t A3[4][4] = {{0, 3, 6, 8}, {3, 7, 2, 0}, {6, 2, 0, 0}, {8, 0, 0, 0}};
+    const int32_t x = dt_px(x0), y = dt_py(y0), X = dt_px(x1), Y = dt_py(y1), r = r3 ? 3 : 2;
+    int32_t i, j;
+    cv_rect(x + r, y, X - x - 2 * r + 1, 1, grey(DT_LINE_G));
+    cv_rect(x + r, Y, X - x - 2 * r + 1, 1, grey(DT_LINE_G));
+    cv_rect(x, y + r, 1, Y - y - 2 * r + 1, grey(DT_LINE_G));
+    cv_rect(X, y + r, 1, Y - y - 2 * r + 1, grey(DT_LINE_G));
+    for (j = 0; j < r; j++)
+        for (i = 0; i < r; i++) {
+            const int32_t c = r3 ? A3[j][i] : A2[j][i];
+            const uint16_t g = grey(DT_FACE_G + (DT_LINE_G - DT_FACE_G) * c / 8);
+            if (c) {
+                cv_pset(x + i, y + j, g);
+                cv_pset(X - i, y + j, g);
+                cv_pset(x + i, Y - j, g);
+                cv_pset(X - i, Y - j, g);
+            }
+        }
 }
-static void dt_button(int32_t u, int32_t v, int lit)   /* a black key at plate u, v: its light right edge; lit, white */
+static void dt_bkey(int32_t u, int32_t v, int lit)   /* a lower black key, its recess's top left at the photo's u, v
+                                              * (57 x 56 there): the recess black, its walls a shade up, the cap, the
+                                              * bright wall at its right, mitred; lit, the cap white */
 {
-    const int32_t x = dt_px(u) - 4, y = dt_py(v) - 4;
-    cv_rect(x, y, 9, 9, RGB(8, 8, 8));
-    cv_rect(x + 1, y + 1, 7, 7, lit ? P_SILK : RGB(24, 24, 24));
-    cv_rect(x + 7, y + 1, 1, 7, lit ? P_SILK : grey(120));
+    const int32_t x = dt_px(u), y = dt_py(v);
+    cv_rect(x, y, 11, 11, RGB(0, 0, 0));
+    cv_rect(x + 1, y + 1, 9, 9, grey(16));
+    cv_rect(x + 2, y + 2, 6, 7, lit ? P_SILK : grey(40));
+    cv_rect(x + 8, y + 2, 1, 7, lit ? P_SILK : grey(200));
+    cv_pset(x + 8, y + 1, grey(96));
+    cv_pset(x + 8, y + 9, grey(120));
+}
+static void dt_ukey(int32_t u, int32_t v)    /* an upper black key (44 x 43 there; the light's not on its wall): its
+                                              * black recess, the cap, a faint right wall */
+{
+    const int32_t x = dt_px(u), y = dt_py(v);
+    cv_rect(x, y, 8, 8, RGB(0, 0, 0));
+    cv_rect(x + 1, y + 1, 6, 6, grey(48));
+    cv_rect(x + 6, y + 1, 1, 6, grey(88));
+}
+static void dt_gkey(int32_t u, int32_t v, char c)   /* a keypad key (35 x 34 there): the recessed outer square, lit
+                                              * below and at the right, the face, its digit or arrow */
+{
+    const int32_t x = dt_px(u), y = dt_py(v);
+    int32_t i;
+    cv_rect(x, y, 7, 1, grey(184));
+    cv_rect(x, y + 1, 1, 6, grey(120));
+    cv_rect(x + 6, y + 1, 1, 6, grey(216));
+    cv_rect(x + 1, y + 6, 6, 1, grey(232));
+    cv_rect(x + 1, y + 1, 5, 5, grey(176));
+    cv_rect(x + 1, y + 1, 5, 1, grey(128));  /* (the groove round the face, its shadowed sides) */
+    cv_rect(x + 1, y + 2, 1, 4, grey(128));
+    if (c == '<' || c == '>')
+        for (i = 0; i < 3; i++)
+            cv_rect(c == '<' ? x + 2 + i : x + 4 - i, y + 3 - i, 1, 2 * i + 1, P_SILK);
+    else
+        h_digit_c(x + 2, y + 1, c, grey(224));
 }
 static void dt_led(int32_t u, int32_t v, int on)
 {
-    cv_rect(dt_px(u) - 1, dt_py(v) - 1, 2, 2, on ? RGB(255, 40, 48) : RGB(72, 16, 24));
+    cv_rect(dt_px(u), dt_py(v), 2, 1, on ? RGB(255, 40, 72) : RGB(128, 16, 32));   /* (a row: they're 2.5 rows apart) */
 }
-static void dt_knob(int32_t u, int32_t v, int32_t val)   /* a black knob, its white line at val of 0..10 */
+static void dt_vline(int32_t u, int32_t v0, int32_t v1) { cv_rect(dt_px(u), dt_py(v0), 1, dt_py(v1) - dt_py(v0) + 1, DT_THIN); }
+static void dt_hline(int32_t u0, int32_t u1, int32_t v) { cv_rect(dt_px(u0), dt_py(v), dt_px(u1) - dt_px(u0) + 1, 1, DT_THIN); }
+/* a black knob at the photo's u, v (r 22.5 there), a pixel at a time: nothing but its silver side tells it from the
+ * plate, the side seen from a little off top-down, brightest towards 15 degrees below the right (the photo's rim by
+ * angle, base + amp * cos), thick by wide where it's lit; its shadow out at sx, sy; its short line at val of 0..10 */
+static void dt_knob(int32_t u, int32_t v, int32_t val, int32_t base, int32_t amp, float wide, int32_t sx, int32_t sy)
 {
-    const int32_t cx = dt_px(u), cy = dt_py(v);
-    int32_t x, y;
-    disc(cx, cy, 5, RGB(8, 8, 8));
-    disc(cx, cy, 4, grey(40));
-    pt_at(cx, cy, 4, ((float)val / 10.0f - 0.5f) * (FM_PI * 5.0f / 3.0f), &x, &y);
-    cv_line(cx, cy, x, y, P_SILK);
+    const float X = (float)HOME_L + (float)(u - 151) * 0.187f + 0.5f, Y = 47.0f + (float)(v - 56) * 0.187f + 0.5f;
+    const float R = 4.2f, a = ((float)val / 10.0f - 0.5f) * (FM_PI * 5.0f / 3.0f);
+    const int32_t cx = (int32_t)X, cy = (int32_t)Y;
+    int32_t x, y, x0, y0, x1, y1;
+    for (y = cy - 7; y <= cy + 7; y++)
+        for (x = cx - 7; x <= cx + 7; x++) {
+            const float dx = (float)x + 0.5f - X, dy = (float)y + 0.5f - Y, d = fm_sqrtf(dx * dx + dy * dy);
+            const float sd = fm_sqrtf((dx - (float)sx) * (dx - (float)sx) + (dy - (float)sy) * (dy - (float)sy));
+            const float c = d > 0.01f ? (dx * 0.966f + dy * 0.259f) / d : 0.0f;
+            const float w = 0.5f + (c > 0.0f ? c * wide : 0.0f);
+            const float rim = fm_minf(1.0f, fm_maxf(0.0f, w + 0.5f - (d > R ? d - R : R - d)));
+            const float in = fm_minf(1.0f, fm_maxf(0.0f, R - d + 0.5f));
+            const float sh = fm_minf(1.0f, fm_maxf(0.0f, R + 0.5f - sd));
+            float g = (float)DT_FACE_G + ((float)16 - (float)DT_FACE_G) * sh;
+            if (rim <= 0.0f && in <= 0.0f && sh <= 0.0f)
+                continue;
+            g += ((float)40 - g) * in;
+            g += ((float)base + (float)amp * c - g) * rim;
+            cv_pset(x, y, grey((int32_t)g));
+        }
+    pt_at(cx, cy, 2, a, &x0, &y0);
+    pt_at(cx, cy, 4, a, &x1, &y1);
+    cv_line(x0, y0, x1, y1, grey(216));
 }
-static void seg_tiny(int32_t x, int32_t y, char c)   /* a digit 4 x 7 (seg7's segments, a pixel thick) */
+static void dt_digit(int32_t x, int32_t y, char c)   /* the plate's little display's digit, 5 x 6, leaning as the
+                                              * photo's (the unlit segments show) */
 {
-    static const int8_t R[7][4] = {{1, 0, 2, 1}, {3, 1, 1, 2}, {3, 4, 1, 2}, {1, 6, 2, 1}, {0, 4, 1, 2}, {0, 1, 1, 2},
-                                   {1, 3, 2, 1}};
-    uint32_t m = seg_mask(c), i;
-    for (i = 0; i < 7u; i++)
-        if (m >> i & 1u)
-            cv_rect(x + R[i][0], y + R[i][1], R[i][2], R[i][3], RGB(252, 60, 72));
+    static const int8_t R[7][4] = {{1, 0, 4, 1}, {4, 0, 1, 3}, {3, 3, 1, 3}, {0, 5, 4, 1}, {0, 3, 1, 3}, {1, 0, 1, 3},
+                                   {1, 3, 3, 1}};   /* a..g */
+    const uint32_t m = seg_mask(c);
+    uint32_t i, on;
+    for (on = 0; on < 2u; on++)
+        for (i = 0; i < 7u; i++)
+            if (!on || (m >> i & 1u))
+                cv_rect(x + R[i][0], y + R[i][1], R[i][2], R[i][3], on ? RGB(252, 60, 96) : RGB(72, 16, 24));
+}
+static void dt_small(int32_t u, const char *t)   /* its window (the photo's, 62 x 43, its pale left edge) and digits */
+{
+    const int32_t x = dt_px(u), y = dt_py(61) + 1;   /* (a row clear of the frame above) */
+    cv_rect(x, y, 13, 8, RGB(32, 16, 20));
+    cv_rect(x, y, 1, 8, grey(112));
+    dt_digit(x + 1, y + 1, t[0]);
+    dt_digit(x + 7, y + 1, t[1]);
 }
 static void dt_display(int32_t x, int32_t y, const char *t)   /* the 400's display: two red digits (seg7) */
 {
@@ -4984,55 +5063,123 @@ static void dt_cheek(int32_t x, int32_t y0, int32_t edge, int32_t shadow)
     cv_rect(edge, y0, 1, h, RGB(200, 128, 72));
     cv_rect(shadow, y0, 1, h, RGB(80, 40, 16));
 }
+/* the print, too small to read here: a white line for each word (the photo's x0, x1, its middle's y) */
+static void dt_print(void)
+{
+    static const int16_t WORD[][3] = {
+        {214, 270, 86}, {424, 467, 111}, {476, 509, 112}, {519, 585, 112}, {951, 994, 111}, {1006, 1058, 111},
+        {1071, 1137, 111}, {442, 484, 141}, {971, 1034, 141}, {442, 478, 154}, {487, 519, 154}, {972, 1018, 154},
+        {1025, 1059, 154}, {442, 528, 168}, {535, 550, 168}, {1000, 1036, 168}, {1044, 1121, 168}, {189, 220, 177},
+        {262, 294, 177}, {1225, 1302, 172}, {442, 477, 182}, {485, 519, 182}, {1001, 1039, 182}, {1046, 1098, 182},
+        {1239, 1288, 193}, {473, 533, 196}, {972, 1028, 196}, {473, 496, 209}, {504, 551, 209}, {972, 1001, 209},
+        {1011, 1075, 210}, {473, 511, 223}, {520, 566, 223}, {972, 1001, 223}, {1009, 1074, 223}, {222, 263, 235},
+        {473, 515, 236}, {972, 1010, 236}, {1024, 1075, 236}, {473, 516, 250}, {972, 1004, 251}, {1011, 1069, 251},
+        {1075, 1090, 251}, {507, 546, 284}, {1238, 1287, 309}, {182, 229, 322}, {256, 300, 322}, {1239, 1287, 331},
+        {435, 455, 452}, {460, 468, 452}, {541, 560, 451}, {568, 577, 451}, {682, 703, 451}, {711, 721, 451},
+        {825, 846, 451}, {854, 863, 451}, {969, 989, 452}, {996, 1005, 452}, {1184, 1205, 452}, {1214, 1224, 452},
+        {174, 221, 486}, {302, 346, 484}, {208, 230, 499}, {236, 311, 499}, {436, 466, 603}, {508, 548, 603},
+        {586, 609, 602}, {648, 680, 603}, {720, 753, 603}, {791, 831, 603}, {865, 892, 603}, {932, 976, 603},
+        {1008, 1040, 603}, {1076, 1115, 603}, {165, 228, 604}, {296, 342, 603}, {1153, 1186, 604},
+        {1215, 1270, 604}, {1291, 1340, 604}, {822, 870, 621}, {968, 982, 620}, {986, 1009, 620}};
+    uint32_t i;
+    for (i = 0; i < sizeof WORD / sizeof WORD[0]; i++) {
+        const int32_t x = dt_px(WORD[i][0]), w = dt_px(WORD[i][1]) - x;
+        cv_rect(x, dt_py(WORD[i][2]), w > 0 ? w : 1, 1, grey(216));
+    }
+}
+/* our name where the 400 has its own, right to its frames' edge, in round letters like its: 8 rows of them drawn by
+ * hand, # whole, + half, . faint */
+static void dt_logo(void)
+{
+    static const char *const R[8] = {
+        " .###                                                  ##    ##",
+        "   ##                                              .   ##",
+        " .### ###+ ## ## #+#+#+. .### .###. #+#+#+. .###. #### ##+#. ## ##+#. .####",
+        "##.## ## # ## ## ## ## # ##   ##.## ## ## # ##.##  ##  ##.## ## ##.## ##.##",
+        "## ## ###. ## ## ## ## # .##. ## ## ## ## # ####.  ##  ## ## ## ## ## ## ##",
+        "##.## ## # ##.## ## ## #   ## ##.## ## ## # ##     ##. ## ## ## ## ## .####",
+        " ###+ ## # .#### ## ## # ###. .###. ## ## # .###+  .## ## ## ## ## ##    ##",
+        "                                                                      .###.",
+    };
+    int32_t x, y;
+    for (y = 0; y < 8; y++)
+        for (x = 0; R[y][x]; x++)
+            if (R[y][x] != ' ')
+                cv_pset(232 - 75 + x, 104 + y, grey(R[y][x] == '#' ? 240 : R[y][x] == '+' ? 168 : 96));
+}
 static void dhome_draw(void)
 {
-    static const int16_t FRAME[13][4] = {
-        {165, 57, 318, 203}, {165, 207, 318, 350}, {330, 57, 640, 350}, {645, 57, 850, 350}, {853, 57, 1165, 350},
-        {1180, 57, 1348, 350},                              /* cassette, tempo, song, display, pattern, volumes */
-        {150, 410, 365, 640}, {415, 410, 485, 640}, {489, 410, 628, 640}, {632, 410, 771, 640}, {775, 410, 913, 640},
-        {918, 410, 1057, 640}, {1061, 410, 1348, 640}};    /* per instrument, CH1 .. CH6 */
-    static const int16_t KEY[9][2] = {{205, 140}, {277, 140}, {205, 285}, {277, 285}, {393, 112}, {475, 284},
-                                      {917, 112}, {193, 558}, {318, 558}};   /* (the last two RUN/STOP, ACCENT) */
+    static const int16_t FRAME[13][5] = {                   /* (the last: its corners' wider arc) */
+        {166, 57, 318, 205, 1}, {166, 205, 318, 350, 1}, {330, 57, 643, 350, 0}, {643, 57, 852, 350, 0},
+        {852, 56, 1166, 350, 0}, {1180, 56, 1348, 350, 1},  /* cassette, tempo, song, display, pattern, volumes */
+        {151, 409, 364, 642, 0}, {415, 409, 487, 642, 0}, {487, 409, 630, 642, 0}, {630, 409, 773, 642, 0},
+        {773, 409, 916, 642, 0}, {916, 409, 1059, 642, 0}, {1059, 409, 1348, 642, 0}};   /* per instrument, CH1 .. CH6 */
+    static const int16_t UKEY[7][2] = {{183, 119}, {255, 119}, {183, 263}, {255, 263}, {373, 92}, {453, 263}, {896, 92}};
     static const int16_t LED[21][2] = {
-        {205, 107}, {277, 107}, {197, 520},                 /* cassette's, per instrument's */
-        {432, 140}, {432, 154}, {432, 168}, {432, 182}, {455, 196}, {455, 210}, {455, 223}, {455, 237}, {455, 250},
-        {953, 140}, {953, 154}, {978, 168}, {978, 182}, {953, 196}, {953, 209}, {953, 223}, {953, 236}, {953, 250}};
-    static const int16_t INST[NDT] = {452, 522, 593, 665, 737, 808, 880, 951, 1023, 1094, 1166, 1238, 1310};
+        {204, 107}, {276, 108}, {195, 519},                 /* cassette's, per instrument's */
+        {429, 141}, {429, 154}, {429, 168}, {429, 182}, {457, 195}, {457, 209}, {457, 223}, {457, 236}, {457, 250},
+        {950, 141}, {950, 155}, {978, 168}, {979, 183}, {951, 196}, {951, 210}, {951, 223}, {951, 237}, {951, 250}};
+    static const int16_t INST[NDT] = {422, 495, 566, 638, 709, 781, 852, 924, 995, 1067, 1138, 1211, 1283};
+    static const int16_t TREE[5] = {197, 211, 224, 238, 251};   /* BUILD MODE's lines */
+    static const char PAD[] = "123456789<0>";
     static const uint8_t BK[11] = PLAT_BLACK_KEYS;
     const uint32_t lit = dt_lit();
     int32_t i;
     /* the name, the two displays (the song's, the pattern's: none yet); under them the plate between its wooden ends */
-    cv_text(10, 8, &FONT_B, "DRUM", P_SILK);
-    cv_text(10, 26, &FONT_B, "SOMETHING", P_SILK);
-    cv_rect(10, 45, 96, 2, RGB(252, 60, 72));
-    dt_display(114, 4, "--");
-    dt_display(174, 4, "00");
-    cv_rect(0, 54, 240, pan_h - 54, DT_FACE);
-    dt_cheek(0, 54, 0, 5);
-    dt_cheek(234, 54, 239, 234);
+    cv_text(10, 6, &FONT_B, "DRUM", P_SILK);
+    cv_text(10, 24, &FONT_B, "SOMETHING", P_SILK);
+    cv_rect(10, 42, 96, 2, RGB(252, 60, 72));
+    dt_display(114, 1, "--");
+    dt_display(174, 1, "00");
+    cv_rect(0, 45, 240, pan_h - 45, DT_FACE);
+    dt_cheek(0, 45, 0, 5);
+    dt_cheek(234, 45, 239, 234);
     for (i = 0; i < 13; i++)
-        dt_frame(FRAME[i][0], FRAME[i][1], FRAME[i][2], FRAME[i][3]);
-    cv_rect(dt_px(443), dt_py(190), 1, dt_py(284) - dt_py(190), DT_PRINT);   /* BUILD MODE's and RECORD MODE's lines */
-    cv_rect(dt_px(443), dt_py(284), dt_px(460) - dt_px(443), 1, DT_PRINT);
-    cv_rect(dt_px(966), dt_py(160), 1, dt_py(182) - dt_py(160), DT_PRINT);
-    for (i = 0; i < 9; i++)
-        dt_button(KEY[i][0], KEY[i][1], i == 8 && ui.drum && ui.keys >> BK[0] & 1u);   /* (ACCENT: its key held) */
+        dt_frame(FRAME[i][0], FRAME[i][1], FRAME[i][2], FRAME[i][3], FRAME[i][4]);
+    dt_vline(429, 188, 285);                     /* BUILD MODE's and RECORD MODE's lines */
+    for (i = 0; i < 5; i++)
+        dt_hline(429, 452, TREE[i]);
+    dt_hline(429, 452, 285);
+    dt_vline(951, 161, 183);
+    dt_hline(951, 975, 169);
+    dt_hline(951, 975, 183);
+    dt_vline(195, 487, 498);                     /* PER INSTRUMENT's, CYMBAL's, HI HAT's brackets */
+    dt_hline(195, 205, 498);
+    dt_vline(321, 487, 498);
+    dt_hline(314, 321, 498);
+    dt_vline(809, 608, 621);
+    dt_hline(809, 819, 621);
+    dt_vline(879, 610, 621);
+    dt_hline(873, 879, 621);
+    dt_vline(950, 606, 620);
+    dt_hline(950, 965, 620);
+    dt_vline(1024, 606, 620);
+    dt_hline(1012, 1024, 620);
+    dt_print();
+    dt_logo();
+    for (i = 0; i < 7; i++)
+        dt_ukey(UKEY[i][0], UKEY[i][1]);
     for (i = 0; i < 21; i++)
         dt_led(LED[i][0], LED[i][1], i == 12);   /* (PATTERN#: the function shown) */
     for (i = 0; i < 12; i++)                     /* the keypad: 1-9, then left, 0, right */
-        cv_rect(dt_px(693 + 55 * (i % 3)) - 3, dt_py(150 + 54 * (i / 3)) - 3, 6, 6, grey(160));
-    cv_rect(dt_px(660), dt_py(68), dt_px(725) - dt_px(660), dt_py(103) - dt_py(68), RGB(4, 4, 4));
-    cv_rect(dt_px(770), dt_py(68), dt_px(835) - dt_px(770), dt_py(103) - dt_py(68), RGB(4, 4, 4));
-    seg_tiny(dt_px(678), dt_py(75), '-');
-    seg_tiny(dt_px(678) + 5, dt_py(75), '-');
-    seg_tiny(dt_px(788), dt_py(75), '0');
-    seg_tiny(dt_px(788) + 5, dt_py(75), '0');
-    dt_knob(1268, 120, 5);                       /* METRONOME, MASTER; VOLUME, TUNING */
-    dt_knob(1268, 262, (int32_t)(plat_master() * 10u / 4095u));
-    dt_knob(187, 452, 10);
-    dt_knob(312, 452, 5);
+        dt_gkey(676 + 55 * (i % 3), 133 + 54 * (i / 3) + (i / 3 == 3), PAD[i]);
+    dt_small(660, "--");
+    dt_small(770, "00");
+    for (i = 0; i < 11; i++) {                   /* the volumes' scales: a dot for each number, 0..10 */
+        int32_t x, y;
+        pt_at(dt_px(1276), dt_py(120), 8, ((float)i / 10.0f - 0.5f) * (FM_PI * 5.0f / 3.0f), &x, &y);
+        cv_pset(x, y, grey(200));
+        pt_at(dt_px(1276), dt_py(260), 8, ((float)i / 10.0f - 0.5f) * (FM_PI * 5.0f / 3.0f), &x, &y);
+        cv_pset(x, y, grey(200));
+    }
+    dt_knob(1276, 120, 5, 178, 78, 0.5f, -2, 1);  /* METRONOME, MASTER; VOLUME, TUNING (lit from their other side) */
+    dt_knob(1276, 260, (int32_t)(plat_master() * 10u / 4095u), 178, 78, 0.5f, -2, 1);
+    dt_knob(180, 453, 10, 150, 100, 1.0f, 1, 0);
+    dt_knob(309, 453, 5, 150, 100, 1.0f, 1, 0);
+    dt_bkey(168, 530, 0);                         /* RUN/STOP, ACCENT (its key held) */
+    dt_bkey(289, 530, ui.drum && ui.keys >> BK[0] & 1u);
     for (i = 0; i < (int32_t)NDT; i++)
-        dt_button(INST[i], 558, (int)(lit >> i & 1u));
+        dt_bkey(INST[i], 530, (int)(lit >> i & 1u));
 }
 
 static void head_draw(void)                  /* the section tabs (each page's panel under them) */
