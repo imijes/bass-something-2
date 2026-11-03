@@ -20,16 +20,6 @@ tap OCT+
 tap OCT+
 tap OCT+
 tap OCT+
-tap OCT+
-tap OCT+
-tap OCT+
-tap OCT+
-tap OCT+
-tap OCT+
-tap OCT+
-tap OCT+
-tap OCT+
-tap OCT+
 expect dt_tempo 120
 expect tempo 120
 # the defaults: 4/4, one measure (96 ticks), recorded as played (Error Correct 1/96, off; the 400's was 1/16)
@@ -333,7 +323,7 @@ expect dt_run 0
 # the clock: the drums the master while they run, the bass's patch tempo untouched
 tap OCT-
 wait 30
-expect dt_tempo 119
+expect dt_tempo 118
 expect tempo 120
 # DRUM MODS (FX): Swing Lock, off by default: the swings independent
 tap FX
@@ -369,22 +359,6 @@ expect dt_run 0
 expect dt_fn 0
 # a bass arp under a running pattern (tempo 60 for the drums, the patch's stays): on the drums' clock, restarted with
 # them; with Swing Lock on, each 16th on their curve, checked over a bar and through the swing changing
-tap OCT-
-tap OCT-
-tap OCT-
-tap OCT-
-tap OCT-
-tap OCT-
-tap OCT-
-tap OCT-
-tap OCT-
-tap OCT-
-tap OCT-
-tap OCT-
-tap OCT-
-tap OCT-
-tap OCT-
-tap OCT-
 tap OCT-
 tap OCT-
 tap OCT-
@@ -624,3 +598,154 @@ expect rec_light 1
 tap REC
 wait 30
 expect rec_light 0
+# TEMPO: the manual's tempos (7-9): OCT and SELECT a step each: 105 up nine is 125, down twelve is 86 from 105
+tap HOME
+wait 30
+spin SELECT -90
+wait 30
+expect dt_tempo 40
+spin SELECT 57
+wait 30
+expect dt_tempo 105
+spin SELECT 9
+wait 30
+expect dt_tempo 125
+spin SELECT -9
+wait 30
+spin SELECT -12
+wait 30
+expect dt_tempo 86
+spin SELECT 90
+wait 30
+expect dt_tempo 250
+spin SELECT -26
+wait 30
+expect dt_tempo 120
+# a song: the manual's AABA in song 45 (5-2): ARP to SONG, its number; BUILD MODE, ENTER; each pattern, ENTER; ENTER to leave
+expect dt_pat 20
+tap ARP
+expect dt_fn 9
+spin PRESET 45
+wait 30
+expect dt_song 45
+expect dt_slen 0
+tap PLAY
+wait 30
+expect dt_run 0
+tap ARP
+tap ARP
+tap ARP
+expect dt_fn 12
+tap SEL
+wait 30
+expect dt_fn 13
+expect dt_step 0
+spin PRESET 20
+wait 30
+tap SEL
+wait 30
+expect dt_step 1
+expect dt_slen 1
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_slen 1
+# empty patterns at its end stop it; a loop of pattern 20 twice, then the end: round again, step by step
+tap ARP
+tap ARP
+tap ARP
+tap SEL
+wait 30
+spin ALGO 1
+wait 30
+expect dt_step 1
+spin PRESET 20
+wait 30
+tap SEL
+wait 30
+expect dt_slen 2
+# a volume change at step 1: INSERT, then VOL CHANGE (the manual's 7-7)
+spin ALGO -1
+wait 30
+tap ARP
+tap ARP
+tap ARP
+expect dt_fn 16
+tap SEL
+wait 30
+expect dt_fn 13
+expect dt_slen 3
+tap ARP
+expect dt_fn 14
+spin PRESET -2
+wait 30
+tap SEL
+wait 30
+expect dt_fn 13
+expect dt_step 2
+expect dt_slen 3
+tap SEL
+wait 30
+expect dt_fn 9
+# run: the song runs its patterns, the changes accumulating over its loops
+tap PLAY
+wait 200
+expect dt_run 1
+expect dt_insong 1
+expect dt_cur 20
+wait 2100
+expect dt_svol -16
+expect dt_run 1
+wait 6000
+expect dt_run 1
+tap PLAY
+wait 50
+expect dt_run 0
+expect dt_insong 0
+# copy to 46; a saved song is back after a reboot
+tap ARP
+tap ARP
+expect dt_fn 11
+spin ALGO 1
+wait 30
+tap SEL
+wait 30
+expect dt_fn 9
+spin PRESET 1
+wait 30
+expect dt_song 46
+expect dt_slen 3
+tap SAVE
+wait 50
+reboot
+wait 600
+tap HOME
+wait 30
+expect dt_song 46
+expect dt_slen 3
+# delete a step; erase the song
+tap ARP
+tap ARP
+tap ARP
+expect dt_fn 12
+tap SEL
+wait 30
+tap ARP
+tap ARP
+tap ARP
+tap ARP
+expect dt_fn 17
+tap SEL
+wait 30
+expect dt_slen 2
+tap SEL
+wait 30
+expect dt_fn 9
+tap ARP
+expect dt_fn 10
+spin ALGO 0
+tap SEL
+wait 30
+expect dt_slen 0
+tap SEQ
+expect dt_fn 0

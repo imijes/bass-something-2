@@ -268,6 +268,7 @@ typedef struct {
 #define DT_MF 2u                             /* fixed: not following the pitch's fall */
 #define DT_MT 4u                             /* driven by the tail's noise (its own swell and decay), not struck */
 #define DT_MC 8u                             /* a jingle's: played as the voice's copies, each its own jingle */
+#ifdef PLAT_HOST                             /* (the live voices: made on the host, tools/dt_eprom.py; the FM-1 reads their EPROMs) */
 static const dt_mode_t DT_MODES_TOM[] = {    /* the head's modes at rest; all start a third higher (DT_VOICE) */
     {62, 0, 0.35f, 0}, {90, -30, 0.30f, 0}, {101, -21, 0.25f, 0}, {124, -21, 0.20f, 0}, {137, -22, 0.18f, 0},
     {152, -30, 0.12f, 0}, {174, -21, 0.20f, 0}, {193, -26, 0.20f, 0}, {239, -25, 0.18f, 0}, {268, -21, 0.15f, 0},
@@ -348,6 +349,19 @@ static const dt_mode_t DT_MODES_RIDE[] = {   /* the bell's and the bow's partial
 static const dt_mode_t DT_MODES_CABASA[] = { /* beads on steel: noise in a broad band, 1.3 to 4.2 kHz, swelling */
     {1300, -3, DT_CA_Q, DT_MT}, {1620, 0, DT_CA_Q, DT_MT}, {2030, -3, DT_CA_Q, DT_MT}, {2500, -3, DT_CA_Q, DT_MT},
     {3180, -5, DT_CA_Q, DT_MT}, {3700, -5, DT_CA_Q, DT_MT}, {4200, -6, DT_CA_Q, DT_MT}};
+#else
+#define DT_MODES_TOM 0
+#define DT_MODES_SNARE 0
+#define DT_MODES_RIM 0
+#define DT_MODES_BASS 0
+#define DT_MODES_COWBELL 0
+#define DT_MODES_CLAPS 0
+#define DT_MODES_TAMB 0
+#define DT_MODES_HAT 0
+#define DT_MODES_CRASH 0
+#define DT_MODES_RIDE 0
+#define DT_MODES_CABASA 0
+#endif
 typedef struct {                             /* a voice: the generic parts dt_hit and dt_gen play from */
     const uint16_t *rate;                    /* the tuning steps' rates */
     const dt_mode_t *m;
@@ -484,6 +498,7 @@ typedef struct {
     float post;                              /* its level out (dt_voice_t post) */
     float va, va_k;                          /* the VCA's level (over 1: held) and its fall a sample (va_k 0: none) */
     uint32_t vn;                             /* output samples till it is cut */
+#ifdef PLAT_HOST
     float burst, burst_k, wire, wire_k;      /* the stick's burst and the wires' noise: levels, decays a sample */
     uint32_t bn, bnext, bgap;                /* the wires' strikes still to come, the next's ROM sample, the gap */
     float bk;                                /* the last strike's decay, kept till then */
@@ -496,6 +511,7 @@ typedef struct {
     uint16_t st[DT_NM];                      /* each one's strike, a ROM sample (0: the hit's, with the stick's) */
     float y1[DT_NM], y2[DT_NM];              /* the resonators: their last two outputs, */
     float a1[DT_NM], a2[DT_NM], r[DT_NM], w[DT_NM], g[DT_NM];   /* coefficients, radius, angle, input gain */
+#endif
     const dt_voice_t *v;
     const int8_t *tab;                       /* its virtual EPROM (0: made live) */
     uint8_t drum;                            /* DT_*, or DT_NONE: silent */
@@ -527,7 +543,9 @@ static struct {
 static fifo_t dtq;                           /* main loop -> audio: a hit, drum | tune << 4 | level << 8 */
 static volatile uint32_t dt_flash;           /* audio -> main loop: the drums hit since the screen last looked, a bit
                                               * each (dt_flash_take) */
+#ifdef PLAT_HOST
 static uint32_t dt_rng = 1u;                 /* the noise's: never reset, so each hit's is its own */
+#endif
 #ifdef PLAT_HOST
 static float dt_test_gain = 1.0f;            /* (the host's dt_gain: renders well above its 16-bit files' floor) */
 static uint32_t dt_hits;                     /* (the host's: hits played, for tests/drums.txt) */
@@ -594,6 +612,7 @@ static inline float dt_room_next(float x)
     return out * (0.25f * DT_ROOM_WET);
 }
 
+#ifdef PLAT_HOST
 static float dt_noise(void)
 {
     dt_rng = dt_rng * 1664525u + 1013904223u;
@@ -662,6 +681,8 @@ static float dt_gen(dt_ch_t *c)
     return s;
 }
 
+#endif
+
 /* a decay's factor every per samples at rate samples a second, time constant tau seconds (0: gone at once) */
 static float dt_decay(float tau, float rate, float per)
 {
@@ -687,9 +708,12 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
 {
     const dt_voice_t *v = d < NDT ? DT_VOICE[d] : NULL;
     dt_ch_t *c;
+    float rom, rate;
+#ifdef PLAT_HOST
     uint32_t i, j, q, nc;
-    float rom, body, rate, lowf, lowg, cdet[DT_NCOPY], cg, pitch;
+    float body, lowf, lowg, cdet[DT_NCOPY], cg, pitch;
     uint16_t cst[DT_NCOPY];
+#endif
     if (!v)
         return;
 #ifdef PLAT_HOST
@@ -699,10 +723,12 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
     tune &= 15u;
     rom = v->rom;
     rate = (float)v->rate[tune] * (1.0f / 4096.0f);
+#ifdef PLAT_HOST
     lowf = (float)(tune < 3u ? 3u - tune : 0u) * (1.0f / 3.0f);   /* (1 at the first step, 0 from the fourth) */
     body = v->body * (1.0f + v->low * lowf);
     lowg = fm_db2lin(v->low_db * lowf);
     pitch = v->pitch > 0.0f ? v->pitch : 1.0f;
+#endif
     c = &dt.ch[DT_CH[d]];
     *c = (dt_ch_t){0};
     c->v = v;
@@ -735,6 +761,7 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
         c->ve = 1.0f;
         c->ve_k = dt_decay(v->vcf_t, BS2_RATE, 16.0f);
     }
+#ifdef PLAT_HOST
     c->burst = v->stick;
     c->burst_k = dt_decay(DT_STICK_TAU, rom, 1.0f);
     c->wire = c->rise = v->wires;
@@ -788,6 +815,7 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
         }
     }
     c->n = (uint8_t)j;
+#endif
 }
 
 /* a hit's level, 0..255: velocity 1..127 as the 400's 16 volume steps, accented (+80), under the drum's VOLUME (15:
@@ -858,7 +886,11 @@ static inline float dt_next(void)
         c->pos += c->inc;
         to = c->pos >> 16;
         while (c->k < to) {                  /* each ROM sample passed: made, to 8 bits, through the DAC */
+#ifdef PLAT_HOST
             c->out = c->tab ? (float)c->tab[c->k] * (1.0f / 127.0f) * c->lvl : dt_dac(dt_gen(c)) * c->lvl;
+#else
+            c->out = c->tab ? (float)c->tab[c->k] * (1.0f / 127.0f) * c->lvl : 0.0f;
+#endif
             if (++c->k >= c->len) {
                 c->drum = DT_NONE;
                 c->out = 0.0f;

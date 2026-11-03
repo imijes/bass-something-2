@@ -901,7 +901,9 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
         } else if (st == 0xFAu) {            /* start: from the first step */
             if (set.clock != CLK_INT) {
                 eng.src = SRC_RESTART;
-                if (dq.sel < DQ_NPAT && dqm.pat[dq.sel].n)   /* (the drums too: the manual's slave) */
+                if (dq.sel_song != DQ_NONE)  /* (the drums too: the manual's slave) */
+                    dq_song_start(dq.sel_song);
+                else if (dq.sel < DQ_NPAT && dqm.pat[dq.sel].n)
                     dq_start(dq.sel);
             }
         } else if (st == 0xFCu) {            /* stop: the drums */
@@ -1520,6 +1522,8 @@ static struct {
     uint32_t dt_at[NDT];                 /* when each drum was last hit (dt_flash_take): its key lit a moment */
     uint8_t dt_sel;                      /* the drum last tapped: what VOLUME and TUNING (K3, K4) set */
     uint8_t dt_fn;                       /* the function lit in the 400's LED lists (DTF_*): SEQ and ARP step them */
+    uint8_t dt_step, dt_pend;            /* BUILD MODE: the step shown; a value entered, not yet ENTERed */
+    int16_t dt_ent;                      /* that value */
     uint8_t dt_pat, dt_song, dt_tgt;     /* the number each list's first function shows (a cue while it runs); the one
                                           * ERASE PATTERN or COPY/APPEND TO would act on */
     uint8_t dt_b_saved, dt_b_mode, dt_b_paused;   /* TRANSPORT: the drums started the bass's sequence (its arp mode before);
@@ -2259,9 +2263,36 @@ static int dt_value(uint32_t k, int32_t e)
             dq_cmd(DQC_CUE, ui.dt_pat, 0);
         return 1;
     }
-    if (f >= DTF_SONG) {
+    if (f >= DTF_BPAT) {                     /* BUILD MODE: ALGO the step, PRESET what goes there */
+        ds_song_t *t = &dsm.s[ui.dt_song < DS_NSONG ? ui.dt_song : 0];
+        if (ui.dt_song >= DS_NSONG)
+            return 0;
+        if (k == EN_ALGO && (f == DTF_BPAT || f >= DTF_BINS)) {
+            ui.dt_step = (uint8_t)clamp((int32_t)ui.dt_step + e, 0, (int32_t)(ds_end(t) < DS_NSTEP ? ds_end(t) : DS_NSTEP - 1u));
+            ui.dt_pend = 0;
+        } else if (f == DTF_BPAT && k == EN_PRESET) {
+            const uint32_t c = t->step[ui.dt_step];
+            ui.dt_ent = (int16_t)clamp((ui.dt_pend ? ui.dt_ent : c < DQ_NPAT ? (int32_t)c : 0) + e, 0, 99);
+            ui.dt_pend = 1;
+        } else if (f == DTF_BTEMPO && !ui.dt_step) {   /* (step 00: the song's first tempo; 0, none) */
+            const int32_t at = ui.dt_pend ? ui.dt_ent : t->tempo ? dq_tempo_at(t->tempo) + 1 : 0;
+            ui.dt_ent = (int16_t)clamp(at + e, 0, 91);
+            ui.dt_pend = 1;
+        } else if (f == DTF_BVOL || f == DTF_BTEMPO) {
+            ui.dt_ent = (int16_t)clamp((ui.dt_pend ? ui.dt_ent : 0) + e, -15, 15);
+            ui.dt_pend = 1;
+        }
+        return 1;
+    }
+    if (f == DTF_ERASES || f == DTF_COPYS) {
+        ui.dt_tgt = (uint8_t)clamp((int32_t)ui.dt_tgt + e, 0, 98);
+        return 1;
+    }
+    if (f >= DTF_SONG) {                     /* running: a cue, as a pattern's */
         ui.dt_song = (uint8_t)clamp((int32_t)ui.dt_song + e, 0, 99);
         ui.dt_show = DTS_NONE;
+        if (dq.run && dq.in_song)
+            dq_cmd(DQC_SCUE, ui.dt_song, 0);
         return 1;
     }
     if (f == DTF_ERASEP || f == DTF_COPYP) {
@@ -2297,8 +2328,20 @@ static int dt_value(uint32_t k, int32_t e)
     dq.dirty = 1;
     return 1;
 }
+static void dt_tempo_step(int32_t e)         /* the manual's tempos, a step a click (MIDI clock's while it leads) */
+{
+    if (!ext_clock()) {
+        dt.tempo = DQ_TEMPO[clamp(dq_tempo_at(dt.tempo) + e, 0, 90)];
+        dq.dirty = 1;
+    }
+    dt_show(DTS_TEMPO);
+}
 static int dt_turn(uint32_t k, int32_t e)
 {
+    if (k == EN_SELECT && ui.page != PG_DMOD) {
+        dt_tempo_step(e);
+        return 1;
+    }
     if (k == EN_K1)
         dt.metro = (uint8_t)clamp((int32_t)dt.metro + e, 0, 127);
     else if (k == EN_K2)
@@ -2325,7 +2368,7 @@ static int dt_turn(uint32_t k, int32_t e)
 static int knob_turn(uint32_t k, int32_t e)
 {
     static const param_t RT_SPAN = {"RND", 0, 0, 127, 0};   /* (RND TRACKS' levels and sends: turned as a 0..127's) */
-    const param_t *q = (ui.page == PG_RTRK && k >= EN_K1 && rnd_row != RR_ENG) || (DRUM_PAGE(ui.page) && (k == EN_K1 || k == EN_K2))
+    const param_t *q = (ui.page == PG_RTRK && k >= EN_K1 && rnd_row != RR_ENG) || (DRUM_PAGE(ui.page) && (k == EN_K1 || k == EN_K2 || (k == EN_SELECT && ui.page != PG_DMOD)))
                        ? &RT_SPAN : knob_param(k);
     e = knob_accel(k, e, q);
     if (DRUM_PAGE(ui.page))                  /* Drum Something's, the same on each of its pages (said there) */
@@ -2506,6 +2549,8 @@ static const char *knob_name(uint32_t k)
         static const char *const N[NE] = {[EN_K1] = "METRONOME", "MASTER", "VOLUME", "TUNING"};
         if (ui.page == PG_DMOD && (k == EN_SELECT || k == EN_ALGO))
             return k == EN_SELECT ? "SWING LOCK" : "TRANSPORT";
+        if (k == EN_SELECT)
+            return "TEMPO";
         return k == EN_PRESET ? (ui.dt_fn >= DTF_SONG ? "SONG" : ui.dt_fn == DTF_PAT || ui.dt_fn == DTF_REC ? "PATTERN" : "VALUE")
                : k == EN_ALGO ? "VALUE" : N[k];
     }
@@ -2581,7 +2626,7 @@ static void knob_text(uint32_t k, char *t)
             text_cat(t, OFF_ON[k == EN_SELECT ? set.dswing_lock != 0u : !set.dtrans_off]);
             return;
         }
-        v = k == EN_K1 ? dt.metro : k == EN_K2 ? dt.master : k == EN_K3 ? dt.vol[ui.dt_sel] : k == EN_K4 ? dt.tune[ui.dt_sel] : -1;
+        v = k == EN_SELECT ? arp_tempo() : k == EN_K1 ? dt.metro : k == EN_K2 ? dt.master : k == EN_K3 ? dt.vol[ui.dt_sel] : k == EN_K4 ? dt.tune[ui.dt_sel] : -1;
         if (v >= 0 && k >= EN_K3) {
             t[0] = (char)('0' + v / 10);
             t[1] = (char)('0' + v % 10);
@@ -3022,7 +3067,7 @@ static const char *hint_of(uint32_t k)       /* encoder k's here (as its page's 
     static const char *const ROW_H[NRR] = {"Track's engine", "Track's level", "Track's reverb"};
     if (DRUM_PAGE(ui.page))
         return ui.page == PG_DMOD && k == EN_SELECT ? "Bass follows drums' swing"
-               : ui.page == PG_DMOD && k == EN_ALGO ? "Drums start and stop bass" : k == EN_K3 || k == EN_K4 ? DT_NAME[ui.dt_sel] : k == EN_K1 ? "Click level" : k == EN_K2 ? "Drums' level"
+               : ui.page == PG_DMOD && k == EN_ALGO ? "Drums start and stop bass" : k == EN_SELECT ? "Tempo" : k == EN_K3 || k == EN_K4 ? DT_NAME[ui.dt_sel] : k == EN_K1 ? "Click level" : k == EN_K2 ? "Drums' level"
                : k == EN_PRESET ? "Pick the number" : k == EN_ALGO ? "Change the value" : 0;
     if (ui.page == PG_MIX && k == EN_K4)
         return PW_H[ui.pw_src];
@@ -3239,9 +3284,9 @@ static void dt_fn_go(uint32_t f)
         [DTF_PAT] = "PRESET: pick the pattern", [DTF_REC] = "PLAY, then play the keys", [DTF_ERASEI] = "Hold a drum as it loops",
         [DTF_ERROR] = "ALGO: timing grid, 96 = off", [DTF_SWING] = "ALGO: swing amount", [DTF_TIME] = "PRESET beats, ALGO note",
         [DTF_MEAS] = "ALGO: bars in the pattern", [DTF_ERASEP] = "ALGO which, SEL erases", [DTF_COPYP] = "ALGO where, SEL copies",
-        [DTF_SONG] = "Songs: not built yet", [DTF_ERASES] = "Songs: not built yet", [DTF_COPYS] = "Songs: not built yet",
-        [DTF_BUILD] = "Songs: not built yet", [DTF_BPAT] = "Songs: not built yet", [DTF_BVOL] = "Songs: not built yet",
-        [DTF_BTEMPO] = "Songs: not built yet", [DTF_BINS] = "Songs: not built yet", [DTF_BDEL] = "Songs: not built yet"};
+        [DTF_SONG] = "PRESET: pick the song", [DTF_ERASES] = "ALGO which, SEL erases", [DTF_COPYS] = "ALGO where, SEL copies",
+        [DTF_BUILD] = "SEL: enter Build Mode", [DTF_BPAT] = "PRESET pattern, SEL enters", [DTF_BVOL] = "PRESET level, SEL enters",
+        [DTF_BTEMPO] = "PRESET tempo, SEL enters", [DTF_BINS] = "SEL: insert a step here", [DTF_BDEL] = "SEL: delete this step"};
     ui.dt_fn = (uint8_t)f;
     dt_show(DTS_FN);
     if (set.hints) {
@@ -3275,6 +3320,87 @@ static void dt_rec_erase(void)               /* REC held: Erase Instrument (a ta
     dq.rec = DQR_ERASE;
     dt_fn_go(DTF_ERASEI);
 }
+/* ENTER on a song function: stopped, the main loop owns the songs */
+static void dt_song_enter(uint32_t f)
+{
+    ds_song_t *t = &dsm.s[ui.dt_song];
+    const uint32_t end = ds_end(t);
+    uint32_t i;
+    switch (f) {
+    case DTF_ERASES:
+        ds_clear(&dsm.s[ui.dt_tgt]);
+        dq.dirty = 1;
+        dt_fn_go(DTF_SONG);
+        break;
+    case DTF_COPYS: {                        /* onto an empty one, a copy, its first tempo too; else after its steps */
+        ds_song_t *d = &dsm.s[ui.dt_tgt];
+        const uint32_t de = ds_end(d);
+        if (!de) {
+            d->tempo = t->tempo;
+        }
+        for (i = 0; i < end && de + i + 1u < DS_NSTEP; i++)
+            d->step[de + i] = t->step[i];
+        dq.dirty = 1;
+        dt_fn_go(DTF_SONG);
+        break;
+    }
+    case DTF_BUILD:
+        ui.dt_step = 0;
+        ui.dt_pend = 0;
+        dt_fn_go(DTF_BPAT);
+        break;
+    case DTF_BPAT:                           /* a value in: that step, the next; none: out */
+        if (!ui.dt_pend) {
+            dt_fn_go(DTF_SONG);
+            break;
+        }
+        if (ui.dt_step == end && end + 1u < DS_NSTEP)   /* (the end moves on) */
+            t->step[end + 1u] = DS_END;
+        if (ui.dt_step < DS_NSTEP - 1u || t->step[ui.dt_step] != DS_END) {
+            t->step[ui.dt_step] = (uint8_t)ui.dt_ent;
+            if (ui.dt_step < DS_NSTEP - 1u)
+                ui.dt_step++;
+        }
+        ui.dt_pend = 0;
+        dq.dirty = 1;
+        dt_show(DTS_FN);
+        break;
+    case DTF_BVOL:
+    case DTF_BTEMPO:
+        if (ui.dt_pend && f == DTF_BTEMPO && !ui.dt_step)
+            t->tempo = ui.dt_ent ? DQ_TEMPO[ui.dt_ent - 1] : 0;
+        else if (ui.dt_pend && (ui.dt_step || f == DTF_BVOL) && ui.dt_step < DS_NSTEP - 1u) {
+            if (ui.dt_step == end)
+                t->step[end + 1u] = DS_END;
+            t->step[ui.dt_step] = (uint8_t)((f == DTF_BVOL ? DS_VOL : DS_TEMPO) | ((uint32_t)ui.dt_ent & 0x1Fu));
+            ui.dt_step++;
+        }
+        ui.dt_pend = 0;
+        dq.dirty = 1;
+        dt_fn_go(DTF_BPAT);
+        break;
+    case DTF_BINS:                           /* a blank step here (filled, or ignored as it plays) */
+        if (end + 1u < DS_NSTEP) {
+            for (i = end + 1u; i > ui.dt_step; i--)
+                t->step[i] = t->step[i - 1u];
+            t->step[ui.dt_step] = DS_EMPTY;
+            dq.dirty = 1;
+        }
+        dt_fn_go(DTF_BPAT);
+        break;
+    case DTF_BDEL:
+        if (ui.dt_step < end) {
+            for (i = ui.dt_step; i + 1u < DS_NSTEP; i++)
+                t->step[i] = t->step[i + 1u];
+            t->step[DS_NSTEP - 1u] = DS_END;
+            dq.dirty = 1;
+        }
+        dt_fn_go(DTF_BPAT);
+        break;
+    default:
+        break;
+    }
+}
 static void dt_button(uint32_t k)
 {
     const uint32_t f = ui.dt_fn;
@@ -3298,19 +3424,27 @@ static void dt_button(uint32_t k)
         else
             dt_list(f < DTF_COPYP ? f + 1u : DTF_PAT);
         break;
-    case B_ARP:                              /* its SELECT SONG FUNCTIONS (BUILD MODE: its own five) */
-        if (f >= DTF_BPAT)
-            dt_fn_go(f < DTF_BDEL ? f + 1u : DTF_BPAT);
-        else
-            dt_fn_go(f >= DTF_SONG && f < DTF_BUILD ? f + 1u : DTF_SONG);
-        break;
-    case B_SEL:                              /* its ENTER: into BUILD MODE, and out; what the two digits do on the 400:
-                                              * ERASE PATTERN, COPY/APPEND TO (stopped), back at the number */
-        if (f == DTF_BUILD)
-            dt_fn_go(DTF_BPAT);
-        else if (f >= DTF_BPAT)
+    case B_ARP:                              /* its SELECT SONG FUNCTIONS (BUILD MODE: its own five); not while it runs: only
+                                              * the number */
+        ui.dt_pend = 0;
+        if (dq.run)
             dt_fn_go(DTF_SONG);
-        else if ((f == DTF_ERASEP || f == DTF_COPYP) && !dq.run) {
+        else if (f >= DTF_BPAT)
+            dt_fn_go(f < DTF_BDEL ? f + 1u : DTF_BPAT);
+        else {
+            if (f < DTF_SONG)
+                dq.rec = DQR_OFF;
+            ui.dt_tgt = ui.dt_song < DS_NSONG ? ui.dt_song : 0;
+            dt_fn_go(f >= DTF_SONG && f < DTF_BUILD ? f + 1u : DTF_SONG);
+        }
+        break;
+    case B_SEL:                              /* its ENTER; what the two digits do on the 400: erase, copy or append
+                                              * (stopped), back at the number */
+        if (dq.run)
+            break;
+        if (f >= DTF_SONG && ui.dt_song < DS_NSONG)
+            dt_song_enter(f);
+        else if (f == DTF_ERASEP || f == DTF_COPYP) {
             if (f == DTF_ERASEP)
                 dq_cmd(DQC_ERASE, ui.dt_tgt, 0);
             else if (ui.dt_pat < DQ_NPAT)
@@ -3322,7 +3456,16 @@ static void dt_button(uint32_t k)
                                               * needs it stopped gives way to the number */
         if (dq.run)
             dq_cmd(DQC_STOP, 0, 0);
-        else if (ui.dt_pat < DQ_NPAT && (dq.rec || dqm.pat[ui.dt_pat].n)) {
+        else if (f >= DTF_SONG) {            /* song functions lit: the song (BUILD MODE: ENTER out first) */
+            if (f >= DTF_BPAT)
+                dt_refuse("Press SEL to leave Build");
+            else if (ui.dt_song >= DS_NSONG || !ds_end(&dsm.s[ui.dt_song]))
+                dt_refuse("That song is empty");
+            else {
+                ui.dt_fn = DTF_SONG;
+                dq_cmd(DQC_SONG, ui.dt_song, 0);
+            }
+        } else if (ui.dt_pat < DQ_NPAT && (dq.rec || dqm.pat[ui.dt_pat].n)) {
             if (f > DTF_SWING && f < DTF_SONG)
                 ui.dt_fn = DTF_PAT;
             dq_cmd(DQC_RUN, ui.dt_pat, 0);
@@ -3338,11 +3481,7 @@ static void dt_button(uint32_t k)
         break;
     case B_OCTDN:                            /* TEMPO, SLOWER and FASTER (the one clock's, MIDI's while it leads) */
     case B_OCTUP:
-        if (!ext_clock()) {
-            dt.tempo = (uint8_t)clamp((int32_t)dt.tempo + (k == B_OCTUP ? 1 : -1), 40, 250);
-            dq.dirty = 1;
-        }
-        dt_show(DTS_TEMPO);
+        dt_tempo_step(k == B_OCTUP ? 1 : -1);
         break;
     case B_FX:
         page_go(PG_DMOD);
@@ -3529,6 +3668,7 @@ static void input(void)
         dt_bass_transport(dq.run);
     ui.dt_was = dq.run;
     dq.sel = ui.dt_pat;
+    dq.sel_song = ui.dt_fn >= DTF_SONG && ui.dt_song < DS_NSONG && ds_end(&dsm.s[ui.dt_song]) ? ui.dt_song : DQ_NONE;
     {                                        /* the drums' keys held: what Erase Instrument takes out as it passes */
         uint32_t h = 0;
         for (k = 0; k < NDT; k++)
@@ -5660,7 +5800,36 @@ static void dt_digits(char *l, char *r)
         dt_two(r, (uint32_t)t % 100u);
         return;
     }
-    if (f >= DTF_SONG)
+    if (f >= DTF_BPAT) {                     /* BUILD MODE: the step on the left, what's there on the right (the manual's 12) */
+        const uint32_t c = dsm.s[ui.dt_song < DS_NSONG ? ui.dt_song : 0].step[ui.dt_step];
+        dt_two(l, ui.dt_step);
+        if (f == DTF_BTEMPO && !ui.dt_step) {
+            const uint32_t b = ui.dt_pend ? (ui.dt_ent ? DQ_TEMPO[ui.dt_ent - 1] : 0u)
+                               : dsm.s[ui.dt_song < DS_NSONG ? ui.dt_song : 0].tempo;
+            l[0] = 't', l[1] = b >= 100u ? (char)('0' + b / 100u) : ' ';
+            dt_two(r, b % 100u);
+        } else if (f == DTF_BVOL || f == DTF_BTEMPO) {
+            const int32_t v = ui.dt_pend ? ui.dt_ent : (c & 0xE0u) == (f == DTF_BVOL ? DS_VOL : DS_TEMPO) ? DS_VAL(c) : 0;
+            l[0] = f == DTF_BVOL ? 'U' : 't', l[1] = v < 0 ? '-' : ' ';
+            dt_two(r, (uint32_t)(v < 0 ? -v : v));
+        } else if (ui.dt_pend && f == DTF_BPAT)
+            dt_two(r, (uint32_t)ui.dt_ent);
+        else if (c < DQ_NPAT + 1u)
+            dt_two(r, c);
+        else if (c == DS_END)
+            r[0] = 'E';
+        else if ((c & 0xE0u) == DS_VOL)
+            r[0] = 'U';
+        else if ((c & 0xE0u) == DS_TEMPO)
+            r[0] = 't';
+        return;
+    }
+    if (f == DTF_ERASES || f == DTF_COPYS)
+        dt_two(l, ui.dt_tgt);
+    else if (f >= DTF_SONG && dq.run && dq.in_song) {   /* (running: the step, its pattern) */
+        dt_two(l, dq.sstep ? dq.sstep - 1u : 0u);
+        dt_two(r, dq.cur);
+    } else if (f >= DTF_SONG)
         dt_two(l, ui.dt_song);
     else if (f == DTF_ERASEI)
         r[0] = 'E', r[1] = 'r';
@@ -5755,6 +5924,7 @@ static void dch_draw(void)
     tag(dch_x(309) + 8, dch_y(453) + 2, EN_K4);
     dt_tag_away(EN_K1, 100);
     dt_tag_away(EN_K2, 150);
+    dt_tag_away(EN_SELECT, 50);
     dt_tag_preset();
     cv_rect(dch_x(168) + 1, ky - 5, 4, 2, dq.run && !dt_blink() ? RGB(255, 40, 72) : RGB(128, 16, 32));   /* RUN/STOP's LED */
     dch_key(dch_x(168), ky, dq.run && !dt_blink());
@@ -5884,6 +6054,7 @@ static void dhome_draw(void)
     tag(dt_px(1276), dt_py(260), EN_K2);
     tag(dt_px(180), dt_py(453), EN_K3);
     tag(dt_px(309), dt_py(453), EN_K4);
+    tag(dt_px(242), dt_py(278), EN_SELECT);       /* TEMPO's box */
     dt_tag_preset();
 }
 
@@ -6150,6 +6321,12 @@ static uint32_t live(void)
     }
 }
 
+#ifndef PLAT_HOST                             /* the platform's screens (device/sys_text.c): the app's fonts, so FONT_S stays out */
+static const felucca_font_t *app_sys_face(int face) { return face == SYS_BIG ? &APP_BIG_FONT : face == SYS_B ? &FONT_B : &FONT_XS; }
+static int32_t app_sys_h(int face) { return app_sys_face(face)->h; }
+static int32_t app_sys_w(int face, const char *s) { return text_w(app_sys_face(face), s); }
+static void app_sys_text(int32_t x, int32_t y, int face, const char *s, uint16_t c) { cv_text(x, y, app_sys_face(face), s, c); }
+#endif
 #define SPLASH_SUB "Inspired by the Bass Station 2"
 #define DSPLASH_SUB "Inspired by the Drumtraks"
 /* the splash's ground: pure black, not the panel's matte black. The LCD keeps a faint shadow of the keys after long
@@ -6175,6 +6352,31 @@ void app_splash(void)                       /* the platform's, on the panel's bl
 /* the RND Synth Companion's splash, the whole screen: RND SYNTH, the RND Synth beside the FM-1 (rnd/splash.h:
  * bs2/rnd/make_splash.py, 256 colours), COMPANION, in the cyan, the three together in the middle */
 #include "rnd/splash.h"
+static void lz4_unpack(const uint8_t *s, uint8_t *d, uint32_t n)   /* an LZ4 block, n bytes out (ours: rnd/make_splash.py) */
+{
+    const uint8_t *const end = d + n;
+    while (d < end) {
+        const uint32_t t = *s++;
+        uint32_t k = t >> 4, o;
+        if (k == 15u)
+            do
+                k += *s;
+            while (*s++ == 255u);
+        while (k--)
+            *d++ = *s++;
+        if (d >= end)
+            break;
+        o = (uint32_t)s[0] | (uint32_t)s[1] << 8;
+        s += 2;
+        k = t & 15u;
+        if (k == 15u)
+            do
+                k += *s;
+            while (*s++ == 255u);
+        for (k += 4u; k; k--, d++)
+            *d = d[-(int32_t)o];
+    }
+}
 static void rsplash_line(uint32_t y, const char *s, uint16_t c)   /* a line of the big print, centred */
 {
     cv_begin(240, FONT_L.h, S_BG);
@@ -6190,8 +6392,15 @@ static void rsplash_draw(void)
     lcd_fill(0, 0, 240, 240, S_BG);
     rsplash_line(y, "RND SYNTH", P_CYAN);
     cv_begin(RND_SPLASH_W, RND_SPLASH_H, S_BG);
-    for (i = 0; i < RND_SPLASH_W * RND_SPLASH_H; i++)   /* (each pixel through the palette: as the panel takes it) */
-        cv_px[i] = RND_SPLASH_PAL[RND_SPLASH[i]];
+    {                                        /* unpacked into the canvas's own far end, then each pixel through the palette
+                                              * from its start, as the panel takes it: each read before its place is written */
+        const uint8_t *const b = (const uint8_t *)cv_px + 2u * RND_SPLASH_W * RND_SPLASH_H - RND_SPLASH_BYTES;
+        lz4_unpack(RND_SPLASH, (uint8_t *)b, RND_SPLASH_BYTES);
+        for (i = 0; i < RND_SPLASH_W * RND_SPLASH_H; i++) {
+            const uint32_t v = b[i >> 1];
+            cv_px[i] = RND_SPLASH_PAL[i & 1u ? v & 15u : v >> 4];
+        }
+    }
     cv_blit((240 - RND_SPLASH_W) / 2 + DX, y + FONT_L.h + GAP);
     rsplash_line(y + FONT_L.h + 2u * GAP + RND_SPLASH_H, "COMPANION", P_CYAN);
 }
@@ -6545,6 +6754,16 @@ int app_expect(const char *what, int *got)
         *got = (int)dt_lit();
     else if (!strcmp(what, "hushed"))        /* quiet long enough for a flash write */
         *got = hushed;
+    else if (!strcmp(what, "dt_step"))       /* BUILD MODE's step; a song running, its next step, its pattern */
+        *got = ui.dt_step;
+    else if (!strcmp(what, "dt_slen"))
+        *got = (int)ds_end(&dsm.s[ui.dt_song < DS_NSONG ? ui.dt_song : 0]);
+    else if (!strcmp(what, "dt_sstep"))
+        *got = dq.sstep;
+    else if (!strcmp(what, "dt_insong"))
+        *got = dq.in_song;
+    else if (!strcmp(what, "dt_svol"))
+        *got = dq.svol;
     else if (!strcmp(what, "dtrans_off"))    /* TRANSPORT off; the bass's arp on; its engine running */
         *got = set.dtrans_off;
     else if (!strcmp(what, "arp_on"))

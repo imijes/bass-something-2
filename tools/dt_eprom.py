@@ -18,7 +18,7 @@ from pathlib import Path
 BS2 = Path(__file__).resolve().parent.parent
 HOST = BS2 / "build/host/bass-something-2_host"
 ORDER = "BASS SNARE RIM TOM1 TOM2 CRASH RIDE CHH OHH CLAPS TAMB COWBELL CABASA".split()
-ALIAS = {"TOM2": "TOM1"}
+ALIAS = {"TOM2": "TOM1", "CHH": "OHH"}      # (one voice, one ROM: the closed hat's cut is live, its VCA)
 
 
 def rom_rates():
@@ -51,8 +51,8 @@ def main():
             if name not in wanted:
                 rows.append("{{0, 0}, {0, 0}}")
                 continue
-            if name in ALIAS:                # (the same voice: the same ROM)
-                rows.append(next(r for r in rows if f"DT_E_{ALIAS[name]}," in r))
+            if name in ALIAS:                # (the same voice: the same ROM, filled in below)
+                rows.append(name)
                 continue
             takes = [("", 8)] + ([("_LOW", 1)] if wanted[name] else [])
             row = []
@@ -69,6 +69,7 @@ def main():
                 row.append(f"{{DT_E_{name}{suffix}, {len(d)}u}}")
                 print(f"{name}{suffix}: {len(d)} B, {len(d) / rates[name]:.2f} s at {rates[name]} Hz")
             rows.append("{" + ", ".join(row + ["{0, 0}"] * (2 - len(row))) + "}")
+    rows = [next(r for r in rows if f"DT_E_{ALIAS[n]}," in r) if n in ALIAS else n for n in rows]
     (BS2 / "dt_eprom.h").write_text(
         "/* SPDX-License-Identifier: MPL-2.0\n * Copyright (C) 2026 John Brown */\n"
         "/* Drum Something's virtual EPROMs, made from its own voices by tools/dt_eprom.py: don't edit. */\n"

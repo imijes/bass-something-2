@@ -99,3 +99,6 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-02 | f587152+ | Drum Something: all thirteen voices from virtual EPROMs | 518,792 | +107,952 | 62,772 | 77,732 | +0 | 20,572 | 156,536 |
 | 2026-11-02 | f587152+ | Drum Something: recorded as played, saved data repaired on load, PLAY and REC in time, length on ENV, function hints | 519,752 | +960 | 61,812 | 77,732 | +0 | 20,572 | 156,536 |
 | 2026-11-03 | f587152+ | Drum Something: Bass drum +12 dB, TRANSPORT mod, REC steady | 520,072 | +320 | 61,492 | 77,732 | +0 | 20,572 | 156,568 |
+| 2026-11-03 | e831006+ | Drum Something: songs and Build Mode, the manual's tempos, TEMPO on SELECT | 522,632 | +2,560 | 58,932 | 77,732 | +0 | 20,572 | 166,584 |
+| 2026-11-03 | e831006+ | Drum Something: live voices on the host alone, Closed Hat shares Open's ROM, FONT_S out | 499,492 | -23,140 | 82,072 | 77,732 | +0 | 20,572 | 157,896 |
+| 2026-11-03 | e831006+ | RND splash: 8 colours in an LZ4 block | 487,428 | -12,064 | 94,136 | 77,732 | +0 | 20,572 | 157,896 |

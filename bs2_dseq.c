@@ -42,12 +42,47 @@ typedef struct {
     uint32_t ev[DQ_HITS];
 } dq_mem_t;
 static dq_mem_t dqm PLAT_POOL;
+/* the tempos, the manual's (7-9): a song's tempo changes count in these, SLOWER and FASTER step them */
+static const uint8_t DQ_TEMPO[91] = {
+    40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
+    70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86, 87, 89, 91, 92, 94, 95, 97, 98, 100, 102, 103, 105, 107,
+    109, 111, 113, 115, 118, 120, 122, 125, 128, 130, 133, 136, 139, 143, 146, 150, 154, 158, 162, 167, 171, 176, 182, 187,
+    193, 200, 207, 214, 222, 231, 240, 250};
+static int32_t dq_tempo_at(uint32_t bpm)     /* the nearest at or under */
+{
+    int32_t i = 90;
+    while (i > 0 && DQ_TEMPO[i] > bpm)
+        i--;
+    return i;
+}
+/* the songs: 99 (00..98; 99 always empty), up to 100 steps, as the manual's Table 5: a pattern, a relative volume or tempo
+ * change, empty (ignored), or the end */
+#define DS_NSONG 99u
+#define DS_NSTEP 100u
+#define DS_MAGIC 0x44535331u
+#define DS_END 0xC0u
+#define DS_EMPTY 0xE0u
+#define DS_VOL 0x80u                         /* | -15..15 in 5 bits */
+#define DS_TEMPO 0xA0u
+#define DS_VAL(c) ((int32_t)((c) & 0x1Fu) - ((c) & 0x10u ? 32 : 0))
+typedef struct {
+    uint8_t tempo;                           /* its first tempo, BPM (0: none, as it's set) */
+    uint8_t step[DS_NSTEP];
+} ds_song_t;
+typedef struct {
+    uint32_t magic;
+    ds_song_t s[DS_NSONG];
+} ds_mem_t;
+static ds_mem_t dsm PLAT_POOL;
 enum { DQR_OFF, DQR_REC, DQR_ERASE };        /* RECORD MODE, ERASE INSTRUMENT */
 static struct {
     volatile uint8_t run, rec, full, dirty;  /* running; DQR_*; a hit found no room; unsaved */
     volatile uint32_t held;                  /* the drums' keys held (the main loop's): Erase Instrument's */
     volatile uint32_t ext;                   /* MIDI clock's ticks since the last block */
     uint8_t cur, cue;                        /* the pattern playing; the one to take over at its end (DQ_NONE: none) */
+    uint8_t in_song, song, scue, sstep;      /* a song running: which, the one to take over at its end, its next step */
+    volatile uint8_t sel_song;               /* the song a MIDI Start runs (DQ_NONE: the pattern shown) */
+    int16_t svol;                            /* its volume changes so far, in final volume units */
     volatile uint8_t sel;                    /* the pattern shown: what a MIDI Start runs */
     float inc, next;                         /* ticks a sample; the next thing to do there (where it is: dt_pos) */
     uint32_t idx, click_t;                   /* the next hit; the next metronome beat */
@@ -55,7 +90,7 @@ static struct {
     float click, click_ph, click_inc, click_g;   /* the metronome's envelope, phase, pitch, level */
 } dq PLAT_POOL;
 static fifo_t dqq;                           /* main loop -> audio: op | a << 8 | b << 16 */
-enum { DQC_RUN, DQC_STOP, DQC_CUE, DQC_HIT, DQC_EKEY, DQC_ERASE, DQC_COPY };
+enum { DQC_RUN, DQC_STOP, DQC_CUE, DQC_HIT, DQC_EKEY, DQC_ERASE, DQC_COPY, DQC_SONG, DQC_SCUE };
 #ifdef PLAT_HOST
 static uint32_t dq_clicks;                   /* (the host's: the metronome's beats, for tests/drumseq.txt) */
 #endif
@@ -135,6 +170,8 @@ static void dq_stop(void)
 {
     dq.run = 0;
     dt_running = 0;
+    dq.in_song = 0;
+    dq.svol = 0;
     dq.cue = DQ_NONE;
 }
 static void dq_start(uint32_t g)
@@ -142,6 +179,7 @@ static void dq_start(uint32_t g)
     uint32_t i;
     dq.cur = (uint8_t)g;
     dq.cue = DQ_NONE;
+    dq.in_song = 0;
     dt_pos = 0.0f;
     dq.idx = dq.click_t = 0;
     for (i = 0; i < NDT; i++)
@@ -217,6 +255,59 @@ static void dq_erase_key(uint32_t d)         /* a drum's key just pressed, erasi
     }
     dq_next(p);
 }
+/* a song's next pattern: the steps up to it done (their volume and tempo changes, which accumulate over its loops, as the
+ * manual); at its end, what's cued, or round again. 0: it stops here (an empty song, an empty pattern, a cue of 99) */
+static int dq_song_walk(void)
+{
+    uint32_t guard;
+    for (guard = 0; guard < 2u * DS_NSTEP + 2u; guard++) {
+        const ds_song_t *t = &dsm.s[dq.song];
+        const uint32_t c = dq.sstep < DS_NSTEP ? t->step[dq.sstep] : DS_END;
+        if (c == DS_END) {
+            if (dq.scue != DQ_NONE) {
+                if (dq.scue >= DS_NSONG)
+                    return 0;
+                dq.song = dq.scue;
+                dq.scue = DQ_NONE;
+                dq.sstep = 0;
+                if (dsm.s[dq.song].tempo)
+                    dt.tempo = dsm.s[dq.song].tempo;
+                continue;
+            }
+            if (!dq.sstep)
+                return 0;
+            dq.sstep = 0;
+            continue;
+        }
+        dq.sstep++;
+        if (c < DQ_NPAT + 1u) {
+            if (c >= DQ_NPAT || !dqm.pat[c].n)
+                return 0;
+            dq.cur = (uint8_t)c;
+            return 1;
+        }
+        if ((c & 0xE0u) == DS_VOL)
+            dq.svol = (int16_t)clamp((int32_t)dq.svol + DS_VAL(c) * 8, -128, 127);
+        else if ((c & 0xE0u) == DS_TEMPO)
+            dt.tempo = DQ_TEMPO[clamp(dq_tempo_at(dt.tempo) + DS_VAL(c), 0, 90)];
+    }
+    return 0;
+}
+static void dq_song_start(uint32_t n)
+{
+    if (n >= DS_NSONG)
+        return;
+    dq.song = (uint8_t)n;
+    dq.scue = DQ_NONE;
+    dq.sstep = 0;
+    dq.svol = 0;
+    if (dsm.s[n].tempo)
+        dt.tempo = dsm.s[n].tempo;
+    if (dq_song_walk()) {
+        dq_start(dq.cur);
+        dq.in_song = 1;
+    }
+}
 static void dq_copy(uint32_t a, uint32_t b)  /* pattern a onto b: empty, a copy, its settings too; else a after its hits */
 {
     dq_pat_t *s = &dqm.pat[a], *d = &dqm.pat[b];
@@ -266,7 +357,7 @@ static void dq_step(void)
                 dq.skip[d] = -1;
             else if (d < NDT) {
                 const uint32_t pr = (e >> 24) != 0u, v = pr ? DQ_V(e) : dt.vol[d], u = pr ? DQ_U(e) : dt.tune[d];
-                dt_hit(d, u, (175u + (DQ_A(e) ? 80u : 0u)) * v / 15u);
+                dt_hit(d, u, (uint32_t)clamp((int32_t)((175u + (DQ_A(e) ? 80u : 0u)) * v / 15u) + (v ? dq.svol : 0), 0, 255));
             }
         }
         if (dq.rec && dq.click_t < p->len && (float)dq.click_t <= dt_pos) {   /* on each beat, the loop's first accented */
@@ -284,7 +375,13 @@ static void dq_step(void)
             break;
         dt_pos -= (float)p->len;             /* the loop's end: on, or what's cued, or stopped there */
         dq.idx = dq.click_t = 0;
-        if (dq.cue != DQ_NONE) {
+        if (dq.in_song) {                    /* (a song: its next step) */
+            if (!dq_song_walk()) {
+                dq_stop();
+                return;
+            }
+            p = &dqm.pat[dq.cur];
+        } else if (dq.cue != DQ_NONE) {
             if (dq.cue >= DQ_NPAT) {
                 dq_stop();
                 return;
@@ -337,6 +434,12 @@ static void dq_block(void)
         case DQC_STOP:
             dq_stop();
             break;
+        case DQC_SONG:
+            dq_song_start(a);
+            break;
+        case DQC_SCUE:
+            dq.scue = (uint8_t)a;
+            break;
         case DQC_CUE:
             dq.cue = (uint8_t)a;
             break;
@@ -380,7 +483,8 @@ static void dq_block(void)
 
 /* saved whole, a store object a slice (a slice unchanged is not written: its sectors' erase stops the audio a moment) */
 #define DQ_NOBJ 5u
-static uint32_t dq_sum[DQ_NOBJ];
+#define DS_NOBJ 3u
+static uint32_t dq_sum[DQ_NOBJ], ds_sum[DS_NOBJ];
 static uint32_t dq_hash(const uint8_t *s, uint32_t n)
 {
     uint32_t h = 2166136261u;
@@ -388,18 +492,53 @@ static uint32_t dq_hash(const uint8_t *s, uint32_t n)
         h = (h ^ *s++) * 16777619u;
     return h;
 }
-static void dq_init(void)
+static int dq_load(void *mem, uint32_t sz, uint32_t obj, uint32_t *sum, uint32_t nobj)   /* 1: every slice read */
 {
-    uint32_t i, at = 0, sz = (uint32_t)sizeof dqm;
+    uint32_t i, at = 0;
     int ok = 1;
-    for (i = 0; i < DQ_NOBJ && at < sz; i++) {
+    for (i = 0; i < nobj && at < sz; i++) {
         const uint32_t n = sz - at < PLAT_STORE_MAX ? sz - at : PLAT_STORE_MAX;
-        if (plat_store_load(OBJ_DQ0 + i, (uint8_t *)&dqm + at, n) != (int)n)
+        if (plat_store_load(obj + i, (uint8_t *)mem + at, n) != (int)n)
             ok = 0;
         else
-            dq_sum[i] = dq_hash((uint8_t *)&dqm + at, n);
+            sum[i] = dq_hash((uint8_t *)mem + at, n);
         at += n;
     }
+    return ok;
+}
+static int dq_store(const void *mem, uint32_t sz, uint32_t obj, uint32_t *sum, uint32_t nobj)   /* 0: done */
+{
+    uint32_t i, at = 0;
+    for (i = 0; i < nobj && at < sz; i++) {
+        const uint32_t n = sz - at < PLAT_STORE_MAX ? sz - at : PLAT_STORE_MAX;
+        const uint32_t h = dq_hash((const uint8_t *)mem + at, n);
+        if (h != sum[i]) {
+            if (plat_store_save(obj + i, (const uint8_t *)mem + at, n) != 0)
+                return 1;
+            sum[i] = h;
+        }
+        at += n;
+    }
+    return 0;
+}
+static void ds_clear(ds_song_t *t)
+{
+    uint32_t i;
+    t->tempo = 0;
+    for (i = 0; i < DS_NSTEP; i++)
+        t->step[i] = DS_END;
+}
+static uint32_t ds_end(const ds_song_t *t)   /* where its end step is */
+{
+    uint32_t i = 0;
+    while (i < DS_NSTEP && t->step[i] != DS_END)
+        i++;
+    return i;
+}
+static void dq_init(void)
+{
+    uint32_t i;
+    int ok = dq_load(&dqm, (uint32_t)sizeof dqm, OBJ_DQ0, dq_sum, DQ_NOBJ);
     if (ok && dqm.magic == DQ_MAGIC1) {      /* (from then: each to as played, the cymbals to their new level) */
         for (i = 0; i < DQ_NPAT; i++)
             dqm.pat[i].ec = DQ_EC_NONE;
@@ -435,12 +574,19 @@ static void dq_init(void)
             dq_defaults(&dqm.pat[i]);
         }
     }
-    dq.cue = DQ_NONE;
+    if (!dq_load(&dsm, (uint32_t)sizeof dsm, OBJ_DS0, ds_sum, DS_NOBJ) || dsm.magic != DS_MAGIC) {
+        for (i = 0; i < DS_NOBJ; i++)
+            ds_sum[i] = 0;
+        dsm.magic = DS_MAGIC;
+        for (i = 0; i < DS_NSONG; i++)
+            ds_clear(&dsm.s[i]);
+    }
+    dq.cue = dq.scue = dq.sel_song = DQ_NONE;
     dq.cur = 0;
 }
 static int dq_save(void)                     /* 0: done (stopped: the main loop's alone) */
 {
-    uint32_t i, at = 0, sz = (uint32_t)sizeof dqm;
+    uint32_t i;
     for (i = 0; i < NDT; i++) {
         dqm.vol[i] = dt.vol[i];
         dqm.tune[i] = dt.tune[i];
@@ -448,16 +594,8 @@ static int dq_save(void)                     /* 0: done (stopped: the main loop'
     dqm.metro = dt.metro;
     dqm.master = dt.master;
     dqm.tempo = dt.tempo;
-    for (i = 0; i < DQ_NOBJ && at < sz; i++) {
-        const uint32_t n = sz - at < PLAT_STORE_MAX ? sz - at : PLAT_STORE_MAX;
-        const uint32_t h = dq_hash((uint8_t *)&dqm + at, n);
-        if (h != dq_sum[i]) {
-            if (plat_store_save(OBJ_DQ0 + i, (uint8_t *)&dqm + at, n) != 0)
-                return 1;
-            dq_sum[i] = h;
-        }
-        at += n;
-    }
+    if (dq_store(&dqm, (uint32_t)sizeof dqm, OBJ_DQ0, dq_sum, DQ_NOBJ) || dq_store(&dsm, (uint32_t)sizeof dsm, OBJ_DS0, ds_sum, DS_NOBJ))
+        return 1;
     dq.dirty = 0;
     return 0;
 }

@@ -13,6 +13,7 @@
 void app_splash(void);
 #define APP_BOOT                         /* the splash held as long again, an oscillator sweeping on it (app.c) */
 void app_boot(void);
+#define APP_SYS_TEXT                     /* the platform's screens in the app's own fonts (app.c): FONT_S not linked */
 #define APP_BLOCK 256u                   /* frames per audio block: 5.8 ms at 44.1 kHz */
 #define APP_TOUCH                        /* velocity and pressure from the keys (lib/touch.h) */
 #define APP_BTDEV                        /* Bluetooth MIDI devices (lib/btdev.h) */
@@ -22,9 +23,9 @@ int bs2_ble_off(void);
 /* the store: the app's objects, the panel calibration (the platform's) and Bluetooth's address and pairing among
  * them, and their flash offsets; OBJ_PATCHES, the patch bank (bank_t, app.c), in the data area under the panel's;
  * OBJ_SEEDS, the RND seed table (seeds_t, bs2_rnd.c), under the bank; OBJ_DQ*, Drum Something's patterns (dq_mem_t,
- * bs2_dseq.c), under that */
-enum { OBJ_SETTINGS, OBJ_PANEL, OBJ_BLE, OBJ_PATCHES, OBJ_SEEDS, OBJ_DQ0, OBJ_DQ1, OBJ_DQ2, OBJ_DQ3, OBJ_DQ4, OBJ_NOBJ };
-#define APP_STORE_MAP {0xFC000u, 0xDC000u, 0xDE000u, 0xDA000u, 0xD8000u, 0xD6000u, 0xD4000u, 0xD2000u, 0xD0000u, 0xCE000u}
+ * bs2_dseq.c), under that; OBJ_DS*, its songs (ds_mem_t), under those */
+enum { OBJ_SETTINGS, OBJ_PANEL, OBJ_BLE, OBJ_PATCHES, OBJ_SEEDS, OBJ_DQ0, OBJ_DQ1, OBJ_DQ2, OBJ_DQ3, OBJ_DQ4, OBJ_DS0, OBJ_DS1, OBJ_DS2, OBJ_NOBJ };
+#define APP_STORE_MAP {0xFC000u, 0xDC000u, 0xDE000u, 0xDA000u, 0xD8000u, 0xD6000u, 0xD4000u, 0xD2000u, 0xD0000u, 0xCE000u, 0xCC000u, 0xCA000u, 0xC8000u}
 
 /* the voice (app.c): two oscillators (saw, square, sine, triangle or a pulse of its own width, each at its own
  * footage, 2 hard-synced to 1 if asked), a sub (a sine, a narrow pulse or a square) and noise, mixed at their levels (1

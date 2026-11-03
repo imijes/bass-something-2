@@ -49,7 +49,7 @@ expect octave 0
 tap OCT+
 wait 30
 expect octave 0
-expect dt_tempo 101
+expect dt_tempo 102
 expect tempo 120
 shot drum-tempo.png
 tap OCT-
@@ -78,6 +78,8 @@ tap SEL
 expect dt_fn 13
 tap ARP
 expect dt_fn 14
+tap SEL
+expect dt_fn 13
 tap SEL
 expect dt_fn 9
 spin PRESET 5
