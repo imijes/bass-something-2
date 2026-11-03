@@ -71,7 +71,7 @@ index c43e7a8..c26e3f1 100644
          ch = fm1_an.phase ? FM1_ADC_ROW_PA8 : FM1_ADC_ROW_PA7;
          rowbit = fm1_an.phase ? 4u : 3u;
 diff --git a/chip/usb.c b/chip/usb.c
-index 19ca95f..a66c11e 100644
+index 19ca95f..7f6c205 100644
 --- a/chip/usb.c
 +++ b/chip/usb.c
 @@ -53,6 +53,9 @@
@@ -210,6 +210,15 @@ index 19ca95f..a66c11e 100644
  static const uint8_t STR0[4] = {4, 3, 0x09, 0x04};
  static const uint8_t STR1[] = {42, 3, 'H', 0, 0xFC, 0, 'g', 0, 'e', 0, 'l', 0, 't', 0, 'o', 0, 'n', 0, ' ', 0, 'I', 0,
                                 'n', 0, 's', 0, 't', 0, 'r', 0, 'u', 0, 'm', 0, 'e', 0, 'n', 0, 't', 0, 's', 0};
+@@ -729,7 +773,7 @@ static void ep0_service(void)
+ #if FELUCCA_UAC
+         uac.e0_rx = 0;
+ #endif
+-        return;
++        csr = sie_rd(S_CSR0);                           /* a SETUP may already be here: no new flag would bring us back */
+     }
+     if (csr & 0x10u) {                                  /* SetupEnd: the host abandoned the transfer */
+         sie_wr(S_CSR0, 0x80);
 @@ -937,6 +981,80 @@ stall:
      sie_wr(S_CSR0, 0x60);
  }
