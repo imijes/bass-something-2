@@ -483,6 +483,7 @@ static const dt_voice_t *const DT_VOICE[NDT] = {[DT_BASS] = &DT_V_BASS, [DT_SNAR
                                                 [DT_CRASH] = &DT_V_CRASH, [DT_RIDE] = &DT_V_RIDE};
 
 typedef struct {
+    float last, fade;                        /* its last output sample; what's left of the sound it cut off (dt_next) */
     uint32_t pos, inc;                       /* the read position (ROM samples, Q16) and its step an output sample */
     uint32_t k, len;                         /* the ROM sample being held, and where the sample ends */
     float out, lvl;                          /* the held sample (after the DAC) and the level, 0..1 */
@@ -718,7 +719,7 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
 {
     const dt_voice_t *v = d < NDT ? DT_VOICE[d] : NULL;
     dt_ch_t *c;
-    float rom, rate;
+    float rom, rate, was;
 #ifdef PLAT_HOST
     uint32_t i, j, q, nc;
     float body, lowf, lowg, cdet[DT_NCOPY], cg, pitch;
@@ -740,7 +741,9 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
     pitch = v->pitch > 0.0f ? v->pitch : 1.0f;
 #endif
     c = &dt.ch[DT_CH[d]];
+    was = c->fade + (c->drum != DT_NONE ? c->last : 0.0f);   /* (what it was playing: faded out, no step to a click) */
     *c = (dt_ch_t){0};
+    c->fade = was;
     c->v = v;
     c->drum = (uint8_t)d;
     c->inc = (uint32_t)(rate * rom * (65536.0f / BS2_RATE));
@@ -881,6 +884,8 @@ static void dt_cc(uint32_t cc, uint32_t v)
     dt_cc_last = (uint8_t)cc;
 }
 
+/* a sound cut off, by the next hit on its channel or its sample's end: its last output falls away in about 2 ms */
+#define DT_FADE_K 0.98873f
 /* the drums' next output sample (audio interrupt), -1..1 at a full level */
 static inline float dt_next(void)
 {
@@ -890,6 +895,12 @@ static inline float dt_next(void)
         dt_ch_t *c = &dt.ch[i];
         uint32_t to;
         float o;
+        if (c->fade != 0.0f) {               /* (a sound cut off: fading out, DT_FADE_K) */
+            s += c->fade;
+            c->fade *= DT_FADE_K;
+            if (c->fade > -1e-5f && c->fade < 1e-5f)
+                c->fade = 0.0f;
+        }
         if (c->drum == DT_NONE)
             continue;
         dt_room.idle = 0;
@@ -925,8 +936,11 @@ static inline float dt_next(void)
             c->hz += (o - c->hz) * c->hpk;
             o -= c->hz;
         }
-        s += o * c->post;
+        c->last = o * c->post;
+        s += c->last;
         r += o * c->send;
+        if (c->drum == DT_NONE)              /* (the sample's end: faded out too) */
+            c->fade += c->last;
     }
     if (dt_room.idle < (uint32_t)(2.0f * DT_ROOM_RT * BS2_RATE)) {   /* (the room quiet: left alone) */
         dt_room.idle++;
