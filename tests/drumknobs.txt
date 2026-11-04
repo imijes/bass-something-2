@@ -1,0 +1,46 @@
+# Drum Something's numbers and tempo at GLO CONTROLS' KNOBS on COARSE: one a click turned slowly, so none is stepped over,
+# and still quicker when spun; its levels two a click, as COARSE has them. tools/build.py bs2 --host, then from the
+# repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/drumknobs.txt bs2/build/host
+wait 600
+tap HOME
+wait 2000
+expect page 25
+tap GLO
+tap GLO
+tap GLO
+tap GLO
+tap GLO
+wait 30
+expect page 38
+spin K4 2
+tap HOME
+wait 1500
+expect page 25
+expect dt_pat 0
+turn PRESET 3 150
+expect dt_pat 3
+# spun: one, then 16
+turn PRESET 2 10
+expect dt_pat 20
+wait 300
+# the songs' number and Build Mode's step the same
+tap ARP
+wait 1000
+spin PRESET -99
+expect dt_song 0
+turn PRESET 2 150
+expect dt_song 2
+tap HOME
+wait 1500
+# the tempo: a step up (OCT+), a slow click back
+expect dt_tempo 100
+tap OCT+
+wait 30
+expect dt_tempo >100
+turn SELECT -1 150
+expect dt_tempo 100
+# a level: COARSE's two a click
+expect dt_metro 90
+turn K1 1 150
+expect dt_metro 92

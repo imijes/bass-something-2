@@ -2250,7 +2250,9 @@ static int osc_page(void) { return ui.page == PG_OSC || ui.page == PG_MIX; }
  * 35, 60, 100 ms, else), NORMAL's so a quick spin crosses 0..127 in a turn or two and a slow one still steps by one;
  * FINE always one, COARSE two at the slowest. Only a control of 48 steps or more (not the switches and choices). A
  * wider one (the LFOs' speeds, 0..255) as a 0..127 one: each click its share of 128 (2 steps). The host's "spin"
- * exact, its "turn" (80 ms apart) one a click at NORMAL */
+ * exact, its "turn" (80 ms apart) one a click at NORMAL. DT_PICK: the drums' numbers and tempo, one a click at the
+ * slowest whatever KNOBS says, so none is stepped over */
+static const param_t DT_PICK = {"PICK", 0, 0, 127, 0};
 static int32_t knob_accel(uint32_t k, int32_t e, const param_t *q)
 {
     static uint32_t last[NE];
@@ -2263,6 +2265,8 @@ static int32_t knob_accel(uint32_t k, int32_t e, const param_t *q)
     if (!q->name || q->hi - q->lo < 48)
         return e;
     static const uint8_t MUL[NKN][5] = {{1, 1, 1, 1, 1}, {8, 4, 2, 1, 1}, {12, 8, 4, 2, 1}, {16, 12, 8, 4, 2}};
+    if (q == &DT_PICK && gap >= 100u)
+        return e;
     return e * ((q->hi - q->lo + 1) / 128 > 1 ? (q->hi - q->lo + 1) / 128 : 1) *
            MUL[set.knobs < NKN ? set.knobs : KN_NORMAL][gap < 20u ? 0 : gap < 35u ? 1 : gap < 60u ? 2 : gap < 100u ? 3 : 4];
 }
@@ -2435,7 +2439,8 @@ static int knob_turn(uint32_t k, int32_t e)
         return r;
     }
     static const param_t RT_SPAN = {"RND", 0, 0, 127, 0};   /* (RND TRACKS' levels and sends: turned as a 0..127's) */
-    const param_t *q = (ui.page == PG_RTRK && k >= EN_K1 && rnd_row != RR_ENG) || (DRUM_PAGE(ui.page) && dt_knob_wide(k))
+    const param_t *q = DRUM_PAGE(ui.page) && dt_knob_wide(k) && k != EN_K1 && k != EN_K2 ? &DT_PICK
+                       : (ui.page == PG_RTRK && k >= EN_K1 && rnd_row != RR_ENG) || (DRUM_PAGE(ui.page) && dt_knob_wide(k))
                        ? &RT_SPAN : knob_param(k);
     e = knob_accel(k, e, q);
     if (DRUM_PAGE(ui.page))                  /* Drum Something's, the same on each of its pages (said there) */
@@ -3257,7 +3262,7 @@ static const char *hint_of(uint32_t k)       /* encoder k's here (as its page's 
                : ui.dt_fn == DTF_TIME && k == EN_PRESET ? "Beats in a bar" : ui.dt_fn == DTF_TIME && k == EN_ALGO ? "The note that's a beat"
                : dt_knobs_split() && k == EN_PRESET ? "Pick the step" : ui.dt_fn == DTF_BPAT && k == EN_ALGO ? "Pick the pattern"
                : ui.dt_fn >= DTF_BINS && k == EN_ALGO ? 0
-               : k == EN_PRESET ? "Pick the number" : k == EN_ALGO ? "Change the value" : 0;
+               : k == EN_PRESET ? (ui.dt_fn >= DTF_SONG ? "Pick the Song" : "Pick the Pattern") : k == EN_ALGO ? "Change the value" : 0;
     if (ui.page == PG_MIX && k == EN_K4)
         return PW_H[ui.pw_src];
     if (ui.page == PG_FX && k == EN_K4)

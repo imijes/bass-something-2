@@ -135,3 +135,5 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-03 | 57f94c3+ | HOME's K2: the arp's Rhythm, with the zoom | 505,988 | +112 | 75,576 | 78,388 | +0 | 19,916 | 161,848 |
 | 2026-11-03 | 57f94c3+ | Drums: a cut-off sound fades out, no click | 505,972 | -16 | 75,592 | 78,388 | +0 | 19,916 | 161,896 |
 | 2026-11-03 | 57f94c3+ | Drums: ten voices tuned to the references' measures | 506,244 | +272 | 75,320 | 78,388 | +0 | 19,916 | 161,896 |
+| 2026-11-03 | 46f1d8c+ | Drums: numbers and tempo one a click at any KNOBS | 506,292 | +48 | 75,272 | 78,388 | +0 | 19,916 | 161,896 |
+| 2026-11-03 | 46f1d8c+ | Drums: PRESET's hint names the pattern or the song | 506,292 | +0 | 75,272 | 78,388 | +0 | 19,916 | 161,896 |
