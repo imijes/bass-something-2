@@ -257,6 +257,8 @@ tap GLO
 tap GLO
 tap GLO
 tap GLO
+tap GLO
+tap GLO
 wait 30
 wait 30
 expect page 20
@@ -392,6 +394,8 @@ tap GLO
 wait 30
 tap GLO
 tap GLO
+tap GLO
+tap GLO
 wait 30
 wait 30
 expect page 20
@@ -464,6 +468,8 @@ expect trigA 1
 expect trigM 2
 expect loopA 1
 expect loopM 0
+tap GLO
+tap GLO
 tap GLO
 tap GLO
 tap GLO
@@ -561,6 +567,8 @@ tap GLO
 tap GLO
 tap GLO
 tap GLO
+tap GLO
+tap GLO
 wait 30
 wait 30
 expect page 20
@@ -612,6 +620,8 @@ wait 30
 spin K4 77
 wait 30
 expect ofm 77
+tap GLO
+tap GLO
 tap GLO
 tap GLO
 tap GLO

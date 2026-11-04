@@ -115,6 +115,8 @@ tap GLO
 tap GLO
 tap GLO
 tap GLO
+tap GLO
+tap GLO
 wait 30
 wait 30
 expect page 19
@@ -137,6 +139,8 @@ turn K4 1
 wait 300
 expect page 16
 expect zoom 0
+tap GLO
+tap GLO
 tap GLO
 tap GLO
 tap GLO

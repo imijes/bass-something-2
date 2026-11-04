@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 /* What goes to the FM-1's speaker. One DAC feeds the speaker and the headphones, and the speaker plays its left channel
  * alone: with nothing in the headphone jack (the jack cuts the speaker in hardware, and PB5 tells: fm1_jack_in) that
- * channel carries left and right summed, as SPEAKER (GLO SYS) has it: FLAT; BASS+, the bass the small speaker cannot play
+ * channel carries left and right summed, as SPEAKER (GLO AUDIO) has it: FLAT; BASS+, the bass the small speaker cannot play
  * heard through its harmonics; OFF. Headphones are left as they are, in stereo. Called after the USB audio input's tap and
  * Bluetooth's feed (APP_SPEAKER), so neither hears any of it.
  *

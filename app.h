@@ -189,7 +189,7 @@ void app_ui_init(void);                  /* the first screen, after the splash *
 void app_frame(void);                    /* the UI: input and a redraw, about 60 times a second */
 void app_input_only(void);               /* between frames: input only */
 void app_say(const char *a, const char *b);   /* a short message on the screen and to a screen reader */
-#define APP_SPEAKER                      /* SPEAKER (GLO SYS): the mono sum, BASS+ and OFF, for the speaker alone (bs2_spk.c) */
+#define APP_SPEAKER                      /* SPEAKER (GLO AUDIO): the mono sum, BASS+ and OFF, for the speaker alone (bs2_spk.c) */
 #define APP_SYSEX                        /* Bass Station II patch dumps over USB (bs2_sysex.c) */
 int app_sysex(const uint8_t *p, uint32_t n);
 

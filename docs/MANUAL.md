@@ -77,7 +77,7 @@ Each section button opens its section's page. Press it again for its next page, 
 
 The knobs speed up as you turn them faster: a slow turn moves a value one step a click, for fine setting, and a quick
 spin takes it from one end to the other in a turn or two. Switches and short lists always move one position a click.
-GLOBAL SYSTEM's KNOBS sets how much they speed up, from FINE to COARSE.
+GLOBAL CONTROLS' KNOBS sets how much they speed up, from FINE to COARSE.
 
 | Button | Page | Again |
 | --- | --- | --- |
@@ -89,7 +89,7 @@ GLOBAL SYSTEM's KNOBS sets how much they speed up, from FINE to COARSE.
 | ARP | ARPEGGIATOR: tempo, rhythm, mode, octaves, the On and Latch buttons (held a second: AFX mode) | the group's mods (Seq Retrig, swing), then back |
 | SEQ | SEQ: the sequencer (held a second: AFX mode) | recording on or off (the arp's REC) |
 | EDIT | OSCILLATORS: the pitch's view | the pulse width's view; then SUB OSC + MIXER, beside them on a Bass Station II |
-| GLO | GLOBAL MIDI (held a second: the RND pages) | GLOBAL SYSTEM, then GLOBAL DISPLAY, then GLOBAL DUMP |
+| GLO | GLOBAL MIDI (held a second: the RND pages) | GLOBAL DRUMS, then GLOBAL CLOCK, GLOBAL AUDIO, GLOBAL CONTROLS, GLOBAL DISPLAY and GLOBAL DUMP |
 
 SEL opens MASTER on every page except where it has a job of its own, printed
 on the page: GLOBAL DUMP, the RND pages, and SEQ while the sequencer records.
@@ -110,8 +110,8 @@ and ALGO, two one over the other on SELECT and ALGO, and three where they lie on
 **Hints** (GLOBAL DISPLAY, K3) add a few words on what each control does: under the value as you turn a
 knob ("Filter cutoff", "Fade-in time", "Note order"), and over the keys as you press a button ("Save the patch").
 A section's button (ENV, LFO, FX, EDIT, ARP, SEQ, GLO) names the page its next tap opens, from the page you're on,
-and what holding it does: on GLOBAL MIDI, "GLO tap: System, hold: RND Synth Companion"; on GLOBAL SYSTEM, "GLO tap:
-Display, hold: RND Synth Companion"; on ARP, "ARP tap: Arp Mods, hold: AFX mode". They're on until you turn them off, and the FM-1 remembers the setting.
+and what holding it does: on GLOBAL MIDI, "GLO tap: Drums, hold: RND Synth Companion"; on GLOBAL CLOCK, "GLO tap:
+Audio, hold: RND Synth Companion"; on ARP, "ARP tap: Arp Mods, hold: AFX mode". They're on until you turn them off, and the FM-1 remembers the setting.
 
 ![Hints on the FILTERS: Frequency turned to 97, with Filter cutoff under its value](img/screen-hint.png "Hints: what a knob does")
 
@@ -138,7 +138,7 @@ the keys' reach lights OCT-, one above lights OCT+.
 | SAVE | Saves the sound into its patch, and the settings. |
 
 The keys sense how hard they're played, with no change to the FM-1. The 20 lowest keys (F3 to C5) give velocity and
-pressure; the top seven give velocity only. GLO SYS's VELOCITY sets how the keys answer: SOFT (louder for a light
+pressure; the top seven give velocity only. GLO CONTROLS' VELOCITY sets how the keys answer: SOFT (louder for a light
 touch), NORMAL or HARD.
 
 ### A random sound
@@ -347,7 +347,7 @@ switch sets: its speed or its delay. Under each knob is what it sets now.
 | K3 · LFO 2 | The same for LFO 2. |
 | K4 · WAVE 2 | LFO 2's wave, the same. |
 
-Synced, an LFO follows the tempo, or MIDI clock when it's followed (GLOBAL SYSTEM's SYNC). A note played on its own
+Synced, an LFO follows the tempo, or MIDI clock when it's followed (GLOBAL CLOCK's SYNC). A note played on its own
 starts the delay's fade-in and, with keysync, the wave from its start; a note played legato doesn't. New patches start
 as the Bass Station II's INIT PATCH: LFO 1 at 75 (7.9 Hz), LFO 2 at 52 (3 Hz) with keysync.
 
@@ -377,7 +377,7 @@ The Bass Station II's Effects section.
 
 As on the Bass Station II, the sequencer is part of the arpeggiator. The arp's MODE has the Bass Station II's eight
 positions: six arp modes, then PLAY and REC for the sequencer. Both play in the arp's RHYTHM, at its TEMPO and SWING,
-or to MIDI clock when it comes in (see GLO SYS's SYNC).
+or to MIDI clock when it comes in (see GLO CLOCK's SYNC).
 
 ### ARP
 
@@ -392,7 +392,7 @@ in.
 | --- | --- |
 | PRESET · ON | The arp on (turn up) or off (turn down). While the sequencer records, it's LEGATO instead (see SEQ). |
 | ALGO · LATCH | Turn up for on (the LED beside LATCH lights): the notes keep playing after you let go, until you play a new chord, which replaces them. With the arp off, LATCH is the Bass Station II's key hold: the last note you played keeps sounding until you play another. While the sequencer records, it's REST instead. |
-| K1 · TEMPO | 40 to 240 BPM. While MIDI clock is followed (GLO SYS's SYNC), the knob shows the clock's tempo, labelled MIDI CLOCK (dashes until it's measured), and turning it changes nothing. The patch keeps its own tempo for when the clock stops. |
+| K1 · TEMPO | 40 to 240 BPM. While MIDI clock is followed (GLO CLOCK's SYNC), the knob shows the clock's tempo, labelled MIDI CLOCK (dashes until it's measured), and turning it changes nothing. The patch keeps its own tempo for when the clock stops. |
 | K2 · RHYTHM | The Bass Station II's 32 arp rhythms. Each is two bars of 16ths with rests and held notes. Rhythm 1 is two bars of quarter notes, and 32 plays every 16th. |
 | K3 · MODE (ARP MODE) | UP, DOWN, UP/DN (the top and bottom notes once each), UP/DN2 (twice each), PLAYED (in the order played), RANDOM, PLAY (the sequencer plays) or REC (the sequencer records), named around the knob as on the panel. |
 | K4 · OCTAVES | A four-position switch, 1 to 4 octaves, its positions on its left as on the panel. In PLAY and REC it's SEQ instead: which of the four sequences, as on the Bass Station II's switch. |
@@ -622,7 +622,7 @@ Synth: its SysEx, and its channel messages (a root is set with a note on channel
 the tracks' levels and reverb with CCs on channels 2 to 5). If the FM-1's keys also go to the RND Synth, set GLOBAL
 MIDI's CHANNEL to something other than 1, or every key you play sets the RND Synth's root.
 
-**Clock:** the RND Synth never sends MIDI clock. It follows the FM-1's (GLOBAL SYSTEM's SEND CLK on), or a master
+**Clock:** the RND Synth never sends MIDI clock. It follows the FM-1's (GLOBAL CLOCK's SEND CLK on), or a master
 clock that drives both.
 
 Hold GLO for a second for the RND pages, then press GLO for the next one: RND SEED, RND PATCH, RND TRACKS, then
@@ -730,10 +730,11 @@ The keys go out over USB and Bluetooth: their notes with velocity, and their pre
 GLO opens the global settings; press it again for the next page. They belong to the FM-1, not to a patch, and they
 save themselves: two seconds after you change one, once the FM-1 is quiet (see SEQ), it's kept through power-off,
 without SAVE (so a GLO change never
-writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar (MIDI, System,
-Display, SysEx Dump) and a red display: GLOBAL MIDI's shows the MIDI channel (ALL, OFF or the number), GLOBAL
-SYSTEM's the tempo (while MIDI clock leads, its tempo as measured over every two beats; dashes until then), with the knobs' response, the clock's state and the firmware's version (VERSION v0.6)
-beside it, GLOBAL DUMP's the patch. The on/off settings are slide switches.
+writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar, one subject to a page: MIDI, Drums, Clock, Audio, Controls, Display and
+SysEx Dump. A red display shows the main value where a page has one: GLOBAL MIDI's the MIDI channel (ALL, OFF or the
+number), GLOBAL DRUMS' the drums' channel, GLOBAL CLOCK's the tempo (while MIDI clock leads, its tempo as measured over
+every two beats; dashes until then) with the clock's state beside it, GLOBAL DUMP's the patch. GLOBAL DISPLAY shows the
+firmware's version (VERSION v0.6). The on/off settings are slide switches.
 
 On every GLO page, the right of the page's own bar shows the audio's load (for a moment after a change, what changed
 instead), for example **CPU 34/41**. The first number is the
@@ -745,7 +746,9 @@ themselves) also adds one, because the write holds up the sound for a moment. Wh
 is heard.
 
 ![GLO MIDI: the channel ALL on the display, the Channel knob, where notes go out, CC and Bluetooth, then CC Chan and the Local, AT Out and Bluetooth switches](img/screen-glo-midi.png "GLO: MIDI")
-![GLO SYS: the tempo 120 on the display, the Send Clk switch, the clock and the version, the Speaker switch, then Tune, Sync, Velocity and Knobs](img/screen-glo-sys.png "GLO, again: SYS")
+![GLO CLOCK: the tempo 120 on the display and what the clock is doing, then the Tempo knob, the Send Clk switch and the Sync knob](img/screen-glo-clock.png "GLO, again: CLOCK")
+![GLO AUDIO: what the speaker's setting reaches, then the Speaker switch and the Tune knob](img/screen-glo-audio.png "GLO, again: AUDIO")
+![GLO CONTROLS: what each does, then the Velocity and Knobs knobs](img/screen-glo-controls.png "GLO, again: CONTROLS")
 ![GLO DISPLAY: what the pop-ups are, then the Knob Zoom switch, the Hints switch and the Pop-ups knob](img/screen-glo-disp.png "GLO, again: DISPLAY")
 ![GLO DUMP: P01 on the display, then the All 32 button (FX) and the Sound button (SEL)](img/screen-glo-dump.png "GLO, again: DUMP (the last)")
 
@@ -759,12 +762,13 @@ Holding GLO for a second opens the RND pages, for the RND Synth: see RND Synth.
 | MIDI | K3 AT OUT (AFTER TOUCH OUT) | The keys' pressure out as poly aftertouch: ON (the default) or OFF. |
 | MIDI | K4 BLUETOOTH (BLUETOOTH MIDI) | Bluetooth on (the default) or off, at once. |
 | MIDI | REC | Finds and connects a Bluetooth MIDI device (below). Held a second, a random sound, as on every page. |
-| SYS | PRESET SEND CLK (SEND MIDI CLOCK) | ON (the default): MIDI clock goes out at the tempo, and PLAY sends start and stop. Not while following MIDI clock. |
-| SYS | ALGO SPEAKER | The FM-1's speaker, which only ever plays with nothing in the headphone jack. FLAT (the default): as it is. BASS+: the bass the small speaker cannot play, heard through its harmonics. OFF: the speaker silent. Headphones and USB audio stay as they are whatever this is set to: stereo, and with none of BASS+. |
-| SYS | K1 TUNE | The master tune, −50 to +50 cents (0 is the default). |
-| SYS | K2 SYNC (CLOCK SYNC) | What the arp and the sequencer follow. AUTO (the default): MIDI clock while it comes in, else the tempo. INT: the tempo only. EXT: MIDI clock only (without it they wait). While following, a MIDI start begins again from the first step. |
-| SYS | K3 VELOCITY | The keys' velocity curve: SOFT (louder for a light touch), NORMAL (the default) or HARD. |
-| SYS | K4 KNOBS (KNOB RESPONSE) | How far the knobs go as you turn them faster. FINE: always one step a click. NORMAL (the default): up to 8 steps a click on a quick spin. FAST: up to 12, and sooner. COARSE: two steps a click even turned slowly, up to 16. Only the knobs with a wide range (levels, Frequency, Tune, Tempo, the LFOs' speeds and so on); switches and short lists always move one position a click. |
+| CLOCK | K1 TEMPO | The tempo, the same setting as ARP's K1, kept with the patch. While MIDI clock is followed, the knob shows the clock's tempo and turning it changes nothing. |
+| CLOCK | K3 SEND CLK (SEND MIDI CLOCK) | ON (the default): MIDI clock goes out at the tempo, and PLAY sends start and stop. Not while following MIDI clock. |
+| CLOCK | K4 SYNC (CLOCK SYNC) | What the arp and the sequencer follow. AUTO (the default): MIDI clock while it comes in, else the tempo. INT: the tempo only. EXT: MIDI clock only (without it they wait). While following, a MIDI start begins again from the first step. |
+| AUDIO | K3 SPEAKER | The FM-1's speaker, which only ever plays with nothing in the headphone jack. FLAT (the default): as it is. BASS+: the bass the small speaker cannot play, heard through its harmonics. OFF: the speaker silent. Headphones and USB audio stay as they are whatever this is set to: stereo, and with none of BASS+. |
+| AUDIO | K4 TUNE | The master tune, −50 to +50 cents (0 is the default). |
+| CONTROLS | K3 VELOCITY | The keys' velocity curve: SOFT (louder for a light touch), NORMAL (the default) or HARD. |
+| CONTROLS | K4 KNOBS (KNOB RESPONSE) | How far the knobs go as you turn them faster. FINE: always one step a click. NORMAL (the default): up to 8 steps a click on a quick spin. FAST: up to 12, and sooner. COARSE: two steps a click even turned slowly, up to 16. Only the knobs with a wide range (levels, Frequency, Tune, Tempo, the LFOs' speeds and so on); switches and short lists always move one position a click. |
 | DISPLAY | PRESET KNOB ZOOM | AUTO (the default): as you turn an encoder, the panel zooms in on its control (twice the size) and back out a second after you stop; on HOME, a MIDI CC dives in, one camera move: the small panel zooms in on the control's section until it fills the screen, becomes that section's own page and zooms on in to the control, stays while the CCs come, then pulls the same way back out to HOME (a turn of your own while that page is up keeps you there). OFF: no zoom. |
 | DISPLAY | K3 HINTS | ON (the default): as you turn a knob, a few words on what it does show under its value; as you press a button, over the keys (a section's button: the page its next tap opens). OFF: none. See The screen. |
 | DISPLAY | K4 POP-UPS (POP-UP TIME) | How long the pop-ups stay: the controls' labels as a page opens, a knob's value after you turn it, and the hints. OFF: no labels or button hints, and a value only while the knob turns. 1.5 S (the default), 2 S or 3 S. ALWAYS: until you turn another knob or open another page. |
@@ -854,7 +858,7 @@ Over the USB cable the FM-1 is also a sound card. A computer can record what it 
 and can play through it: choose "Bass Something 2 FM-1" as the output, and its sound comes out of the FM-1's speaker and
 headphones, mixed with the FM-1's own, at MASTER's volume.
 
-The speaker has one driver, so it plays left and right summed to mono, and a sound panned to either side is not lost. Headphones stay in stereo. The FM-1 knows when something is in the headphone jack, so SPEAKER (GLO SYS) only ever changes the speaker.
+The speaker has one driver, so it plays left and right summed to mono, and a sound panned to either side is not lost. Headphones stay in stereo. The FM-1 knows when something is in the headphone jack, so SPEAKER (GLO AUDIO) only ever changes the speaker.
 
 That output is also the FM-1's Ext input, as the Bass Station II's Ext In socket is: turn the mixer's Ext up (SUB OSC + MIXER,
 K3 to Ext, then K4) and the computer's sound goes through the synth instead, into the mixer with the oscillators, then

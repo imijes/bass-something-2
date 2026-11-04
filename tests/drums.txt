@@ -28,7 +28,7 @@ expect dt_hits 1
 midi 80 3C 00
 wait 50
 # the drums on channel 1 too: one note on it plays both, as two devices on one channel
-spin K1 -9
+spin K4 -9
 wait 30
 expect dchan 1
 said DRUMS CHANNEL 1
@@ -41,7 +41,7 @@ wait 50
 # a note off: nothing for the drums (the 400 ignored them)
 expect dt_hits 2
 # OFF: the drums hear no notes
-spin K1 -1
+spin K4 -1
 wait 30
 expect dchan 0
 said DRUMS CHANNEL OFF
@@ -49,10 +49,10 @@ midi 99 26 7F
 wait 50
 expect dt_hits 2
 # ALL: the drums hear every channel
-spin K1 -1
+spin K4 -1
 wait 30
 expect dchan 0
-spin K1 17
+spin K4 17
 wait 30
 expect dchan 17
 said DRUMS CHANNEL ALL
@@ -60,7 +60,7 @@ midi 95 26 7F
 wait 50
 expect dt_hits 3
 # back to 10
-spin K1 -7
+spin K4 -7
 wait 30
 expect dchan 10
 # their CCs on channel 10: CC 34 the snare's tuning (64: step 8 of 0-15), CC 47 its volume (0)

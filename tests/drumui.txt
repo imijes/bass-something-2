@@ -159,6 +159,8 @@ expect dt_run 0
 tap GLO
 tap GLO
 tap GLO
+tap GLO
+tap GLO
 wait 30
 expect page 19
 tap GLO

@@ -9,6 +9,9 @@ wait 900
 tap GLO
 tap GLO
 tap GLO
+tap GLO
+tap GLO
+tap GLO
 wait 30
 turn PRESET 1
 turn K3 -1
@@ -161,9 +164,19 @@ wait 1500
 wait 400
 shot screen-glo-midi.png
 tap GLO
+wait 30
+tap GLO
 wait 1500
 wait 400
-shot screen-glo-sys.png
+shot screen-glo-clock.png
+tap GLO
+wait 1500
+wait 400
+shot screen-glo-audio.png
+tap GLO
+wait 1500
+wait 400
+shot screen-glo-controls.png
 tap GLO
 turn PRESET -1
 wait 1500
@@ -197,7 +210,10 @@ shot screen-rnd-tracks.png
 tap FX
 wait 200
 shot screen-map.png
-# Hints: on (GLO DISPLAY's K3: GLO three times), the FILTERS' Frequency turned: its value, its hint under it
+# Hints: on (GLO DISPLAY's K3: GLO six times), the FILTERS' Frequency turned: its value, its hint under it
+tap GLO
+tap GLO
+tap GLO
 tap GLO
 tap GLO
 tap GLO
