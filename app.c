@@ -1000,6 +1000,20 @@ static float sag_gain(void)                  /* a modulation step: the gain the 
     return 1.0f / (1.0f + SAG_K * fm_maxf(voice.sag_f - SAG_TH, 0.0f));
 }
 
+#define DT_MIX 4.0f                          /* +12 dB */
+#define OUT_FS 8300000.0f                    /* the output's full scale, as MASTER's gain has it */
+#define OUT_KNEE (0.7f * OUT_FS)
+/* the last thing out: drums on the bass near full MASTER rounded into full scale, not cut there; under the knee nothing */
+static inline float out_soft(float s)
+{
+    const float a = fm_fabsf(s);
+    if (a <= OUT_KNEE)
+        return s;
+    {
+        const float r = OUT_FS - OUT_KNEE, y = OUT_KNEE + r * fm_tanhf((a - OUT_KNEE) / r);
+        return s < 0.0f ? -y : y;
+    }
+}
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
     static uint32_t rng = 1u;                /* the noise's */
@@ -1011,7 +1025,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     float l1 = (float)patch.lvl1 / 127.0f, l2 = (float)patch.lvl2 / 127.0f, ls = (float)patch.lvl_sub / 127.0f;
     float gl = glide_coef(patch.glide), dc = env_coef(1.2f, CTRL_RATE), sg;
     float hu = env_coef(30.0f, CTRL_RATE), hd = env_coef(60.0f, CTRL_RATE), rs = (float)patch.reso / 127.0f;
-    float gain = (float)master_q12 / 4096.0f * 8300000.0f;   /* MASTER, read once a block */
+    float gain = (float)master_q12 / 4096.0f * OUT_FS;   /* MASTER, read once a block */
     float r1 = 12.0f * ((float)patch.range1 - RANGE_8), r2 = 12.0f * ((float)patch.range2 - RANGE_8);
     /* the distortion: a tanh after the amplifier (ADAA), into it up to 16 times, made up after it about as loud */
     float dg = 1.0f + (float)patch.dist * (15.0f / 127.0f), dm = fm_rsqrtf(1.0f + 0.25f * (dg - 1.0f));
@@ -1177,8 +1191,9 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             dabs += fm_fabsf(s);
 #endif
             dq_sample();
-            s += (dt_next() + dq_click_next()) * 0.3f * gain_now * ((float)dt.master / 127.0f);   /* the drums: after the bass's chain, at
-                                                  * its level, under their own MASTER VOLUME (K2) */
+            s += (dt_next() + dq_click_next()) * DT_MIX * 0.3f * gain_now * ((float)dt.master / 127.0f);   /* the drums: after the bass's chain, over
+                                                  * its level (hits, it sustains), under their own MASTER VOLUME (K2) */
+            s = out_soft(s);
             o[0] = (int32_t)s;
             o[1] = (int32_t)s;
         }
