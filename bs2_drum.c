@@ -113,21 +113,21 @@ enum { DTC_BASS, DTC_SNARE, DTC_TOMS, DTC_CYM, DTC_HATS, DTC_PERC, NDTCH };
                                               * 17.5 and 35 kHz at the first step, moving with the rate) */
 #define DT_HH_GAIN 0.5f                      /* the open hi-hat's level */
 #define DT_HH_LEN 0.335f                     /* its sample's length, s (ROM time): it ends there, at full level */
-#define DT_HH_Q 0.0005f                      /* its noise bands' decay, s: their width */
-#define DT_HH_RING 0.025f                    /* its metal's tones' decay, s: their width (longer: they ring) */
-#define DT_HH_TONE 0                         /* the metal's tones, dB */
-#define DT_HH_LOW -18                        /* its bands under 2 kHz, dB */
+#define DT_HH_Q 0.00035f                     /* its noise bands' decay, s: their width */
+#define DT_HH_RING 0.01225f                  /* its metal's tones' decay, s: their width (longer: they ring) */
+#define DT_HH_TONE -6                        /* the metal's tones, dB */
+#define DT_HH_LOW -12                        /* its bands under 2 kHz, dB */
 #define DT_HH_STICK 0.0f                     /* the stick's noise burst into the bands */
-#define DT_HH_VCF 9000.0f                    /* their filter after the DAC, two poles, Hz at the first step (0: none) */
-#define DT_HH_VCF_FIXED 0                    /* fixed, not moving with the rate */
-#define DT_HH_HP 1200.0f                     /* their output high pass at the first step, Hz (dt_voice_t hp) */
+#define DT_HH_VCF 12600.0f                   /* their filter after the DAC, two poles, Hz at the first step (0: none) */
+#define DT_HH_VCF_FIXED 1                    /* fixed, not moving with the rate */
+#define DT_HH_HP 588.0f                      /* their output high pass at the first step, Hz (dt_voice_t hp) */
 #define DT_HH_LP 0.0f                        /* their output filter (dt_voice_t lp; 0: none) */
 #define DT_HH_ROOM 0.0f                      /* its send into the room (the 400's own was in the sample) */
 #define DT_CHH_GAIN 0.5f                     /* the closed hi-hat's level: the same sample, */
-#define DT_CHH_VCA 0.035f                    /* through a VCA falling with this time constant, s (real time: the same
+#define DT_CHH_VCA 0.049f                    /* through a VCA falling with this time constant, s (real time: the same
                                               * at every tuning), */
-#define DT_CHH_HOLD 0.01f                    /* after a hold, s, */
-#define DT_CHH_END 0.117f                    /* and cut here, s */
+#define DT_CHH_HOLD 0.014f                   /* after a hold, s, */
+#define DT_CHH_END 0.0819f                   /* and cut here, s */
 #define DT_CR_RATE 10700.0f                  /* the Crash's ROM samples a second at the first step (its notches) */
 #define DT_CR_PITCH 1.0558f                  /* its partials tuned by ear (dt_voice_t pitch) */
 #define DT_CR_GAIN 0.5f                      /* its level */
@@ -694,8 +694,18 @@ static float dt_decay(float tau, float rate, float per)
  * output filters and the room stay live. [1] the low tunings' take where a voice has one (its low fields: steps 1-3) */
 #include "dt_eprom.h"
 static uint8_t dt_use_eprom = 1;             /* 0: every voice made live (the host's A/B) */
+#ifdef PLAT_HOST
+static struct { int8_t *d; uint32_t n; } dt_baked[NDT][2];   /* (dt_bake: a voice's ROM made here and now, before its table) */
+#endif
 static const int8_t *dt_eprom_of(uint32_t d, uint32_t tune, uint32_t *n)
 {
+#ifdef PLAT_HOST
+    if (dt_use_eprom && d < NDT && dt_baked[d][0].d) {
+        const uint32_t l = tune < 3u && dt_baked[d][1].d;
+        *n = dt_baked[d][l].n;
+        return dt_baked[d][l].d;
+    }
+#endif
     const uint32_t low = tune < 3u && d < sizeof DT_EPROM / sizeof DT_EPROM[0] && DT_EPROM[d][1].d;
     if (!dt_use_eprom || d >= sizeof DT_EPROM / sizeof DT_EPROM[0] || !DT_EPROM[d][0].d)
         return NULL;

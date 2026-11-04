@@ -7855,6 +7855,39 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         }
         return 1;
     }
+    if (!strcmp(cmd, "dt_bake")) {           /* dt_bake FROM TO LOW: TO's ROM made now from FROM's voice, as tools/dt_eprom.py
+                                              * makes it (LOW 1: its low take too), so a tunable is heard through its
+                                              * table without a build of the tables */
+        uint32_t from, to, t;
+        const uint8_t was = dt_use_eprom;
+        for (from = 0; from < NDT && strcmp(a, DT_NAME[from]); from++)
+            ;
+        for (to = 0; to < NDT && strcmp(b, DT_NAME[to]); to++)
+            ;
+        if (from < NDT && to < NDT) {
+            dt_use_eprom = 0;
+            for (t = 0; t < (atoi(c) ? 2u : 1u); t++) {
+                dt_ch_t *ch = &dt.ch[DT_CH[from]];
+                uint32_t n = 0;
+                int8_t *d;
+                dt_hit(from, t ? 0u : 7u, 255u);
+                d = malloc(ch->len + 1u);
+                while (ch->k < ch->len) {
+                    const float x = dt_dac(dt_gen(ch));
+                    d[n++] = (int8_t)(int32_t)(x * 127.0f + (x < 0.0f ? -0.5f : 0.5f));
+                    ch->k++;
+                }
+                ch->drum = DT_NONE;
+                while (n && !d[n - 1u])      /* (the zeros at its end: cut, as there) */
+                    n--;
+                free(dt_baked[to][t].d);
+                dt_baked[to][t].d = d;
+                dt_baked[to][t].n = n ? n : 1u;
+            }
+            dt_use_eprom = was;
+        }
+        return 1;
+    }
     if (!strcmp(cmd, "dt_prof")) {           /* each drum's cost, a block at a time, against a bass note's (the FM-1's load
                                               * is known for that: GLO's CPU meter) */
         static int32_t lr[2 * APP_BLOCK];
