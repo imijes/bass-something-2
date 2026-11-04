@@ -8,7 +8,9 @@ shows on the FM-1's screen as a small Bass Station II front panel, and MIDI goes
 TRS.
 
 It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of its patches as seeds with their locks
-(type, key, tracks), sends them back, and mixes its four tracks (see [RND Synth](#s8)).
+(type, key, tracks), sends them back, and mixes its four tracks (see [RND Synth](#s9)).
+
+A second instrument plays beside the synth: [Drum Something](#s6), 13 drums with their own sequencer and songs.
 
 ![The Bass Something 2 screen with a note playing: the section tabs, the HOME page (the name, the red P01 display, the scope drawing the note's wave, the whole Bass Station II panel), the keys with the held one in cyan, then OCT +0, P01, 120 BPM, VOL 50% and ARP OFF](img/screen-home.png "Bass Something 2 playing")
 
@@ -21,13 +23,14 @@ It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of 
 3. Playing
 4. The sound
 5. The arpeggiator and the sequencer
-6. Patches and saving
-7. SysEx: a Bass Station II editor
-8. RND Synth
-9. MIDI and audio
-10. The screen reader
-11. Troubleshooting
-12. Credits
+6. Drum Something
+7. Patches and saving
+8. SysEx: a Bass Station II editor
+9. RND Synth
+10. MIDI and audio
+11. The screen reader
+12. Troubleshooting
+13. Credits
 
 ---
 
@@ -239,7 +242,7 @@ its value in a cyan label on it while it turns.
 | K1 · OSC1 | Oscillator 1's level, 0 to 127. |
 | K2 · OSC2 | Oscillator 2's level. |
 | K3 · SOURCE | The mixer's switch: what K4 sets, Noise, Ring or Ext. It isn't saved with the patch, like the switch on a Bass Station II. |
-| K4 · Noise, Ring or Ext | The level the switch picks: the noise or the ring modulator (both kept by the patch), or Ext: the computer's sound over USB, through the filter and the amp (see USB audio in [section 9](#s9)). Ext is saved with the patch. |
+| K4 · Noise, Ring or Ext | The level the switch picks: the noise or the ring modulator (both kept by the patch), or Ext: the computer's sound over USB, through the filter and the amp (see USB audio in [section 9](#s10)). Ext is saved with the patch. |
 
 ### FILTERS (FX)
 
@@ -470,7 +473,156 @@ turning PRESET write at once, so pressing SAVE mid-performance gives a short gap
 
 ---
 
-## 6. Patches and saving
+## 6. Drum Something
+
+Drum Something is a second instrument on the FM-1, inspired by the Sequential Circuits Drumtraks: 13 drums on six channels, 99
+patterns and 99 songs. It plays beside the synth, on the same output, with its own MIDI channels. Its sounds are
+synthesized for this firmware and stored as 8-bit tables that play faster or slower as you tune them, so the firmware
+contains no samples of the original.
+
+![Drum Something's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "HOME, tapped on HOME")
+
+Tap HOME on HOME to switch between the two instruments. From any other page, hold it for a second. In Drum Something, every button
+does a drum job, listed below, and the keys play the drums.
+
+### Its keys and channels
+
+The drums start at the low C and go up the white keys. The first black key is ACCENT: hold it for an accented hit.
+
+| Channel | Keys and drums |
+| --- | --- |
+| 1 | C: Bass |
+| 2 | D: Snare, E: Rim |
+| 3 | F: Tom 1, G: Tom 2 |
+| 4 | A: Crash, B: Ride |
+| 5 | C: Closed Hat, D: Open Hat |
+| 6 | E: Claps, F: Tambourine, top F#: Cowbell, top G: Cabasa |
+
+A channel plays one drum at a time, as on the original: a hit cuts off whatever that channel is playing, so an Open Hat is
+choked by a Closed Hat. Different channels sound together.
+
+### Its controls
+
+These do the same job on every drum page, unless the page says otherwise:
+
+| Control | What it does |
+| --- | --- |
+| K1 | METRONOME: the click's level |
+| K2 | MASTER: all the drums' level, under the FM-1's MASTER, so you can set the drums against the synth |
+| K3 | VOLUME of the last drum you tapped, 0 to 15 |
+| K4 | TUNING of the last drum you tapped, 0 to 15 |
+| SELECT | TEMPO, one of the 91 tempos of the original |
+| PRESET | The pattern or song number, or what the lit function picks |
+| ALGO | The value of the lit function |
+
+Tapping a drum selects it for K3 and K4. On HOME, those two knobs zoom in to the drum's Channel page and back out a second after you stop, unless KNOB ZOOM is OFF.
+
+| Button | Tap | Again or held |
+| --- | --- | --- |
+| HOME | Drum Something's HOME | On HOME, a tap switches to the synth. Held a second elsewhere: the same |
+| EDIT | The selected drum's Channel page | The next channel |
+| SEQ | The PATTERN page | The next pattern function |
+| ARP | The SONG page | The next song function |
+| ENV | The pattern's bars | Its time signature |
+| FX | DRUM MODS | PATTERN INFO, then SONG INFO |
+| GLO | GLOBAL DRUMS | The other global pages. Held a second: the RND pages |
+| SEL | ENTER: does what the lit function asks | |
+| PLAY | Run or stop, on any page | |
+| REC | Recording on or off, on any page | Held a second: Erase Instrument |
+| OCT− and OCT+ | A slower or a faster tempo | Both held, stopped: the memory left, as a percentage |
+| SAVE | Saves the drums, once they're stopped | |
+
+![CHANNEL 2: the Per Instrument section with Volume and Tuning, and the channel's box with its Snare and Rim](img/screen-drum-channel.png "CHANNEL 2 (EDIT)")
+
+### Recording a pattern
+
+1. Press SEQ and turn PRESET to an empty pattern (00 to 98). A new pattern is one bar of 4/4. To change that, press ENV and turn ALGO for the bars; press ENV again for the time signature (PRESET the beats, ALGO the note).
+2. Press REC, then PLAY. The click plays on each beat.
+3. Play the keys. Each hit joins the loop and is heard from the next pass.
+4. Press REC to stop recording while the pattern plays on, or PLAY to stop it all.
+5. Press SAVE. Anything not saved is gone at the next restart.
+
+Hits land where you played them. To pull them to a grid, set Error Correct, from 1/2 down to 1/48; 1/96, the default, leaves them as played.
+
+To take a drum out, hold REC for a second: REC pulses twice each beat and the keys go silent. Hold a drum's key as the loop passes and its hits are erased. Tap REC to go back to recording.
+
+A pattern with hits can't change its length: erase it first, or make it longer with COPY / APPEND.
+
+To lock a drum's level and tuning into a pattern, press REC while stopped and tap the drum's key. Its hits then keep that Volume and Tuning. Other drums follow their knobs as they play.
+
+![The PATTERN page: its functions in a list, the lit one shown by its LED](img/screen-drum-pattern.png "PATTERN (SEQ)")
+
+SEQ steps through the page's list:
+
+| Function | Turn | SEL |
+| --- | --- | --- |
+| PATTERN # | PRESET: the pattern. While one runs, the next one, which starts when this one ends. Pattern 99 is always empty, so cueing it stops at the end | |
+| RECORD MODE | | |
+| ERASE INSTRUMENT | | |
+| ERROR CORRECT | ALGO: the grid | |
+| SWING % | ALGO: 50 to 70 %, in patterns counted in quarter notes, whenever you like, even running or recording | |
+| TIME SIGNATURE | PRESET the beats, ALGO the note. Empty patterns only | |
+| # OF MEASURES | ALGO: the bars. Empty patterns only | |
+| ERASE PATTERN | ALGO: which | Erases it, back to one bar of 4/4 |
+| COPY / APPEND TO | ALGO: where to | On an empty pattern, a copy with its settings. On one with hits, added after them |
+
+While a pattern runs, SEQ only moves between the number and the swing. While it records, SEQ goes round Record, Erase, Error Correct and Swing. PATTERN INFO (FX, twice) shows the pattern's settings, its hits and the memory left, shared by all the patterns: about 4,000 hits.
+
+### Songs
+
+A song plays a list of up to 100 steps, each a pattern, a volume change or a tempo change. There are 99 songs, 00 to 98.
+
+![The SONG page: its functions in a list, with Build Mode's five under it](img/screen-drum-song.png "SONG (ARP)")
+
+Press ARP and turn PRESET to pick a song. PLAY runs it. Press ARP again for ERASE SONG and COPY / APPEND TO, which work like the patterns', then BUILD MODE.
+
+To build one, press SEL on BUILD MODE, then:
+
+1. Turn ALGO to a pattern and press SEL. It goes into this step and moves on to the next.
+2. Repeat for each pattern. An empty pattern, such as 99, stops the song there; otherwise it plays round again.
+3. Press SEL with no new value to leave Build Mode.
+
+In Build Mode, PRESET moves through the steps and ARP goes round its functions:
+
+| Function | What it does, with SEL |
+| --- | --- |
+| PATTERN # | The step's pattern. |
+| VOL CHANGE | A step that changes the song's level, ALGO −15 to +15. |
+| TEMPO CHANGE | A step that changes the tempo, ALGO −15 to +15 tempos. At step 00, ALGO sets the tempo the song starts at. |
+| INSERT | A blank step here, to fill or leave. |
+| DELETE | Takes this step out. |
+
+Changes add up as the song loops. Stop a song before you build it. While it runs, PRESET cues the next song.
+
+### With the synth
+
+There is one clock. While a pattern runs, the synth's arp and sequencer follow the drums' tempo, without changing the patch's own tempo. FX opens DRUM MODS:
+
+| Control | What it does |
+| --- | --- |
+| K3 · SWING LOCK | OFF (the default): each has its own swing. ON: the synth's 16ths follow the running pattern's swing |
+| K4 · TRANSPORT | ON (the default): the drums' run and stop also start and stop the synth's arp or sequence. OFF: each runs on its own |
+
+![DRUM MODS: the Swing Lock and Transport knobs on their plate](img/screen-drum-mods.png "DRUM MODS (FX)")
+
+### MIDI
+
+Drum Something is a MIDI device of its own. GLOBAL DRUMS (GLO) sets its note channel and its CC channel, both 10 by default.
+
+| Control | What it does |
+| --- | --- |
+| K4 · CHANNEL | The drums' note channel, in and out: ALL, OFF or 1 to 16. On the synth's channel, one note plays both. |
+| PRESET · CC CHAN | The channel for the drums' tuning and volume CCs. |
+
+![GLOBAL DRUMS: the drums' channel on a red display, and the CC channel](img/screen-glo-drums.png "GLOBAL DRUMS (GLO)")
+
+Notes play each drum, and the keys and patterns send them too: Bass 36, Rim 37, Snare 38, Claps 39, Tom 1 41, Closed Hat 42, Tom 2 45, Open Hat 46, Crash 49, Ride 51, Tambourine 54, Cowbell 56, Cabasa 58. Velocity 120 and up is an accent.
+
+CCs 33 to 45 set each drum's tuning and 46 to 58 its volume, in the order Bass, Snare, Rim, Tom 1, Tom 2, Crash, Ride, Closed Hat, Open Hat, Claps, Tambourine, Cowbell, Cabasa. MIDI Start and Stop run the drums.
+
+---
+
+## 7. Patches and saving
 
 Bass Something 2 holds 32 patches, P01 to P32. Each patch is a complete sound: the settings of every control described
 in [section 4](#s4), plus the arp and the sequence.
@@ -514,7 +666,7 @@ basses, P11 to P20 leads, and P21 to P32 show off the rest of the voice:
 | P32 | TALKING WAH | the band pass opening and closing on each note |
 
 Updating the firmware keeps the patches you have. To get the factory ones back, send the factory bank,
-`bs2/presets/factory.syx` in the source (see [SysEx](#s7)).
+`bs2/presets/factory.syx` in the source (see [SysEx](#s8)).
 
 ![The MASTER panel: the Volume, the red display showing P01, the Save and Patch buttons](img/screen-patch.png "SEL: the MASTER")
 
@@ -577,7 +729,7 @@ This is apart from SysEx (below), which moves Bass Station II patches to and fro
 
 ---
 
-## 7. SysEx: a Bass Station II editor
+## 8. SysEx: a Bass Station II editor
 
 Bass Something 2 reads and writes Novation Bass Station II patch dumps, so a Bass Station II editor or librarian can store
 its sounds, and Bass Station II patches (`.syx` files) can play on the FM-1. SysEx goes over the USB cable only.
@@ -628,7 +780,7 @@ Values beyond what an FM-1 control can reach are brought to its nearest.
 
 ---
 
-## 8. RND Synth
+## 9. RND Synth
 
 ![The RND Synth Companion splash: the RND Synth and the FM-1 side by side on black between RND SYNTH and COMPANION in cyan](img/screen-rnd-splash.png "GLO held: the RND Synth Companion's splash")
 
@@ -737,7 +889,7 @@ A computer can send it the same way, or have the FM-1 send the RND SEED slot's p
 
 ---
 
-## 9. MIDI and audio
+## 10. MIDI and audio
 
 MIDI comes in over USB, Bluetooth and the TRS jack. A note on GLO's channel plays the voice (or the arp, or
 transposes the sequencer). MIDI clock and start drive the arp and the sequencer (see SYNC). Control changes on GLO's
@@ -888,7 +1040,7 @@ mixed into one, as the synth is mono. With Ext at 0 the computer's sound plays s
 
 ---
 
-## 10. The screen reader
+## 11. The screen reader
 
 Bass Something 2 tells a screen reader what's on its screen, through the
 [FM-1 Screen Reader](https://charlesvestal.github.io/fm1-reader/): the page, the patch and the settings when the
@@ -897,7 +1049,7 @@ emulator does the same, with your own screen reader or with its built-in voice.
 
 ---
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 **No sound:** turn MASTER up. Check the mixer's levels on SUB OSC + MIXER (EDIT three times) and the Frequency on the FILTERS (FX); a random sound can be
 quiet. On GLOBAL MIDI, LOCAL must be ON for the keys to play.
@@ -916,6 +1068,8 @@ the lit OCT button. Changing the octave lets every held note go.
 **An editor doesn't receive or send dumps:** SysEx goes over USB only. Choose the FM-1 as the editor's MIDI input to
 receive and as its MIDI output to send.
 
+**The drums are too loud or too quiet against the synth:** turn the drums' MASTER (K2 on a drum page), or one drum's VOLUME (K3).
+
 **The installer doesn't find the FM-1:** use Chrome or Edge, allow MIDI when asked, and close other programs that use
 the FM-1's MIDI port. If it still isn't found, the installer lists the computer's other MIDI ports to try: a Mac can
 show the FM-1 under another name.
@@ -925,7 +1079,7 @@ firmware back, then install again. For details, see felucca-bsp's `tools/fm1_res
 
 ---
 
-## 12. Credits
+## 13. Credits
 
 Bass Something 2 is by **John Brown** ([@imijes](https://github.com/imijes)), under MPL-2.0. It's built on the work of others:
 
@@ -952,5 +1106,6 @@ Bass Something 2 is by **John Brown** ([@imijes](https://github.com/imijes)), un
 
 The full list for the platform underneath is fm1-base's `CREDITS.md` and `LICENSING.md`.
 
-Novation and Bass Station are trademarks of Focusrite Audio Engineering Ltd.; M-VAVE and FM-1, Cyma Forma and RND are
-trademarks of their owners. Bass Something 2 is not affiliated with Novation, M-VAVE or Cyma Forma.
+Novation and Bass Station are trademarks of Focusrite Audio Engineering Ltd.; M-VAVE and FM-1, Cyma Forma and RND, and
+Sequential Circuits and Drumtraks are trademarks of their owners. Bass Something 2 is not affiliated with Novation,
+M-VAVE, Cyma Forma or Sequential.

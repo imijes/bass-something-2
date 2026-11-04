@@ -225,3 +225,35 @@ wait 1500
 turn K4 -3
 wait 50
 shot screen-hint.png
+# Drum Something's (section 6): the Hints off again, for the panels; its HOME, a Channel page, its lists, its mods, GLOBAL DRUMS
+tap GLO
+tap GLO
+tap GLO
+tap GLO
+tap GLO
+tap GLO
+wait 1500
+turn K3 -1
+wait 1500
+tap HOME
+wait 2500
+tap HOME
+wait 3000
+shot screen-drum-home.png
+tapkey w5 100
+wait 200
+tap EDIT
+wait 3000
+shot screen-drum-channel.png
+tap SEQ
+wait 3000
+shot screen-drum-pattern.png
+tap ARP
+wait 3000
+shot screen-drum-song.png
+tap FX
+wait 3000
+shot screen-drum-mods.png
+tap GLO
+wait 3000
+shot screen-glo-drums.png

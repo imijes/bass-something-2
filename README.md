@@ -50,7 +50,7 @@ The site (bs2/build/site), from a release:
     (cd bs2/build/site && python3 -m http.server 8765)    # http://localhost:8765
     python3 bs2/site/publish_pages.py 0.6                 # https://imijes.github.io/bass-something-2/
 
-Bass Something 2 is by John Brown ([@imijes](https://github.com/imijes)). Credits for everyone whose work it builds on: `docs/MANUAL.md`, section 12.
+Bass Something 2 is by John Brown ([@imijes](https://github.com/imijes)). Credits for everyone whose work it builds on: `docs/MANUAL.md`, section 13.
 
 Novation and Bass Station are trademarks of Focusrite Audio Engineering Ltd.; Bass Something 2 is not affiliated with Novation
 or M-VAVE.
