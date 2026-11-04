@@ -525,7 +525,8 @@ the synth's wave as it plays (two of its periods, standing still while a note is
 large as a loud one; a flat line in silence), and under them a Bass Station II's whole front panel, drawn to the scale of the keys
 at the foot of the screen (they stand for its keys and its wheels together). Every knob, fader, switch and LED on it
 shows the sound as it is set, and follows it as you change it on the other pages. PRESET picks the patch here, as on
-MASTER.
+MASTER. K4 sets the filter's Frequency: the panel zooms in to that knob on the FILTERS page as you turn it, and back out
+to HOME a second after you stop.
 
 The MASTER page (SEL) is the Bass Station II's Master section: the Volume
 (the FM-1's MASTER knob, as it's set), the display with the patch in red, its dot lit while there are changes not

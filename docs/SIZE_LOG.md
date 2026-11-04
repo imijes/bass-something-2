@@ -113,3 +113,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-03 | 14fd38e+ | Drum Something: channels at their own widths; Build Mode PRESET step, ALGO pattern | 498,596 | +752 | 82,968 | 77,764 | +0 | 20,540 | 157,904 |
 | 2026-11-03 | 7650a75+ | USB audio on macOS 15: MIDI on its own audio control interface | 498,644 | +48 | 82,920 | 77,764 | +0 | 20,540 | 157,904 |
 | 2026-11-03 | 85f781b+ | EP0: a SETUP arriving before SentStall is handled is answered | 498,644 | +0 | 82,920 | 77,764 | +0 | 20,540 | 157,904 |
+| 2026-11-03 | 73b5d98+ | HOME: K4 the filter's Frequency, Knob Zoom's dive to its knob | 497,444 | -1,200 | 84,120 | 77,764 | +0 | 20,540 | 157,904 |

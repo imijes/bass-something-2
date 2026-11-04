@@ -3057,6 +3057,27 @@ static uint32_t notes_lit(uint32_t *below, uint32_t *above)
  * a mode (ARP or SEQ: AFX on or off; GLO: the RND pages, held again the GLOBAL ones; REC: a random sound). The hold
  * acts while still held, its release then nothing */
 #define HOLD_MS 1000u
+/* HOME's K4: the FILTERS' Frequency, from HOME and on its way to that page and back: Knob Zoom's dive, as for the
+ * knob's CC (zoom_cc_in); no zoom (KNOB ZOOM OFF): HOME's own knob moves */
+static int home_k4(uint32_t p)
+{
+    return p == EN_K4 && !ui.drum
+           && (ui.page == PG_HOME || (zoom.home && zoom.hp == PG_HOME && zoom.g == PG_TUNE && zoom.ke == EN_K4));
+}
+static void home_k4_turn(int32_t e)
+{
+    const uint8_t pg = ui.page;
+    char t[12];
+    ui.page = PG_TUNE;
+    knob_turn(EN_K4, e);
+    knob_text(EN_K4, t);
+    app_say(knob_title(EN_K4), t);
+    ui.page = pg;
+    if (!set.zoom_off)
+        zoom_cc_in(&PARAMS[PG_TUNE][EN_K4]);
+    ui.redraw = 1;
+}
+
 /* Hints: a few words on what a control does, under its value as it turns (a button's at the panel's
  * foot as it's pressed) */
 static const char *const HINT[NPAGES][NE] = {
@@ -3751,6 +3772,10 @@ static void input(void)
             continue;
         ui.turns[k] += e;
         rsplash_until = 0;
+        if (home_k4(k)) {
+            home_k4_turn(e);
+            continue;
+        }
         if ((l = enc_logical(k)) >= NE)      /* (none on this page) */
             continue;
         ui.turned_at[l] = plat_ms();

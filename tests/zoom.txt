@@ -65,6 +65,45 @@ wait 2500
 expect page 10
 tap HOME
 wait 1500
+# HOME's K4: the filter's Frequency, the same dive to its knob on the FILTERS page, kept as it turns, back out to HOME
+midi B2 10 20
+wait 2500
+expect page 16
+expect cutoff 32
+turn K4 1
+expect cutoff 33
+wait 100
+expect page 16
+expect zoom >0
+wait 500
+expect page 10
+expect zoom 256
+said FREQUENCY
+turn K4 2
+expect cutoff 35
+wait 900
+expect page 10
+expect zoom 256
+wait 400
+expect page 16
+expect zoom >0
+wait 800
+expect page 16
+expect zoom 0
+# K4 again as it rises: back in; another knob there: the page stays, the user's
+turn K4 1
+wait 600
+expect page 10
+wait 1300
+turn K4 1
+wait 400
+expect page 10
+expect zoom 256
+turn K1 1
+wait 2500
+expect page 10
+tap HOME
+wait 1500
 # a CC on another page: no zoom
 tap EDIT
 wait 1500
@@ -93,6 +132,10 @@ tap HOME
 wait 1500
 midi B2 10 30
 wait 300
+expect zoom 0
+turn K4 1
+wait 300
+expect page 16
 expect zoom 0
 tap GLO
 tap GLO
