@@ -350,7 +350,7 @@ static void rnd_store(void)                  /* SAVE on RND SEED: the synth's pa
     }
     seeds.seed[rnd_slot] = rnd.seed;
     seeds.code[rnd_slot] = rnd.code;
-    if (plat_store_save(OBJ_SEEDS, &seeds, sizeof seeds) == 0 && set_store() == 0) {
+    if (store_save(OBJ_SEEDS, &seeds, sizeof seeds) == 0 && set_store() == 0) {
         t[0] = 0;
         text_cat(t, "SEED SAVED ");
         seed_slot_text(t + 11);

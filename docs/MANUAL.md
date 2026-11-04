@@ -741,9 +741,8 @@ instead), for example **CPU 34/41**. The first number is the
 load now, as a percentage of the time the FM-1 has to make each block of sound. The second is the highest it reached
 in the last five seconds. If the sound ever misses its deadline (a dropout, heard as a click), a count follows in
 cyan, for example **CPU 97/100 !2**, and stays until the FM-1 is switched off. A click without the count going up came
-from something else. Every write to memory (SAVE, a patch change, and the sequence and GLO settings keeping
-themselves) also adds one, because the write holds up the sound for a moment. When those happen in silence, nothing
-is heard.
+from something else. A write to memory (SAVE, a patch change, and the sequence and GLO settings keeping themselves) holds
+up the sound for a moment. In silence nothing is heard and it isn't counted; while something is sounding, it counts.
 
 ![GLO MIDI: the channel ALL on the display, the Channel knob, where notes go out, CC and Bluetooth, then CC Chan and the Local, AT Out and Bluetooth switches](img/screen-glo-midi.png "GLO: MIDI")
 ![GLO CLOCK: the tempo 120 on the display and what the clock is doing, then the Tempo knob, the Send Clk switch and the Sync knob](img/screen-glo-clock.png "GLO, again: CLOCK")

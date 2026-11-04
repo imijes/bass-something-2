@@ -513,7 +513,7 @@ static int dq_store(const void *mem, uint32_t sz, uint32_t obj, uint32_t *sum, u
         const uint32_t n = sz - at < PLAT_STORE_MAX ? sz - at : PLAT_STORE_MAX;
         const uint32_t h = dq_hash((const uint8_t *)mem + at, n);
         if (h != sum[i]) {
-            if (plat_store_save(obj + i, (const uint8_t *)mem + at, n) != 0)
+            if (store_save(obj + i, (const uint8_t *)mem + at, n) != 0)
                 return 1;
             sum[i] = h;
         }

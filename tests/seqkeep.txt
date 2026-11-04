@@ -101,3 +101,30 @@ wait 600
 expect mem1 8
 expect mem2 0
 expect mem4 0
+# the count GLO's pages show: a miss counts, but not one from a write in silence (the tempo keeping itself, a sequence);
+# a write under a note still does
+tap ARP
+wait 30
+expect xruns 0
+xrun
+wait 30
+expect xruns 1
+wait 800
+turn K1 5
+wait 2020
+xrun
+wait 30
+expect xruns 1
+wait 400
+xrun
+wait 30
+expect xruns 2
+key 7 down
+wait 700
+tap SAVE
+wait 30
+xrun
+wait 30
+expect xruns 3
+key 7 up
+wait 1000

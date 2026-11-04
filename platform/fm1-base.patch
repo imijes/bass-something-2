@@ -141,13 +141,14 @@ index 48477b9..8e69e74 100644
  {
      ble_poll();                                   /* Bluetooth: its notifications go out while the screen draws */
 diff --git a/host/plat_host.c b/host/plat_host.c
-index 0a56f9a..72d3d50 100644
+index 0a56f9a..adf2614 100644
 --- a/host/plat_host.c
 +++ b/host/plat_host.c
-@@ -22,7 +22,10 @@
+@@ -22,7 +22,11 @@
   *   ble connect | ble link | ble disconnect   a central listening, or linked and not yet listening (FM1B_BLE: the
   *                                stand-in stack is ready a second after the start)
   *   wav FILE | wavstop           start / stop recording the output
++ *   xrun                         a missed deadline, as the device counts them (plat_xruns)
 + *   jack 0|1                     the headphone jack empty, or something in it (APP_SPEAKER; 1 by default)
   *   peakreset                    restart the output peak (expect peak_db_min / peak_db_max)
 + *   usbtone HZ                   the computer plays a sine over USB audio at half of full level (0: silence): the
@@ -155,7 +156,7 @@ index 0a56f9a..72d3d50 100644
   *   shot FILE.png                save the screen
   *   leds                         print the lit buttons and keys (keys: # bright, + dim)
   *   out                          print the MIDI sent since the last "out" (and forget it; clocks not shown)
-@@ -525,6 +528,12 @@ int plat_host_read(uint32_t addr, uint8_t *dst, uint32_t n) { (void)addr, (void)
+@@ -525,6 +529,12 @@ int plat_host_read(uint32_t addr, uint8_t *dst, uint32_t n) { (void)addr, (void)
  void plat_host_patience(uint32_t try_ms, uint32_t total_ms) { (void)try_ms, (void)total_ms; }
  static int uac_full;                            /* plat_usb_audio_full: the render at full level, MASTER after it */
  void plat_usb_audio_full(int on) { uac_full = on != 0; }
@@ -168,7 +169,17 @@ index 0a56f9a..72d3d50 100644
  
  /* flash: one buffer per object, kept across a simulated reboot */
  static uint8_t store[OBJ_NOBJ][PLAT_STORE_MAX];
-@@ -981,16 +990,32 @@ static void sim_ms_begin(uint32_t ms)
+@@ -584,7 +594,8 @@ int plat_store_save(uint32_t obj, const void *src, uint32_t len)
+ 
+ static uint32_t cpu_pct;
+ uint32_t plat_cpu_pct(void) { return cpu_pct; }
+-uint32_t plat_xruns(void) { return 0; }
++static uint32_t sim_xruns;                       /* xrun: a missed deadline, as the device counts it */
++uint32_t plat_xruns(void) { return sim_xruns; }
+ uint32_t plat_ticks24(void)                     /* the host's monotonic clock, at the device's rate */
+ {
+     struct timespec t;
+@@ -981,16 +992,32 @@ static void sim_ms_begin(uint32_t ms)
  #endif
  }
  
@@ -201,10 +212,12 @@ index 0a56f9a..72d3d50 100644
      dt = now_ns() - t0;
      render_ns_total += dt;
      render_budget_ns_total += APP_BLOCK * 1e9 / 44100.0;
-@@ -1421,8 +1446,14 @@ int main(int argc, char **argv)
+@@ -1421,8 +1448,16 @@ int main(int argc, char **argv)
              wav_open(out);
          } else if (!strcmp(cmd, "wavstop"))
              wav_close();
++        else if (!strcmp(cmd, "xrun"))             /* xrun: a missed deadline */
++            sim_xruns++;
 +#ifdef APP_SPEAKER
 +        else if (!strcmp(cmd, "jack"))             /* jack 0|1: the headphone jack empty, or something in it */
 +            sim_jack = atoi(a);

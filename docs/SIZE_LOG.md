@@ -118,3 +118,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-03 | 28dc8d8+ | BASS+: its harmonics at a quarter of the rate (about 12 % of the CPU to about 2 %) | 498,692 | +48 | 82,872 | 77,764 | +0 | 20,540 | 157,968 |
 | 2026-11-03 | aae80a5+ | GLOBAL pages by subject: SYSTEM split into CLOCK, AUDIO and CONTROLS | 499,540 | +848 | 82,024 | 77,764 | +0 | 20,540 | 157,968 |
 | 2026-11-03 | aae80a5+ | GLOBAL CLOCK: a Tempo knob (K1); GLOBAL DRUMS: Channel on K4 | 499,764 | +224 | 81,800 | 77,764 | +0 | 20,540 | 157,968 |
+| 2026-11-03 | 79332bf+ | The ! count leaves out flash writes in silence | 499,844 | +80 | 81,720 | 77,764 | +0 | 20,540 | 157,968 |

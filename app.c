@@ -517,6 +517,7 @@ static fifo_t keyq;                          /* main loop -> audio: note | veloc
 static fifo_t recq;                          /* audio -> main loop: MIDI in's notes while recording */
 static fifo_t ccq;                           /* audio -> main loop: MIDI in's CCs on CC CHAN, number | value << 8 */
 #define NOTE_ALL_OFF 0xFFu
+static int store_save(uint32_t obj, const void *src, uint32_t len);   /* plat_store_save, told if it is in silence */
 #include "bs2_drum.c"                     /* Drum Something: the drum voices (dt_hit, dt_note, dt_next) */
 /* the clock's BPM: the drums', the master, while a pattern runs (the bass on the same clock, as on a 400 sending MIDI
  * clock to a Bass Station II); else the patch's */
@@ -1239,7 +1240,7 @@ static void patch_fill(patch_t *p, uint32_t from)   /* the bytes from FROM on: 0
 /* --------------------------------------------------------------- settings --- */
 static int set_store(void)                   /* the settings into the store: 0 done */
 {
-    int r = plat_store_save(OBJ_SETTINGS, &set, sizeof set);
+    int r = store_save(OBJ_SETTINGS, &set, sizeof set);
     if (r == 0)
         set_kept = set;
     return r;
@@ -2811,7 +2812,7 @@ static void page_go(uint32_t g)
 static void save(void)                       /* the settings, and the sound into its slot */
 {
     bank.p[set.slot] = patch;
-    if (set_store() == 0 && plat_store_save(OBJ_PATCHES, &bank, sizeof bank) == 0) {
+    if (set_store() == 0 && store_save(OBJ_PATCHES, &bank, sizeof bank) == 0) {
         char t[4];
         set_dirty = 0;
         slot_text(t);
@@ -2838,6 +2839,34 @@ static void quiet_step(void)                 /* the main loop's (input), before 
     } else {
         hushed = plat_ms() - loud_at >= QUIET_MS;
     }
+}
+/* A flash write holds up the audio: the platform counts a missed deadline. In silence nothing is heard, so the count
+ * shown leaves it out: what it shows is a dropout someone could hear. A write under sound still counts */
+#define XR_QUIET_MS 200u
+static uint32_t xr_base, xr_mark, xr_until;  /* the misses left out; the count they're from; till when (0: none now) */
+static int store_save(uint32_t obj, const void *src, uint32_t len)
+{
+    int r;
+    const int quiet = hushed;
+    if (quiet && !xr_until)
+        xr_mark = plat_xruns();              /* (those before it stay counted) */
+    r = plat_store_save(obj, src, len);
+    if (quiet)
+        xr_until = (plat_ms() + XR_QUIET_MS) | 1u;
+    return r;
+}
+static uint32_t xruns_shown(void)            /* (each frame, by cpu_meter) */
+{
+    const uint32_t x = plat_xruns();
+    if (xr_until) {
+        if ((int32_t)(plat_ms() - xr_until) < 0) {
+            xr_base += x - xr_mark;
+            xr_mark = x;
+        } else {
+            xr_until = 0;
+        }
+    }
+    return x - xr_base;
 }
 
 /* the sequence kept as it's made: its steps, which of the four, the gate, the tempo and the swing into the
@@ -2892,7 +2921,7 @@ static void seq_keep(int now)                /* the main loop's (input); NOW: at
     b->tempo = cur.tempo;
     b->swing = cur.swing;
     pend_at = 0;
-    if (plat_store_save(OBJ_PATCHES, &bank, sizeof bank) != 0)
+    if (store_save(OBJ_PATCHES, &bank, sizeof bank) != 0)
         app_say("SEQ KEEP", "FAILED");
 }
 
@@ -2920,7 +2949,7 @@ static void glo_keep(void)                   /* the main loop's (input) */
     if (plat_ms() - pend_at < GLO_KEEP_MS || !hushed)
         return;
     pend_at = 0;
-    if (plat_store_save(OBJ_SETTINGS, &rec, sizeof rec) == 0)
+    if (store_save(OBJ_SETTINGS, &rec, sizeof rec) == 0)
         set_kept = rec;
     else
         app_say("GLO KEEP", "FAILED");
@@ -2982,7 +3011,7 @@ static void bank_in_step(void)               /* the main loop's (input): a bank 
         text_cat(t, v);
         text_cat(t, " LEFT");
     }
-    if (plat_store_save(OBJ_PATCHES, &bank, sizeof bank) == 0)
+    if (store_save(OBJ_PATCHES, &bank, sizeof bank) == 0)
         app_say("BANK LOADED", t);
     else
         app_say("BANK LOAD", "FAILED");
@@ -4821,7 +4850,7 @@ static void glo_frame(const char *name)
 {
     char t[24];
     cpu_text(t);
-    section_frame("GLOBAL", name, t, plat_xruns() ? P_CYAN : P_DIM);
+    section_frame("GLOBAL", name, t, xruns_shown() ? P_CYAN : P_DIM);
 }
 /* the RND pages' (bs2_rnd.c): the RND SYNTH COMPANION bar; at the right the synth's firmware once it has answered */
 static void rnd_frame_draw(const char *name)   /* at the right: the seed playing on the synth, once it has said */
@@ -5441,7 +5470,7 @@ static uint32_t cpu_now, cpu_peak;
 static int cpu_meter(uint32_t now)           /* a frame: 1 when the numbers shown changed */
 {
     static uint32_t win, win_at, peak_at, shown;
-    uint32_t c = plat_cpu_pct(), was = cpu_now | cpu_peak << 8 | (plat_xruns() & 0xFFFFu) << 16;
+    uint32_t c = plat_cpu_pct(), was = cpu_now | cpu_peak << 8 | (xruns_shown() & 0xFFFFu) << 16;
     win = c > win ? c : win;
     if (now - win_at >= CPU_NOW_MS) {
         cpu_now = win;
@@ -5467,9 +5496,9 @@ static void cpu_text(char *t)                /* "CPU 34/41", "CPU 34/41 !2" */
     text_cat(t, "/");
     int_text((int32_t)cpu_peak, n);
     text_cat(t, n);
-    if (plat_xruns()) {
+    if (xruns_shown()) {
         text_cat(t, " !");
-        int_text((int32_t)(plat_xruns() > 999u ? 999u : plat_xruns()), n);
+        int_text((int32_t)(xruns_shown() > 999u ? 999u : xruns_shown()), n);
         text_cat(t, n);
     }
 }
@@ -7181,6 +7210,8 @@ int app_expect(const char *what, int *got)
         *got = set.octave;
     else if (!strcmp(what, "hints"))
         *got = set.hints;
+    else if (!strcmp(what, "xruns"))         /* the count GLO's pages show */
+        *got = (int)xruns_shown();
     else if (!strcmp(what, "spk"))
         *got = set.spk;
     else if (!strcmp(what, "zoom_off"))
@@ -7736,7 +7767,7 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         uint32_t i;
         for (i = 0; i < NSLOTS; i++)
             patch_defaults(&bank.p[i]);
-        plat_store_save(OBJ_PATCHES, &bank, sizeof bank);
+        store_save(OBJ_PATCHES, &bank, sizeof bank);
         patch = bank.p[set.slot];
         return 1;
     }
@@ -7745,7 +7776,7 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         uint8_t r[16];
         memcpy(r, &set, SET_V2_SIZE);
         r[15] = 2;
-        plat_store_save(OBJ_SETTINGS, r, sizeof r);
+        store_save(OBJ_SETTINGS, r, sizeof r);
         return 1;
     }
     if (!strncmp(cmd, "bank_v", 6) && cmd[6] >= '3' && cmd[6] <= '8' && !cmd[7]) {   /* an older bank saved: a reboot
@@ -7789,7 +7820,7 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
             OLD(0, sq.step[1]) = V7_TIE;
             OLD(0, key_trk) = 3;
         }
-        plat_store_save(OBJ_PATCHES, r, offsetof(bank_t, p) + NSLOTS * ps);
+        store_save(OBJ_PATCHES, r, offsetof(bank_t, p) + NSLOTS * ps);
         return 1;
     }
     if (!strcmp(cmd, "sysex_bank_out")) {    /* the last bank sent (GLO DUMP's), into FILE: a .syx of 32 dumps */
