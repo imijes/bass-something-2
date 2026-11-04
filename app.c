@@ -1575,7 +1575,7 @@ static struct {                             /* (all 0 at rest: in the pool) */
     uint8_t home, g, ke;                     /* ZH_*; the CC's section page, its encoder */
     uint8_t sv[5], v[5];                     /* HOME's views (zoom_views); the CC's page's */
     uint8_t hp, dsv, dnew;                   /* the HOME it dives from; Drum Something's: its selected drum, the CC's */
-    uint8_t bk;                              /* ZH_OPEN, the synth's: the section's button */
+    uint8_t bk;                              /* ZH_OPEN: the section's button */
     uint8_t fn_ok;                           /* the drums' lit function drawn: tx, ty its LED and words */
     uint32_t fn_at;                          /* when SEQ or ARP last moved it (0: none): the camera goes to it a while */
     uint32_t at, cc_at;                      /* the last step's time; the last CC's from HOME */
@@ -3256,13 +3256,17 @@ static const char *hint_of(uint32_t k)       /* encoder k's here (as its page's 
     static const char *const PW_H[NPW] = {"Pulse width", "Envelope to width", "LFO 2 to width"};
     static const char *const MS_H[NMS] = {"Noise level", "Ring mod level", "USB audio level"};
     static const char *const ROW_H[NRR] = {"Track's engine", "Track's level", "Track's reverb"};
+    static const char *const DT_H[NDTF] = {   /* PRESET's and ALGO's, on each drum function */
+        [DTF_PAT] = "Pick the Pattern", [DTF_REC] = "Pick the Pattern", [DTF_ERROR] = "Timing grid, 96 = off", [DTF_SWING] = "Swing amount",
+        [DTF_MEAS] = "Bars in the pattern", [DTF_ERASEP] = "Pattern to erase", [DTF_COPYP] = "Pattern to copy onto", [DTF_SONG] = "Pick the Song",
+        [DTF_ERASES] = "Song to erase", [DTF_COPYS] = "Song to copy onto", [DTF_BUILD] = "Pick the Song", [DTF_BVOL] = "Volume change",
+        [DTF_BTEMPO] = "Tempo change"};
     if (DRUM_PAGE(ui.page))
         return ui.page == PG_DMOD && k == EN_K3 ? "Bass follows Drums"
                : ui.page == PG_DMOD && k == EN_K4 ? "Drums start/stop Bass" : k == EN_SELECT ? "Tempo" : k == EN_K3 || k == EN_K4 ? DT_NAME[ui.dt_sel] : k == EN_K1 ? "Click level" : k == EN_K2 ? "Drums' level"
                : ui.dt_fn == DTF_TIME && k == EN_PRESET ? "Beats in a bar" : ui.dt_fn == DTF_TIME && k == EN_ALGO ? "The note that's a beat"
-               : dt_knobs_split() && k == EN_PRESET ? "Pick the step" : ui.dt_fn == DTF_BPAT && k == EN_ALGO ? "Pick the pattern"
-               : ui.dt_fn >= DTF_BINS && k == EN_ALGO ? 0
-               : k == EN_PRESET ? (ui.dt_fn >= DTF_SONG ? "Pick the Song" : "Pick the Pattern") : k == EN_ALGO ? "Change the value" : 0;
+               : dt_knobs_split() && k == EN_PRESET ? "Pick the Step" : ui.dt_fn == DTF_BPAT && k == EN_ALGO ? "Pick the Pattern"
+               : k == EN_PRESET || k == EN_ALGO ? DT_H[ui.dt_fn] : 0;
     if (ui.page == PG_MIX && k == EN_K4)
         return PW_H[ui.pw_src];
     if (ui.page == PG_FX && k == EN_K4)
@@ -3300,6 +3304,28 @@ static uint32_t tap_page(uint32_t k)
     return NPAGES;
 }
 
+/* the drum functions' round: SEQ's and ARP's next from f (dt_button) */
+static uint32_t dt_seq_next(uint32_t f)
+{
+    if (dq.run && dq.rec)                    /* (in the loop: what's used in it) */
+        return f == DTF_REC ? DTF_ERASEI : f == DTF_ERASEI ? DTF_ERROR : f == DTF_ERROR ? DTF_SWING : DTF_REC;
+    if (dq.run)                              /* (playing: the number and the swing, nothing that arms it) */
+        return f == DTF_SWING ? DTF_PAT : DTF_SWING;
+    return f < DTF_COPYP ? f + 1u : DTF_PAT;
+}
+static uint32_t dt_arp_next(uint32_t f)
+{
+    if (dq.run)
+        return DTF_SONG;
+    if (f >= DTF_BPAT)
+        return f < DTF_BDEL ? f + 1u : DTF_BPAT;
+    return f >= DTF_SONG && f < DTF_BUILD ? f + 1u : DTF_SONG;
+}
+static uint32_t dt_glo_next(uint32_t g)      /* the settings the two share, from the drums' own */
+{
+    return g == PG_GDRUM ? PG_GMIDI : g == PG_GMIDI ? PG_GCLK : g == PG_GCLK ? PG_GAUD
+           : g == PG_GAUD ? PG_GCTL : g == PG_GCTL ? PG_GDISP : PG_GDRUM;
+}
 static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page */
 {
     static const char *const TAP_NAME[NPAGES] = {
@@ -3313,14 +3339,68 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
     uint32_t g;
     static const char *const H[NB] = {[B_HOME] = "The whole panel", "Save the patch", [B_PLAY] = "Play or stop", [B_OCTDN] = "Octave down",
                                       "Octave up"};
-    static const char *const DH[NB] = {[B_SEL] = "Enter", [B_EDIT] = "Each drum's channel", [B_GLO] = "Settings; hold: RND", [B_HOME] = "The whole panel",
-                                       [B_ARP] = "Songs; again: next", [B_SEQ] = "Patterns; again: next", [B_PLAY] = "Run or stop", [B_SAVE] = "Save the drums",
-                                       [B_REC] = "Rec on/off; hold: Erase", [B_FX] = "Mods; again: info", [B_ENV] = "Pattern length", [B_OCTDN] = "Slower Tempo", [B_OCTUP] = "Faster Tempo"};
+    static const char *const DH[NB] = {[B_HOME] = "The whole panel", [B_PLAY] = "Play or stop", [B_SAVE] = "Save the drums", [B_OCTDN] = "Tempo down",
+                                       [B_OCTUP] = "Tempo up"};
+    static const char *const FN_NAME[NDTF] = {   /* a function, as its button's tap goes there */
+        [DTF_PAT] = "Patterns", [DTF_REC] = "Record", [DTF_ERASEI] = "Erase Instrument", [DTF_ERROR] = "Error Correct", [DTF_SWING] = "Swing",
+        [DTF_TIME] = "Time Signature", [DTF_MEAS] = "Measures", [DTF_ERASEP] = "Erase Pattern", [DTF_COPYP] = "Copy Pattern", [DTF_SONG] = "Songs",
+        [DTF_ERASES] = "Erase Song", [DTF_COPYS] = "Copy Song", [DTF_BUILD] = "Build Mode", [DTF_BPAT] = "Build Pattern", [DTF_BVOL] = "Build Volume",
+        [DTF_BTEMPO] = "Build Tempo", [DTF_BINS] = "Build Insert", [DTF_BDEL] = "Build Delete"};
+    static const char *const FN_DO[NDTF] = {   /* what the function lit waits for, after its button's next */
+        [DTF_REC] = ", PLAY: record", [DTF_ERASEI] = ", hold a drum: erase", [DTF_ERASEP] = ", SEL: erase", [DTF_COPYP] = ", SEL: copy", [DTF_ERASES] = ", SEL: erase",
+        [DTF_COPYS] = ", SEL: copy", [DTF_BUILD] = ", SEL: enter", [DTF_BPAT] = ", SEL: enter", [DTF_BVOL] = ", SEL: enter", [DTF_BTEMPO] = ", SEL: enter",
+        [DTF_BINS] = ", SEL: insert", [DTF_BDEL] = ", SEL: delete"};
+    static const char *const SEL_H[NDTF] = {   /* SEL's, on the function lit */
+        [DTF_ERASEP] = "Erase the pattern", [DTF_COPYP] = "Copy the pattern", [DTF_ERASES] = "Erase the song", [DTF_COPYS] = "Copy the song",
+        [DTF_BUILD] = "Enter Build Mode", [DTF_BPAT] = "Enter, or leave Build", [DTF_BVOL] = "Enter the step", [DTF_BTEMPO] = "Enter the step",
+        [DTF_BINS] = "Insert a step", [DTF_BDEL] = "Delete the step"};
     const int rec = seq_rec && ui.page == PG_SEQ;
     if (k == B_HOME && ui.page == (ui.drum ? PG_DHOME : PG_HOME))   /* (on it: the other mode, mode_switch) */
         return ui.drum ? "HOME tap: Bass Something 2" : "HOME tap: Drum Something";
-    if (ui.drum && !RND_PAGE(ui.page))       /* (every button the drums', as dt_button) */
-        return DH[k];
+    if (ui.drum && !RND_PAGE(ui.page)) {     /* (every button the drums', as dt_button: the bass's form) */
+        const uint32_t f = ui.dt_fn;
+        const char *to = 0, *more = 0;
+        static char ch[] = "Channel 1";
+        switch (k) {
+        case B_SEL:
+            return dq.run ? 0 : SEL_H[f];
+        case B_EDIT:
+            ch[8] = (char)('1' + (DCH_PAGE(ui.page) ? (ui.page - PG_DCH1 + 1u) % NDTCH : DT_CH[ui.dt_sel]));
+            to = ch;
+            break;
+        case B_SEQ:
+            to = ui.page == PG_DPAT ? FN_NAME[dt_seq_next(f)] : "Patterns";
+            more = ui.page == PG_DPAT && (!dq.run || f == DTF_ERASEI) ? FN_DO[f] : 0;
+            break;
+        case B_ARP:
+            to = ui.page == PG_DSONG ? FN_NAME[dt_arp_next(f)] : "Songs";
+            more = ui.page == PG_DSONG && !dq.run ? FN_DO[f] : 0;
+            break;
+        case B_FX:
+            to = ui.page == PG_DMOD ? "Pattern Info" : ui.page == PG_DPINFO ? "Song Info" : "Drum Mods";
+            break;
+        case B_ENV:
+            to = f == DTF_MEAS ? "Time Signature" : "Measures";
+            break;
+        case B_GLO:
+            to = TAP_NAME[dt_glo_next(ui.page)];
+            more = ", hold: RND Synth Companion";
+            break;
+        case B_REC:
+            to = ui.page == PG_GMIDI && FM1B_BLE_CENTRAL && !set.ble_off ? "Find BLE" : dq.rec == DQR_REC ? "Rec off" : "Rec on";
+            more = dq.rec == DQR_ERASE ? ", hold a drum: erase" : dq.rec == DQR_REC && !dq.run ? ", PLAY: record" : ", hold: Erase";
+            break;
+        default:
+            return DH[k];
+        }
+        tap[0] = 0;
+        text_cat(tap, BTN_NAME[k]);
+        text_cat(tap, " tap: ");
+        text_cat(tap, to);
+        if (more)
+            text_cat(tap, more);
+        return tap;
+    }
     if (k == B_SEL)
         return rec ? "Tie last step" : ui.page == PG_GDUMP ? "Send this sound" : ui.page == PG_RPAT ? "Unlock everything"
                : ui.page == PG_GRND ? "Ask the RND Synth" : "Patch";
@@ -3401,6 +3481,7 @@ static void mode_switch(void);
 static void sect_open(uint32_t g, uint32_t k);
 static void hold_tap(uint32_t k)
 {
+    const char *const said = ui.hint;        /* (what the tap refuses, said over this) */
     if (k == B_GLO && ui.drum && !RND_PAGE(ui.page))
         dt_button(k);
     else if (k == B_REC && ui.drum && (ui.page != PG_GMIDI || !FM1B_BLE_CENTRAL || set.ble_off))
@@ -3419,7 +3500,8 @@ static void hold_tap(uint32_t k)
         sect_open(tap_page(k), k);
     else                                     /* SEQ on its page: recording */
         rec_toggle();
-    hint_show(k);                            /* (its hint again from where it went: the next tap's) */
+    if (ui.hint == said)
+        hint_show(k);                        /* (its hint again from where it went: the next tap's) */
 }
 
 /* HOME tapped on HOME, or held: the synth's mode or Drum Something's, on its HOME. From the other's HOME, the whole panel,
@@ -3495,21 +3577,10 @@ static uint32_t dt_keys_lit(uint32_t *mid)
 /* Drum Something's buttons, on all its pages and its GLO's: none does what it does for the synth */
 static void dt_fn_go(uint32_t f)
 {
-    static const char *const H[NDTF] = {
-        [DTF_PAT] = "PRESET: pick the pattern", [DTF_REC] = "PLAY, then play the keys", [DTF_ERASEI] = "Hold a drum as it loops",
-        [DTF_ERROR] = "ALGO: timing grid, 96 = off", [DTF_SWING] = "ALGO: swing amount", [DTF_TIME] = "PRESET beats, ALGO note",
-        [DTF_MEAS] = "ALGO: bars in the pattern", [DTF_ERASEP] = "ALGO which, SEL erases", [DTF_COPYP] = "ALGO where, SEL copies",
-        [DTF_SONG] = "PRESET: pick the song", [DTF_ERASES] = "ALGO which, SEL erases", [DTF_COPYS] = "ALGO where, SEL copies",
-        [DTF_BUILD] = "SEL: enter Build Mode", [DTF_BPAT] = "ALGO pattern, SEL enters", [DTF_BVOL] = "ALGO level, SEL enters",
-        [DTF_BTEMPO] = "ALGO tempo, SEL enters", [DTF_BINS] = "PRESET step, SEL inserts", [DTF_BDEL] = "PRESET step, SEL deletes"};
     ui.dt_fn = (uint8_t)f;
     dt_show(DTS_FN);
     zoom.fn_at = ms_stamp();
     zoom.fn_ok = 0;
-    if (set.hints) {
-        ui.hint = H[f];
-        ui.hint_until = (plat_ms() + DT_SHOW_MS) | 1u;
-    }
 }
 static void dt_list(uint32_t f)              /* the pattern list's: its function, and what that arms */
 {
@@ -3618,7 +3689,7 @@ static void dt_song_enter(uint32_t f)
         break;
     }
 }
-static void dt_open(uint32_t g);
+static void dt_open(uint32_t g, uint32_t k);
 static void dt_button(uint32_t k)
 {
     uint32_t f = ui.dt_fn;
@@ -3629,7 +3700,7 @@ static void dt_button(uint32_t k)
         for (i = NDT; DCH_PAGE(ui.page) && i-- > 0;)   /* (moved on: the channel's first, K3 and K4 on what shows) */
             if (DT_CH[i] == c)
                 ui.dt_sel = (uint8_t)i;
-        dt_open(PG_DCH1 + c);
+        dt_open(PG_DCH1 + c, k);
         break;
     }
     case B_SEQ:                              /* the 400's SELECT PATTERN FUNCTIONS: running in RECORD MODE, round what's
@@ -3641,13 +3712,9 @@ static void dt_button(uint32_t k)
             ui.dt_pend = 0;
             if (f >= DTF_SONG)
                 dt_fn_go(DTF_PAT);
-            dt_open(PG_DPAT);
-        } else if (dq.run && dq.rec)
-            dt_list(f == DTF_REC ? DTF_ERASEI : f == DTF_ERASEI ? DTF_ERROR : f == DTF_ERROR ? DTF_SWING : DTF_REC);
-        else if (dq.run)                     /* (playing: the number and the swing, nothing that arms it) */
-            dt_list(f == DTF_SWING ? DTF_PAT : DTF_SWING);
-        else
-            dt_list(f < DTF_COPYP ? f + 1u : DTF_PAT);
+            dt_open(PG_DPAT, k);
+        } else
+            dt_list(dt_seq_next(f));
         break;
     case B_ARP:                              /* its SELECT SONG FUNCTIONS (BUILD MODE: its own five); not while it runs: only
                                               * the number */
@@ -3661,16 +3728,14 @@ static void dt_button(uint32_t k)
                 ui.dt_tgt = ui.dt_song < DS_NSONG ? ui.dt_song : 0;
                 dt_fn_go(DTF_SONG);
             }
-            dt_open(PG_DSONG);
-        } else if (dq.run)
-            dt_fn_go(DTF_SONG);
-        else if (f >= DTF_BPAT)
-            dt_fn_go(f < DTF_BDEL ? f + 1u : DTF_BPAT);
+            dt_open(PG_DSONG, k);
+        } else if (dq.run || f >= DTF_BPAT)
+            dt_fn_go(dt_arp_next(f));
         else {
             if (f < DTF_SONG)
                 dq.rec = DQR_OFF;
             ui.dt_tgt = ui.dt_song < DS_NSONG ? ui.dt_song : 0;
-            dt_fn_go(f >= DTF_SONG && f < DTF_BUILD ? f + 1u : DTF_SONG);
+            dt_fn_go(dt_arp_next(f));
         }
         break;
     case B_SEL:                              /* its ENTER; what the two digits do on the 400: erase, copy or append
@@ -3747,8 +3812,7 @@ static void dt_button(uint32_t k)
         break;
     case B_GLO:                              /* the settings the two share, from the drums' own (no DUMP: only the
                                               * synth's so far) */
-        page_go(ui.page == PG_GDRUM ? PG_GMIDI : ui.page == PG_GMIDI ? PG_GCLK : ui.page == PG_GCLK ? PG_GAUD
-                : ui.page == PG_GAUD ? PG_GCTL : ui.page == PG_GCTL ? PG_GDISP : PG_GDRUM);
+        page_go(dt_glo_next(ui.page));
         break;
     default:
         break;
@@ -3784,8 +3848,11 @@ static void hold_step(uint32_t btn)
         ui.hold_live = 0;
         if (ui.hold_k == B_HOME)
             mode_switch();
-        else if (ui.hold_k == B_REC && ui.drum)
+        else if (ui.hold_k == B_REC && ui.drum) {
             dt_rec_erase();
+            if (dq.rec == DQR_ERASE)
+                hint_show(B_REC);
+        }
         else if (ui.hold_k == B_REC)
             randomize();
         else if (ui.hold_k != B_GLO) {
@@ -3841,6 +3908,7 @@ static void input(void)
     ui.btn_in = btn;
     for (k = 0; k < NB; k++) {               /* a button pressed: its name, and what it does here */
         uint32_t bit = 1u << k;
+        const char *said;
         if (!(btn & bit) || (ui.btn & bit))
             continue;
         rsplash_until = 0;                   /* (the RND splash: over) */
@@ -3851,6 +3919,7 @@ static void input(void)
         }
         zoom_close_end();
         hint_show(k);                        /* (Hints: what it does, from the page it's pressed on) */
+        said = ui.hint;
         if (ui.drum && k != B_HOME && k != B_REC && k != B_GLO
             && !(RND_PAGE(ui.page) && (k == B_SEL || k == B_FX || k == B_SAVE)))   /* (the RND pages keep their own) */
             dt_button(k);
@@ -3908,8 +3977,9 @@ static void input(void)
         else {
             app_say("BUTTON", BTN_NAME[k]);
         }
-        if (!ui.drum && (k == B_ENV || k == B_LFO || k == B_EDIT || k == B_FX))   /* (a section's: its hint again from the
-                                                  * page it went to, the next tap's) */
+        if (ui.hint == said && (k == B_ENV || k == B_LFO || k == B_EDIT || k == B_FX || (ui.drum && (k == B_ARP || k == B_SEQ))))   /* (a section's:
+                                                  * its hint again from the page it went to, the next tap's; what a button
+                                                  * refused stays) */
             hint_show(k);
     }
     hold_step(btn);
@@ -4342,8 +4412,7 @@ static int zoom_step(uint32_t now)           /* a frame: 1 when the camera moved
                 ui.dt_slide_at = now | 1u;
                 ui.map_until = 0;
             }
-            if (!ui.drum)
-                hint_show(zoom.bk);
+            hint_show(zoom.bk);
         }
         return 1;
     }
@@ -6663,7 +6732,7 @@ static void dt_box(uint32_t g)                /* page g's box on the drums' HOME
     zoom.lc = 1.2f;
 }
 /* a section's button: its page, the camera going in on its box if from the drums' HOME */
-static void dt_open(uint32_t g)
+static void dt_open(uint32_t g, uint32_t k)
 {
     if (set.zoom_off || ui.page != PG_DHOME || zoom.home) {
         page_go(g);
@@ -6672,6 +6741,7 @@ static void dt_open(uint32_t g)
     zoom_keep(PG_DHOME);
     dt_box(g);
     zoom.g = (uint8_t)g;
+    zoom.bk = (uint8_t)k;
     zoom.u = 0.0f;
     zoom.home = ZH_OPEN;
     ui.redraw = 1;
@@ -7833,6 +7903,17 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         for (i = 0; i < p->n; i++)
             printf(" %u:%s", (unsigned)DQ_T(dqm.ev[p->start + i]), DT_NAME[DQ_D(dqm.ev[p->start + i])]);
         printf("\n");
+        return 1;
+    }
+    if (!strcmp(cmd, "hint")) {              /* hint TEXT: the button's hint up is TEXT */
+        const char *const want = plat_host_line + strlen("hint ");
+        size_t n = strlen(want);
+        while (n && (want[n - 1] == '\n' || want[n - 1] == '\r' || want[n - 1] == ' '))
+            n--;                             /* (the line's end) */
+        if (!ui.hint_until || !ui.hint || strlen(ui.hint) != n || strncmp(ui.hint, want, n)) {
+            printf("FAIL hint: %s, not %.*s\n", ui.hint_until && ui.hint ? ui.hint : "(none)", (int)n, want);
+            host_fails++;
+        }
         return 1;
     }
     if (!strcmp(cmd, "dt_eprom")) {          /* dt_eprom 0|1: every voice live, or from its EPROM if it has one (the A/B) */

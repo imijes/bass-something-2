@@ -1,0 +1,127 @@
+# Drum Something's hints in the bass's form: "BUTTON tap: where the next tap goes", with what a hold does or what the
+# function lit waits for; a plain few words for a button that only does one thing. tools/build.py bs2 --host, then from
+# the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/drumhints.txt bs2/build/host
+wait 600
+tap HOME
+wait 2000
+expect page 25
+expect hints 1
+# a press: its hint from the page it's on; let go, the next tap's
+tap EDIT
+wait 1500
+hint EDIT tap: Channel 2
+press HOME
+wait 30
+hint The whole panel
+release HOME
+wait 700
+hint HOME tap: Bass Something 2
+wait 2000
+tap FX
+wait 30
+hint FX tap: Pattern Info
+tap FX
+wait 30
+hint FX tap: Song Info
+tap FX
+wait 30
+hint FX tap: Drum Mods
+tap GLO
+wait 30
+hint GLO tap: MIDI, hold: RND Synth Companion
+tap GLO
+wait 30
+hint GLO tap: Clock, hold: RND Synth Companion
+tap HOME
+wait 2000
+# the pattern list's round, stopped, each with what the function lit waits for
+tap SEQ
+wait 1500
+hint SEQ tap: Record
+tap SEQ
+wait 30
+hint SEQ tap: Erase Instrument, PLAY: record
+tap SEQ
+wait 30
+hint SEQ tap: Error Correct, hold a drum: erase
+tap SEQ
+wait 30
+hint SEQ tap: Swing
+tap SEQ
+wait 30
+hint SEQ tap: Time Signature
+tap SEQ
+wait 30
+hint SEQ tap: Measures
+tap SEQ
+wait 30
+hint SEQ tap: Erase Pattern
+tap SEQ
+wait 30
+hint SEQ tap: Copy Pattern, SEL: erase
+tap SEQ
+wait 30
+hint SEQ tap: Patterns, SEL: copy
+tap SEQ
+wait 30
+hint SEQ tap: Record
+# the song list's
+tap ARP
+wait 30
+hint ARP tap: Erase Song
+tap ARP
+wait 30
+hint ARP tap: Copy Song, SEL: erase
+tap ARP
+wait 30
+hint ARP tap: Build Mode, SEL: copy
+tap ARP
+wait 30
+hint ARP tap: Songs, SEL: enter
+tap SEL
+wait 30
+hint Enter Build Mode
+tap ARP
+wait 30
+hint ARP tap: Build Tempo, SEL: enter
+tap ARP
+wait 30
+hint ARP tap: Build Insert, SEL: enter
+tap ARP
+wait 30
+hint ARP tap: Build Delete, SEL: insert
+tap ARP
+wait 30
+hint ARP tap: Build Pattern, SEL: delete
+tap ARP
+wait 30
+hint ARP tap: Build Volume, SEL: enter
+tap ARP
+wait 2600
+# a one-thing button; a refusal isn't talked over
+tap SAVE
+wait 30
+hint Save the drums
+wait 2600
+tap OCT+
+wait 30
+hint Tempo up
+tap OCT-
+wait 30
+hint Tempo down
+tap ENV
+wait 30
+hint ENV tap: Time Signature
+# a tap refused says why, not the next tap's
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+wait 30
+turn PRESET 120
+wait 30
+expect dt_pat 99
+tap REC
+wait 30
+hint 99 can't record

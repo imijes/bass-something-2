@@ -137,3 +137,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-03 | 57f94c3+ | Drums: ten voices tuned to the references' measures | 506,244 | +272 | 75,320 | 78,388 | +0 | 19,916 | 161,896 |
 | 2026-11-03 | 46f1d8c+ | Drums: numbers and tempo one a click at any KNOBS | 506,292 | +48 | 75,272 | 78,388 | +0 | 19,916 | 161,896 |
 | 2026-11-03 | 46f1d8c+ | Drums: PRESET's hint names the pattern or the song | 506,292 | +0 | 75,272 | 78,388 | +0 | 19,916 | 161,896 |
+| 2026-11-03 | f32b696+ | Drum hints in the bass's form | 507,636 | +1,344 | 73,928 | 78,404 | +16 | 19,900 | 161,896 |
