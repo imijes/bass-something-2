@@ -3590,6 +3590,38 @@ static void dt_list(uint32_t f)              /* the pattern list's: its function
         dq.rec = f == DTF_REC || f == DTF_ERROR ? DQR_REC : f == DTF_ERASEI ? DQR_ERASE : DQR_OFF;
     dt_fn_go(f);
 }
+static void dt_copied(uint32_t f, int added)  /* SEL on COPY / APPEND TO, done: said, back at list's number f (refused: said,
+                                              * still on the function) */
+{
+    static char done[14];
+    const char two[3] = {(char)('0' + ui.dt_tgt / 10u), (char)('0' + ui.dt_tgt % 10u), 0};
+    done[0] = 0;
+    text_cat(done, added ? "Added to " : "Copied to ");
+    text_cat(done, two);
+    dt_fn_go(f);
+    dt_refuse(done);
+}
+static void dt_copy(void)
+{
+    const char *const no = dq_copy_no(ui.dt_pat, ui.dt_tgt);
+    if (no) {
+        dt_refuse(no);
+        return;
+    }
+    dt_copied(DTF_PAT, dqm.pat[ui.dt_tgt].n != 0u);
+    dq_cmd(DQC_COPY, ui.dt_pat, ui.dt_tgt);
+}
+static void dt_copy_song(void)
+{
+    const char *const no = ds_copy_no(ui.dt_song, ui.dt_tgt);
+    const int added = ds_end(&dsm.s[ui.dt_tgt]) != 0u;
+    if (no) {
+        dt_refuse(no);
+        return;
+    }
+    ds_copy(ui.dt_song, ui.dt_tgt);
+    dt_copied(DTF_SONG, added);
+}
 static void dt_rec_tap(void)                 /* REC: recording on or off, it plays on; from Erase, back to recording */
 {
     if (ui.dt_pat >= DQ_NPAT) {
@@ -3615,23 +3647,6 @@ static void dt_song_enter(uint32_t f)
     const uint32_t end = ds_end(t);
     uint32_t i;
     switch (f) {
-    case DTF_ERASES:
-        ds_clear(&dsm.s[ui.dt_tgt]);
-        dq.dirty = 1;
-        dt_fn_go(DTF_SONG);
-        break;
-    case DTF_COPYS: {                        /* onto an empty one, a copy, its first tempo too; else after its steps */
-        ds_song_t *d = &dsm.s[ui.dt_tgt];
-        const uint32_t de = ds_end(d);
-        if (!de) {
-            d->tempo = t->tempo;
-        }
-        for (i = 0; i < end && de + i + 1u < DS_NSTEP; i++)
-            d->step[de + i] = t->step[i];
-        dq.dirty = 1;
-        dt_fn_go(DTF_SONG);
-        break;
-    }
     case DTF_BUILD:
         ui.dt_step = 0;
         ui.dt_pend = 0;
@@ -3742,15 +3757,19 @@ static void dt_button(uint32_t k)
                                               * (stopped), back at the number */
         if (dq.run)
             break;
-        if (f >= DTF_SONG && ui.dt_song < DS_NSONG)
+        if (f == DTF_COPYS)
+            dt_copy_song();
+        else if (f == DTF_ERASES) {          /* (its target's, whichever song is shown: 99's too) */
+            ds_clear(&dsm.s[ui.dt_tgt]);
+            dq.dirty = 1;
+            dt_fn_go(DTF_SONG);
+        } else if (f >= DTF_SONG && ui.dt_song < DS_NSONG)
             dt_song_enter(f);
-        else if (f == DTF_ERASEP || f == DTF_COPYP) {
-            if (f == DTF_ERASEP)
-                dq_cmd(DQC_ERASE, ui.dt_tgt, 0);
-            else if (ui.dt_pat < DQ_NPAT)
-                dq_cmd(DQC_COPY, ui.dt_pat, ui.dt_tgt);
+        else if (f == DTF_ERASEP) {
+            dq_cmd(DQC_ERASE, ui.dt_tgt, 0);
             dt_fn_go(DTF_PAT);
-        }
+        } else if (f == DTF_COPYP)
+            dt_copy();
         break;
     case B_PLAY:                             /* RUN/STOP: an empty pattern won't run but in RECORD MODE; a function that
                                               * needs it stopped gives way to the number */
@@ -6264,7 +6283,7 @@ static void dt_digits(char *l, char *r)
     else if (f == DTF_TIME)
         dt_two(l, p->num), dt_two(r, DQ_BEAT[p->beat]);
     else if (f == DTF_MEAS)
-        dt_two(r, p->meas);
+        dt_two(r, dq_bars(p) < 99u ? dq_bars(p) : 99u);
     else if (f == DTF_ERASEP || f == DTF_COPYP)
         dt_two(r, ui.dt_tgt);
     else
@@ -6666,7 +6685,11 @@ static void dpinfo_draw(void)
     t[0] = 0;
     int_text(p->num, n), text_cat(t, n), text_cat(t, "/"), int_text(DQ_BEAT[p->beat], n), text_cat(t, n);
     dinfo_line(55, "TIME", t);
-    int_text(p->meas, t);
+    int_text((int32_t)(p->len / dq_bar(p)), t);
+    if (p->len % dq_bar(p)) {                /* (appended in another time signature: a part of a bar, in tenths) */
+        const char tenth[3] = {'.', (char)('0' + p->len % dq_bar(p) * 10u / dq_bar(p)), 0};
+        text_cat(t, tenth);
+    }
     dinfo_line(66, "BARS", t);
     t[0] = 0;
     text_cat(t, "1/"), int_text(DQ_EC[p->ec], n), text_cat(t, n);
@@ -7670,7 +7693,11 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "dt_num"))
         *got = dqm.pat[ui.dt_pat].num;
     else if (!strcmp(what, "dt_meas"))
-        *got = dqm.pat[ui.dt_pat].meas;
+        *got = (int)dq_bars(&dqm.pat[ui.dt_pat]);
+    else if (!strcmp(what, "dt_prog"))       /* the drums programmed; a hit that found no room's FULL */
+        *got = dqm.pat[ui.dt_pat].prog;
+    else if (!strcmp(what, "dt_full"))
+        *got = dq.full;
     else if (!strcmp(what, "dt_ec"))
         *got = dqm.pat[ui.dt_pat].ec;
     else if (!strcmp(what, "dt_swing"))
@@ -7898,11 +7925,33 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     if (!strcmp(cmd, "dt_dump")) {           /* the pattern shown: its settings and hits */
         const dq_pat_t *p = &dqm.pat[ui.dt_pat];
         uint32_t i;
-        printf("pattern %u: %u/%u x%u len %u ec %u swing %u, %u hits (cur %u):", ui.dt_pat, p->num, DQ_BEAT[p->beat], p->meas, (unsigned)p->len,
+        printf("pattern %u: %u/%u x%u len %u ec %u swing %u, %u hits (cur %u):", ui.dt_pat, p->num, DQ_BEAT[p->beat], (unsigned)dq_bars(p), (unsigned)p->len,
                DQ_EC[p->ec], DQ_SWING[p->swing], p->n, dq.cur);
         for (i = 0; i < p->n; i++)
             printf(" %u:%s", (unsigned)DQ_T(dqm.ev[p->start + i]), DT_NAME[DQ_D(dqm.ev[p->start + i])]);
         printf("\n");
+        return 1;
+    }
+    if (!strcmp(cmd, "song_is")) {           /* song_is TEMPO STEP..: the song shown's first tempo, its steps' raw values; a
+                                              * step past its end not an end, "!" */
+        const ds_song_t *t = &dsm.s[ui.dt_song < DS_NSONG ? ui.dt_song : 0];
+        const char *const want = plat_host_line + strlen("song_is ");
+        static char have[512];
+        size_t n = strlen(want), at = (size_t)sprintf(have, "%u", t->tempo);
+        uint32_t i;
+        for (i = 0; i < ds_end(t); i++)
+            at += (size_t)sprintf(have + at, " %u", t->step[i]);
+        for (; i < DS_NSTEP; i++)
+            if (t->step[i] != DS_END) {
+                at += (size_t)sprintf(have + at, " !");
+                break;
+            }
+        while (n && (want[n - 1] == '\n' || want[n - 1] == '\r' || want[n - 1] == ' '))
+            n--;                             /* (the line's end) */
+        if (strlen(have) != n || strncmp(have, want, n)) {
+            printf("FAIL song_is: %s, not %.*s\n", have, (int)n, want);
+            host_fails++;
+        }
         return 1;
     }
     if (!strcmp(cmd, "hint")) {              /* hint TEXT: the button's hint up is TEXT */

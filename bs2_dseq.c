@@ -97,6 +97,8 @@ static uint32_t dq_clicks;                   /* (the host's: the metronome's bea
 
 static void dq_cmd(uint32_t op, uint32_t a, uint32_t b) { fifo_put(&dqq, op | a << 8 | b << 16); }
 static uint32_t dq_bar(const dq_pat_t *p) { return (uint32_t)p->num * (96u / DQ_BEAT[p->beat]); }   /* a measure's ticks */
+static uint32_t dq_bars(const dq_pat_t *p) { return (p->len + dq_bar(p) - 1u) / dq_bar(p); }   /* the measures it runs over, a
+                                              * part of one counted (meas: only what's set while it's empty) */
 static void dq_defaults(dq_pat_t *p)         /* a new pattern's: the manual's 4/4, a measure, 50 %; recorded as played */
 {
     p->n = p->prog = 0;
@@ -308,22 +310,27 @@ static void dq_song_start(uint32_t n)
         dq.in_song = 1;
     }
 }
+static const char *dq_copy_no(uint32_t a, uint32_t b)   /* why pattern a won't go onto b, to say; 0: it will */
+{
+    if (a >= DQ_NPAT || b >= DQ_NPAT || !dqm.pat[a].n)
+        return "Nothing to copy";
+    if (dqm.used + dqm.pat[a].n > DQ_HITS)
+        return "Memory full";
+    if ((dqm.pat[b].n ? dqm.pat[b].len : 0u) + dqm.pat[a].len > 0x7FFFFu)
+        return "Pattern too long";
+    return 0;
+}
 static void dq_copy(uint32_t a, uint32_t b)  /* pattern a onto b: empty, a copy, its settings too; else a after its hits */
 {
     dq_pat_t *s = &dqm.pat[a], *d = &dqm.pat[b];
-    const uint32_t n = s->n, off = d->n ? d->len : 0u, sl = s->len;
-    uint32_t i, at;
-    if (!n || a >= DQ_NPAT || b >= DQ_NPAT)
+    uint32_t n, off, i, at;
+    if (dq_copy_no(a, b))
         return;
-    if (dqm.used + n > DQ_HITS || off + sl > 0x7FFFFu) {
-        dq.full = 1;
-        return;
-    }
+    n = s->n;
+    off = d->n ? d->len : 0u;
     if (d->n) {
-        d->len = off + sl;
-        i = d->len / dq_bar(d);              /* (its time signature kept, as the manual; its measures if they're whole) */
-        if (d->len % dq_bar(d) == 0u)
-            d->meas = (uint8_t)(i > 99u ? 99u : i);
+        d->len = off + s->len;               /* (its time signature kept, as the manual) */
+        d->prog |= s->prog;                  /* (a drum locked in a's, locked here from now on) */
     } else {
         const uint16_t st = d->start;
         *d = *s;
@@ -562,6 +569,28 @@ static uint32_t ds_end(const ds_song_t *t)   /* where its end step is */
     while (i < DS_NSTEP && t->step[i] != DS_END)
         i++;
     return i;
+}
+static const char *ds_copy_no(uint32_t a, uint32_t b)   /* why song a won't go onto b, to say; 0: it will */
+{
+    if (a >= DS_NSONG || b >= DS_NSONG || !ds_end(&dsm.s[a]))
+        return "Nothing to copy";
+    if (ds_end(&dsm.s[b]) + ds_end(&dsm.s[a]) + 1u > DS_NSTEP)   /* (its end's a step too) */
+        return "Song too long";
+    return 0;
+}
+static void ds_copy(uint32_t a, uint32_t b)  /* song a onto b: empty, a copy, its first tempo too; else a after its steps */
+{
+    const ds_song_t *t = &dsm.s[a];
+    ds_song_t *d = &dsm.s[b];
+    const uint32_t end = ds_end(t), de = ds_end(d);
+    uint32_t i;
+    if (ds_copy_no(a, b))
+        return;
+    if (!de)
+        d->tempo = t->tempo;
+    for (i = 0; i < end; i++)
+        d->step[de + i] = t->step[i];
+    dq.dirty = 1;
 }
 static void dq_init(void)
 {

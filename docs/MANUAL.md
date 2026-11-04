@@ -564,7 +564,7 @@ SEQ steps through the page's list:
 | TIME SIGNATURE | PRESET the beats, ALGO the note. Empty patterns only | |
 | # OF MEASURES | ALGO: the bars. Empty patterns only | |
 | ERASE PATTERN | ALGO: which | Erases it, back to one bar of 4/4 |
-| COPY / APPEND TO | ALGO: where to | On an empty pattern, a copy with its settings. On one with hits, added after them |
+| COPY / APPEND TO | ALGO: where to, starting on this pattern | On an empty pattern, a copy with its settings. On one with hits, added after them, in its own settings. There's no undo. The hint says what happened: `Copied to 05`, `Added to 05`, or why not, `Nothing to copy`, `Memory full` or `Pattern too long` |
 
 While a pattern runs, SEQ only moves between the number and the swing. While it records, SEQ goes round Record, Erase, Error Correct and Swing. PATTERN INFO (FX, twice) shows the pattern's settings, its hits and the memory left, shared by all the patterns: about 4,000 hits.
 
@@ -574,7 +574,7 @@ A song plays a list of up to 100 steps, each a pattern, a volume change or a tem
 
 ![The SONG page: its functions in a list, with Build Mode's five under it](img/screen-drum-song.png "SONG (ARP)")
 
-Press ARP and turn PRESET to pick a song. PLAY runs it. Press ARP again for ERASE SONG and COPY / APPEND TO, which work like the patterns', then BUILD MODE.
+Press ARP and turn PRESET to pick a song. PLAY runs it. Press ARP again for ERASE SONG and COPY / APPEND TO, which work like the patterns', then BUILD MODE. A song copied onto an empty one brings its first tempo; added after another's steps, that song keeps its own. A song holds up to 99 steps, and a copy that wouldn't fit says `Song too long` and changes nothing.
 
 To build one, press SEL on BUILD MODE, then:
 

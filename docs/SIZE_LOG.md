@@ -138,3 +138,6 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-03 | 46f1d8c+ | Drums: numbers and tempo one a click at any KNOBS | 506,292 | +48 | 75,272 | 78,388 | +0 | 19,916 | 161,896 |
 | 2026-11-03 | 46f1d8c+ | Drums: PRESET's hint names the pattern or the song | 506,292 | +0 | 75,272 | 78,388 | +0 | 19,916 | 161,896 |
 | 2026-11-03 | f32b696+ | Drum hints in the bass's form | 507,636 | +1,344 | 73,928 | 78,404 | +16 | 19,900 | 161,896 |
+| 2026-11-04 | 7c69c52+ | Copy and append say what they did; no stuck FULL; bars counted from the length | 508,212 | +576 | 73,352 | 78,420 | +16 | 19,884 | 161,896 |
+| 2026-11-04 | 7c69c52+ | Song copy says what it did and refuses what won't fit | 508,468 | +256 | 73,096 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 7c69c52+ | ERASE SONG works from song 99 | 508,468 | +0 | 73,096 | 78,420 | +0 | 19,884 | 161,896 |

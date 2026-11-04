@@ -1,0 +1,500 @@
+# Drum Something's songs, COPY / APPEND TO: what SEL did, or why not, in the hint; the steps exact, the first tempo the copy's
+# and not an append's; 99 steps fit and 100 don't; an appended song plays in order; all of it saved.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/drumsongcopy.txt bs2/build/host
+wait 600
+press HOME
+wait 1100
+release HOME
+wait 2000
+expect drum 1
+# patterns 01 and 02, a hit each
+spin PRESET 1
+wait 30
+tap REC
+wait 30
+tap PLAY
+wait 300
+tapkey w5 100
+wait 30
+tap PLAY
+wait 30
+expect dt_n 1
+spin PRESET 1
+wait 30
+tap REC
+wait 30
+tap PLAY
+wait 300
+tapkey w5 100
+wait 30
+tap PLAY
+wait 30
+expect dt_n 1
+# an empty source: nothing to copy, still on the function, nothing written
+tap ARP
+expect dt_fn 9
+expect dt_slen 0
+expect dt_song 0
+tap ARP
+tap ARP
+expect dt_fn 11
+spin ALGO 5
+wait 30
+tap SEL
+wait 30
+expect dt_fn 11
+hint Nothing to copy
+tap ARP
+tap ARP
+expect dt_fn 9
+spin PRESET 5
+wait 30
+expect dt_song 5
+expect dt_slen 0
+song_is 0
+# 99, always empty: the same
+spin PRESET 94
+wait 30
+expect dt_song 99
+tap ARP
+tap ARP
+expect dt_fn 11
+tap SEL
+wait 30
+expect dt_fn 11
+hint Nothing to copy
+tap ARP
+tap ARP
+expect dt_fn 9
+# 00: a tempo of 120 and 01 02; onto an empty one, the steps and the tempo
+spin PRESET -99
+wait 30
+expect dt_song 0
+tap ARP
+tap ARP
+tap ARP
+expect dt_fn 12
+tap SEL
+wait 30
+expect dt_fn 13
+tap ARP
+tap ARP
+expect dt_fn 15
+spin ALGO 65
+wait 30
+tap SEL
+wait 30
+expect dt_fn 13
+spin ALGO 1
+wait 30
+tap SEL
+wait 30
+spin ALGO 2
+wait 30
+tap SEL
+wait 30
+tap SEL
+wait 30
+expect dt_fn 9
+song_is 120 1 2
+expect dt_song 0
+tap ARP
+tap ARP
+expect dt_fn 11
+spin ALGO 5
+wait 30
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_song 0
+hint Copied to 05
+spin PRESET 5
+wait 30
+expect dt_song 5
+song_is 120 1 2
+spin PRESET -5
+wait 30
+expect dt_song 0
+song_is 120 1 2
+# 01: 02 and a volume change; added after its steps, its own tempo (none) kept
+spin PRESET 1
+wait 30
+expect dt_song 1
+tap ARP
+tap ARP
+tap ARP
+expect dt_fn 12
+tap SEL
+wait 30
+expect dt_fn 13
+spin ALGO 2
+wait 30
+tap SEL
+wait 30
+tap ARP
+expect dt_fn 14
+spin ALGO -2
+wait 30
+tap SEL
+wait 30
+expect dt_fn 13
+tap SEL
+wait 30
+expect dt_fn 9
+song_is 0 2 158
+spin PRESET -1
+wait 30
+expect dt_song 0
+tap ARP
+tap ARP
+expect dt_fn 11
+spin ALGO 1
+wait 30
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_song 0
+hint Added to 01
+spin PRESET 1
+wait 30
+expect dt_song 1
+song_is 0 2 158 1 2
+expect dt_slen 4
+# onto itself: doubled
+spin PRESET 4
+wait 30
+expect dt_song 5
+expect dt_song 5
+tap ARP
+tap ARP
+expect dt_fn 11
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_song 5
+hint Added to 05
+song_is 120 1 2 1 2
+# a step taken out of the target, then added to: no old steps left behind
+expect dt_song 5
+tap ARP
+tap ARP
+tap ARP
+tap SEL
+wait 30
+expect dt_fn 13
+tap ARP
+tap ARP
+tap ARP
+tap ARP
+expect dt_fn 17
+tap SEL
+wait 30
+expect dt_fn 13
+tap SEL
+wait 30
+expect dt_fn 9
+song_is 120 2 1 2
+spin PRESET -4
+wait 30
+expect dt_song 1
+tap ARP
+tap ARP
+expect dt_fn 11
+spin ALGO 4
+wait 30
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_song 1
+hint Added to 05
+spin PRESET 4
+wait 30
+expect dt_song 5
+song_is 120 2 1 2 2 158 1 2
+# played in order, and round again: 01's 02, (-2), 01, 02; 2.4 s a pattern
+expect dt_run 0
+spin PRESET -4
+wait 30
+expect dt_song 1
+tap PLAY
+wait 400
+expect dt_run 1
+expect dt_insong 1
+expect dt_cur 2
+expect dt_svol 0
+wait 2400
+expect dt_cur 1
+expect dt_svol -16
+wait 2400
+expect dt_cur 2
+wait 2400
+expect dt_cur 2
+tap PLAY
+wait 50
+expect dt_run 0
+# running, SEL copies nothing
+expect dt_song 1
+tap PLAY
+wait 100
+tap ARP
+expect dt_fn 9
+tap SEL
+wait 30
+song_is 0 2 158 1 2
+tap PLAY
+wait 50
+expect dt_run 0
+# to the edge: 64 + 32 + 2 + 1 = 99 steps, and one more won't go
+spin PRESET 9
+wait 30
+expect dt_song 10
+tap ARP
+tap ARP
+tap ARP
+expect dt_fn 12
+tap SEL
+wait 30
+expect dt_fn 13
+spin ALGO 1
+wait 30
+tap SEL
+wait 30
+spin ALGO 2
+wait 30
+tap SEL
+wait 30
+tap SEL
+wait 30
+expect dt_fn 9
+song_is 0 1 2
+expect dt_song 10
+tap ARP
+tap ARP
+expect dt_fn 11
+spin ALGO 2
+wait 30
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_song 10
+hint Copied to 12
+expect dt_song 10
+tap ARP
+tap ARP
+expect dt_fn 11
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_song 10
+hint Added to 10
+expect dt_slen 4
+expect dt_song 10
+tap ARP
+tap ARP
+expect dt_fn 11
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_song 10
+hint Added to 10
+expect dt_slen 8
+expect dt_song 10
+tap ARP
+tap ARP
+expect dt_fn 11
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_song 10
+hint Added to 10
+expect dt_slen 16
+expect dt_song 10
+tap ARP
+tap ARP
+expect dt_fn 11
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_song 10
+hint Added to 10
+expect dt_slen 32
+expect dt_song 10
+tap ARP
+tap ARP
+expect dt_fn 11
+spin ALGO 1
+wait 30
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_song 10
+hint Copied to 11
+expect dt_song 10
+tap ARP
+tap ARP
+expect dt_fn 11
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_song 10
+hint Added to 10
+expect dt_slen 64
+spin PRESET 3
+wait 30
+expect dt_song 13
+tap ARP
+tap ARP
+tap ARP
+expect dt_fn 12
+tap SEL
+wait 30
+expect dt_fn 13
+spin ALGO 1
+wait 30
+tap SEL
+wait 30
+tap SEL
+wait 30
+expect dt_fn 9
+spin PRESET -3
+wait 30
+expect dt_song 10
+tap ARP
+tap ARP
+expect dt_fn 11
+tap SEL
+wait 30
+expect dt_fn 11
+hint Song too long
+tap ARP
+tap ARP
+expect dt_fn 9
+expect dt_slen 64
+spin PRESET 1
+wait 30
+expect dt_song 11
+tap ARP
+tap ARP
+expect dt_fn 11
+spin ALGO -1
+wait 30
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_song 11
+hint Added to 10
+spin PRESET -1
+wait 30
+expect dt_song 10
+expect dt_slen 96
+spin PRESET 2
+wait 30
+expect dt_song 12
+tap ARP
+tap ARP
+expect dt_fn 11
+spin ALGO -2
+wait 30
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_song 12
+hint Added to 10
+spin PRESET -2
+wait 30
+expect dt_song 10
+expect dt_slen 98
+spin PRESET 3
+wait 30
+expect dt_song 13
+tap ARP
+tap ARP
+expect dt_fn 11
+spin ALGO -3
+wait 30
+tap SEL
+wait 30
+expect dt_fn 9
+expect dt_song 13
+hint Added to 10
+spin PRESET -3
+wait 30
+expect dt_song 10
+expect dt_slen 99
+spin PRESET 3
+wait 30
+expect dt_song 13
+tap ARP
+tap ARP
+expect dt_fn 11
+spin ALGO -3
+wait 30
+tap SEL
+wait 30
+expect dt_fn 11
+hint Song too long
+tap ARP
+tap ARP
+expect dt_fn 9
+spin PRESET -3
+wait 30
+expect dt_song 10
+expect dt_slen 99
+# and still plays, from its first step
+tap PLAY
+wait 400
+expect dt_run 1
+expect dt_cur 1
+wait 2400
+expect dt_cur 2
+tap PLAY
+wait 50
+expect dt_run 0
+# refused copies wrote nothing to it
+spin PRESET 3
+wait 30
+expect dt_song 13
+song_is 0 1
+# saved: a reboot brings them back
+tap SAVE
+wait 50
+reboot
+wait 600
+tap HOME
+wait 30
+tap ARP
+expect dt_fn 9
+expect dt_song 13
+song_is 0 1
+spin PRESET -8
+wait 30
+expect dt_song 5
+song_is 120 2 1 2 2 158 1 2
+spin PRESET -4
+wait 30
+expect dt_song 1
+song_is 0 2 158 1 2
+spin PRESET 9
+wait 30
+expect dt_song 10
+expect dt_slen 99
+# ERASE SONG from 99: its target's erased all the same
+spin PRESET 3
+wait 30
+expect dt_song 13
+expect dt_slen 1
+spin PRESET 86
+wait 30
+expect dt_song 99
+tap ARP
+expect dt_fn 10
+spin ALGO 13
+wait 30
+tap SEL
+wait 30
+expect dt_fn 9
+spin PRESET -86
+wait 30
+expect dt_song 13
+expect dt_slen 0

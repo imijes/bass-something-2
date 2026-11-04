@@ -1,0 +1,371 @@
+# Drum Something's COPY / APPEND TO: what SEL did, or why not, in the hint; a pattern added in another time signature counts
+# its bars; a drum locked in the source stays locked; a refusal leaves the displays and the function alone.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/drumcopy.txt bs2/build/host
+wait 600
+press HOME
+wait 1100
+release HOME
+wait 2000
+expect drum 1
+# an empty source: nothing to copy, still on the function
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 8
+tap SEL
+wait 30
+expect dt_fn 8
+expect dt_used 0
+hint Nothing to copy
+tap SEQ
+expect dt_fn 0
+# 00: 4/4, a measure, a snare
+tap REC
+wait 30
+tap PLAY
+wait 300
+tapkey w5 100
+wait 30
+tap PLAY
+wait 30
+expect dt_n 1
+expect dt_prog 0
+# 01: 4/6, a measure, a bass programmed
+spin PRESET 1
+wait 30
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 5
+spin ALGO 1
+wait 30
+expect dt_len 64
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 0
+tap REC
+wait 30
+tapkey w4 100
+wait 30
+expect dt_prog 1
+tap PLAY
+wait 300
+tapkey w4 100
+wait 30
+tap PLAY
+wait 30
+expect dt_n 1
+# on an empty one, a copy, its settings and its lock
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 8
+spin ALGO 4
+wait 30
+tap SEL
+wait 30
+expect dt_fn 0
+expect dt_pat 1
+hint Copied to 05
+spin PRESET 4
+wait 30
+expect dt_pat 5
+expect dt_n 1
+expect dt_len 64
+expect dt_prog 1
+# on one with hits, after them: 96 + 64 ticks, a bar and a part of one; the lock comes too
+spin PRESET -4
+wait 30
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 8
+spin ALGO -1
+wait 30
+tap SEL
+wait 30
+hint Added to 00
+spin PRESET -1
+wait 30
+expect dt_pat 0
+expect dt_n 2
+expect dt_len 160
+expect dt_num 4
+expect dt_meas 2
+expect dt_prog 1
+expect dt_used 4
+# doubled on itself till it won't fit: said, the pattern as it was, the displays not taken by FULL
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 4
+expect dt_used 6
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 8
+expect dt_used 10
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 16
+expect dt_used 18
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 32
+expect dt_used 34
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 64
+expect dt_used 66
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 128
+expect dt_used 130
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 256
+expect dt_used 258
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 512
+expect dt_used 514
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 1024
+expect dt_used 1026
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 2048
+expect dt_used 2050
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_n 2048
+expect dt_fn 8
+tap SEL
+wait 30
+expect dt_fn 8
+expect dt_n 2048
+expect dt_used 2050
+expect dt_full 0
+hint Memory full
+# erased, the room's back
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 7
+tap SEL
+wait 30
+expect dt_used 2
+# 20: 99 measures of 4/4 and a hit: too long after five doublings
+spin PRESET 20
+wait 30
+expect dt_pat 20
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 6
+spin ALGO 200
+wait 30
+expect dt_meas 99
+expect dt_len 9504
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 0
+tap REC
+wait 30
+tap PLAY
+wait 300
+tapkey w5 100
+wait 30
+tap PLAY
+wait 30
+expect dt_n 1
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 2
+expect dt_len 19008
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 4
+expect dt_len 38016
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 8
+expect dt_len 76032
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 16
+expect dt_len 152064
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEL
+wait 30
+expect dt_n 32
+expect dt_len 304128
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+tap SEQ
+expect dt_fn 8
+tap SEL
+wait 30
+expect dt_fn 8
+expect dt_len 304128
+expect dt_full 0
+hint Pattern too long
