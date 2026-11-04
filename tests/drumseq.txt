@@ -603,8 +603,6 @@ tap REC
 wait 30
 expect rec_light 0
 # TEMPO: the manual's tempos (7-9): OCT and SELECT a step each: 105 up nine is 125, down twelve is 86 from 105
-tap HOME
-wait 30
 spin SELECT -90
 wait 30
 expect dt_tempo 40

@@ -8,6 +8,7 @@ bank_init
 wait 600
 # a step recorded and the tempo turned; the cutoff turned too (not the sequence's)
 tap EDIT
+wait 500
 expect page 0
 tap EDIT
 tap FX
@@ -75,7 +76,7 @@ expect seq_len 1
 # the tempo turned while the sequence plays: not kept while it plays (a flash write stops the audio), kept once it
 # has stopped and the FM-1 is quiet
 tap SEQ
-wait 30
+wait 500
 expect page 7
 tap PLAY
 wait 300

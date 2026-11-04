@@ -283,8 +283,8 @@ tap EDIT
 turn K4 -40
 tap FX
 turn PRESET -50
-turn K2 -40
-spin K3 50
+turn K3 -40
+spin K2 50
 tap ENV
 turn SELECT -50
 tap ARP

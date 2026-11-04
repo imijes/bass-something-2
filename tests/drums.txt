@@ -95,17 +95,73 @@ reboot
 wait 600
 expect dchan 10
 expect dcc_chan 9
-# HOME held a second: Drum Something's mode (its splash, then its HOME page); HOME tapped there, its HOME again
-press HOME
-wait 1100
-expect rsplash 1
-release HOME
-wait 2000
+# HOME tapped on HOME: Drum Something's mode, its HOME page; the camera pans there, no splash, its map after
+tap HOME
+wait 100
 expect drum 1
 expect page 25
+expect mpan 1
+expect rsplash 0
+wait 600
+expect mpan 0
+expect page 25
+# and back to the synth, the same way; a button ends it at once; a hold there switches too
+tap HOME
+wait 100
+expect drum 0
+expect page 16
+expect mpan 1
+wait 600
+expect mpan 0
+tap HOME
+wait 100
+expect mpan 1
 tap SEL
 wait 30
+expect mpan 0
+expect drum 1
+wait 30
 tap HOME
+wait 600
+expect drum 0
+press HOME
+wait 1100
+expect drum 1
+expect page 25
+expect mpan 1
+release HOME
+wait 600
+expect drum 1
+expect mpan 0
+# from another page: a tap, its own HOME
+tap GLO
+wait 30
+tap HOME
+wait 30
+expect drum 1
+expect page 25
+expect mpan 0
+wait 600
+# from another page, held: straight to the other's HOME, no pan
+tap GLO
+wait 30
+press HOME
+wait 1100
+expect drum 0
+expect page 16
+expect mpan 0
+release HOME
+wait 30
+tap EDIT
+wait 30
+press HOME
+wait 1100
+expect drum 1
+expect page 25
+expect mpan 0
+release HOME
+wait 30
+tap SEL
 wait 30
 expect page 25
 # its keys: from the low C (w4) up the white keys its instruments (Bass .. Tambourine), Cowbell the top F# (b10), Cabasa the top G (w15), not the synth's notes; each lit a moment

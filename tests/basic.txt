@@ -219,7 +219,7 @@ wait 80
 wait 30
 expect sub 1
 turn K4 -40
-turn K2 107
+turn K3 107
 turn K1 63
 wait 30
 expect cutoff 60
@@ -242,7 +242,7 @@ wait 900
 expect env 0
 # Phase 3: the pages. The mod envelope (its depth the FILTERS' K3; its stages ENV's faders, Env Select at Mod): full on the cutoff, sustain at the top, so the cutoff sits at 127 while
 # the note is held and comes back after the release
-turn K3 63
+turn K2 63
 tap ENV
 turn PRESET 1
 expect page 8
@@ -343,7 +343,7 @@ flash_fail 0
 # Phase 4: the OSCILLATORS: sync (PRESET), oscillator 2's wave (SEL, then ALGO); the mixer's ring (FX: K3 to Ring,
 # K4 its level)
 tap EDIT
-wait 30
+wait 500
 expect page 0
 press EDIT
 release EDIT
@@ -396,7 +396,7 @@ tap EDIT
 tap FX
 wait 30
 expect page 10
-spin K2 127
+spin K3 127
 spin K4 -60
 wait 30
 expect reso 127
@@ -437,7 +437,7 @@ expect filter 6
 # Phase 5: the arpeggiator. ARP, the page; SELECT (its On button) up, on. Up over one octave, rhythm 1 (two bars of quarter notes: 500 ms
 # at 120 BPM, each held to its last 16th's gate, 50 %: 437 ms)
 tap ARP
-wait 30
+wait 500
 expect page 6
 turn PRESET 1
 wait 30

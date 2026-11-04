@@ -81,7 +81,7 @@ GLOBAL CONTROLS' KNOBS sets how much they speed up, from FINE to COARSE.
 
 | Button | Page | Again |
 | --- | --- | --- |
-| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash) | |
+| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash). On HOME, a tap switches to Drum Something and back, the camera panning between their panels. From any other page, a hold switches at once | |
 | SEL | MASTER: the patch, picked, saved and sent | |
 | ENV | ENVELOPES: Env Select (PRESET) and the four faders | TRIGGERING; then the group's mods (velocity, retriggering, fixed sustain) |
 | LFO | PORTA and LFOS: the glide, both LFOs' waves and knobs, the Delay/Speed switch | the group's mods (keysync, Speed/Sync, slew) |
@@ -256,8 +256,8 @@ II, is on the group's mods (FX a fourth time).
 | ALGO · SLOPE | The Classic filter's slope: 12 or 24 dB an octave. |
 | PRESET · SHAPE | The Classic filter's shape: low pass (LP), band pass (BP) or high pass (HP). |
 | K1 · OVERDRIVE | Drive into the filter, 0 to 127. |
-| K2 · RESONANCE | 0 to 127. Near the top the filter sings on its own, a clean sine at the cutoff. |
-| K3 · MOD ENV DEPTH | How far the mod envelope moves the cutoff, −63 to +63 (its whole range at full). |
+| K2 · MOD ENV DEPTH | How far the mod envelope moves the cutoff, −63 to +63 (its whole range at full). |
+| K3 · RESONANCE | 0 to 127. Near the top the filter sings on its own, a clean sine at the cutoff. |
 | K4 · FREQUENCY | The cutoff, 0 to 127: about 40 Hz to 17.8 kHz. |
 
 #### LFO 2's view (FX again)
@@ -525,8 +525,10 @@ the synth's wave as it plays (two of its periods, standing still while a note is
 large as a loud one; a flat line in silence), and under them a Bass Station II's whole front panel, drawn to the scale of the keys
 at the foot of the screen (they stand for its keys and its wheels together). Every knob, fader, switch and LED on it
 shows the sound as it is set, and follows it as you change it on the other pages. PRESET picks the patch here, as on
-MASTER. K4 sets the filter's Frequency: the panel zooms in to that knob on the FILTERS page as you turn it, and back out
-to HOME a second after you stop.
+MASTER. K3 sets the filter's Resonance and K4 its Frequency: the panel zooms in to that knob on the FILTERS page as you
+turn it, and back out to HOME a second after you stop. A section's button (SEL, ENV, LFO, FX, ARP, SEQ or EDIT) zooms in on that section of the
+panel and opens its page; any button or knob on the way gets you there at once. GLOBAL DISPLAY's KNOB ZOOM OFF opens the
+page straight away.
 
 The MASTER page (SEL) is the Bass Station II's Master section: the Volume
 (the FM-1's MASTER knob, as it's set), the display with the patch in red, its dot lit while there are changes not

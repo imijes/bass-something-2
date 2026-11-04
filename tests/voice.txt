@@ -7,6 +7,7 @@
 bank_init
 wait 600
 tap EDIT
+wait 500
 expect page 0
 # every wave of oscillator 1 plays, in range, the knob going along the panel's LEDs (the INIT patch's saw, then
 # from the left: sine, triangle, saw, square, pulse)
@@ -180,7 +181,7 @@ tap EDIT
 tap FX
 wait 30
 expect page 10
-turn K3 -30
+turn K2 -30
 wait 30
 expect menv_o1 63
 expect menv_cut -30
@@ -459,7 +460,7 @@ reboot
 wait 600
 expect slot 0
 tap ARP
-wait 30
+wait 500
 expect MODE 4
 tap ARP
 wait 30
@@ -484,7 +485,7 @@ tap FX
 wait 30
 expect page 10
 spin K4 -127
-spin K2 127
+spin K3 127
 wait 30
 expect cutoff 0
 expect reso 127
@@ -561,7 +562,7 @@ expect coarse1 0
 expect fine1 0
 expect menv_pw1 0
 tap ARP
-wait 30
+wait 500
 expect MODE 3
 # the mod envelope on oscillator 1's width: a pulse at 50 %, the envelope near its peak about 85 %, back as it decays
 tap EDIT
@@ -834,7 +835,7 @@ bank_init
 reboot
 wait 600
 tap EDIT
-wait 30
+wait 500
 expect page 0
 spin K4 63
 wait 30

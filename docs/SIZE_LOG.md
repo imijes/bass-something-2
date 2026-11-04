@@ -119,3 +119,9 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-03 | aae80a5+ | GLOBAL pages by subject: SYSTEM split into CLOCK, AUDIO and CONTROLS | 499,540 | +848 | 82,024 | 77,764 | +0 | 20,540 | 157,968 |
 | 2026-11-03 | aae80a5+ | GLOBAL CLOCK: a Tempo knob (K1); GLOBAL DRUMS: Channel on K4 | 499,764 | +224 | 81,800 | 77,764 | +0 | 20,540 | 157,968 |
 | 2026-11-03 | 79332bf+ | The ! count leaves out flash writes in silence | 499,844 | +80 | 81,720 | 77,764 | +0 | 20,540 | 157,968 |
+| 2026-11-03 | 342ca90+ | HOME held: the camera pans between the two HOMEs, for the splash (Drum Something's gone) | 499,296 | -548 | 82,268 | 77,748 | -16 | 20,556 | 157,976 |
+| 2026-11-03 | 342ca90+ | HOME tapped on HOME switches between the instruments (a hold still does, from anywhere) | 499,424 | +128 | 82,140 | 77,748 | +0 | 20,556 | 157,976 |
+| 2026-11-03 | 342ca90+ | Section buttons on the synth's HOME: the camera dives to the section's page | 499,632 | +208 | 81,932 | 77,748 | +0 | 20,556 | 157,976 |
+| 2026-11-03 | 342ca90+ | A pan or randomizer effect skipped by a time stamped ahead of the frame's; FILTERS: Mod Env on K2, Resonance on K3 | 499,648 | +16 | 81,916 | 77,748 | +0 | 20,556 | 157,976 |
+| 2026-11-03 | 342ca90+ | HOME's K3: the filter's Resonance, with the zooms | 499,696 | +48 | 81,868 | 77,748 | +0 | 20,556 | 157,976 |
+| 2026-11-03 | 342ca90+ | HOME's ENV zoom on the section's left | 499,712 | +16 | 81,852 | 77,748 | +0 | 20,556 | 157,976 |

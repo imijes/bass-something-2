@@ -104,6 +104,70 @@ wait 2500
 expect page 10
 tap HOME
 wait 1500
+# HOME's K3: the filter's Resonance, the same way
+expect reso 0
+turn K3 2
+expect reso 2
+wait 100
+expect page 16
+expect zoom >0
+wait 500
+expect page 10
+expect zoom 256
+said RESONANCE
+turn K3 1
+expect reso 3
+wait 900
+expect page 10
+wait 400
+expect page 16
+wait 800
+expect page 16
+expect zoom 0
+# a section's button on HOME: the camera in on its section, then its page; a press or a knob on the way: there at once
+tap EDIT
+wait 100
+expect page 16
+expect zoom >0
+wait 500
+expect page 0
+expect zoom 0
+tap HOME
+wait 1500
+tap FX
+wait 100
+expect page 16
+tap ENV
+wait 30
+expect page 8
+tap HOME
+wait 1500
+tap LFO
+wait 100
+expect page 16
+turn K1 1
+wait 30
+expect page 3
+tap HOME
+wait 1500
+tap ARP
+wait 100
+expect page 16
+wait 500
+expect page 6
+tap HOME
+wait 1500
+tap SEL
+wait 500
+expect page 5
+tap HOME
+wait 1500
+# GLO: no section to go into, its page at once
+tap GLO
+wait 30
+expect page 17
+tap HOME
+wait 1500
 # a CC on another page: no zoom
 tap EDIT
 wait 1500
@@ -139,6 +203,15 @@ turn K4 1
 wait 300
 expect page 16
 expect zoom 0
+turn K3 1
+wait 300
+expect page 16
+expect zoom 0
+tap ENV
+wait 30
+expect page 8
+tap HOME
+wait 30
 tap GLO
 tap GLO
 tap GLO

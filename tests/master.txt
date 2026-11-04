@@ -7,13 +7,13 @@ wait 600
 # HOME first (the whole panel), SEL the MASTER, HOME again, SEL again
 expect page 16
 tap SEL
-wait 30
+wait 500
 expect page 5
 tap HOME
 wait 30
 expect page 16
 tap SEL
-wait 30
+wait 500
 expect page 5
 expect slot 0
 # the arrows: down lit only after a turn down, up only after a turn up, however fast or back and forth

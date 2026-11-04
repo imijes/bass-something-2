@@ -192,7 +192,7 @@ wait 2000
 expect drum 0
 expect page 16
 tap SEL
-wait 30
+wait 500
 expect page 5
 # (for the eye: recording, erasing, the length's functions)
 press HOME

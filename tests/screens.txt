@@ -65,7 +65,7 @@ shot screen-osc-pw.png
 tap FX
 wait 1500
 wait 30
-turn K2 30
+turn K3 30
 wait 400
 shot screen-filter.png
 tap FX

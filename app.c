@@ -42,6 +42,8 @@ typedef struct {
     uint8_t dtrans_off;                  /* TRANSPORT (DRUM MODS) off: the drums' run and stop leave the bass alone (was spare,
                                           * 0: on, as MIDI's start and stop) */
 } settings_t;
+/* now, as a time kept with 0 for none: never ahead of the clock, or now - it wraps round to a very long time */
+static uint32_t ms_stamp(void) { return (plat_ms() - 1u) | 1u; }
 #define SET_V1_SIZE 8u                   /* the record before the GLO pages: magic to ble_off */
 #define SET_V2_SIZE offsetof(settings_t, mem)   /* the record before the sequences (16 bytes stored: a byte of padding) */
 #define SET_V3_SIZE offsetof(settings_t, knobs)  /* the record before the knobs' response */
@@ -1534,6 +1536,7 @@ static struct {
     uint32_t dt_until;
     uint32_t dt_mid;                     /* the keys at the lights' middle level (a channel's others) */
     uint32_t dt_slide_at;                /* a Channel page's header sliding in since (0: in place) */
+    uint32_t mpan_at;                    /* the camera panning between the two HOMEs since (mpan_band; 0: not) */
 } ui PLAT_POOL;
 /* Knob Zoom's camera (below, zoom_step) */
 #define ZOOM_MAX 256                         /* Q8, over 1x: 2x (crisp once there: whole pixels) */
@@ -1553,6 +1556,7 @@ static struct {                             /* (all 0 at rest: in the pool) */
     uint8_t home, g, ke;                     /* ZH_*; the CC's section page, its encoder */
     uint8_t sv[5], v[5];                     /* HOME's views (zoom_views); the CC's page's */
     uint8_t hp, dsv, dnew;                   /* the HOME it dives from; Drum Something's: its selected drum, the CC's */
+    uint8_t bk;                              /* ZH_OPEN, the synth's: the section's button */
     uint8_t fn_ok;                           /* the drums' lit function drawn: tx, ty its LED and words */
     uint32_t fn_at;                          /* when SEQ or ARP last moved it (0: none): the camera goes to it a while */
     uint32_t at, cc_at;                      /* the last step's time; the last CC's from HOME */
@@ -1561,7 +1565,7 @@ static struct {                             /* (all 0 at rest: in the pool) */
 static void org_set(const void *q)           /* a control of the sound changed: the Org. Value arrows', the display's */
 {
     ui.org = q;
-    ui.org_at = plat_ms() | 1u;
+    ui.org_at = ms_stamp();
 }
 
 static void text_cat(char *d, const char *s)
@@ -1796,8 +1800,8 @@ static const param_t PARAMS[NPAGES][NE] = {
                [EN_K1] = {"OSC1", PF(lvl1), 0, 127, 0}, [EN_K2] = {"OSC2", PF(lvl2), 0, 127, 0}},
     /* the Bass Station II's FILTERS: SELECT, ALGO and PRESET its Type, Slope and Shape switches (the one FLT_*: knob_turn);
      * then its modulation's view: LFO 2's depth, and the key tracking (the BS2's, a setting there) */
-    [PG_TUNE] = {[EN_K1] = {"DRIVE", PF(drive), 0, 127, 0}, [EN_K2] = {"RESO", PF(reso), 0, 127, 0},
-                 [EN_K3] = {"MOD ENV", PF(menv_cut), -63, 63, 0}, [EN_K4] = {"CUTOFF", PF(cutoff), 0, 127, 0}},
+    [PG_TUNE] = {[EN_K1] = {"DRIVE", PF(drive), 0, 127, 0}, [EN_K2] = {"MOD ENV", PF(menv_cut), -63, 63, 0},
+                 [EN_K3] = {"RESO", PF(reso), 0, 127, 0}, [EN_K4] = {"CUTOFF", PF(cutoff), 0, 127, 0}},
     [PG_FMOD] = {[EN_K1] = {"LFO 2", PF(lfo[1].depth[0]), -63, 63, 0}},
     /* the mods: what this synth has that a Bass Station II's panel has not (its settings there, or none), each group's
      * last page, drawn as a plate added to the panel (mod_draw): the HOME group's, the ENV group's */
@@ -1888,7 +1892,7 @@ static const char *const TITLE[NPAGES][NE] = {
     [PG_ARP] = {[EN_K1] = "ARP TEMPO", [EN_K2] = "ARP RHYTHM", [EN_K3] = "ARP NOTE MODE", [EN_K4] = "ARP OCTAVES"},
     [PG_AMOD] = {[EN_K1] = "SEQ RETRIG", [EN_K2] = "ARP SWING"},
     [PG_SEQ] = {[EN_SELECT] = "SEQUENCE", [EN_ALGO] = "SEQ LENGTH", [EN_K4] = "ARP RHYTHM"},
-    [PG_TUNE] = {[EN_K1] = "OVERDRIVE", [EN_K2] = "RESONANCE", [EN_K3] = "FILTER MOD ENV DEPTH", [EN_K4] = "FREQUENCY"},
+    [PG_TUNE] = {[EN_K1] = "OVERDRIVE", [EN_K2] = "FILTER MOD ENV DEPTH", [EN_K3] = "RESONANCE", [EN_K4] = "FREQUENCY"},
     [PG_FMOD] = {[EN_K1] = "FILTER LFO 2 DEPTH"},
     [PG_EFX] = {[EN_K1] = "DISTORTION", [EN_K2] = "OSC FILTER MOD"},
     [PG_XMOD] = {[EN_K1] = "FILTER KEY TRACKING", [EN_K2] = "VCA LIMITER"},
@@ -1961,11 +1965,11 @@ typedef struct {
 } cc_map_t;
 #define CCP(g, k) (&PARAMS[g][k])
 static const cc_map_t CC_MAP[] = {
-    {5, CCP(PG_LFO1, EN_SELECT)},   {16, CCP(PG_TUNE, EN_K4)},     {82, CCP(PG_TUNE, EN_K2)},
+    {5, CCP(PG_LFO1, EN_SELECT)},   {16, CCP(PG_TUNE, EN_K4)},     {82, CCP(PG_TUNE, EN_K3)},
     {114, CCP(PG_TUNE, EN_K1)},     {29, &OSC2_P[EN_K2]},          {30, &OSC2_P[EN_K1]},
     {110, CCP(PG_MIX, EN_SELECT)},   {24, &MIX_SRC[MS_RING]},       {23, &MIX_SRC[MS_NOISE]},
     {74, &PW_P[0][PW_MANUAL]},      {79, &PW_P[1][PW_MANUAL]},     {71, CCP(PG_OSC, EN_K3)},
-    {85, CCP(PG_TUNE, EN_K3)},      {76, &OSC2_P[EN_K3]},          {102, &MENV_P[EN_K1]},
+    {85, CCP(PG_TUNE, EN_K2)},      {76, &OSC2_P[EN_K3]},          {102, &MENV_P[EN_K1]},
     {103, &MENV_P[EN_K2]},          {104, &MENV_P[EN_K3]},         {105, &MENV_P[EN_K4]},
     {88, CCP(PG_LFO1, EN_K1)},      {18, CCP(PG_LFO1, EN_K2)},     {89, CCP(PG_LFO1, EN_K4)},
     {19, CCP(PG_LFO1, EN_K3)},      {86, &LFOD_P[0]},              {87, &LFOD_P[1]},      {73, &PW_P[0][PW_LFO2]},       {78, &PW_P[1][PW_LFO2]},
@@ -2014,12 +2018,11 @@ static void cc_apply(uint32_t cc, uint32_t v)   /* the main loop's: a CC on CC C
     }
 }
 
-/* a splash over the screen: the RND Synth Companion's (rsplash_draw) as its pages open, Drum Something's
- * (dsplash_draw) or the synth's as HOME held switches; up until (0: not), RSPLASH_MS; a button or a knob ends it */
+/* a splash over the screen: the RND Synth Companion's (rsplash_draw) as its pages open; up until (0: not), RSPLASH_MS;
+ * a button or a knob ends it */
 #define RSPLASH_MS 1800u
 static uint32_t rsplash_until, rsplash_draws;   /* (draws: how many times it was drawn, once each time it's up) */
 static void rsplash_draw(void);
-static void (*rsplash_fn)(void) = rsplash_draw;   /* (the one up) */
 
 /* the randomizer's moment on screen (rfx_draw): when it began (0: not showing), and what its knobs land on */
 static uint32_t rfx_at, rfx_seed;
@@ -2033,7 +2036,7 @@ static void randomize(void)
         CCP(PG_OSC, EN_ALGO), &OSC2_P[EN_ALGO], &OSC2_P[EN_K1], &OSC2_P[EN_K2], CCP(PG_MIX, EN_SELECT),
         CCP(PG_OSC, EN_K3), &OSC2_P[EN_K3], CCP(PG_OSC, EN_K4), &OSC2_P[EN_K4], &PW_P[0][PW_MANUAL], &PW_P[1][PW_MANUAL],
         &PW_P[0][PW_LFO2], &PW_P[1][PW_LFO2], &FILT_P, CCP(PG_LFO1, EN_SELECT), CCP(PG_TUNE, EN_K1),
-        CCP(PG_TUNE, EN_K2), CCP(PG_TUNE, EN_K3), CCP(PG_FMOD, EN_K1), &MIX_SRC[MS_RING], &MIX_SRC[MS_NOISE],
+        CCP(PG_TUNE, EN_K3), CCP(PG_TUNE, EN_K2), CCP(PG_FMOD, EN_K1), &MIX_SRC[MS_RING], &MIX_SRC[MS_NOISE],
         CCP(PG_TUNE, EN_K4), &MENV_P[EN_K1], &MENV_P[EN_K2], &MENV_P[EN_K3], &MENV_P[EN_K4],
         CCP(PG_EMOD, EN_K1), &EMODM_P[EN_K1], CCP(PG_AENV, EN_K1), CCP(PG_AENV, EN_K2), CCP(PG_AENV, EN_K3),
         CCP(PG_AENV, EN_K4), CCP(PG_LFO1, EN_K1), CCP(PG_LFO1, EN_K2), CCP(PG_LFO1, EN_K4), CCP(PG_LFO1, EN_K3)};
@@ -2049,7 +2052,7 @@ static void randomize(void)
     patch.amp_a = (uint8_t)clamp(patch.amp_a, 0, 64);
     patch.vel_amp = (int8_t)clamp(patch.vel_amp, 0, 63);   /* (never inverted: a hard note silent) */
     set_dirty = 1;
-    rfx_at = plat_ms() | 1u;
+    rfx_at = ms_stamp();
     rfx_seed = rng;
     app_say("SOUND", "RANDOMIZED");
 }
@@ -2909,7 +2912,7 @@ static void seq_keep(int now)                /* the main loop's (input); NOW: at
     }
     if (!pend_at || !seq_same(&cur, &pend)) {   /* a new change: the wait from now */
         pend = cur;
-        pend_at = plat_ms() | 1u;
+        pend_at = ms_stamp();
         if (!now)
             return;
     }
@@ -2943,7 +2946,7 @@ static void glo_keep(void)                   /* the main loop's (input) */
     }
     if (!pend_at || !same(&rec, &pend, sizeof rec)) {   /* a new change: the wait from now */
         pend = rec;
-        pend_at = plat_ms() | 1u;
+        pend_at = ms_stamp();
         return;
     }
     if (plat_ms() - pend_at < GLO_KEEP_MS || !hushed)
@@ -3112,24 +3115,24 @@ static uint32_t notes_lit(uint32_t *below, uint32_t *above)
  * a mode (ARP or SEQ: AFX on or off; GLO: the RND pages, held again the GLOBAL ones; REC: a random sound). The hold
  * acts while still held, its release then nothing */
 #define HOLD_MS 1000u
-/* HOME's K4: the FILTERS' Frequency, from HOME and on its way to that page and back: Knob Zoom's dive, as for the
- * knob's CC (zoom_cc_in); no zoom (KNOB ZOOM OFF): HOME's own knob moves */
-static int home_k4(uint32_t p)
+/* HOME's K3 and K4: the FILTERS' Resonance and Frequency, from HOME and on its way to that page and back: Knob Zoom's
+ * dive, as for the knob's CC (zoom_cc_in); no zoom (KNOB ZOOM OFF): HOME's own knob moves */
+static int home_knob(uint32_t p)
 {
-    return p == EN_K4 && !ui.drum
-           && (ui.page == PG_HOME || (zoom.home && zoom.hp == PG_HOME && zoom.g == PG_TUNE && zoom.ke == EN_K4));
+    return (p == EN_K3 || p == EN_K4) && !ui.drum
+           && (ui.page == PG_HOME || (zoom.home && zoom.hp == PG_HOME && zoom.g == PG_TUNE && zoom.ke == p));
 }
-static void home_k4_turn(int32_t e)
+static void home_knob_turn(uint32_t p, int32_t e)
 {
     const uint8_t pg = ui.page;
     char t[12];
     ui.page = PG_TUNE;
-    knob_turn(EN_K4, e);
-    knob_text(EN_K4, t);
-    app_say(knob_title(EN_K4), t);
+    knob_turn(p, e);
+    knob_text(p, t);
+    app_say(knob_title(p), t);
     ui.page = pg;
     if (!set.zoom_off)
-        zoom_cc_in(&PARAMS[PG_TUNE][EN_K4]);
+        zoom_cc_in(&PARAMS[PG_TUNE][p]);
     ui.redraw = 1;
 }
 
@@ -3152,8 +3155,8 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_SEQ] = {"Pick a sequence", "Steps played", "Step to edit", "Step's note", "Tie to next step", "Note length",
                 "Rhythm pattern"},
     [PG_FX] = {"Sub octave", "Sub waveform", "Sub level", "Osc 1 level", "Osc 2 level", "What K4 sets"},
-    [PG_TUNE] = {"Classic or Acid", "12 or 24 dB slope", "Low, band, high pass", "Filter drive", "Filter resonance",
-                 "Envelope to cutoff", "Filter cutoff"},
+    [PG_TUNE] = {"Classic or Acid", "12 or 24 dB slope", "Low, band, high pass", "Filter drive", "Envelope to cutoff",
+                 "Filter resonance", "Filter cutoff"},
     [PG_FMOD] = {[EN_K1] = "LFO 2 to cutoff"},
     [PG_EFX] = {[EN_K1] = "Distortion amount", "Osc 2 to cutoff"},
     [PG_XMOD] = {[EN_K1] = "Cutoff follows keys", "Level limiter"},
@@ -3234,6 +3237,8 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
                                        [B_ARP] = "Songs; again: next", [B_SEQ] = "Patterns; again: next", [B_PLAY] = "Run or stop", [B_SAVE] = "Save the drums",
                                        [B_REC] = "Rec on/off; hold: Erase", [B_FX] = "Mods; again: info", [B_ENV] = "Pattern length", [B_OCTDN] = "Slower", [B_OCTUP] = "Faster"};
     const int rec = seq_rec && ui.page == PG_SEQ;
+    if (k == B_HOME && ui.page == (ui.drum ? PG_DHOME : PG_HOME))   /* (on it: the other mode, mode_switch) */
+        return ui.drum ? "HOME tap: Bass Something 2" : "HOME tap: Drum Something";
     if (ui.drum && !RND_PAGE(ui.page))       /* (every button the drums', as dt_button) */
         return DH[k];
     if (k == B_SEL)
@@ -3311,12 +3316,16 @@ static void dt_bass_transport(int run)
         ui.dt_b_paused = 1;
     }
 }
+static void mode_switch(void);
+static void sect_open(uint32_t g, uint32_t k);
 static void hold_tap(uint32_t k)
 {
     if (k == B_GLO && ui.drum && !RND_PAGE(ui.page))
         dt_button(k);
     else if (k == B_REC && ui.drum && (ui.page != PG_GMIDI || !FM1B_BLE_CENTRAL || set.ble_off))
         dt_rec_tap();
+    else if (k == B_HOME && ui.page == (ui.drum ? PG_DHOME : PG_HOME))   /* HOME on it: the other mode's */
+        mode_switch();
     else if (k == B_HOME)                         /* HOME: the whole panel (the first page), the mode's */
         page_go(ui.drum ? PG_DHOME : PG_HOME);
     else if (k == B_REC && ui.page != PG_GMIDI)   /* recording, on any page (GLO MIDI's: a Bluetooth device) */
@@ -3326,20 +3335,23 @@ static void hold_tap(uint32_t k)
     else if (k == B_REC)
         app_say("BUTTON", "REC");
     else if (tap_page(k) < NPAGES)           /* ARP, SEQ, GLO: their section's next page (tap_page) */
-        page_go(tap_page(k));
+        sect_open(tap_page(k), k);
     else                                     /* SEQ on its page: recording */
         rec_toggle();
     hint_show(k);                            /* (its hint again from where it went: the next tap's) */
 }
 
-/* HOME held: the synth's mode or Drum Something's, its splash first (rsplash_draw's way), then its HOME */
-static void dsplash_draw(void);
+/* HOME tapped on HOME, or held: the synth's mode or Drum Something's, on its HOME. From the other's HOME, the whole panel,
+ * the camera pans there (mpan_band: the drums' panel under the synth's), its map after; from anywhere else (held), at once */
 static void mode_switch(void)
 {
+    const int pan = ui.page == (ui.drum ? PG_DHOME : PG_HOME) && !zoom.z && !zoom.home;
     ui.drum = (uint8_t)!ui.drum;
     page_go(ui.drum ? PG_DHOME : PG_HOME);
-    rsplash_fn = dsplash_draw;               /* (either way: its mode's name) */
-    rsplash_until = plat_ms() + RSPLASH_MS;
+    if (pan) {
+        ui.mpan_at = ms_stamp();
+        ui.map_until = 0;
+    }
 }
 
 /* Drum Something's keys: its instruments from the low C up the white keys as the 400's panel has them (Bass ..
@@ -3403,7 +3415,7 @@ static void dt_fn_go(uint32_t f)
         [DTF_BTEMPO] = "ALGO tempo, SEL enters", [DTF_BINS] = "PRESET step, SEL inserts", [DTF_BDEL] = "PRESET step, SEL deletes"};
     ui.dt_fn = (uint8_t)f;
     dt_show(DTS_FN);
-    zoom.fn_at = plat_ms() | 1u;
+    zoom.fn_at = ms_stamp();
     zoom.fn_ok = 0;
     if (set.hints) {
         ui.hint = H[f];
@@ -3521,10 +3533,6 @@ static void dt_open(uint32_t g);
 static void dt_button(uint32_t k)
 {
     uint32_t f = ui.dt_fn;
-    if (zoom.home == ZH_OPEN) {              /* (a press as it dives: there at once) */
-        zoom.z = 0;
-        page_go(zoom.g);
-    }
     switch (k) {
     case B_EDIT: {                           /* the Channel pages: from the selected drum's, then the next */
         const uint32_t c = DCH_PAGE(ui.page) ? (ui.page - PG_DCH1 + 1u) % NDTCH : DT_CH[ui.dt_sel];
@@ -3538,7 +3546,7 @@ static void dt_button(uint32_t k)
     case B_SEQ:                              /* the 400's SELECT PATTERN FUNCTIONS: running in RECORD MODE, round what's
                                               * used in the loop (Record, Erase Instrument, Error Correct, and Swing, ours);
                                               * stopped, RECORD MODE and those two arm it */
-        zoom.fn_at = plat_ms() | 1u;         /* (each press: the camera on the function lit) */
+        zoom.fn_at = ms_stamp();         /* (each press: the camera on the function lit) */
         zoom.fn_ok = 0;
         if (ui.page != PG_DPAT) {            /* first, its page: the list as it is (from the songs', the number) */
             ui.dt_pend = 0;
@@ -3555,7 +3563,7 @@ static void dt_button(uint32_t k)
     case B_ARP:                              /* its SELECT SONG FUNCTIONS (BUILD MODE: its own five); not while it runs: only
                                               * the number */
         ui.dt_pend = 0;
-        zoom.fn_at = plat_ms() | 1u;
+        zoom.fn_at = ms_stamp();
         zoom.fn_ok = 0;
         if (ui.page != PG_DSONG) {           /* first, its page: the list as it is (from the patterns', the number) */
             if (f < DTF_SONG) {
@@ -3685,7 +3693,6 @@ static void hold_step(uint32_t btn)
                                               * their splash first (rsplash_draw) */
             rnd_ask();
             page_go(PG_GRND);
-            rsplash_fn = rsplash_draw;
             rsplash_until = plat_ms() + RSPLASH_MS;
         }
     }
@@ -3732,6 +3739,11 @@ static void input(void)
         if (!(btn & bit) || (ui.btn & bit))
             continue;
         rsplash_until = 0;                   /* (the RND splash: over) */
+        ui.mpan_at = ui.mpan_at ? 1u : 0u;   /* (the camera's pan: over, app_frame's next look) */
+        if (zoom.home == ZH_OPEN) {          /* (a press as it dives: there at once) */
+            zoom.z = 0;
+            page_go(zoom.g);
+        }
         hint_show(k);                        /* (Hints: what it does, from the page it's pressed on) */
         if (ui.drum && k != B_HOME && k != B_REC && k != B_GLO
             && !(RND_PAGE(ui.page) && (k == B_SEL || k == B_FX || k == B_SAVE)))   /* (the RND pages keep their own) */
@@ -3759,14 +3771,14 @@ static void input(void)
             rnd_ask();
             app_say("RND", "ASKED");
         } else if (k == B_SEL)                   /* the MASTER: you select a patch there */
-            page_go(PG_PATCH);
+            sect_open(PG_PATCH, k);
         else if (k == B_SAVE && ui.page == PG_GRND)   /* the seed shown into its slot */
             rnd_store();
         else if (k == B_SAVE)
             save();
         else if (k == B_ENV || k == B_LFO || k == B_EDIT)   /* their section's next page (tap_page; Env Select
                                                   * stays as it is: SELECT's) */
-            page_go(tap_page(k));
+            sect_open(tap_page(k), k);
         else if (k == B_PLAY) {              /* the sequence (the arp on, in PLAY) at its own key, or stopped */
             uint32_t run = !seq_playing();
             seq_auto = (uint8_t)run;
@@ -3786,7 +3798,7 @@ static void input(void)
         else if (k == B_FX && ui.page == PG_GRND)    /* the seed shown, as the RND Synth's SysEx */
             rnd_send();
         else if (k == B_FX)                      /* the filters, LFO 2 on them, the effects, the group's mods */
-            page_go(tap_page(k));
+            sect_open(tap_page(k), k);
         else {
             app_say("BUTTON", BTN_NAME[k]);
         }
@@ -3830,18 +3842,19 @@ static void input(void)
             continue;
         ui.turns[k] += e;
         rsplash_until = 0;
-        if (home_k4(k)) {
-            home_k4_turn(e);
+        ui.mpan_at = ui.mpan_at ? 1u : 0u;
+        if (zoom.home == ZH_OPEN) {          /* (a section's page on its way: there at once, the knob's) */
+            zoom.z = 0;
+            page_go(zoom.g);
+        }
+        if (home_knob(k)) {
+            home_knob_turn(k, e);
             continue;
         }
         if ((l = enc_logical(k)) >= NE)      /* (none on this page) */
             continue;
         ui.turned_at[l] = plat_ms();
         zoom.fn_at = 0;                      /* (a knob: the camera on it) */
-        if (zoom.home == ZH_OPEN) {          /* (a section's page on its way: there at once, the knob's) */
-            zoom.z = 0;
-            page_go(zoom.g);
-        }
         zoom.home = ZH_NONE;                 /* (HOME's CC's page: kept, the user's now) */
         ui.map_until = ui.hint_until = 0;    /* (a knob turned: the map goes, and a button's hint; its value stays) */
         ui.last_enc = (uint8_t)l;
@@ -4170,7 +4183,7 @@ static void zoom_go(uint32_t g, uint32_t k, const uint8_t *v)   /* the CC's page
     zoom.g = (uint8_t)g, zoom.ke = (uint8_t)k;
     for (i = 0; i < 5u; i++)
         zoom.v[i] = v[i];
-    zoom.cc_at = plat_ms() | 1u;
+    zoom.cc_at = ms_stamp();
     if (zoom.home == ZH_PAGE) {              /* (on its page: another control there, or another page, from 1x) */
         if (ui.page != g)
             zoom.z = 0;
@@ -4183,6 +4196,8 @@ static void zoom_cc_in(const param_t *q)     /* a CC's control q changed (on HOM
 {
     uint8_t v[5];
     uint32_t k, g;
+    if (zoom.home == ZH_OPEN)                /* (a section's page on its way: that page's) */
+        return;
     zoom_keep(PG_HOME);
     if ((g = zoom_find(q, v, &k)) == PG_HOME)   /* (none: as it is) */
         return;
@@ -4210,6 +4225,8 @@ static int zoom_step(uint32_t now)           /* a frame: 1 when the camera moved
                 ui.dt_slide_at = now | 1u;
                 ui.map_until = 0;
             }
+            if (!ui.drum)
+                hint_show(zoom.bk);
         }
         return 1;
     }
@@ -4493,8 +4510,8 @@ static void filters_draw(void)
         print_c(28 + 17 * (int32_t)i, 143, SH[i], cl);
     }
     print_knob(100, 40, 15, CCP(PG_TUNE, EN_K1), EN_K1, !md, "Overdrive", 0);   /* (2 px apart: their names clear) */
-    print_knob(152, 40, 15, CCP(PG_TUNE, EN_K2), EN_K2, !md, "Resonance", 0);
-    print_knob(102, 104, 15, CCP(PG_TUNE, EN_K3), EN_K3, !md, "Mod Env", "depth");
+    print_knob(152, 40, 15, CCP(PG_TUNE, EN_K3), EN_K3, !md, "Resonance", 0);
+    print_knob(102, 104, 15, CCP(PG_TUNE, EN_K2), EN_K2, !md, "Mod Env", "depth");
     print_knob(150, 104, 15, CCP(PG_FMOD, EN_K1), EN_K1, md, "LFO 2", "depth");
     cv_rect(82, 84, 5, 1, P_SILK);           /* the depths' brackets, and their line to the Frequency */
     cv_rect(82, 84, 1, 50, P_SILK);
@@ -5689,8 +5706,8 @@ static void home_draw(void)
     h_rect(929, 118, 17, 1, P_SILK);
     h_rect(929, 154, 14, 1, P_SILK);
     h_param(1018, 57, 0, CCP(PG_TUNE, EN_K1));
-    h_param(1096, 57, 0, CCP(PG_TUNE, EN_K2));
-    h_param(1018, 128, 0, CCP(PG_TUNE, EN_K3));
+    h_param(1096, 57, 0, CCP(PG_TUNE, EN_K3));
+    h_param(1018, 128, 0, CCP(PG_TUNE, EN_K2));
     h_param(1096, 128, 0, CCP(PG_FMOD, EN_K1));
     h_param(1191, 56, 1, CCP(PG_TUNE, EN_K4));
     h_rect(1009, 130, 5, 1, P_SILK);         /* the depths' brackets, their lines to Frequency */
@@ -5738,15 +5755,38 @@ static void home_draw(void)
 static void home_sect(uint32_t g, int16_t *x, int16_t *y, float *lc)   /* page g's section on HOME: its middle, and
                                               * the scale (log2) it fills the screen at, as its page does */
 {
-    static const int16_t S[7][3] = {{333, 690, 33}, {690, 924, 33}, {924, 1293, 33}, {63, 333, 190},
-                                    {333, 693, 190}, {693, 1140, 190}, {1140, 1293, 190}};   /* across, its top */
+    static const int16_t S[8][3] = {{333, 690, 33}, {690, 924, 33}, {924, 1293, 33}, {63, 333, 190},
+                                    {333, 693, 190}, {693, 1140, 190}, {1140, 1293, 190}, {63, 333, 33}};   /* across, its top */
     const uint32_t i = g == PG_OSC || g == PG_MIX ? 0u : g == PG_FX ? 1u : g == PG_TUNE || g == PG_FMOD ? 2u
                        : g == PG_ARP || g == PG_AMOD || g == PG_SEQ ? 3u : g == PG_LFO1 || g == PG_LFO2 ? 4u
-                       : g == PG_EFX || g == PG_XMOD ? 6u : 5u;
+                       : g == PG_EFX || g == PG_XMOD ? 6u : g == PG_PATCH ? 7u : 5u;
     const int32_t w = HX(S[i][1]) - HX(S[i][0]), h = HL(S[i][2] == 33 ? 157 : 146);
     *x = (int16_t)((HX(S[i][0]) + HX(S[i][1])) / 2);
     *y = (int16_t)(HY(S[i][2]) + h / 2);
     *lc = fm_log2f(fm_minf(fm_minf(240.0f / (float)w, (float)TALL_H / (float)h), 6.0f));
+    if (g == PG_AENV) {                      /* (the section's left, Env Select and the faders: 4x lands HOME's faders on
+                                              * the page's) */
+        *x = 155;
+        *y = 136;
+        *lc = fm_log2f(4.05f);
+    }
+}
+
+/* a section's button: its page, the camera going in on its section if from the synth's HOME (no section for GLO's); its
+ * button's hint after, from there (the next tap's) */
+static void sect_open(uint32_t g, uint32_t k)
+{
+    if (set.zoom_off || ui.page != PG_HOME || zoom.home || PAGE_SEC[g] == SEC_GLO) {
+        page_go(g);
+        return;
+    }
+    zoom_keep(PG_HOME);
+    home_sect(g, &zoom.hx, &zoom.hy, &zoom.lc);
+    zoom.g = (uint8_t)g;
+    zoom.bk = (uint8_t)k;
+    zoom.u = 0.0f;
+    zoom.home = ZH_OPEN;
+    ui.redraw = 1;
 }
 
 /* Drum Something's HOME: the drum machine's whole panel, after the Sequential Drumtraks' (black, its sections in
@@ -5757,7 +5797,6 @@ static void home_sect(uint32_t g, int16_t *x, int16_t *y, float *lc)   /* page g
 #define DT_FACE grey(DT_FACE_G)
 #define DT_LINE_G 232                        /* its frames (4.5 of the photo's pixels: nearly a whole pixel) */
 #define DT_THIN grey(160)                    /* its thin lines (3 of them) */
-#define DT_PRINT grey(208)                   /* the splash's frames */
 #define DT_LIT_MS 120u                       /* a key lit after its hit */
 /* a photo's x and y, to the column and row they're in: HOME's whole panel; the section pages' zoomed crops set these while
  * they draw (dt_crop) */
@@ -6664,13 +6703,35 @@ static void rfx_draw(void)
     dymo(120, y + 54, s, t >= 300u + 60u * (sizeof W - 2u) ? P_CYAN : RGB(235, 235, 235));
 }
 
+/* the camera between the two HOMEs: band i of the panel, its rows s down the synth's panel with the drums' under it */
+#define MPAN_MS 450u
+static void mpan_band(uint32_t i)
+{
+    const uint32_t page = ui.page, drum = ui.drum;
+    const float u = fm_clampf((float)(plat_ms() - ui.mpan_at) / (float)MPAN_MS, 0.0f, 1.0f), e = u * u * (3.0f - 2.0f * u);
+    const int32_t s = (int32_t)((float)TALL_H * (drum ? e : 1.0f - e) + 0.5f), top = (int32_t)i * (TALL_H / 2) + s;
+    if (top < TALL_H) {
+        ui.page = PG_HOME, ui.drum = 0;
+        cv_oy = -top;
+        home_draw();
+    }
+    if (top + TALL_H / 2 > TALL_H) {
+        ui.page = PG_DHOME, ui.drum = 1;
+        cv_oy = TALL_H - top;
+        cv_rect(0, 0, 240, TALL_H, P_BG);
+        dhome_draw();
+    }
+    ui.page = (uint8_t)page, ui.drum = (uint8_t)drum;
+    ntags = 0;                               /* (the controls' labels: when it lands) */
+}
+
 static void panel_draw(void)                 /* the page's section panel, from under the tabs: in two halves (the
                                               * canvas holds 144 rows); through Knob Zoom's camera (zoom_blow) */
 {
     uint32_t i, step = 0, x16 = 0, y16 = 0;
     pan_h = RND_PAGE(ui.page) ? RND_H : TALL_H;
     pr_font = RND_PAGE(ui.page) ? &FONT_XS : &FONT_T;
-    if (zoom.z && zoom.pg == ui.page) {      /* (the window: around the focus, inside the panel) */
+    if (zoom.z && zoom.pg == ui.page && !ui.mpan_at) {   /* (the window: around the focus, inside the panel) */
         step = (256u << 16) / (256u + (uint32_t)zoom.z);
         x16 = (uint32_t)clamp(((int32_t)zoom.x << 16) - (int32_t)(120u * step), 0, (int32_t)((240u << 16) - 240u * step));
         y16 = (uint32_t)clamp(((int32_t)zoom.y << 16) - (int32_t)(pan_h / 2u * step), 0,
@@ -6681,7 +6742,9 @@ static void panel_draw(void)                 /* the page's section panel, from u
         cv_begin(240, pan_h / 2, P_BG);
         cv_oy = step ? -(int32_t)(sy16 >> 16) : -(int32_t)i * (pan_h / 2);
         ntags = 0;
-        if (ui.page == PG_FX)
+        if (ui.mpan_at)
+            mpan_band(i);
+        else if (ui.page == PG_FX)
             mixer_draw();
         else if (ui.page == PG_TUNE || ui.page == PG_FMOD)
             filters_draw();
@@ -6906,7 +6969,6 @@ static int32_t app_sys_w(int face, const char *s) { return text_w(app_sys_face(f
 static void app_sys_text(int32_t x, int32_t y, int face, const char *s, uint16_t c) { cv_text(x, y, app_sys_face(face), s, c); }
 #endif
 #define SPLASH_SUB "Inspired by the Bass Station 2"
-#define DSPLASH_SUB "Inspired by the Drumtraks"
 /* the splash's ground: pure black, not the panel's matte black. The LCD keeps a faint shadow of the keys after long
  * hours of them (image retention), and a dark grey shows it; black hides it */
 #define S_BG RGB(0, 0, 0)
@@ -6983,42 +7045,6 @@ static void rsplash_draw(void)
     rsplash_line(y + FONT_L.h + 2u * GAP + RND_SPLASH_H, "COMPANION", P_CYAN);
 }
 
-/* Drum Something's, as HOME held switches to it: its name in the 400's white over its channels' frames (CH1 .. CH6,
- * their keys), and in red what it is after; the synth's way back is its own (the RND splash's place) */
-static void dsplash_draw(void)
-{
-    static const uint8_t N[6] = {1, 2, 2, 2, 2, 4};   /* each channel's instruments */
-    const uint32_t y = 64;
-    int32_t x = 18, i, j;
-    if (!ui.drum) {                          /* (back to the synth: its name) */
-        lcd_fill(0, 0, 240, 240, S_BG);
-        rsplash_line(96, "BASS", P_CYAN);
-        rsplash_line(96 + FONT_L.h + 6, "SOMETHING 2", P_CYAN);
-        return;
-    }
-    lcd_fill(0, 0, 240, 240, S_BG);
-    rsplash_line(y, "DRUM", P_SILK);
-    rsplash_line(y + FONT_L.h + 4, "SOMETHING", P_SILK);
-    cv_begin(240, 30, S_BG);
-    for (i = 0; i < 6; i++) {                /* the channels: a frame each round its keys */
-        const int32_t w = 6 + 13 * N[i];
-        cv_rect(x, 2, w, 1, DT_PRINT);
-        cv_rect(x, 27, w, 1, DT_PRINT);
-        cv_rect(x, 2, 1, 26, DT_PRINT);
-        cv_rect(x + w - 1, 2, 1, 26, DT_PRINT);
-        for (j = 0; j < N[i]; j++) {
-            cv_rect(x + 4 + 13 * j, 9, 11, 11, RGB(8, 8, 8));
-            cv_rect(x + 5 + 13 * j, 10, 9, 9, RGB(24, 24, 24));
-            cv_rect(x + 13 + 13 * j, 10, 1, 9, grey(120));
-        }
-        x += w + 3;
-    }
-    cv_blit(0, y + 2 * FONT_L.h + 20);
-    cv_begin(240, FONT_XS.h, S_BG);
-    cv_text((240 - text_w(&FONT_XS, DSPLASH_SUB)) / 2, 0, &FONT_XS, DSPLASH_SUB, RGB(252, 60, 72));
-    cv_blit(0, y + 2 * FONT_L.h + 62);
-}
-
 /* after the platform's start: the splash a while longer, a scope under the name whose wave morphs as the panel's OSC
  * WAVE steps (sine, triangle, saw, then a square whose width sweeps). Always SPLASH_SCOPE_MS, on the FM-1 and in the
  * emulator alike: the morph run in however long the splash had been up (as little as 0.4 s) blurred the waves */
@@ -7066,7 +7092,7 @@ void app_ui_init(void)
     ui.redraw = 1;
 #ifdef PLAT_WEB
     app_splash();
-    web_splash_at = plat_ms() | 1u;
+    web_splash_at = ms_stamp();
 #endif
 }
 
@@ -7092,6 +7118,7 @@ void app_frame(void)
 #endif
     input();
     speak();
+    now = plat_ms();                         /* (what input just stamped: not after now) */
     if (voice_note != last_note) {           /* the note in the header: the arp's and the sequencer's change alone */
         last_note = voice_note;
         ui.redraw = 1;
@@ -7166,7 +7193,7 @@ void app_frame(void)
         if (!splash_shown) {
             splash_shown = 1;
             rsplash_draws++;
-            rsplash_fn();
+            rsplash_draw();
         }
         ui.redraw = 0;
         return;
@@ -7182,6 +7209,14 @@ void app_frame(void)
     }
     i = live();
     moved = zoom_step(now);
+    if (ui.mpan_at) {                        /* (the camera's pan: its next frame, else landed; a dive takes over) */
+        moved = 1;
+        if (now - ui.mpan_at >= MPAN_MS || zoom.z || zoom.home) {
+            ui.mpan_at = 0;
+            ui.map_until = pop_until();
+            ui.redraw = 1;
+        }
+    }
     if (rfx_at && now - rfx_at >= RFX_MS) {  /* the randomizer's moment: over, else its next frame (30 a second) */
         rfx_at = 0;
         moved = 1;
@@ -7196,7 +7231,7 @@ void app_frame(void)
         panel_draw();
     }
     last_live = i;
-    if (ui.page == PG_HOME && !zoom.z && !rfx_at && now - scope_at >= 33u && (scope_live() || scope_was)) {
+    if (ui.page == PG_HOME && !zoom.z && !rfx_at && !ui.mpan_at && now - scope_at >= 33u && (scope_live() || scope_was)) {
         scope_at = now;                      /* (HOME's scope: 30 times a second while it sounds, once more after) */
         scope_was = scope_live();
         scope_frame();
@@ -7216,6 +7251,8 @@ int app_expect(const char *what, int *got)
         *got = set.spk;
     else if (!strcmp(what, "zoom_off"))
         *got = set.zoom_off;
+    else if (!strcmp(what, "mpan"))          /* the camera panning between the two HOMEs */
+        *got = ui.mpan_at != 0u;
     else if (!strcmp(what, "rsplash"))       /* the RND Synth Companion's splash up */
         *got = rsplash_until != 0u;
     else if (!strcmp(what, "rsplash_draws"))  /* the times it has been drawn (once each time it's up: no flashes) */
