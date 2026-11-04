@@ -339,6 +339,29 @@ static void dq_copy(uint32_t a, uint32_t b)  /* pattern a onto b: empty, a copy,
     }
     d->n = (uint16_t)(d->n + n);
 }
+/* MIDI out, the drums' channel (GLO DRUMS; ALL: on 1, OFF: none): the 400's map, DT_*'s order (dt_note's the way in) */
+static const uint8_t DT_OUT[NDT] = {36, 38, 37, 41, 45, 49, 51, 42, 46, 39, 54, 56, 58};
+#define DQ_GATE 6u                           /* a pattern's hit: its Note Off this many blocks on (about 35 ms) */
+static uint8_t dq_gate[NDT], dq_gch[NDT];    /* the blocks till each one's owed, its channel */
+/* a pattern's hit out at the level it's played: its velocity what plays that level again here (dt_level): 119 a hit at
+ * full volume, an accent 120 up (audio interrupt) */
+static void dq_out(uint32_t d, uint32_t level)
+{
+    const uint32_t ch = set.dchan == CH_ALL ? 1u : set.dchan;
+    uint32_t i, owed = 0, v = level * 119u / 175u;
+    if (!ch || !level)
+        return;
+    for (i = 0; i < NDT; i++)
+        owed += dq_gate[i] != 0u;
+    if (plat_midi_out_room(TO_USB | TO_BLE) < owed + 2u)   /* (no room for its Note Off too: not sent) */
+        return;
+    if (dq_gate[d])                          /* (again before the last's Note Off: that first) */
+        plat_midi_send(0x08u | (0x80u | (dq_gch[d] - 1u)) << 8 | (uint32_t)DT_OUT[d] << 16, TO_USB | TO_BLE);
+    plat_midi_send(0x09u | (0x90u | (ch - 1u)) << 8 | (uint32_t)DT_OUT[d] << 16 | (v > 127u ? 127u : v ? v : 1u) << 24,
+                   TO_USB | TO_BLE);
+    dq_gate[d] = DQ_GATE;
+    dq_gch[d] = (uint8_t)ch;
+}
 /* its next thing's come (audio interrupt): the hits due, the metronome, the loop's end and what's cued */
 static void dq_step(void)
 {
@@ -357,7 +380,9 @@ static void dq_step(void)
                 dq.skip[d] = -1;
             else if (d < NDT) {
                 const uint32_t pr = (e >> 24) != 0u, v = pr ? DQ_V(e) : dt.vol[d], u = pr ? DQ_U(e) : dt.tune[d];
-                dt_hit(d, u, (uint32_t)clamp((int32_t)((175u + (DQ_A(e) ? 80u : 0u)) * v / 15u) + (v ? dq.svol : 0), 0, 255));
+                const uint32_t l = (uint32_t)clamp((int32_t)((175u + (DQ_A(e) ? 80u : 0u)) * v / 15u) + (v ? dq.svol : 0), 0, 255);
+                dt_hit(d, u, l);
+                dq_out(d, l);
             }
         }
         if (dq.rec && dq.click_t < p->len && (float)dq.click_t <= dt_pos) {   /* on each beat, the loop's first accented */
@@ -424,6 +449,9 @@ static void dq_block(void)
     uint32_t c;
     const uint32_t x = dq.ext;
     dq.ext -= x;
+    for (c = 0; c < NDT; c++)                /* (the pattern's hits' Note Offs) */
+        if (dq_gate[c] && !--dq_gate[c])
+            plat_midi_send(0x08u | (0x80u | (dq_gch[c] - 1u)) << 8 | (uint32_t)DT_OUT[c] << 16, TO_USB | TO_BLE);
     while (fifo_get(&dqq, &c)) {
         const uint32_t a = c >> 8 & 0xFFu, b = c >> 16 & 0xFFu;
         switch (c & 0xFFu) {

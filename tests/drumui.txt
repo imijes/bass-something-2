@@ -168,12 +168,63 @@ wait 30
 expect page 24
 tap HOME
 wait 1200
-# Knob Zoom on HOME: K3 turned closes in
-spin K3 1
-wait 400
+# HOME's K3 and K4: the selected drum's Volume and Tuning, the dive to its Channel page, kept as they turn, back out
+listen
+expect dt_sel 12
+expect dt_vol 15
+spin K3 -1
+wait 30
+expect dt_vol 14
+expect page 25
+expect zoom >0
+wait 500
+expect page 31
 expect zoom 256
+said VOLUME
 shot drum-home-zoom.png
+turn K3 1
+expect dt_vol 15
+wait 1000
+expect page 31
+wait 400
+expect page 25
+expect zoom >0
+wait 900
+expect page 25
+expect zoom 0
+expect dt_sel 12
+spin K4 1
+wait 530
+expect page 31
+expect zoom 256
+said TUNING
+# another knob there: the page stays, the user's
+turn K1 1
+wait 2500
+expect page 31
+tap HOME
 wait 1500
+# a drum tapped on the way in: another channel's, no dive and its selection kept; the channel's own, there and back
+spin K3 1
+wait 100
+tapkey w4 100
+wait 30
+expect dt_sel 0
+wait 600
+expect page 25
+expect zoom 0
+spin K3 1
+wait 100
+tapkey w5 100
+wait 2600
+expect page 25
+expect dt_sel 1
+spin K3 1
+wait 100
+tapkey w15 100
+wait 2600
+expect page 25
+expect dt_sel 12
 # a drum's CC on HOME dives to its channel (tune, Tom 1: CC 36) and back to the drum it had selected
 expect dt_sel 12
 midi B9 24 40

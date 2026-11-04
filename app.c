@@ -1497,6 +1497,7 @@ static struct {
     uint32_t keys, btn;                  /* held at the last input */
     uint8_t vel[NKEYS], prs[NKEYS];      /* each key's last velocity, and its pressure while held */
     uint8_t och[NKEYS];                  /* the MIDI channel each held key's note went out on, 1..16 (0: none) */
+    uint8_t dno[NKEYS];                  /* the drum's note each held key sent (DT_OUT; 0: the key's own, the synth's) */
     int32_t last_key;                    /* the key pressed last: its numbers in the header */
     uint8_t looking;                     /* Bluetooth MIDI devices: REC pressed, the scan's list up (lib/btdev) */
     uint8_t hold_k, hold_live;           /* ARP, SEQ, GLO or REC down: which, and its tap or hold still to act */
@@ -3115,22 +3116,30 @@ static uint32_t notes_lit(uint32_t *below, uint32_t *above)
  * acts while still held, its release then nothing */
 #define HOLD_MS 1000u
 /* HOME's K3 and K4: the FILTERS' Resonance and Frequency, from HOME and on its way to that page and back: Knob Zoom's
- * dive, as for the knob's CC (zoom_cc_in); no zoom (KNOB ZOOM OFF): HOME's own knob moves */
+ * dive, as for the knob's CC (zoom_cc_in); no zoom (KNOB ZOOM OFF): HOME's own knob moves. The drums' HOME: the selected
+ * drum's Volume and Tuning, the dive to its Channel page (zoom_dt_cc); no zoom: as on their other pages */
 static int home_knob(uint32_t p)
 {
-    return (p == EN_K3 || p == EN_K4) && !ui.drum
-           && (ui.page == PG_HOME || (zoom.home && zoom.hp == PG_HOME && zoom.g == PG_TUNE && zoom.ke == p));
+    if (p != EN_K3 && p != EN_K4)
+        return 0;
+    if (ui.drum)
+        return !set.zoom_off
+               && (ui.page == PG_DHOME || (zoom.home && zoom.hp == PG_DHOME && DCH_PAGE(zoom.g) && zoom.ke == p));
+    return ui.page == PG_HOME || (zoom.home && zoom.hp == PG_HOME && zoom.g == PG_TUNE && zoom.ke == p);
 }
 static void home_knob_turn(uint32_t p, int32_t e)
 {
     const uint8_t pg = ui.page;
     char t[12];
-    ui.page = PG_TUNE;
+    if (!ui.drum)
+        ui.page = PG_TUNE;
     knob_turn(p, e);
     knob_text(p, t);
     app_say(knob_title(p), t);
     ui.page = pg;
-    if (!set.zoom_off)
+    if (ui.drum)
+        zoom_dt_cc((p == EN_K3 ? DT_CC_VOL : DT_CC_TUNE) + ui.dt_sel);
+    else if (!set.zoom_off)
         zoom_cc_in(&PARAMS[PG_TUNE][p]);
     ui.redraw = 1;
 }
@@ -3368,6 +3377,9 @@ static void dt_key(uint32_t k, uint32_t v, uint32_t keys)
                 dq_cmd(DQC_EKEY, i, 0);
             else {
                 dt_play(i, v, (int)acc);
+                ui.och[k] = (uint8_t)(set.dchan == CH_ALL ? 1u : set.dchan);   /* (out at its velocity, an accent 120 up: as dt_note takes them) */
+                ui.dno[k] = DT_OUT[i];
+                key_send(0x90u, DT_OUT[i], acc ? (v > 120u ? v : 120u) : v < 119u ? v : 119u, ui.och[k]);
                 if (dq.rec == DQR_REC && dq.run)
                     dq_cmd(DQC_HIT, i, acc);
                 else if (dq.rec == DQR_REC && ui.dt_pat < DQ_NPAT) {   /* (stopped: its volume and tuning programmed) */
@@ -3376,6 +3388,11 @@ static void dt_key(uint32_t k, uint32_t v, uint32_t keys)
                 }
             }
             ui.dt_sel = (uint8_t)i;          /* (tapped: VOLUME and TUNING are its now) */
+            if (zoom.home && zoom.home != ZH_OPEN && zoom.hp == PG_DHOME) {   /* (on a dive: the tap's, there and back) */
+                zoom.dnew = zoom.dsv = (uint8_t)i;
+                if (ui.page == PG_DHOME && zoom.g != PG_DCH1 + DT_CH[i])   /* (still on HOME, another channel's: no dive) */
+                    zoom.home = ZH_NONE;
+            }
             if (DCH_PAGE(ui.page) && ui.page != PG_DCH1 + DT_CH[i])   /* (a Channel page: its channel's) */
                 page_go(PG_DCH1 + DT_CH[i]);
         }
@@ -3724,12 +3741,12 @@ static void input(void)
         } else if (!(keys & bit) && (ui.keys & bit)) {
             ui.prs[k] = 0;
             fifo_put(&keyq, (uint32_t)note);  /* (LOCAL turned off while it was held: still let go) */
-            key_send(0x80u, (uint32_t)note, 0, ui.och[k]);
-            ui.och[k] = 0;
+            key_send(0x80u, ui.dno[k] ? ui.dno[k] : (uint32_t)note, 0, ui.och[k]);
+            ui.och[k] = ui.dno[k] = 0;
         } else if ((keys & bit) && touch_pressure(k) != ui.prs[k]) {   /* pressure: poly aftertouch */
             ui.prs[k] = touch_pressure(k);
             ui.redraw = 1;
-            if (set.at_out)
+            if (set.at_out && !ui.dno[k])
                 key_send(0xA0u, (uint32_t)note, ui.prs[k], ui.och[k]);
         }
     }

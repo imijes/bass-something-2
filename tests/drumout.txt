@@ -1,0 +1,178 @@
+# Drum Something's MIDI out, on GLO DRUMS' channel: its keys and its patterns' hits on the 400's note map (Bass 36, Rim 37,
+# Snare 38, Claps 39, Tom 1 41, Closed Hat 42, Tom 2 45, Open Hat 46, Crash 49, Ride 51, Tambourine 54, Cowbell 56,
+# Cabasa 58), an accent at velocity 120 up; MIDI in's not sent back. tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/drumout.txt bs2/build/host
+wait 600
+press HOME
+wait 1100
+release HOME
+wait 2000
+expect drum 1
+expect dchan 10
+out
+# each key, Bass .. Cabasa, Note On and Off on channel 10 (the simulated keys' readings give 100 or 101 for velocity 100)
+tapkey w4 100
+expect_out USB 99 24 64
+expect_out USB 89 24 00
+expect_no_out USB 99 35 64
+tapkey w5 100
+expect_out USB 99 26 64
+tapkey w6 100
+expect_out USB 99 25 64
+tapkey w7 100
+expect_out USB 99 29 64
+tapkey w8 100
+expect_out USB 99 2D 64
+tapkey w9 100
+expect_out USB 99 31 64
+tapkey w10 100
+expect_out USB 99 33 64
+tapkey w11 100
+expect_out USB 99 2A 64
+tapkey w12 100
+expect_out USB 99 2E 65
+tapkey w13 100
+expect_out USB 99 27 65
+tapkey w14 100
+expect_out USB 99 36 65
+tapkey b10 100
+expect_out USB 99 38 65
+tapkey w15 100
+expect_out USB 99 3A 65
+out
+# held: the Note Off at the release, even when the channel's moved
+tap GLO
+wait 30
+expect page 24
+key w4 down 90
+wait 30
+expect_out USB 99 24 5A
+expect_no_out USB 89 24 00
+turn K4 -1
+wait 30
+expect dchan 9
+key w4 up
+wait 30
+expect_out USB 89 24 00
+out
+turn K4 1
+wait 30
+expect dchan 10
+tap HOME
+wait 30
+expect page 25
+# no key goes above 119 unaccented, ACCENT held: 120 up, as they'd come back
+tapkey w4 127
+expect_out USB 99 24 77
+key b0 down 100
+wait 30
+tapkey w4 60
+expect_out USB 99 24 78
+tapkey w4 125
+expect_out USB 99 24 7D
+key b0 up
+wait 30
+# ACCENT's own key sends nothing
+out
+key b0 down 100
+wait 30
+expect_no_out USB 99 36 64
+key b0 up
+out
+# MIDI in plays the drum, isn't sent back
+midi 99 26 64
+wait 30
+expect_no_out USB 99 26 64
+out
+# OFF: no notes out; ALL: on channel 1, as the synth's
+tap GLO
+wait 30
+spin K4 -10
+wait 30
+expect dchan 0
+out
+tap HOME
+wait 30
+tapkey w4 100
+expect_no_out USB 99 24 64
+expect_no_out USB 90 24 64
+out
+tap GLO
+wait 30
+spin K4 17
+wait 30
+expect dchan 17
+tap HOME
+wait 30
+tapkey w4 100
+expect_out USB 90 24 64
+out
+tap GLO
+wait 30
+spin K4 -7
+wait 30
+expect dchan 10
+tap HOME
+wait 30
+# a pattern: recorded, each pass its hits out with a short Note Off; none extra in the pass it's played
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+tap OCT+
+expect dt_tempo 120
+tap REC
+wait 30
+tap PLAY
+wait 200
+out
+tapkey w5 100
+expect_out USB 99 26 64
+out
+key b0 down 100
+wait 30
+tapkey w9 100
+tapkey w4 100
+key b0 up
+expect_out USB 99 31 78
+expect_out USB 99 24 78
+tap REC
+wait 1500
+out
+wait 100
+# next pass: the snare at full volume 119, the bass accented 127, the crash accented at its Volume of 10 (115), their Note Offs
+wait 1900
+expect_out USB 99 26 77
+expect_out USB 89 26 00
+expect_out USB 99 24 7F
+expect_out USB 89 24 00
+expect_out USB 99 31 73
+expect_out USB 89 31 00
+out
+wait 1900
+tap PLAY
+wait 200
+expect dt_run 0
+out
+wait 500
+expect_no_out USB 99 26 77
+# OFF: the pattern's not sent
+tap GLO
+wait 30
+spin K4 -10
+wait 30
+expect dchan 0
+tap HOME
+wait 30
+tap PLAY
+wait 2200
+expect dt_run 1
+expect_no_out USB 99 26 77
+expect_no_out USB 89 26 00
+tap PLAY
+wait 30
