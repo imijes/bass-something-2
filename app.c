@@ -1534,6 +1534,9 @@ static struct {
                                           * they stopped its arp, to come back with them */
     uint8_t dt_was;                      /* it was running (its stopping seen: the list back at its number) */
     uint8_t dt_show;                     /* DTS_*: what the header shows for a moment, till dt_until */
+    uint32_t btn_in;                     /* the buttons held now, as a press is handled (btn: ui.btn's until it's done) */
+    uint16_t dt_oct_tempo;               /* the tempo before an OCT's step, and whether that was unsaved: both OCTs put them back */
+    uint8_t dt_oct_dirty;
     uint32_t dt_until;
     uint32_t dt_mid;                     /* the keys at the lights' middle level (a channel's others) */
     uint32_t dt_slide_at;                /* a Channel page's header sliding in since (0: in place) */
@@ -2361,6 +2364,13 @@ static int dt_knob_wide(uint32_t k)
     if (k == EN_ALGO)
         return f != DTF_ERROR && f != DTF_SWING && f != DTF_TIME && f != DTF_BVOL && (f != DTF_BTEMPO || !ui.dt_step);
     return 0;
+}
+#define DT_BOTH_OCT (1u << B_OCTDN | 1u << B_OCTUP)
+/* the pool's % free, as the 400's left display has it: two digits, so 99 at most (its manual's table starts at 99%) */
+static uint32_t dt_mem_free(void)
+{
+    const uint32_t f = (DQ_HITS - dqm.used) * 100u / DQ_HITS;
+    return f > 99u ? 99u : f;
 }
 static void dt_tempo_step(int32_t e)         /* the manual's tempos, a step a click (MIDI clock's while it leads) */
 {
@@ -3275,7 +3285,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
                                       "Octave up"};
     static const char *const DH[NB] = {[B_SEL] = "Enter", [B_EDIT] = "Each drum's channel", [B_GLO] = "Settings; hold: RND", [B_HOME] = "The whole panel",
                                        [B_ARP] = "Songs; again: next", [B_SEQ] = "Patterns; again: next", [B_PLAY] = "Run or stop", [B_SAVE] = "Save the drums",
-                                       [B_REC] = "Rec on/off; hold: Erase", [B_FX] = "Mods; again: info", [B_ENV] = "Pattern length", [B_OCTDN] = "Slower", [B_OCTUP] = "Faster"};
+                                       [B_REC] = "Rec on/off; hold: Erase", [B_FX] = "Mods; again: info", [B_ENV] = "Pattern length", [B_OCTDN] = "Slower Tempo", [B_OCTUP] = "Faster Tempo"};
     const int rec = seq_rec && ui.page == PG_SEQ;
     if (k == B_HOME && ui.page == (ui.drum ? PG_DHOME : PG_HOME))   /* (on it: the other mode, mode_switch) */
         return ui.drum ? "HOME tap: Bass Something 2" : "HOME tap: Drum Something";
@@ -3675,6 +3685,21 @@ static void dt_button(uint32_t k)
         break;
     case B_OCTDN:                            /* TEMPO, SLOWER and FASTER (the one clock's, MIDI's while it leads) */
     case B_OCTUP:
+        if (!dq.run && (ui.btn_in & DT_BOTH_OCT) == DT_BOTH_OCT) {   /* both, stopped: the 400's INC + DEC, % memory remaining
+                                              * on the left display while held; the first one's step undone */
+            static char t[20];
+            if (ui.btn >> (k == B_OCTUP ? B_OCTDN : B_OCTUP) & 1u) {
+                dt.tempo = ui.dt_oct_tempo;
+                dq.dirty = ui.dt_oct_dirty;
+            }
+            ui.dt_show = DTS_NONE;
+            t[0] = 0;
+            int_text((int32_t)dt_mem_free(), t), text_cat(t, "% memory free");
+            dt_refuse(t);
+            break;
+        }
+        ui.dt_oct_tempo = dt.tempo;
+        ui.dt_oct_dirty = dq.dirty;
         dt_tempo_step(k == B_OCTUP ? 1 : -1);
         break;
     case B_FX:                               /* the mods, then the plates with more to read */
@@ -3782,6 +3807,7 @@ static void input(void)
                 key_send(0xA0u, (uint32_t)note, ui.prs[k], ui.och[k]);
         }
     }
+    ui.btn_in = btn;
     for (k = 0; k < NB; k++) {               /* a button pressed: its name, and what it does here */
         uint32_t bit = 1u << k;
         if (!(btn & bit) || (ui.btn & bit))
@@ -6073,6 +6099,10 @@ static void dt_digits(char *l, char *r)
     const int32_t t = arp_tempo();
     l[0] = l[1] = r[0] = r[1] = ' ';
     l[2] = r[2] = 0;
+    if (!dq.run && (ui.btn & DT_BOTH_OCT) == DT_BOTH_OCT) {
+        dt_two(l, dt_mem_free());
+        return;
+    }
     if (dq.full) {                           /* (blinking on the 400) */
         if (plat_ms() / 300u % 2u) {
             l[0] = 'F', l[1] = 'U', r[0] = 'L', r[1] = 'L';
@@ -6538,7 +6568,7 @@ static void dpinfo_draw(void)
     int_text(p->n, t);
     dinfo_line(99, "HITS", t);
     t[0] = 0;
-    int_text((int32_t)((DQ_HITS - dqm.used) * 100u / DQ_HITS), n), text_cat(t, n), text_cat(t, "%");
+    int_text((int32_t)dt_mem_free(), n), text_cat(t, n), text_cat(t, "%");
     dinfo_line(110, "MEMORY FREE", t);
 }
 static void dsinfo_draw(void)
@@ -7485,7 +7515,11 @@ int app_expect(const char *what, int *got)
         *got = dqm.pat[ui.dt_pat].n;
     else if (!strcmp(what, "dt_len"))
         *got = (int)dqm.pat[ui.dt_pat].len;
-    else if (!strcmp(what, "dt_used"))
+    else if (!strcmp(what, "dt_left")) {     /* the left display's number (-1: blank or letters) */
+        char l[3], r[3];
+        dt_digits(l, r);
+        *got = l[0] >= '0' && l[0] <= '9' && l[1] >= '0' && l[1] <= '9' ? (l[0] - '0') * 10 + l[1] - '0' : -1;
+    } else if (!strcmp(what, "dt_used"))
         *got = dqm.used;
     else if (!strcmp(what, "dt_clicks"))
         *got = (int)dq_clicks;

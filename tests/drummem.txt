@@ -1,0 +1,154 @@
+# Drum Something's memory remaining: both OCTs held, stopped: the % free on the left display (the 400's INC + DEC), the
+# tempo as it was; one OCT still a tempo's step. tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/drummem.txt bs2/build/host
+wait 600
+press HOME
+wait 1100
+release HOME
+wait 2000
+expect drum 1
+expect dt_tempo 100
+expect dt_left -1
+# empty: 99, two digits' worth; the first OCT's step undone, SAVE's light with it
+press OCT-
+wait 30
+expect dt_tempo 98
+press OCT+
+wait 30
+expect dt_tempo 100
+expect dt_left 99
+wait 3000
+expect dt_left 99
+release OCT+
+wait 30
+expect dt_left -1
+release OCT-
+wait 3000
+expect dt_left -1
+expect dt_tempo 100
+# the other way round
+press OCT+
+wait 30
+expect dt_tempo 102
+press OCT-
+wait 30
+expect dt_tempo 100
+expect dt_left 99
+release OCT-
+release OCT+
+wait 3000
+# one still a step
+tap OCT+
+expect dt_tempo 102
+tap OCT-
+expect dt_tempo 100
+wait 3000
+# 41 hits of 4,000 used: 98 free
+tap REC
+wait 30
+tap PLAY
+wait 30
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w4 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+tapkey w5 100
+wait 10
+expect dt_used 41
+# running: no reading (the 400's: stopped), the tempo a step down and a step up
+press OCT-
+press OCT+
+wait 30
+expect dt_tempo 100
+expect dt_left -1
+release OCT-
+release OCT+
+tap REC
+wait 30
+tap PLAY
+wait 3000
+expect dt_run 0
+press OCT-
+press OCT+
+wait 30
+expect dt_left 98
+release OCT-
+release OCT+
+wait 30
+expect dt_left -1
