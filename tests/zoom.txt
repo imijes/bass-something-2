@@ -124,6 +124,23 @@ expect page 16
 wait 800
 expect page 16
 expect zoom 0
+# HOME's K2: the arp's Rhythm, the same way, to its knob on the ARP page
+turn K2 1
+wait 100
+expect page 16
+expect zoom >0
+wait 500
+expect page 6
+expect zoom 256
+said RHYTHM
+turn K2 1
+wait 900
+expect page 6
+wait 400
+expect page 16
+wait 800
+expect page 16
+expect zoom 0
 # a section's button on HOME: the camera in on its section, then its page; a press or a knob on the way: there at once
 tap EDIT
 wait 100
@@ -263,6 +280,10 @@ wait 300
 expect page 16
 expect zoom 0
 turn K3 1
+wait 300
+expect page 16
+expect zoom 0
+turn K2 1
 wait 300
 expect page 16
 expect zoom 0

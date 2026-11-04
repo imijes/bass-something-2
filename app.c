@@ -3180,24 +3180,26 @@ static uint32_t notes_lit(uint32_t *below, uint32_t *above)
  * a mode (ARP or SEQ: AFX on or off; GLO: the RND pages, held again the GLOBAL ones; REC: a random sound). The hold
  * acts while still held, its release then nothing */
 #define HOLD_MS 1000u
-/* HOME's K3 and K4: the FILTERS' Resonance and Frequency, from HOME and on its way to that page and back: Knob Zoom's
- * dive, as for the knob's CC (zoom_cc_in); no zoom (KNOB ZOOM OFF): HOME's own knob moves. The drums' HOME: the selected
- * drum's Volume and Tuning, the dive to its Channel page (zoom_dt_cc); no zoom: as on their other pages */
+/* HOME's K2: the ARP's Rhythm; K3 and K4: the FILTERS' Resonance and Frequency; from HOME and on its way to that page
+ * and back: Knob Zoom's dive, as for the knob's CC (zoom_cc_in); no zoom (KNOB ZOOM OFF): HOME's own knob moves. The
+ * drums' HOME: K3 and K4, the selected drum's Volume and Tuning, the dive to its Channel page (zoom_dt_cc); no zoom: as
+ * on their other pages */
+#define HOME_KNOB_PAGE(p) ((p) == EN_K2 ? PG_ARP : PG_TUNE)
 static int home_knob(uint32_t p)
 {
-    if (p != EN_K3 && p != EN_K4)
+    if (p != EN_K3 && p != EN_K4 && (ui.drum || p != EN_K2))
         return 0;
     if (ui.drum)
         return !set.zoom_off
                && (ui.page == PG_DHOME || (zoom.home && zoom.hp == PG_DHOME && DCH_PAGE(zoom.g) && zoom.ke == p));
-    return ui.page == PG_HOME || (zoom.home && zoom.hp == PG_HOME && zoom.g == PG_TUNE && zoom.ke == p);
+    return ui.page == PG_HOME || (zoom.home && zoom.hp == PG_HOME && zoom.g == HOME_KNOB_PAGE(p) && zoom.ke == p);
 }
 static void home_knob_turn(uint32_t p, int32_t e)
 {
     const uint8_t pg = ui.page;
     char t[12];
     if (!ui.drum)
-        ui.page = PG_TUNE;
+        ui.page = HOME_KNOB_PAGE(p);
     knob_turn(p, e);
     knob_text(p, t);
     app_say(knob_title(p), t);
@@ -3205,7 +3207,7 @@ static void home_knob_turn(uint32_t p, int32_t e)
     if (ui.drum)
         zoom_dt_cc((p == EN_K3 ? DT_CC_VOL : DT_CC_TUNE) + ui.dt_sel);
     else if (!set.zoom_off)
-        zoom_cc_in(&PARAMS[PG_TUNE][p]);
+        zoom_cc_in(&PARAMS[HOME_KNOB_PAGE(p)][p]);
     ui.redraw = 1;
 }
 

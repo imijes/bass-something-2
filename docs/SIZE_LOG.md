@@ -132,3 +132,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-03 | abc85be+ | Drums: memory remaining on both OCTs | 505,172 | +288 | 76,392 | 78,388 | +32 | 19,916 | 161,848 |
 | 2026-11-03 | abc85be+ | HOME from a section page: the zoom in reversed | 505,428 | +256 | 76,136 | 78,388 | +0 | 19,916 | 161,848 |
 | 2026-11-03 | 57f94c3+ | Drums +12 dB in the mix; a soft knee at full scale | 505,876 | +448 | 75,688 | 78,388 | +0 | 19,916 | 161,848 |
+| 2026-11-03 | 57f94c3+ | HOME's K2: the arp's Rhythm, with the zoom | 505,988 | +112 | 75,576 | 78,388 | +0 | 19,916 | 161,848 |

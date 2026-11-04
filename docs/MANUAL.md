@@ -525,8 +525,8 @@ the synth's wave as it plays (two of its periods, standing still while a note is
 large as a loud one; a flat line in silence), and under them a Bass Station II's whole front panel, drawn to the scale of the keys
 at the foot of the screen (they stand for its keys and its wheels together). Every knob, fader, switch and LED on it
 shows the sound as it is set, and follows it as you change it on the other pages. PRESET picks the patch here, as on
-MASTER. K3 sets the filter's Resonance and K4 its Frequency: the panel zooms in to that knob on the FILTERS page as you
-turn it, and back out to HOME a second after you stop. A section's button (SEL, ENV, LFO, FX, ARP, SEQ or EDIT) zooms in on that section of the
+MASTER. K2 sets the arp's Rhythm, K3 the filter's Resonance and K4 its Frequency: the panel zooms in to that knob on its
+page (ARP or FILTERS) as you turn it, and back out to HOME a second after you stop. A section's button (SEL, ENV, LFO, FX, ARP, SEQ or EDIT) zooms in on that section of the
 panel and opens its page; any button or knob on the way gets you there at once. HOME on that page does the reverse: the
 panel appears up close on the section and zooms back out. GLOBAL DISPLAY's KNOB ZOOM OFF makes both changes straight away.
 
