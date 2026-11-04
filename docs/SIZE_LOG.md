@@ -130,3 +130,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-03 | 6845213+ | Drum MIDI out: keys and patterns on the 400's note map | 501,088 | +1,280 | 80,476 | 77,780 | +32 | 20,524 | 158,000 |
 | 2026-11-03 | 5ec7c5f+ | Backup and restore over USB (fm1-base's) | 504,884 | +3,796 | 76,680 | 78,356 | +576 | 19,948 | 161,840 |
 | 2026-11-03 | abc85be+ | Drums: memory remaining on both OCTs | 505,172 | +288 | 76,392 | 78,388 | +32 | 19,916 | 161,848 |
+| 2026-11-03 | abc85be+ | HOME from a section page: the zoom in reversed | 505,428 | +256 | 76,136 | 78,388 | +0 | 19,916 | 161,848 |

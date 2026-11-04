@@ -168,6 +168,65 @@ wait 30
 expect page 17
 tap HOME
 wait 1500
+# HOME from a section's page: the way in backwards, HOME at once, up close, the camera out; a press or a knob: done at once
+tap EDIT
+wait 1500
+expect page 0
+tap HOME
+wait 30
+expect page 16
+expect zoom >0
+wait 800
+expect page 16
+expect zoom 0
+tap ENV
+wait 1500
+expect page 8
+tap HOME
+wait 30
+expect zoom >0
+turn K1 1
+wait 1500
+expect zoom 0
+# a knob just turned on its page: not the camera on HOME as it lands
+tap ENV
+wait 1500
+turn K1 1
+wait 30
+expect zoom >0
+tap HOME
+wait 800
+expect page 16
+expect zoom 0
+tap LFO
+wait 1500
+tap HOME
+wait 30
+expect zoom >0
+tap ARP
+wait 30
+expect page 16
+wait 500
+expect page 6
+# from GLO: no section, at once
+tap GLO
+wait 30
+tap HOME
+wait 30
+expect page 16
+expect zoom 0
+wait 1500
+# on a CC's dive, its page up: back along the path, sooner than the CCs' end
+midi B2 10 20
+wait 500
+expect page 10
+tap HOME
+wait 30
+expect page 10
+wait 800
+expect page 16
+expect zoom 0
+wait 1000
 # a CC on another page: no zoom
 tap EDIT
 wait 1500
@@ -212,6 +271,8 @@ wait 30
 expect page 8
 tap HOME
 wait 30
+expect page 16
+expect zoom 0
 tap GLO
 tap GLO
 tap GLO
@@ -224,3 +285,45 @@ turn PRESET -1
 wait 30
 expect zoom_off 0
 said KNOB ZOOM AUTO
+# the drums: HOME from a Channel page and SEQ's, the same; from the mods' plate (no way in), at once
+tap HOME
+wait 1500
+tap HOME
+wait 1500
+expect drum 1
+expect page 25
+tap EDIT
+wait 1500
+expect page 26
+tap HOME
+wait 30
+expect page 25
+expect zoom >0
+wait 800
+expect zoom 0
+tap SEQ
+wait 1500
+expect page 33
+tap HOME
+wait 30
+expect page 25
+expect zoom >0
+wait 800
+expect zoom 0
+tap FX
+wait 30
+expect page 32
+tap HOME
+wait 30
+expect page 25
+expect zoom 0
+wait 1500
+# a key as it comes out: the camera goes on out
+tap EDIT
+wait 1500
+tap HOME
+wait 30
+tapkey w4 100
+wait 800
+expect page 25
+expect zoom 0

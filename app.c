@@ -1548,8 +1548,8 @@ static struct {
 #define DFN_ZOOM_MS 2200u                    /* the camera on a drum function just picked (SEQ, ARP) */
 #define ZOOM_IN_MS 64u                       /* the damping's time constants */
 #define ZOOM_OUT_MS 96u
-enum { ZH_NONE, ZH_DIVE, ZH_PAGE, ZH_RISE, ZH_OPEN };   /* zoom.home: a CC on HOME (zoom_cc_in): the camera going in, on its
-                                                * section page, coming out */
+enum { ZH_NONE, ZH_DIVE, ZH_PAGE, ZH_RISE, ZH_OPEN, ZH_CLOSE };   /* zoom.home: a CC on HOME (zoom_cc_in): the camera going in, on its
+                                                * section page, coming out; a section's button in (sect_open, dt_open), HOME's out (home_back) */
 #define ZOOM_DIVE_MS 450u                    /* HOME's dive, the whole way in (and out: ZOOM_RISE_MS) */
 #define ZOOM_RISE_MS 550u
 static struct {                             /* (all 0 at rest: in the pool) */
@@ -2808,6 +2808,14 @@ static uint32_t pop_until(void)              /* a pop-up shown now: until (0: no
     const uint32_t d = pop_d();
     return d == NPOP - 1u ? POP_ALWAYS : d ? (plat_ms() + MS[d]) | 1u : 0u;
 }
+static void zoom_close_end(void)             /* (HOME's way back: over, a press or a knob's) */
+{
+    if (zoom.home == ZH_CLOSE) {
+        zoom.home = ZH_NONE;
+        zoom.z = 0;
+        ui.redraw = 1;
+    }
+}
 static void page_go(uint32_t g)
 {
     char t[4];
@@ -3333,6 +3341,7 @@ static void hint_show(uint32_t k)            /* Hints: button k's, from the page
 }
 
 static void dt_button(uint32_t k);
+static void home_back(void);
 static void dt_rec_tap(void);
 static void dt_rec_erase(void);
 /* TRANSPORT (DRUM MODS, on by default): the drums' run and stop reach the bass as MIDI's start and stop would: it plays its
@@ -3377,7 +3386,7 @@ static void hold_tap(uint32_t k)
     else if (k == B_HOME && ui.page == (ui.drum ? PG_DHOME : PG_HOME))   /* HOME on it: the other mode's */
         mode_switch();
     else if (k == B_HOME)                         /* HOME: the whole panel (the first page), the mode's */
-        page_go(ui.drum ? PG_DHOME : PG_HOME);
+        home_back();
     else if (k == B_REC && ui.page != PG_GMIDI)   /* recording, on any page (GLO MIDI's: a Bluetooth device) */
         rec_toggle();
     else if (k == B_REC && FM1B_BLE_CENTRAL && !set.ble_off)
@@ -3430,7 +3439,7 @@ static void dt_key(uint32_t k, uint32_t v, uint32_t keys)
                 }
             }
             ui.dt_sel = (uint8_t)i;          /* (tapped: VOLUME and TUNING are its now) */
-            if (zoom.home && zoom.home != ZH_OPEN && zoom.hp == PG_DHOME) {   /* (on a dive: the tap's, there and back) */
+            if (zoom.home && zoom.home != ZH_OPEN && zoom.home != ZH_CLOSE && zoom.hp == PG_DHOME) {   /* (on a dive: the tap's, there and back) */
                 zoom.dnew = zoom.dsv = (uint8_t)i;
                 if (ui.page == PG_DHOME && zoom.g != PG_DCH1 + DT_CH[i])   /* (still on HOME, another channel's: no dive) */
                     zoom.home = ZH_NONE;
@@ -3818,6 +3827,7 @@ static void input(void)
             zoom.z = 0;
             page_go(zoom.g);
         }
+        zoom_close_end();
         hint_show(k);                        /* (Hints: what it does, from the page it's pressed on) */
         if (ui.drum && k != B_HOME && k != B_REC && k != B_GLO
             && !(RND_PAGE(ui.page) && (k == B_SEL || k == B_FX || k == B_SAVE)))   /* (the RND pages keep their own) */
@@ -3921,6 +3931,7 @@ static void input(void)
             zoom.z = 0;
             page_go(zoom.g);
         }
+        zoom_close_end();
         if (home_knob(k)) {
             home_knob_turn(k, e);
             continue;
@@ -4248,6 +4259,7 @@ static void zoom_page(void)                  /* the CC's page up, its control as
 }
 static void zoom_keep(uint32_t home)         /* a dive from this HOME about to start: its views, for the way back */
 {
+    zoom_close_end();
     if (zoom.home)
         return;
     zoom.sv[0] = ui.osc_sel, zoom.sv[1] = ui.env_sel, zoom.sv[2] = ui.mix_src, zoom.sv[3] = ui.pw_src,
@@ -4290,12 +4302,18 @@ static int zoom_step(uint32_t now)           /* a frame: 1 when the camera moved
                     && (fn || (zoom.k == ui.last_enc + 1u && last && now - last < ZOOM_HOLD_MS));
     const int16_t z = zoom.z, x = zoom.x, y = zoom.y;
     zoom.at = now;
-    if (zoom.home == ZH_OPEN) {              /* (a section's button on the drums' HOME: in on its box, its page at the end) */
-        const float u = fm_clampf(zoom.u + (float)dt / ZOOM_DIVE_MS, 0.0f, 1.0f);
+    if (zoom.home == ZH_OPEN || zoom.home == ZH_CLOSE) {   /* (a section's button on HOME: in on its box, its page at the
+                                              * end; HOME from that page: on its box, out) */
+        const int in = zoom.home == ZH_OPEN;
+        const float u = fm_clampf(zoom.u + (in ? (float)dt / ZOOM_DIVE_MS : -(float)dt / ZOOM_RISE_MS), 0.0f, 1.0f);
         zoom.u = u;
         zoom.x = zoom.hx, zoom.y = zoom.hy, zoom.pg = ui.page;
         zoom.z = (int16_t)(256.0f * fm_exp2f(u * u * (3.0f - 2.0f * u) * zoom.lc) - 255.5f);
-        if (u >= 1.0f) {
+        if (!in && u <= 0.0f) {
+            zoom.home = ZH_NONE;
+            zoom.z = 0;
+            ui.map_until = pop_until();
+        } else if (in && u >= 1.0f) {
             zoom.z = 0;
             page_go(zoom.g);
             if (DCH_PAGE(zoom.g)) {          /* (its header slides in: the map after it) */
@@ -6611,27 +6629,55 @@ static void dsinfo_draw(void)
         }
     }
 }
-/* a section's button: its page, the camera going in on its box if from the drums' HOME */
-static void dt_open(uint32_t g)
+static void dt_box(uint32_t g)                /* page g's box on the drums' HOME: what its page shows, to its scale: the cut hardly seen */
 {
-    const int song = g == PG_DSONG;
-    if (set.zoom_off || ui.page != PG_DHOME || zoom.home) {
-        page_go(g);
-        return;
-    }
-    zoom_keep(PG_DHOME);                     /* (in on what its page shows, to its scale: the cut hardly seen) */
     if (g >= PG_DCH1 && g <= PG_DCH6) {      /* (a Channel page: PER INSTRUMENT and that channel, the lower row) */
         zoom.hx = 56;                        /* (so HOME's lower row lands on the page's, at 2.3x: PER INSTRUMENT and CH 1 exact) */
         zoom.hy = 127;
     } else {
-        zoom.hx = (int16_t)dt_px(song ? 591 : 904);
+        zoom.hx = (int16_t)dt_px(g == PG_DSONG ? 591 : 904);
         zoom.hy = (int16_t)dt_py(203);
     }
     zoom.lc = 1.2f;
+}
+/* a section's button: its page, the camera going in on its box if from the drums' HOME */
+static void dt_open(uint32_t g)
+{
+    if (set.zoom_off || ui.page != PG_DHOME || zoom.home) {
+        page_go(g);
+        return;
+    }
+    zoom_keep(PG_DHOME);
+    dt_box(g);
     zoom.g = (uint8_t)g;
     zoom.u = 0.0f;
     zoom.home = ZH_OPEN;
     ui.redraw = 1;
+}
+/* HOME from another page: from a section's, its button's way in backwards: HOME up close on the section, the camera out
+ * to the whole panel; a dive's, back along its path; the rest (GLO's, the drums' plates: no way in) at once */
+static void home_back(void)
+{
+    const uint32_t g = ui.page, h = ui.drum ? PG_DHOME : PG_HOME;
+    ui.turned_at[ui.last_enc] = 0;           /* (a knob just turned, a function just picked: not on HOME as it lands) */
+    zoom.fn_at = 0;
+    if (zoom.home == ZH_DIVE || zoom.home == ZH_PAGE || zoom.home == ZH_RISE) {
+        zoom.home = ZH_RISE;
+        return;
+    }
+    if (set.zoom_off || !(ui.drum ? DCH_PAGE(g) || g == PG_DPAT || g == PG_DSONG : PAGE_SEC[g] != SEC_GLO)) {
+        page_go(h);
+        return;
+    }
+    if (ui.drum)
+        dt_box(g);
+    else
+        home_sect(g, &zoom.hx, &zoom.hy, &zoom.lc);
+    zoom_keep(h);
+    page_go(h);
+    zoom.u = 1.0f;
+    zoom.home = ZH_CLOSE;
+    ui.map_until = 0;                        /* (its controls' map: as it lands) */
 }
 /* DRUM MODS: what the 400 hasn't, on a plate as the synth's mods (one so far) */
 static void dmod_draw(void)

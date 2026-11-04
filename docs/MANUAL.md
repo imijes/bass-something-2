@@ -527,8 +527,8 @@ at the foot of the screen (they stand for its keys and its wheels together). Eve
 shows the sound as it is set, and follows it as you change it on the other pages. PRESET picks the patch here, as on
 MASTER. K3 sets the filter's Resonance and K4 its Frequency: the panel zooms in to that knob on the FILTERS page as you
 turn it, and back out to HOME a second after you stop. A section's button (SEL, ENV, LFO, FX, ARP, SEQ or EDIT) zooms in on that section of the
-panel and opens its page; any button or knob on the way gets you there at once. GLOBAL DISPLAY's KNOB ZOOM OFF opens the
-page straight away.
+panel and opens its page; any button or knob on the way gets you there at once. HOME on that page does the reverse: the
+panel appears up close on the section and zooms back out. GLOBAL DISPLAY's KNOB ZOOM OFF makes both changes straight away.
 
 The MASTER page (SEL) is the Bass Station II's Master section: the Volume
 (the FM-1's MASTER knob, as it's set), the display with the patch in red, its dot lit while there are changes not
