@@ -327,7 +327,7 @@ tap OCT-
 wait 30
 expect dt_tempo 118
 expect tempo 120
-# DRUM MODS (FX): Swing Lock, off by default: the swings independent
+# DRUM MODS (FX): Swing Lock (K3), off by default: the swings independent
 tap FX
 wait 30
 expect page 32
@@ -337,11 +337,11 @@ wait 100
 expect dt_run 1
 expect dt_lock 0
 # on: the bass's 16ths on the running pattern's swing (58 %: a first 8th of 13.92 ticks); off again: independent
-turn SELECT 1
+turn K3 1
 wait 50
 expect dswing_lock 1
 expect dt_lock 1392
-turn SELECT -1
+turn K3 -1
 wait 50
 expect dswing_lock 0
 expect dt_lock 0
@@ -416,7 +416,7 @@ expect rpos 8
 expect tempo 120
 tap FX
 wait 30
-turn SELECT 1
+turn K3 1
 wait 30
 tap PLAY
 wait 50
@@ -430,7 +430,7 @@ wait 1900
 expect bass_on_drums 1
 wait 3100
 expect bass_on_drums 1
-# the swing changed as it plays: the same curve still (from HOME: ALGO on the mods' plate is TRANSPORT)
+# the swing changed as it plays: the same curve still
 tap HOME
 wait 30
 tap SEQ
@@ -450,9 +450,20 @@ wait 50
 expect dt_lock 0
 tap FX
 wait 30
-turn SELECT -1
+turn K3 -1
 wait 30
 expect dswing_lock 0
+# SELECT and ALGO leave them alone there: as on the drums' other pages
+turn SELECT 1
+wait 30
+expect dswing_lock 0
+turn SELECT -1
+wait 30
+turn ALGO -1
+wait 30
+expect dtrans_off 0
+turn ALGO 1
+wait 30
 tap HOME
 wait 30
 midi 80 30 00
@@ -538,7 +549,7 @@ expect dt_fn 1
 tap REC
 wait 30
 expect dt_fn 0
-# TRANSPORT (DRUM MODS, ALGO): on by default: the drums' run and stop start and stop the bass's sequence, its arp mode as it
+# TRANSPORT (DRUM MODS, K4): on by default: the drums' run and stop start and stop the bass's sequence, its arp mode as it
 # was after; off: each its own
 expect dtrans_off 0
 expect arp_on 0
@@ -558,7 +569,7 @@ expect arp_on 0
 expect bass_src 0
 tap FX
 wait 30
-turn ALGO -1
+turn K4 -1
 wait 30
 expect dtrans_off 1
 tap PLAY
@@ -568,7 +579,7 @@ expect arp_on 0
 expect bass_src 0
 tap PLAY
 wait 100
-turn ALGO 1
+turn K4 1
 wait 30
 expect dtrans_off 0
 tap HOME

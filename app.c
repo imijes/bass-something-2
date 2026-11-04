@@ -1827,8 +1827,8 @@ static const param_t PARAMS[NPAGES][NE] = {
     /* (K1 turned and shown as pop_d's: knob_turn, knob_text) */
     [PG_GDRUM] = {[EN_SELECT] = {"CC CHAN", SF(dcc_chan), CH_OFF, CH_ALL, CHAN_NAME},
                   [EN_K1] = {"CHANNEL", SF(dchan), CH_OFF, CH_ALL, CHAN_NAME}},
-    [PG_DMOD] = {[EN_SELECT] = {"SWING LOCK", SF(dswing_lock), 0, 1, OFF_ON},
-                 [EN_ALGO] = {"TRANSPORT", SF(dtrans_off), 0, 1, ON_OFF}},
+    [PG_DMOD] = {[EN_K3] = {"SWING LOCK", SF(dswing_lock), 0, 1, OFF_ON},
+                 [EN_K4] = {"TRANSPORT", SF(dtrans_off), 0, 1, ON_OFF}},
     [PG_GDISP] = {[EN_PRESET] = {"KNOB ZOOM", SF(zoom_off), 0, 1, AUTO_OFF},
                   [EN_K1] = {"HINTS", SF(hints), 0, 1, OFF_ON}, [EN_K2] = {"POP-UPS", SF(pop), 0, NPOP - 1, 0}},
 };
@@ -2349,12 +2349,10 @@ static int dt_value(uint32_t k, int32_t e)
     return 1;
 }
 /* GLO CONTROLS' KNOBS on the drums' too, by the bass's rule (knob_accel): a control of 48 steps or more speeds up as it's spun; the
- * few-valued (K3, K4, Swing, a beat, Error Correct, the mods) a step a click */
+ * few-valued (K3, K4, Swing, a beat, Error Correct) a step a click */
 static int dt_knob_wide(uint32_t k)
 {
     const uint32_t f = ui.dt_fn;
-    if (ui.page == PG_DMOD && (k == EN_SELECT || k == EN_ALGO))
-        return 0;
     if (k == EN_K1 || k == EN_K2 || k == EN_SELECT)
         return 1;
     if (k == EN_PRESET)
@@ -2373,7 +2371,14 @@ static void dt_tempo_step(int32_t e)         /* the manual's tempos, a step a cl
 }
 static int dt_turn(uint32_t k, int32_t e)
 {
-    if (k == EN_SELECT && ui.page != PG_DMOD) {
+    if (ui.page == PG_DMOD && (k == EN_K3 || k == EN_K4)) {   /* (mods: kept with the settings, glo_keep) */
+        if (k == EN_K3)
+            set.dswing_lock = e > 0;
+        else
+            set.dtrans_off = e < 0;
+        return 1;
+    }
+    if (k == EN_SELECT) {
         dt_tempo_step(e);
         return 1;
     }
@@ -2387,12 +2392,6 @@ static int dt_turn(uint32_t k, int32_t e)
     } else if (k == EN_K4) {
         dt.tune[ui.dt_sel] = (uint8_t)clamp((int32_t)dt.tune[ui.dt_sel] + e, 0, 15);
         dt_show(DTS_TUNE);
-    } else if (ui.page == PG_DMOD && (k == EN_SELECT || k == EN_ALGO)) {   /* (mods: kept with the settings, glo_keep) */
-        if (k == EN_SELECT)
-            set.dswing_lock = e > 0;
-        else
-            set.dtrans_off = e < 0;
-        return 1;
     } else if (k == EN_PRESET || k == EN_ALGO)
         return dt_value(k, e);
     else
@@ -2589,8 +2588,8 @@ static const char *knob_name(uint32_t k)
         return "SEQ";
     if (DRUM_PAGE(ui.page)) {
         static const char *const N[NE] = {[EN_K1] = "METRONOME", "MASTER", "VOLUME", "TUNING"};
-        if (ui.page == PG_DMOD && (k == EN_SELECT || k == EN_ALGO))
-            return k == EN_SELECT ? "SWING LOCK" : "TRANSPORT";
+        if (ui.page == PG_DMOD && (k == EN_K3 || k == EN_K4))
+            return k == EN_K3 ? "SWING LOCK" : "TRANSPORT";
         if (k == EN_SELECT)
             return "TEMPO";
         if (ui.dt_fn >= DTF_BPAT && ui.dt_fn != DTF_BVOL && ui.dt_fn != DTF_BTEMPO && (k == EN_PRESET || ui.dt_fn == DTF_BPAT))
@@ -2678,8 +2677,8 @@ static void knob_text(uint32_t k, char *t)
     int32_t v;
     t[0] = 0;
     if (DRUM_PAGE(ui.page)) {                /* (two digits, as its displays show them; the volumes 0..127) */
-        if (ui.page == PG_DMOD && (k == EN_SELECT || k == EN_ALGO)) {
-            text_cat(t, OFF_ON[k == EN_SELECT ? set.dswing_lock != 0u : !set.dtrans_off]);
+        if (ui.page == PG_DMOD && (k == EN_K3 || k == EN_K4)) {
+            text_cat(t, OFF_ON[k == EN_K3 ? set.dswing_lock != 0u : !set.dtrans_off]);
             return;
         }
         v = k == EN_SELECT ? arp_tempo() : k == EN_K1 ? dt.metro : k == EN_K2 ? dt.master : k == EN_K3 ? dt.vol[ui.dt_sel] : k == EN_K4 ? dt.tune[ui.dt_sel] : -1;
@@ -3177,8 +3176,8 @@ static const char *hint_of(uint32_t k)       /* encoder k's here (as its page's 
     static const char *const MS_H[NMS] = {"Noise level", "Ring mod level", "USB audio level"};
     static const char *const ROW_H[NRR] = {"Track's engine", "Track's level", "Track's reverb"};
     if (DRUM_PAGE(ui.page))
-        return ui.page == PG_DMOD && k == EN_SELECT ? "Bass follows drums' swing"
-               : ui.page == PG_DMOD && k == EN_ALGO ? "Drums start and stop bass" : k == EN_SELECT ? "Tempo" : k == EN_K3 || k == EN_K4 ? DT_NAME[ui.dt_sel] : k == EN_K1 ? "Click level" : k == EN_K2 ? "Drums' level"
+        return ui.page == PG_DMOD && k == EN_K3 ? "Bass follows Drums"
+               : ui.page == PG_DMOD && k == EN_K4 ? "Drums start/stop Bass" : k == EN_SELECT ? "Tempo" : k == EN_K3 || k == EN_K4 ? DT_NAME[ui.dt_sel] : k == EN_K1 ? "Click level" : k == EN_K2 ? "Drums' level"
                : ui.dt_fn == DTF_TIME && k == EN_PRESET ? "Beats in a bar" : ui.dt_fn == DTF_TIME && k == EN_ALGO ? "The note that's a beat"
                : dt_knobs_split() && k == EN_PRESET ? "Pick the step" : ui.dt_fn == DTF_BPAT && k == EN_ALGO ? "Pick the pattern"
                : ui.dt_fn >= DTF_BINS && k == EN_ALGO ? 0
@@ -6557,12 +6556,12 @@ static void dmod_draw(void)
 {
     plate("DRUM SOMETHING");
     dymo(120, 30, "DRUM MODS", RGB(235, 235, 235));
-    bs2_knob(70, 76, 20, set.dswing_lock != 0u, 1, KF_PLATE | (knob_lit(EN_SELECT) ? KF_LIT : 0u));
-    tag(70, 76, EN_SELECT);
+    bs2_knob(70, 76, 20, set.dswing_lock != 0u, 1, KF_PLATE | (knob_lit(EN_K3) ? KF_LIT : 0u));
+    tag(70, 76, EN_K3);
     dymo(70, 101, "SWING LOCK", RGB(235, 235, 235));
     print_c(70, 117, OFF_ON[set.dswing_lock != 0u], grey(36));
-    bs2_knob(170, 76, 20, !set.dtrans_off, 1, KF_PLATE | (knob_lit(EN_ALGO) ? KF_LIT : 0u));
-    tag(170, 76, EN_ALGO);
+    bs2_knob(170, 76, 20, !set.dtrans_off, 1, KF_PLATE | (knob_lit(EN_K4) ? KF_LIT : 0u));
+    tag(170, 76, EN_K4);
     dymo(170, 101, "TRANSPORT", RGB(235, 235, 235));
     print_c(170, 117, OFF_ON[!set.dtrans_off], grey(36));
 }

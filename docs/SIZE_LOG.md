@@ -125,3 +125,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-03 | 342ca90+ | A pan or randomizer effect skipped by a time stamped ahead of the frame's; FILTERS: Mod Env on K2, Resonance on K3 | 499,648 | +16 | 81,916 | 77,748 | +0 | 20,556 | 157,976 |
 | 2026-11-03 | 342ca90+ | HOME's K3: the filter's Resonance, with the zooms | 499,696 | +48 | 81,868 | 77,748 | +0 | 20,556 | 157,976 |
 | 2026-11-03 | 342ca90+ | HOME's ENV zoom on the section's left | 499,712 | +16 | 81,852 | 77,748 | +0 | 20,556 | 157,976 |
+| 2026-11-03 | f5b1147+ | DRUM MODS: Swing Lock on K3, Transport on K4 | 499,664 | -48 | 81,900 | 77,748 | +0 | 20,556 | 157,976 |
