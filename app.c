@@ -29,7 +29,7 @@ typedef struct {
     seqmem_t mem[NSEQ];                  /* the Bass Station II's four sequences: kept with the settings (glo_keep),
                                           * apart from the patches; the arp's OCTAVES in REC and PLAY picks one into
                                           * the patch, recording writes both */
-    uint8_t pad;                         /* (the record before knobs ended in a byte of padding: not read) */
+    uint8_t spk;                         /* SPEAKER (GLO SYS): SPK_*, 0 FLAT (was a byte of padding, stored as 0) */
     uint8_t knobs;                       /* KN_*: how far a knob goes as it turns faster (knob_accel) */
     uint8_t hints;                       /* Hints (GLO DISPLAY): a few words on what each control does, as it's used */
     uint8_t pop;                         /* the pop-ups' time (GLO DISPLAY): pop_d's order, 1.5 s stored as 0 */
@@ -1260,7 +1260,7 @@ static void settings_defaults(settings_t *s)
     s->cc_chan = 1;
     s->knobs = KN_NORMAL;
     s->hints = 1;
-    s->pad = s->pop = s->zoom_off = 0;           /* (pop 0: 1.5 s; zoom_off 0: AUTO) */
+    s->spk = s->pop = s->zoom_off = 0;           /* (spk 0: FLAT; pop 0: 1.5 s; zoom_off 0: AUTO) */
     s->dchan = s->dcc_chan = 10;            /* (the drums: GM's channel) */
     s->dswing_lock = s->dtrans_off = 0;
     {
@@ -1734,6 +1734,13 @@ static const char *const ON_OFF[2] = {"ON", "OFF"};   /* (ble_off) */
 static const char *const CHAN_NAME[CH_ALL + 1] = {"OFF", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11",
                                                   "12", "13", "14", "15", "16", "ALL"};
 static const char *const CLK_NAME[NCLK] = {"AUTO", "INT", "EXT"};
+#include "bs2_spk.c"                      /* what goes to the speaker: the mono sum, BASS+, OFF */
+static const char *const SPK_NAME[NSPK] = {"FLAT", "BASS+", "OFF"};
+void app_speaker(int32_t *lr, uint32_t n, int jack)
+{
+    static spk_t z PLAT_POOL;
+    spk_process(&z, lr, n, set.spk, jack);
+}
 static const char *const VC_NAME[NVC] = {"SOFT", "NORMAL", "HARD"};
 static const char *const KN_NAME[NKN] = {"FINE", "NORMAL", "FAST", "COARSE"};
 static const char *const ARP_NAME[NARPM] = {"UP", "DOWN", "UP/DN", "UP/DN2", "PLAYED", "RANDOM", "PLAY", "REC"};
@@ -1808,6 +1815,7 @@ static const param_t PARAMS[NPAGES][NE] = {
                   [EN_K3] = {"AT OUT", SF(at_out), 0, 1, OFF_ON},
                   [EN_K4] = {"BLE", SF(ble_off), 0, 1, ON_OFF}},
     [PG_GSYS] = {[EN_SELECT] = {"SEND CLK", SF(clk_out), 0, 1, OFF_ON},
+                 [EN_ALGO] = {"SPEAKER", SF(spk), 0, NSPK - 1, SPK_NAME},
                  [EN_K1] = {"TUNE", SF(tune), -50, 50, 0}, [EN_K2] = {"SYNC", SF(clock), 0, NCLK - 1, CLK_NAME},
                  [EN_K3] = {"VELOCITY", SF(vcurve), 0, NVC - 1, VC_NAME},
                  [EN_K4] = {"KNOBS", SF(knobs), 0, NKN - 1, KN_NAME}},
@@ -1886,7 +1894,7 @@ static const char *const TITLE[NPAGES][NE] = {
     [PG_LFO1] = {[EN_SELECT] = "GLIDE TIME", [EN_K1] = "LFO 1 WAVE", [EN_K4] = "LFO 2 WAVE"},
 
     [PG_GMIDI] = {[EN_SELECT] = "CC CHANNEL", [EN_K2] = "LOCAL CONTROL", [EN_K3] = "AFTER TOUCH OUT", [EN_K4] = "BLUETOOTH MIDI"},
-    [PG_GSYS] = {[EN_SELECT] = "SEND MIDI CLOCK", [EN_K2] = "CLOCK SYNC", [EN_K4] = "KNOB RESPONSE"},
+    [PG_GSYS] = {[EN_SELECT] = "SEND MIDI CLOCK", [EN_ALGO] = "SPEAKER", [EN_K2] = "CLOCK SYNC", [EN_K4] = "KNOB RESPONSE"},
     [PG_GDISP] = {[EN_PRESET] = "KNOB ZOOM", [EN_K1] = "HINTS", [EN_K2] = "POP-UP TIME"},
     [PG_GDRUM] = {[EN_SELECT] = "DRUMS CC CHANNEL", [EN_K1] = "DRUMS CHANNEL"},
 };
@@ -3104,7 +3112,7 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_XMOD] = {[EN_K1] = "Cutoff follows keys", "Level limiter"},
     [PG_GMIDI] = {"CC input channel", [EN_K1] = "Note channel", "Keys play the synth", "Pressure out as MIDI",
                   "Bluetooth MIDI"},
-    [PG_GSYS] = {"Send MIDI clock", [EN_K1] = "Master tune", "Clock to follow", "Touch curve", "Knob speed-up"},
+    [PG_GSYS] = {"Send MIDI clock", "The speaker's sound, or off", [EN_K1] = "Master tune", "Clock to follow", "Touch curve", "Knob speed-up"},
     [PG_GDISP] = {[EN_PRESET] = "Zoom on what turns", [EN_K1] = "These hints", "Pop-up time"},
     [PG_GDRUM] = {"Drums' CC channel", [EN_K1] = "Drums' note channel"},
     [PG_GRND] = {[EN_PRESET] = "Pick a seed slot"},
@@ -4877,9 +4885,19 @@ static void glo_sys_draw(void)
     seg_display(8, 40, t, 3);
     print_c(50, 90, ext_clock() ? (eng.ext_age < EXT_HOLD ? "MIDI clock" : "Waiting for clock") : "Tempo", P_SILK);
     print_switch(122, 64, EN_SELECT, "Off", "On", "Send Clk");
-    info(152, 40, 52, "Clock", ext_clock() ? "MIDI in" : set.clk_out ? "Sending" : "Internal",
+    info(152, 40, 40, "Clock", ext_clock() ? "MIDI in" : set.clk_out ? "Sending" : "Internal",
          ext_clock() || set.clk_out ? P_CYAN : P_SILK);
-    info(152, 40, 64, "Version", VERSION_TEXT, P_CYAN);
+    info(152, 40, 50, "Version", VERSION_TEXT, P_CYAN);
+    {                                        /* SPEAKER (ALGO): its three places */
+        static const int32_t X = 192, Y = 82;
+        const int lit = knob_lit(EN_ALGO);
+        cv_text(X - 37, Y - 20, &FONT_T, "Flat", set.spk == SPK_FLAT ? P_SILK : P_DIM);
+        cv_text(X - text_w(&FONT_T, "Bass+") / 2, Y - 20, &FONT_T, "Bass+", set.spk == SPK_BASS ? P_SILK : P_DIM);
+        cv_text(X + 37 - text_w(&FONT_T, "Off"), Y - 20, &FONT_T, "Off", set.spk == SPK_OFF ? P_SILK : P_DIM);
+        slide_h(X - 21, Y - 9, 3, set.spk, lit ? KF_LIT : 0u);
+        tag(X, Y, EN_ALGO);
+        print_c(X, Y + 12, "Speaker", P_SILK);
+    }
     print_knob(34, GLO_ROW, 14, knob_param(EN_K1), EN_K1, 1, "Tune", 0);
     print_knob(92, GLO_ROW, 14, knob_param(EN_K2), EN_K2, 1, "Sync", 0);
     print_knob(150, GLO_ROW, 14, knob_param(EN_K3), EN_K3, 1, "Velocity", 0);
@@ -7121,6 +7139,8 @@ int app_expect(const char *what, int *got)
         *got = set.octave;
     else if (!strcmp(what, "hints"))
         *got = set.hints;
+    else if (!strcmp(what, "spk"))
+        *got = set.spk;
     else if (!strcmp(what, "zoom_off"))
         *got = set.zoom_off;
     else if (!strcmp(what, "rsplash"))       /* the RND Synth Companion's splash up */

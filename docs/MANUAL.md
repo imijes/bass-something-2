@@ -745,7 +745,7 @@ themselves) also adds one, because the write holds up the sound for a moment. Wh
 is heard.
 
 ![GLO MIDI: the channel ALL on the display, the Channel knob, where notes go out, CC and Bluetooth, then CC Chan and the Local, AT Out and Bluetooth switches](img/screen-glo-midi.png "GLO: MIDI")
-![GLO SYS: the tempo 120 on the display, the Send Clk switch, the clock and the version, then Tune, Sync, Velocity and Knobs](img/screen-glo-sys.png "GLO, again: SYS")
+![GLO SYS: the tempo 120 on the display, the Send Clk switch, the clock and the version, the Speaker switch, then Tune, Sync, Velocity and Knobs](img/screen-glo-sys.png "GLO, again: SYS")
 ![GLO DISPLAY: what the pop-ups are, then the Knob Zoom switch, the Hints switch and the Pop-ups knob](img/screen-glo-disp.png "GLO, again: DISPLAY")
 ![GLO DUMP: P01 on the display, then the All 32 button (FX) and the Sound button (SEL)](img/screen-glo-dump.png "GLO, again: DUMP (the last)")
 
@@ -760,6 +760,7 @@ Holding GLO for a second opens the RND pages, for the RND Synth: see RND Synth.
 | MIDI | K4 BLUETOOTH (BLUETOOTH MIDI) | Bluetooth on (the default) or off, at once. |
 | MIDI | REC | Finds and connects a Bluetooth MIDI device (below). Held a second, a random sound, as on every page. |
 | SYS | PRESET SEND CLK (SEND MIDI CLOCK) | ON (the default): MIDI clock goes out at the tempo, and PLAY sends start and stop. Not while following MIDI clock. |
+| SYS | ALGO SPEAKER | The FM-1's speaker, which only ever plays with nothing in the headphone jack. FLAT (the default): as it is. BASS+: the bass the small speaker cannot play, heard through its harmonics. OFF: the speaker silent. Headphones and USB audio stay as they are whatever this is set to: stereo, and with none of BASS+. |
 | SYS | K1 TUNE | The master tune, −50 to +50 cents (0 is the default). |
 | SYS | K2 SYNC (CLOCK SYNC) | What the arp and the sequencer follow. AUTO (the default): MIDI clock while it comes in, else the tempo. INT: the tempo only. EXT: MIDI clock only (without it they wait). While following, a MIDI start begins again from the first step. |
 | SYS | K3 VELOCITY | The keys' velocity curve: SOFT (louder for a light touch), NORMAL (the default) or HARD. |
@@ -853,6 +854,8 @@ Over the USB cable the FM-1 is also a sound card. A computer can record what it 
 and can play through it: choose "Bass Something 2 FM-1" as the output, and its sound comes out of the FM-1's speaker and
 headphones, mixed with the FM-1's own, at MASTER's volume.
 
+The speaker has one driver, so it plays left and right summed to mono, and a sound panned to either side is not lost. Headphones stay in stereo. The FM-1 knows when something is in the headphone jack, so SPEAKER (GLO SYS) only ever changes the speaker.
+
 That output is also the FM-1's Ext input, as the Bass Station II's Ext In socket is: turn the mixer's Ext up (SUB OSC + MIXER,
 K3 to Ext, then K4) and the computer's sound goes through the synth instead, into the mixer with the oscillators, then
 the filter, the amp envelope and the distortion. Like the Bass Station II's, you hear it only while a note plays (the
@@ -915,6 +918,8 @@ Bass Something 2 is by **John Brown** ([@imijes](https://github.com/imijes)), un
 - **Quixotic7** ([@Quixotic7](https://github.com/Quixotic7)): RemoteFM1 for iOS and its `.rfm1` format, which runs
   this firmware on an iPhone or iPad.
 - **Groove OS** by Peter Gombos: the idea of running FM-1 firmware in the browser (no code from it).
+- **Felucca**'s BASS+ by Leo Kuroshita: the name, and the idea of a small speaker suggesting the bass through its
+  harmonics, for SPEAKER's (no code from it).
 - **RND pixels** by Cyma Forma ([pixels.cymaforma.com](https://pixels.cymaforma.com/)): how an RND Synth patch is
   named (its seed and lock code, and their words), and the RND Synth's SysEx, which the RND pages follow.
 - **BIP39**'s English word list (MIT licence, [bitcoin/bips](https://github.com/bitcoin/bips/blob/master/bip-0039/english.txt)):

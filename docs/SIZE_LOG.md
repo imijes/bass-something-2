@@ -114,3 +114,5 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-03 | 7650a75+ | USB audio on macOS 15: MIDI on its own audio control interface | 498,644 | +48 | 82,920 | 77,764 | +0 | 20,540 | 157,904 |
 | 2026-11-03 | 85f781b+ | EP0: a SETUP arriving before SentStall is handled is answered | 498,644 | +0 | 82,920 | 77,764 | +0 | 20,540 | 157,904 |
 | 2026-11-03 | 73b5d98+ | HOME: K4 the filter's Frequency, Knob Zoom's dive to its knob | 497,444 | -1,200 | 84,120 | 77,764 | +0 | 20,540 | 157,904 |
+| 2026-11-03 | 28dc8d8+ | SPEAKER (GLO SYS): the mono sum, BASS+ and OFF for the speaker alone, by the headphone jack (PB5) | 498,644 | +1,200 | 82,920 | 77,764 | +0 | 20,540 | 157,960 |
+| 2026-11-03 | 28dc8d8+ | BASS+: its harmonics at a quarter of the rate (about 12 % of the CPU to about 2 %) | 498,692 | +48 | 82,872 | 77,764 | +0 | 20,540 | 157,968 |

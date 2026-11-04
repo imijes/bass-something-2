@@ -1,5 +1,5 @@
 diff --git a/device/main_fm1.c b/device/main_fm1.c
-index 5eaa87b..e24592b 100644
+index 5eaa87b..a210a3f 100644
 --- a/device/main_fm1.c
 +++ b/device/main_fm1.c
 @@ -13,6 +13,11 @@ extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[];
@@ -53,7 +53,17 @@ index 5eaa87b..e24592b 100644
  #endif
  #if FELUCCA_UAC
              uac_tap(o + 2u * k, REND_FRAMES);       /* the USB audio input: the same master output */
-@@ -826,8 +847,9 @@ static void safe_main(void)
+@@ -89,6 +110,9 @@ static void render_block(int32_t *o)                /* ALNK0: one half, measured
+                 for (i = 0; i < 2u * REND_FRAMES; i++)
+                     o[2u * k + i] = 0;
+             }
++#endif
++#ifdef APP_SPEAKER
++            app_speaker(o + 2u * k, REND_FRAMES, fm1_jack_in());   /* (after the USB audio input's tap and Bluetooth) */
+ #endif
+         }
+     }
+@@ -826,8 +850,9 @@ static void safe_main(void)
              uint32_t n;
              if (ota_frame_get(&p, &n) && log_frame(p, n))
                  ota_frame_done();
@@ -64,7 +74,7 @@ index 5eaa87b..e24592b 100644
          if (usb.ota_req) {
              usb.ota_req = 0;
              if (flash_ok)
-@@ -863,6 +885,7 @@ static void fm1_main(void)
+@@ -863,6 +888,7 @@ static void fm1_main(void)
      int32_t knob = 512 * 16;
      uint32_t batt_t = 0;                            /* (the battery's last reading, fm1_ms) */
      uint32_t last_frame = 0;
@@ -72,7 +82,7 @@ index 5eaa87b..e24592b 100644
      {
          uint32_t f = irq_save();
          rails_boot[0] = fm1_p33_read(FM1_P3_ANA_CON6);
-@@ -980,8 +1003,9 @@ static void fm1_main(void)
+@@ -980,8 +1006,9 @@ static void fm1_main(void)
                  master_pos = mirror_in_master(remote.master >= 0 ? (uint32_t)remote.master : (uint32_t)(knob / 4));
              }
          }
@@ -84,7 +94,7 @@ index 5eaa87b..e24592b 100644
              batt_t = fm1_ms;
              if (b > 0)
                  batt_raw = batt_raw ? batt_raw + (b - batt_raw) / 16 : b;
-@@ -995,9 +1019,11 @@ static void fm1_main(void)
+@@ -995,9 +1022,11 @@ static void fm1_main(void)
  #ifdef APP_LOOP
          app_loop();                                 /* the app's background (a radio's tasks) */
  #endif
@@ -97,7 +107,7 @@ index 5eaa87b..e24592b 100644
              if (ota_frame_get(&p, &n) && (ann_frame(p, n, fm1_ms) || log_frame(p, n) || remote_frame(p, n)
  #if FM1B_WIFI
                                            || wifi_frame(p, n)
-@@ -1011,11 +1037,14 @@ static void fm1_main(void)
+@@ -1011,11 +1040,14 @@ static void fm1_main(void)
  #ifdef APP_SYSEX
                                            || app_sysex(p, n)
  #endif
@@ -131,19 +141,21 @@ index 48477b9..8e69e74 100644
  {
      ble_poll();                                   /* Bluetooth: its notifications go out while the screen draws */
 diff --git a/host/plat_host.c b/host/plat_host.c
-index 0a56f9a..32592a6 100644
+index 0a56f9a..72d3d50 100644
 --- a/host/plat_host.c
 +++ b/host/plat_host.c
-@@ -23,6 +23,8 @@
+@@ -22,7 +22,10 @@
+  *   ble connect | ble link | ble disconnect   a central listening, or linked and not yet listening (FM1B_BLE: the
   *                                stand-in stack is ready a second after the start)
   *   wav FILE | wavstop           start / stop recording the output
++ *   jack 0|1                     the headphone jack empty, or something in it (APP_SPEAKER; 1 by default)
   *   peakreset                    restart the output peak (expect peak_db_min / peak_db_max)
 + *   usbtone HZ                   the computer plays a sine over USB audio at half of full level (0: silence): the
 + *                                app's input with plat_usb_audio_route on
   *   shot FILE.png                save the screen
   *   leds                         print the lit buttons and keys (keys: # bright, + dim)
   *   out                          print the MIDI sent since the last "out" (and forget it; clocks not shown)
-@@ -525,6 +527,12 @@ int plat_host_read(uint32_t addr, uint8_t *dst, uint32_t n) { (void)addr, (void)
+@@ -525,6 +528,12 @@ int plat_host_read(uint32_t addr, uint8_t *dst, uint32_t n) { (void)addr, (void)
  void plat_host_patience(uint32_t try_ms, uint32_t total_ms) { (void)try_ms, (void)total_ms; }
  static int uac_full;                            /* plat_usb_audio_full: the render at full level, MASTER after it */
  void plat_usb_audio_full(int on) { uac_full = on != 0; }
@@ -156,7 +168,15 @@ index 0a56f9a..32592a6 100644
  
  /* flash: one buffer per object, kept across a simulated reboot */
  static uint8_t store[OBJ_NOBJ][PLAT_STORE_MAX];
-@@ -985,7 +993,16 @@ static void sim_render(int32_t *blk)            /* one APP_BLOCK-frame block, as
+@@ -981,16 +990,32 @@ static void sim_ms_begin(uint32_t ms)
+ #endif
+ }
+ 
++#ifdef APP_SPEAKER
++static int sim_jack = 1;                        /* jack 0|1: the headphone jack; in by default (a computer's own speakers) */
++#endif
++
+ static void sim_render(int32_t *blk)            /* one APP_BLOCK-frame block, as the device renders it */
  {
      double t0 = now_ns(), dt;
      uint32_t k;
@@ -173,8 +193,22 @@ index 0a56f9a..32592a6 100644
      if (uac_full) {                             /* (the USB audio input took it at full level) the speaker: MASTER */
          const float g = (float)APP_GAIN(master) * (1.0f / 4096.0f);
          for (k = 0; k < 2u * APP_BLOCK; k++)
-@@ -1423,6 +1440,8 @@ int main(int argc, char **argv)
+             blk[k] = (int32_t)((float)blk[k] * g);
+     }
++#ifdef APP_SPEAKER
++    app_speaker(blk, APP_BLOCK, sim_jack);
++#endif
+     dt = now_ns() - t0;
+     render_ns_total += dt;
+     render_budget_ns_total += APP_BLOCK * 1e9 / 44100.0;
+@@ -1421,8 +1446,14 @@ int main(int argc, char **argv)
+             wav_open(out);
+         } else if (!strcmp(cmd, "wavstop"))
              wav_close();
++#ifdef APP_SPEAKER
++        else if (!strcmp(cmd, "jack"))             /* jack 0|1: the headphone jack empty, or something in it */
++            sim_jack = atoi(a);
++#endif
          else if (!strcmp(cmd, "peakreset"))
              peak_out = 0.0f;
 +        else if (!strcmp(cmd, "usbtone"))          /* usbtone HZ: the computer plays a sine over USB audio (0: silence) */
@@ -183,7 +217,7 @@ index 0a56f9a..32592a6 100644
              snprintf(out, sizeof out, "%s/%s", dir, a);
              png_write(out);
 diff --git a/include/plat.h b/include/plat.h
-index 772a7c2..a1fa934 100644
+index 772a7c2..56ea847 100644
 --- a/include/plat.h
 +++ b/include/plat.h
 @@ -215,6 +215,13 @@ void plat_host_patience(uint32_t try_ms, uint32_t total_ms);   /* each try's wai
@@ -200,6 +234,16 @@ index 772a7c2..a1fa934 100644
  
  /* the keys' velocity and pressure (an app with APP_KEY_SENSE): on, the scan reads the keys on the analog rows and
   * hands each reading to the app (app_key_sample, app_key_probe); off by default */
+@@ -280,6 +287,9 @@ uint32_t plat_cpu2_stack(void);        /* how deep its stack (2816 B) has gone,
+  *   APP_OVERLOAD    void app_overload(void)       the render took over 90 % of its time (shed voices)
+  *   APP_SPLASH      void app_splash(void)         the first screen at boot, instead of the name
+  *   APP_GAIN(m)     the render's gain from MASTER's position m (0..4096; default the square, m * m >> 12)
++ *   APP_SPEAKER     void app_speaker(int32_t *lr, uint32_t n, int jack)   what the speaker and headphones get, after the
++ *                   USB audio input's tap and Bluetooth's feed; jack: 1 something in the headphone jack, which cuts the
++ *                   speaker (the speaker plays the left channel alone). In the audio interrupt
+  *   APP_QUIET       void app_quiet(int32_t *lr, uint32_t n)   the render while the flash must not be read (the
+  *                   radio's first second, FM1B_BLE): keep time without sound (default: silence)
+  *   APP_KEY_SENSE   void app_key_sample(uint32_t key, uint32_t v, uint32_t ticks, int driven) (rows PA7 / PA8),
 diff --git a/tools/build.py b/tools/build.py
 index a6607e3..46bd7e8 100755
 --- a/tools/build.py

@@ -13,7 +13,7 @@ The manual (`docs/MANUAL.md`) describes everything it does.
 | `rnd/` | The words RND SEED names patches with: BIP39's English list (`bip39_english.txt`, MIT) packed into `words.h` by `make_words.py` |
 | `fm1.toml` | Build and site settings: name, package identity (`FM-1_62`), USB names, tagline, licence |
 | `words.tsv` | The screen reader's words (fm1-reader) |
-| `tests/*.txt` | Host simulator checks: basic, glo, sysex, rnd, seqkeep, lit, voice (`tests/syx`: the SysEx they send) |
+| `tests/*.txt` | Host simulator checks: basic, glo, sysex, rnd, seqkeep, lit, voice, speaker (`speaker_test.c`, the speaker's sound, built on its own) (`tests/syx`: the SysEx they send) |
 | `tests/screens.txt` | The manual's screenshots |
 | `docs/MANUAL.md`, `site/landing.md` | The manual and the site's front page |
 | `docs/SIZE_LOG.md`, `tools/size_log.py` | What each change costs in flash and RAM: `python3 bs2/tools/size_log.py "what changed"` (from the fm1-base root) builds the firmware and adds a row |

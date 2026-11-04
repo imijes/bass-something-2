@@ -1,3 +1,26 @@
+diff --git a/boards/fm1/fm1_audio.h b/boards/fm1/fm1_audio.h
+index b19aebd..5dfa3d7 100644
+--- a/boards/fm1/fm1_audio.h
++++ b/boards/fm1/fm1_audio.h
+@@ -40,8 +40,18 @@ static void fm1__pc_out(uint32_t bit, int v)   /* codec control lines on PC0/1/2
+     FM1_PR(FM1_PC, FM1_DIR) &= ~m;
+ }
+ 
++/* The headphone jack: PB5 reads high with it empty, low with something in it (measured on an FM-1). The jack also cuts
++ * the speaker in hardware. An input; its pulls left as they are */
++FM1_INLINE void fm1_jack_init(void)
++{
++    FM1_PR(FM1_PB, FM1_DIE) |= 1u << 5;
++    FM1_PR(FM1_PB, FM1_DIR) |= 1u << 5;
++}
++FM1_INLINE int fm1_jack_in(void) { return !(FM1_PR(FM1_PB, FM1_IN) >> 5 & 1u); }
++
+ FM1_INLINE void fm1_audio_init(int32_t *buf, uint32_t half_words, void (*isr)(void), uint32_t prio)
+ {
++    fm1_jack_init();
+     fm1__pc_out(6, 0);
+     fm1_delay_ms(5);
+     FM1_ALNK_CON0 = 0;
 diff --git a/boards/fm1/fm1_input.h b/boards/fm1/fm1_input.h
 index c43e7a8..c26e3f1 100644
 --- a/boards/fm1/fm1_input.h
