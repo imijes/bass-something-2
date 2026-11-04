@@ -128,3 +128,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-03 | f5b1147+ | DRUM MODS: Swing Lock on K3, Transport on K4 | 499,664 | -48 | 81,900 | 77,748 | +0 | 20,556 | 157,976 |
 | 2026-11-03 | 6845213+ | Drums' HOME K3, K4: the dive to the Channel page | 499,808 | +144 | 81,756 | 77,748 | +0 | 20,556 | 157,976 |
 | 2026-11-03 | 6845213+ | Drum MIDI out: keys and patterns on the 400's note map | 501,088 | +1,280 | 80,476 | 77,780 | +32 | 20,524 | 158,000 |
+| 2026-11-03 | 5ec7c5f+ | Backup and restore over USB (fm1-base's) | 504,884 | +3,796 | 76,680 | 78,356 | +576 | 19,948 | 161,840 |

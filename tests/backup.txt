@@ -1,0 +1,136 @@
+# Backup and restore (fm1-base's device/backup.c; here the host's stand-in, plat_host.c): all that's saved, the drums' too; a
+# restore puts it back whole, comes up on HOME as at power-on; damaged or while playing, nothing changes.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/backup.txt bs2/build/host
+wait 600
+listen
+expect page 16
+# a sound saved (P01's Frequency, the patch's), a GLO setting that keeps itself, the drums' pattern saved
+turn K4 2
+wait 30
+expect cutoff 52
+tap SAVE
+wait 30
+expect dirty 0
+tap GLO
+wait 30
+expect page 17
+spin K1 3
+wait 30
+expect chan 4
+tap HOME
+wait 1500
+press HOME
+wait 1100
+release HOME
+wait 2000
+expect drum 1
+tap REC
+wait 30
+tap PLAY
+wait 300
+tapkey w4 100
+wait 30
+tap REC
+wait 30
+tap PLAY
+wait 100
+expect dt_run 0
+expect dt_n 1
+tap SAVE
+wait 30
+said DRUMS SAVED
+# playing: the backup goes on
+tap PLAY
+wait 100
+expect dt_run 1
+backup out:playing.bs2
+tap PLAY
+wait 600
+# the GLO setting not yet kept when it starts: kept first
+tap GLO
+wait 30
+expect page 24
+tap GLO
+wait 30
+expect page 17
+spin K1 1
+wait 30
+expect chan 5
+backup out:saved.bs2
+tap HOME
+wait 30
+# everything changed and saved: the drums' erased by another pattern's state, the sound, the channel
+spin PRESET 2
+wait 30
+expect dt_pat 2
+expect dt_n 0
+tap REC
+wait 30
+tap PLAY
+wait 300
+tapkey w5 100
+wait 30
+tap REC
+wait 30
+tap PLAY
+wait 100
+expect dt_used 2
+tap SAVE
+wait 30
+press HOME
+wait 1100
+release HOME
+wait 2000
+expect drum 0
+turn K4 3
+wait 2700
+expect cutoff 55
+tap SAVE
+wait 30
+tap GLO
+wait 30
+spin K1 2
+wait 3000
+expect chan 7
+tap HOME
+wait 1500
+# while playing: refused, nothing changed
+key w4 down 100
+wait 30
+restore out:saved.bs2
+said STOP FIRST
+key w4 up
+wait 1000
+expect cutoff 55
+expect chan 7
+expect dt_used 2
+# damaged: refused, nothing changed
+backup out:bad.bs2
+backup_damage out:bad.bs2
+restore out:bad.bs2
+said NOT RESTORED
+expect cutoff 55
+expect chan 7
+expect dt_used 2
+# the good one: all of it back, on HOME, nothing waiting to save
+press HOME
+wait 1100
+release HOME
+wait 2000
+expect drum 1
+restore out:saved.bs2
+said RESTORED
+wait 30
+expect drum 0
+expect page 16
+expect dirty 0
+expect cutoff 52
+expect chan 5
+expect dt_used 1
+# and through a power-off
+reboot
+wait 600
+expect cutoff 52
+expect chan 5
+expect dt_used 1

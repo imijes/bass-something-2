@@ -10,6 +10,9 @@ ble = true                     # Bluetooth MIDI (--no-ble builds without it)
 ble_central = true             # and the FM-1 connects to Bluetooth MIDI devices too
 usb_audio_midi_ac = true       # MIDI on its own audio control interface (felucca-bsp FELUCCA_UAC_MIDI_AC): macOS 15 shows
                                # the FM-1 as an audio device beside its MIDI (usb_audio_first alone did not)
+backup = true                  # backup and restore over USB (device/backup.c, tools/fm1_backup.py, web/backup)
+backup_ext = "bs2"             # (the site's backup page: its files, what they hold)
+backup_holds = "the patches, the sequences, the drums' patterns and songs, the RND seeds and the settings"
 authors = ["John Brown"]       # the .rfm1's manifest (tools/build.py bs2 --rfm1: RemoteFM1 for iOS)
 # the site (tools/make_site.py, tools/publish_site.sh)
 tagline = "a monosynth inspired by the legendary Novation Bass Station II, built for the M-VAVE FM-1"

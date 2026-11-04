@@ -2830,13 +2830,17 @@ static void save(void)                       /* the settings, and the sound into
  * only then, where the gap is not heard */
 #define QUIET_MS 500u
 static uint8_t hushed;                       /* quiet_step's: 1 when silent QUIET_MS */
-static void quiet_step(void)                 /* the main loop's (input), before the keepers */
+static int sounding(void)                    /* anything playing or ringing out */
 {
-    static uint32_t loud_at;
     uint32_t i, drums = dq.run;              /* (the drums too: a write under them is a dropout) */
     for (i = 0; i < NDTCH; i++)
         drums |= dt.ch[i].drum != DT_NONE;
-    if (drums || eng.src != SRC_NONE || seq_auto || voice_note >= 0 || voice.amp.stage != ENV_IDLE) {
+    return drums || eng.src != SRC_NONE || seq_auto || voice_note >= 0 || voice.amp.stage != ENV_IDLE;
+}
+static void quiet_step(void)                 /* the main loop's (input), before the keepers */
+{
+    static uint32_t loud_at;
+    if (sounding()) {
         loud_at = plat_ms();
         hushed = 0;
     } else {
@@ -2847,10 +2851,13 @@ static void quiet_step(void)                 /* the main loop's (input), before 
  * shown leaves it out: what it shows is a dropout someone could hear. A write under sound still counts */
 #define XR_QUIET_MS 200u
 static uint32_t xr_base, xr_mark, xr_until;  /* the misses left out; the count they're from; till when (0: none now) */
+static uint8_t backup_held;                  /* a backup streaming: nothing saved till it ends (app_backup_hold) */
 static int store_save(uint32_t obj, const void *src, uint32_t len)
 {
     int r;
     const int quiet = hushed;
+    if (backup_held)                         /* (a SAVE pressed meanwhile: told it failed, nothing lost) */
+        return -1;
     if (quiet && !xr_until)
         xr_mark = plat_xruns();              /* (those before it stay counted) */
     r = plat_store_save(obj, src, len);
@@ -3019,6 +3026,31 @@ static void bank_in_step(void)               /* the main loop's (input): a bank 
     else
         app_say("BANK LOAD", "FAILED");
     bank_in.n = bank_in.skipped = 0;
+}
+/* Backup and restore over USB (fm1-base's: device/backup.c, tools/fm1_backup.py, web/backup): everything saved. SAVE stays
+ * the player's: a sound or drums changed and not saved aren't saved for it, so aren't in the backup (only what keeps itself:
+ * the sequences, the GLO settings) */
+int app_backup_playing(void) { return sounding(); }
+void app_backup_flush(void)
+{
+    settings_t rec = set_kept;
+    uint32_t i;
+    seq_keep(1);
+    for (i = GLO_FROM; i < sizeof set; i++)
+        ((uint8_t *)&rec)[i] = ((const uint8_t *)&set)[i];
+    if (!same(&rec, &set_kept, sizeof rec) && store_save(OBJ_SETTINGS, &rec, sizeof rec) == 0)
+        set_kept = rec;
+}
+void app_backup_hold(int on) { backup_held = (uint8_t)on; }
+void app_backup_restored(void)               /* as at power-on: HOME, on the synth */
+{
+    app_init();
+    ui.drum = 0;
+    zoom.home = ZH_NONE;
+    zoom.z = 0;
+    set_dirty = 0;
+    dq.dirty = 0;
+    ui.redraw = 1;
 }
 int app_sysex(const uint8_t *p, uint32_t n)  /* main loop: 1 = this app's */
 {
@@ -3900,9 +3932,12 @@ static void input(void)
     ui.keys = keys;
     ui.btn = btn;
     quiet_step();
-    bank_in_step();
-    seq_keep(0);
-    glo_keep();
+    if (!backup_held)
+        bank_in_step();
+    if (!backup_held)
+        seq_keep(0);
+    if (!backup_held)
+        glo_keep();
     rnd_step();
     lit = notes_lit(&below, &above);
     mid = 0;

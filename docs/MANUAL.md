@@ -556,6 +556,25 @@ Kept without SAVE, two seconds after a change once the FM-1 is quiet: the four s
 setting (see Global settings). Not saved: AFX
 mode (off at each start) and whether the sequencer is playing.
 
+### Backup and restore
+
+A backup is one file on your computer holding everything the FM-1 has saved: the patches, the sequences, Drum Something's
+patterns and songs, the RND seeds and the settings. It leaves out the panel's calibration and the Bluetooth pairings, which belong
+to that FM-1. Make one over USB from the site's Backup page (Chrome or Edge), or from a terminal in fm1-base:
+
+```
+python3 tools/fm1_backup.py backup my.bs2 --magic BS2B
+python3 tools/fm1_backup.py restore my.bs2
+```
+
+**Press SAVE first:** a sound or drums changed but not saved aren't in the backup. The FM-1 can play on while it backs up.
+
+**A restore replaces all of it.** Stop everything first (otherwise the FM-1 says STOP FIRST). It takes in the whole file and checks
+it before changing anything, then asks on its screen: RESTORE FROM USB? SEL for yes, HOME for no. A cut cable, a damaged file or
+HOME changes nothing. Afterwards it comes up on HOME, as at power-on.
+
+This is apart from SysEx (below), which moves Bass Station II patches to and from editors.
+
 ---
 
 ## 7. SysEx: a Bass Station II editor

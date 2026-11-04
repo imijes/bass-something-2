@@ -3,7 +3,7 @@
 # Copyright (C) 2026 Charles Vestal
 # Copyright (C) 2026 John Brown
 """Bass Something 2's site: fm1-base's tools/make_site.py, then each page in the firmware's own colours (bs2/site/theme.css)
-with the section tabs on top (Home, Emulator, Install, SysEx, Manual). The emulator and the SysEx page bring their own
+with the section tabs on top (Home, Emulator, Install, SysEx, Backup, Manual). The emulator and the SysEx page bring their own
 (bs2/web/emu/index.html, bs2/web/sysex/index.html).
 
   python3 bs2/site/make_site.py bs2/build/bass-something-2-VERSION.fwsc VERSION [OUT_DIR]   (OUT_DIR: bs2/build/site)
@@ -18,7 +18,7 @@ from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1]
 SRC = APP.parent
-PAGES = (("", "Home"), ("emu/", "Emulator"), ("install/", "Install"), ("sysex/", "SysEx"), ("manual/", "Manual"))
+PAGES = (("", "Home"), ("emu/", "Emulator"), ("install/", "Install"), ("sysex/", "SysEx"), ("backup/", "Backup"), ("manual/", "Manual"))
 
 
 def tabs(here, up, cls=""):
@@ -48,6 +48,7 @@ META = {
     "": ("Bass Something 2: a monosynth inspired by the legendary Novation Bass Station II, built for the M-VAVE FM-1",
          f"Bass Something 2 is {WHAT}."),
     "install/": ("Install · Bass Something 2", "Install Bass Something 2 on the M-VAVE FM-1 from Chrome or Edge, over USB."),
+    "backup/": ("Backup · Bass Something 2", "Back up everything Bass Something 2 has saved on the M-VAVE FM-1, and put it back, from Chrome or Edge, over USB."),
     "manual/": ("Manual · Bass Something 2", "The manual for Bass Something 2, a monosynth inspired by the legendary Novation "
                 "Bass Station II, built for the M-VAVE FM-1: every page and control, the arp and the sequencer, patches, SysEx, "
                 "MIDI and the RND Synth."),
@@ -93,7 +94,7 @@ def main(pkg, version, out=None):
     subprocess.run([sys.executable, str(SRC / "tools" / "make_site.py"), str(APP), pkg, version, str(out)], check=True)
     shutil.copytree(APP / "web" / "sysex", out / "sysex", dirs_exist_ok=True)   # patches to and from the FM-1 (Web MIDI)
     css = (APP / "site" / "theme.css").read_text(encoding="utf-8")
-    for here in ("", "install/", "manual/"):
+    for here in ("", "install/", "backup/", "manual/"):
         if (out / here / "index.html").exists():
             theme(out / here / "index.html", here, css)
     print(f"site: {out} in Bass Something 2's colours")

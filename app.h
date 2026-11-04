@@ -192,6 +192,16 @@ void app_say(const char *a, const char *b);   /* a short message on the screen a
 #define APP_SPEAKER                      /* SPEAKER (GLO AUDIO): the mono sum, BASS+ and OFF, for the speaker alone (bs2_spk.c) */
 #define APP_SYSEX                        /* Bass Station II patch dumps over USB (bs2_sysex.c) */
 int app_sysex(const uint8_t *p, uint32_t n);
+/* backup and restore over USB (fm1.toml backup = true: device/backup.c, tools/fm1_backup.py --magic BS2B, web/backup): all
+ * that's saved but the panel's calibration and the Bluetooth pairings, the unit's */
+#define APP_BACKUP_OBJS {OBJ_SETTINGS, OBJ_PATCHES, OBJ_SEEDS, OBJ_DQ0, OBJ_DQ1, OBJ_DQ2, OBJ_DQ3, OBJ_DQ4, OBJ_DS0, OBJ_DS1, OBJ_DS2}
+#define APP_BACKUP_MAGIC 0x42325342u     /* "BS2B" */
+#define APP_BACKUP_VERSION 1u
+#define APP_BACKUP_WHAT "replaces all saved work"
+int app_backup_playing(void);
+void app_backup_flush(void);
+void app_backup_hold(int on);
+void app_backup_restored(void);
 
 /* the host simulator's checks (host/plat_host.c "expect"): octave, wave, wave2, note (-1 none), dirty, turnsN,
  * env and menv (the envelopes' stages, ENV_*), the patch: filter, cutoff, reso, drive, coarse2, fine2, sub, sync,
