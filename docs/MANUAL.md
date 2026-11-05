@@ -69,7 +69,7 @@ knob shows its value in a cyan label on it while it turns.
 
 | Part | What it shows |
 | --- | --- |
-| Section tabs | SEL, ENV, LFO, FX, ARP, SEQ, EDIT and GLO, the buttons. The section you're in is lit in the panel's cyan, its name white; the others are grey. ARP and SEQ are written in cyan while they play. |
+| Section tabs | FX, SEL, ENV, LFO, ARP, SEQ, EDIT and GLO, the buttons. The section you're in is lit in the panel's cyan, its name white; the others are grey. ARP and SEQ are written in cyan while they play. |
 | Panel | The section: its knobs, switches, LEDs and print, where the Bass Station II has them. A knob's line turns cyan, and its value shows in a cyan label on it, for a moment as it turns. |
 | Keys | The 27 keys, black above white. A held key fills cyan to its velocity, and white over that shows its pressure. A key whose note is held from MIDI in is all cyan. |
 | Bottom lines | Top line: OCT, the octave. P01 to P32, the patch, with * while it has changes that aren't saved. The tempo in BPM, cyan while the arp or the sequencer plays (MIDI clock's while it's followed). AFX while AFX mode is on. VOL, MASTER's volume. Bottom line: the battery (three bars when full, the outline red when it's nearly empty, a cyan bolt while USB powers the FM-1, as it can't tell charging from not, grey until its first reading). BLE, lit while a computer or phone is connected over Bluetooth, and DEV, lit while a Bluetooth MIDI device is. Where the last MIDI message came from (USB, BLE or TRS) and its bytes. At the right, what plays the keys: ARP OFF, ARP and its mode (ARP UP), SEQ PLAY, or SEQ REC with the steps recorded so far (SEQ REC 5/32), cyan while it plays. |
@@ -489,7 +489,7 @@ does a drum job, listed below, and the keys play the drums.
 
 The drums start at the low C and go up the white keys. The first black key is ACCENT: hold it for an accented hit.
 
-The lowest F is ROLL: hold it and the selected drum repeats at the rate set on the ROLL plate (SEQ, after COPY / APPEND TO). Tap another drum while holding to roll that one. ACCENT works when pressed before ROLL. While recording, the roll is recorded.
+The lowest F is ROLL: hold it and the selected drum repeats at the rate set on the ROLL plate (SEQ, after COPY / APPEND TO). Tap another drum while holding to roll that one. ACCENT works when pressed before ROLL. While recording, the roll is recorded, on the pattern's Error Correct grid: at 1/96 every hit is kept, and a coarser grid keeps fewer. A hit on a spot where that drum already has one replaces it, so the pattern's hit count may not change.
 
 | Channel | Keys and drums |
 | --- | --- |
@@ -533,6 +533,8 @@ Tapping a drum selects it for K3 and K4. On HOME, those two knobs zoom in to the
 | REC | Recording on or off, on any page | Held a second: Erase Instrument |
 | OCT− and OCT+ | A slower or a faster tempo | Both held, stopped: the memory left, as a percentage |
 | SAVE | Saves the drums, once they're stopped | |
+
+A Channel page gives the whole panel to the channel, with no header. Turning PRESET, ALGO, SELECT, K1 or K2 drops the header down with its two displays, showing the value; it goes back up a second after the last turn. K1 shows as C and K2 as U, then the number. K3 and K4 show on the page's own dials.
 
 ![CHANNEL 2: the Per Instrument section with Volume and Tuning, and the channel's box with its Snare and Rim](img/screen-drum-channel.png "CHANNEL 2 (EDIT)")
 
@@ -681,7 +683,7 @@ large as a loud one; a flat line in silence), and under them a Bass Station II's
 at the foot of the screen (they stand for its keys and its wheels together). Every knob, fader, switch and LED on it
 shows the sound as it is set, and follows it as you change it on the other pages. PRESET picks the patch here, as on
 MASTER. K2 sets the arp's Rhythm, K3 the filter's Resonance and K4 its Frequency: the panel zooms in to that knob on its
-page (ARP or FILTERS) as you turn it, and back out to HOME a second after you stop. A section's button (SEL, ENV, LFO, FX, ARP, SEQ or EDIT) zooms in on that section of the
+page (ARP or FILTERS) as you turn it, and back out to HOME a second after you stop. A section's button (FX, SEL, ENV, LFO, ARP, SEQ or EDIT) zooms in on that section of the
 panel and opens its page; any button or knob on the way gets you there at once. HOME on that page does the reverse: the
 panel appears up close on the section and zooms back out. GLOBAL DISPLAY's KNOB ZOOM OFF makes both changes straight away.
 

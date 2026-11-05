@@ -1,0 +1,38 @@
+# A Channel page has no header: PRESET, ALGO, SELECT, K1 or K2 turning drops it down, back up a second after the last turn;
+# K3 and K4 show on the page. tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/drumdrop.txt bs2/build/host
+wait 600
+press HOME
+wait 1100
+release HOME
+wait 2000
+tap EDIT
+wait 2000
+expect dt_drop 0
+turn K3 1
+wait 300
+expect dt_drop 0
+wait 1200
+turn PRESET 1
+wait 300
+expect dt_drop 45
+shot drum-drop.png
+wait 1000
+expect dt_drop 0
+turn K1 2
+wait 300
+expect dt_drop 45
+shot drum-drop-k1.png
+wait 1000
+expect dt_drop 0
+turn SELECT 1
+wait 300
+expect dt_drop 45
+shot drum-drop-tempo.png
+wait 1000
+expect dt_drop 0
+tap HOME
+wait 1500
+turn K1 1
+wait 300
+expect dt_drop 0

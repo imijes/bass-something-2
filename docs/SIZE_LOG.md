@@ -169,3 +169,5 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-04 | 35d62b5+ | ROLL's plate: its screws full size | 509,556 | -64 | 72,008 | 78,404 | +0 | 19,900 | 161,920 |
 | 2026-11-04 | 35d62b5+ | ROLL's plate: the mods' label tape | 509,428 | -128 | 72,136 | 78,404 | +0 | 19,900 | 161,920 |
 | 2026-11-04 | 35d62b5+ | ROLL's plate: its LED under the list's | 509,444 | +16 | 72,120 | 78,404 | +0 | 19,900 | 161,920 |
+| 2026-11-04 | f302440+ | Drum Channel pages: no PRESET in the map | 509,428 | -16 | 72,136 | 78,404 | +0 | 19,900 | 161,920 |
+| 2026-11-04 | f302440+ | Drum Channel pages: the header drops down as a knob turns | 509,700 | +272 | 71,864 | 78,404 | +0 | 19,900 | 161,928 |

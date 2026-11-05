@@ -1563,6 +1563,8 @@ static struct {
     uint8_t dt_oct_dirty;
     uint32_t dt_until;
     uint32_t dt_mid;                     /* the keys at the lights' middle level (a channel's others) */
+    uint8_t dt_drop;                     /* a Channel page: the header's rows down over it, a knob turning (dt_drop_step) */
+    uint32_t dt_drop_at;                 /* its last step */
     uint32_t mpan_at;                    /* the camera panning between the two HOMEs since (mpan_band; 0: not) */
 } ui PLAT_POOL;
 /* Knob Zoom's camera (below, zoom_step) */
@@ -1747,7 +1749,7 @@ static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRI
 /* the 400's two LED lists, one number each: PATTERN's, then SONG's, BUILD MODE's own under it */
 enum { DTF_PAT, DTF_REC, DTF_ERASEI, DTF_ERROR, DTF_SWING, DTF_TIME, DTF_MEAS, DTF_ERASEP, DTF_COPYP, DTF_ROLL,
        DTF_SONG, DTF_ERASES, DTF_COPYS, DTF_BUILD, DTF_BPAT, DTF_BVOL, DTF_BTEMPO, DTF_BINS, DTF_BDEL, NDTF };
-enum { DTS_NONE, DTS_FN, DTS_TEMPO, DTS_VOL, DTS_TUNE };   /* the header's moment: a function's name, the tempo over both
+enum { DTS_NONE, DTS_FN, DTS_TEMPO, DTS_VOL, DTS_TUNE, DTS_METRO, DTS_MASTER };   /* the header's moment: a function's name, the tempo over both
                                               * displays, the selected drum's level or pitch on the left one */
 #define DT_SHOW_MS 2500u                     /* (past Knob Zoom's way back out: the left display seen, its knob just left) */
 /* the pop-ups' time (GLO DISPLAY), its knob's places; pop_d the place, 0 and 1 swapped in the store so a record from
@@ -2426,11 +2428,14 @@ static int dt_turn(uint32_t k, int32_t e)
         dt_tempo_step(e);
         return 1;
     }
-    if (k == EN_K1)
-        dt.metro = (uint8_t)clamp((int32_t)dt.metro + e, 0, 127);
-    else if (k == EN_K2)
-        dt.master = (uint8_t)clamp((int32_t)dt.master + e, 0, 127);
-    else if (k == EN_K3) {
+    if (k == EN_K1 || k == EN_K2) {
+        if (k == EN_K1)
+            dt.metro = (uint8_t)clamp((int32_t)dt.metro + e, 0, 127);
+        else
+            dt.master = (uint8_t)clamp((int32_t)dt.master + e, 0, 127);
+        if (DCH_PAGE(ui.page))               /* (no knob of theirs there: on the header that drops down) */
+            dt_show(k == EN_K1 ? DTS_METRO : DTS_MASTER);
+    } else if (k == EN_K3) {
         dt.vol[ui.dt_sel] = (uint8_t)clamp((int32_t)dt.vol[ui.dt_sel] + e, 0, 15);
         dt_show(DTS_VOL);
     } else if (k == EN_K4) {
@@ -6286,6 +6291,13 @@ static void dt_digits(char *l, char *r)
         }
         return;
     }
+    if (s == DTS_METRO || s == DTS_MASTER) {  /* (0 .. 127: C the click, U the volume, then the hundreds) */
+        const uint32_t v = s == DTS_METRO ? dt.metro : dt.master;
+        l[0] = s == DTS_METRO ? 'C' : 'U';
+        l[1] = v >= 100u ? '1' : ' ';
+        dt_two(r, v % 100u);
+        return;
+    }
     if (s == DTS_TEMPO) {
         l[0] = 't';
         l[1] = t >= 100 ? (char)('0' + t / 100) : ' ';
@@ -6656,6 +6668,30 @@ static void dsong_draw(void)
  * VOLUME and TUNING stay put from page to page, the two displays over them; its keys the FM-1's piano keys', lit as they are;
  * the drum selected, its LED lit */
 #define DCH_ACTIVE_G 64                      /* the active channel's plate (the rest: DT_FACE_G) */
+#define DT_DROP_HOLD_MS 1000u                /* a knob's last turn till the header goes back up (they're endless: no letting go to see) */
+#define DT_DROP_MS 150u                      /* its way, either way */
+static const uint8_t DCH_AWAY[5] = {EN_PRESET, EN_ALGO, EN_SELECT, EN_K1, EN_K2};   /* K3, K4: on the page */
+static int dt_drop_step(uint32_t now)        /* a frame: 1 when the header moved */
+{
+    const uint32_t was = ui.dt_drop, dt = now - ui.dt_drop_at;
+    int32_t at = (int32_t)was, step = (int32_t)(dt * 45u / DT_DROP_MS);
+    uint32_t i;
+    int on = 0;
+    for (i = 0; DCH_PAGE(ui.page) && i < sizeof DCH_AWAY; i++)
+        on |= ui.turned_at[DCH_AWAY[i]] && now - ui.turned_at[DCH_AWAY[i]] < DT_DROP_HOLD_MS;
+    if (!DCH_PAGE(ui.page)) {
+        ui.dt_drop = 0;
+        return 0;
+    }
+    if (step < 1 && !(on ? was < 45u : was > 0u))
+        return 0;
+    if (step < 1)                            /* (too soon for a row: the next frame's) */
+        return 1;
+    ui.dt_drop_at = now;
+    at = on ? at + step : at - step;
+    ui.dt_drop = (uint8_t)clamp(at, 0, 45);
+    return ui.dt_drop != was;
+}
 static int32_t dch_width(uint32_t c)         /* a channel's frame: 31 a key */
 {
     int32_t i, n = 0;
@@ -6736,10 +6772,16 @@ static void dch_draw(void)
             }
         silk_text(X + dch_width((uint32_t)k) / 2, top + 5, t, print);
     }
-    dt_tag_preset();
-    dt_tag_away(EN_SELECT, 50);
-    dt_tag_away(EN_K1, 100);
-    dt_tag_away(EN_K2, 150);
+    for (i = 0; i < (int32_t)sizeof DCH_AWAY; i++)   /* (the camera stays out: the header says, dt_drop_step) */
+        if (zoom.k == DCH_AWAY[i] + 1u)
+            zoom.k = 0;
+    if (ui.dt_drop) {                        /* a knob with none here turning: the header down over the plate, to say */
+        const int32_t d = (int32_t)ui.dt_drop - 45;
+        cv_oy += d;
+        dt_head_top();
+        cv_rect(0, 45, 240, 1, RGB(0, 0, 0));
+        cv_oy -= d;
+    }
     dt_crop_end();
 }
 /* FX again: plates with more to read than the faceplate shows */
@@ -7520,6 +7562,7 @@ void app_frame(void)
     }
     i = live();
     moved = zoom_step(now);
+    moved |= dt_drop_step(now);
     if (ui.mpan_at) {                        /* (the camera's pan: its next frame, else landed; a dive takes over) */
         moved = 1;
         if (now - ui.mpan_at >= MPAN_MS || zoom.z || zoom.home) {
@@ -7710,6 +7753,8 @@ int app_expect(const char *what, int *got)
         *got = dt_rec_light();
     else if (!strcmp(what, "dt_tempo"))      /* the drums' tempo; Swing Lock's setting, its first 8th (x100); the bass's 16th */
         *got = dt.tempo;
+    else if (!strcmp(what, "dt_drop"))
+        *got = ui.dt_drop;
     else if (!strcmp(what, "droll"))
         *got = set.droll;
     else if (!strcmp(what, "dswing_lock"))
