@@ -8,8 +8,8 @@ o2 = []                        # separate units compiled at -O2 (an app's DSP)
 words = "words.tsv"
 ble = true                     # Bluetooth MIDI (--no-ble builds without it)
 ble_central = true             # and the FM-1 connects to Bluetooth MIDI devices too
-usb_audio_midi_ac = true       # MIDI on its own audio control interface (felucca-bsp FELUCCA_UAC_MIDI_AC): macOS 15 shows
-                               # the FM-1 as an audio device beside its MIDI (usb_audio_first alone did not)
+usb_midi_last = true           # MIDI after the audio streaming interfaces (felucca-bsp FELUCCA_UAC_MIDI_LAST, the
+                               # default): macOS 13-15 show the FM-1 as an audio device beside its MIDI
 backup = true                  # backup and restore over USB (device/backup.c, tools/fm1_backup.py, web/backup)
 backup_ext = "bs2"             # (the site's backup page: its files, what they hold)
 backup_holds = "the patches, the sequences, the drums' patterns and songs, the RND seeds and the settings"

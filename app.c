@@ -3795,7 +3795,7 @@ static void dt_button(uint32_t k)
         if (f == DTF_COPYS)
             dt_copy_song();
         else if (f == DTF_ERASES) {          /* (its target's, whichever song is shown: 99's too) */
-            ds_clear(&dsm.s[ui.dt_tgt]);
+            dsong_clear(&dsm.s[ui.dt_tgt]);
             dq.dirty = 1;
             dt_fn_go(DTF_SONG);
         } else if (f >= DTF_SONG && ui.dt_song < DS_NSONG)

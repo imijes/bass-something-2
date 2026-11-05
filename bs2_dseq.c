@@ -59,7 +59,7 @@ static int32_t dq_tempo_at(uint32_t bpm)     /* the nearest at or under */
  * change, empty (ignored), or the end */
 #define DS_NSONG 99u
 #define DS_NSTEP 100u
-#define DS_MAGIC 0x44535331u
+#define DSONG_MAGIC 0x44535331u
 #define DS_END 0xC0u
 #define DS_EMPTY 0xE0u
 #define DS_VOL 0x80u                         /* | -15..15 in 5 bits */
@@ -598,7 +598,7 @@ static int dq_store(const void *mem, uint32_t sz, uint32_t obj, uint32_t *sum, u
     }
     return 0;
 }
-static void ds_clear(ds_song_t *t)
+static void dsong_clear(ds_song_t *t)
 {
     uint32_t i;
     t->tempo = 0;
@@ -673,12 +673,12 @@ static void dq_init(void)
             dq_defaults(&dqm.pat[i]);
         }
     }
-    if (!dq_load(&dsm, (uint32_t)sizeof dsm, OBJ_DS0, ds_sum, DS_NOBJ) || dsm.magic != DS_MAGIC) {
+    if (!dq_load(&dsm, (uint32_t)sizeof dsm, OBJ_DS0, ds_sum, DS_NOBJ) || dsm.magic != DSONG_MAGIC) {
         for (i = 0; i < DS_NOBJ; i++)
             ds_sum[i] = 0;
-        dsm.magic = DS_MAGIC;
+        dsm.magic = DSONG_MAGIC;
         for (i = 0; i < DS_NSONG; i++)
-            ds_clear(&dsm.s[i]);
+            dsong_clear(&dsm.s[i]);
     }
     dq.cue = dq.scue = dq.sel_song = DQ_NONE;
     dq.cur = 0;

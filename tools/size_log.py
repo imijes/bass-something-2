@@ -35,7 +35,7 @@ def build():
     env.setdefault("JIELI_TOOLCHAIN", str(Path.home() / ".jieli/jieli-linux-toolchains-20260730.1"))
     env.setdefault("AC79_SDK", str(Path.home() / "fw-AC79_AIoT_SDK"))
     out = subprocess.run([sys.executable, "tools/build.py", "bs2"], cwd=ROOT, env=env, capture_output=True, text=True)
-    m = re.search(r"image (\d+) B; RAM \.data\+\.bss (\d+) B of (\d+); pool (\d+) B of (\d+)", out.stdout + out.stderr)
+    m = re.search(r"image (\d+) B;(?: RAM code [^;]*;)? RAM \.data\+\.bss (\d+) B of (\d+); pool (\d+) B of (\d+)", out.stdout + out.stderr)
     if out.returncode or not m:
         sys.exit("the device build failed or gave no sizes:\n" + (out.stdout + out.stderr)[-2000:])
     return [int(g) for g in m.groups()]
