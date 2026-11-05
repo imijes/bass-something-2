@@ -20,8 +20,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Backup · Bass-Something-2</title>
-<meta name="description" content="Save what an FM-1 running Bass-Something-2 keeps to a file, and load them back later. It works in Chrome or Edge.">
+<title>Backup · Bass Something 2</title>
+<meta name="description" content="Back up everything Bass Something 2 has saved on the M-VAVE FM-1, and put it back, from Chrome or Edge, over USB.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Bass Something 2">
+<meta property="og:title" content="Backup · Bass Something 2">
+<meta property="og:description" content="Back up everything Bass Something 2 has saved on the M-VAVE FM-1, and put it back, from Chrome or Edge, over USB.">
+<meta property="og:url" content="https://imijes.github.io/bass-something-2/backup/">
+<meta property="og:image" content="https://imijes.github.io/bass-something-2/manual/img/screen-home.png">
+<meta property="og:image:alt" content="Bass Something 2 on the FM-1's screen: the HOME page">
+<meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
@@ -71,15 +79,59 @@ ul.ports li { display: flex; gap: .6rem; align-items: center; margin: 0 0 .4rem;
 kbd { font: 600 .9em "Barlow Semi Condensed", "Barlow", sans-serif; border: 1px solid var(--rule); border-bottom-width: 2px;
       border-radius: 4px; padding: 0 .3em; background: var(--ground); }
 </style>
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap");
+/* Bass Something 2's site in the firmware's own colours (app.c P_*): matte black, dark grey cards, grey names, white values,
+ * Novation's cyan for what is live. Laid over fm1-base's pages by bs2/site/make_site.py: the manual and front page
+ * (tools/manual_html.py's --paper, --ink ...) and the installer (web/installer.html's --bg, --fg ...) */
+:root, :root:not([data-theme="light"]), :root[data-theme] {
+  --paper: #121212; --sheet: #262628; --rule: #404044; --ink: #ffffff; --muted: #a2a2a8;
+  --hot: #3aadec; --hot-t: #12364a; --cool: #3aadec; --cool-t: #1a2a2e; --hot-ink: #3aadec;
+  --bg: #121212; --fg: #ffffff; --dim: #a2a2a8; --accent: #3aadec; --on-accent: #00141a; --bad: #ff7a6b;
+  --focus: #3aadec;
+  color-scheme: dark;
+}
+body { background: #121212; color: #ffffff; font-family: "Barlow", "Helvetica Neue", Arial, sans-serif; }
+h1, h2, h3, th, .bs2-tabs a, button { font-family: "Barlow Semi Condensed", "Barlow", "Arial Narrow", sans-serif; }
+h1 { color: var(--hot); letter-spacing: .03em; }
+h2 { border-top: 2px solid var(--rule); letter-spacing: .03em; }
+h2 .num { color: var(--hot); }
+th { color: var(--muted); border-bottom: 2px solid var(--hot); }
+td strong, p strong { color: #fff; }
+a { color: #fff; text-decoration-color: var(--hot); }
+a:hover { background: var(--hot-t); }
+code, pre { background: var(--sheet); color: #e8e8ea; }
+/* the screenshots: the FM-1's screen in a dark bezel */
+figure.shot img { box-shadow: 0 0 0 1px var(--rule), 0 0 0 6px #000; border-radius: 2px; }
+figcaption { color: var(--muted); }
+/* the installer's buttons and boxes */
+button { letter-spacing: .05em; text-transform: uppercase; border-radius: 4px; font-weight: 600; }
+button.plain { border-color: var(--rule); }
+.backup, #log, textarea { border-color: var(--rule); }
+.backup { background: #1a1a1c; }
+dialog { background: #1a1a1c; border: 1px solid var(--rule); }
+/* the section tabs, as on the screen: grey cards, the page you're on lit cyan */
+.bs2-tabs { max-width: 46rem; margin: 0 auto 1.6rem; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px; }
+.bs2-tabs.narrow { max-width: 520px; margin: 0 auto; padding: 24px 16px 0; box-sizing: border-box; }
+.bs2-tabs a { display: block; padding: .2em .75em; background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px;
+              color: var(--muted); text-decoration: none; font-weight: 600; font-size: .95rem; letter-spacing: .06em;
+              text-transform: uppercase; }
+.bs2-tabs a:hover { color: #fff; border-color: var(--hot); background: var(--sheet); }
+.bs2-tabs a[aria-current] { background: var(--hot); border-color: var(--hot); color: #00141a; }
+.bs2-sub { color: var(--muted); margin: -.2rem 0 1.2rem; letter-spacing: .02em; }
+/* the tabs take the place of fm1-base's own header (the name and its links) */
+.page > .site { display: none; }
+</style>
 </head>
 <body>
+<nav aria-label="Site"><ul class="bs2-tabs narrow"><li><a href="../">Home</a></li><li><a href="../emu/">Emulator</a></li><li><a href="../install/">Install</a></li><li><a href="../sysex/">SysEx</a></li><li><a href="../backup/" aria-current="page">Backup</a></li><li><a href="../manual/">Manual</a></li></ul></nav>
 <main>
-<h1>Back up Bass-Something-2</h1>
-<p class="lede">Save what Bass-Something-2 keeps to a file on this computer, and load them back later. Connect the FM-1 with a USB
+<h1>Back up Bass Something 2</h1>
+<p class="lede">Save what Bass Something 2 keeps to a file on this computer, and load them back later. Connect the FM-1 with a USB
 cable. This page works in Chrome or Edge, and there is nothing to install.</p>
 
 <!-- what is happening, in words: the status (polite) and, when something fails, the alert (read at once) -->
-<div class="status" id="statusBox"><p id="status" role="status">Plug the FM-1 running Bass-Something-2 into this computer with a USB cable.</p><p id="alert" role="alert"></p></div>
+<div class="status" id="statusBox"><p id="status" role="status">Plug the FM-1 running Bass Something 2 into this computer with a USB cable.</p><p id="alert" role="alert"></p></div>
 <progress id="bar" max="100" value="0" hidden aria-label="Backup progress"></progress>
 <section class="card" id="portpick" aria-labelledby="ph" hidden>
   <h2 id="ph">Is the FM-1 under another name?</h2>
@@ -91,14 +143,14 @@ cable. This page works in Chrome or Edge, and there is nothing to install.</p>
 
 <section class="card" aria-labelledby="bh">
   <h2 id="bh">Back up</h2>
-  <p>This saves everything to a <b>.bs2</b> file. That includes the patches, the sequences, the drums' patterns and songs, the RND seeds and the settings. Bass-Something-2 can keep playing. If you have
-  changes that aren't saved yet, stop Bass-Something-2 first so they go in the file too.</p>
+  <p>This saves everything to a <b>.bs2</b> file. That includes the patches, the sequences, the drums' patterns and songs, the RND seeds and the settings. Bass Something 2 can keep playing. If you have
+  changes that aren't saved yet, stop Bass Something 2 first so they go in the file too.</p>
   <div class="row"><button id="backup" class="primary" type="button">Back up</button></div>
 </section>
 
 <section class="card" aria-labelledby="rh">
   <h2 id="rh">Restore</h2>
-  <p>This puts a backup back on Bass-Something-2, and it <b>replaces everything</b> there. Stop Bass-Something-2 first. Bass-Something-2 checks the
+  <p>This puts a backup back on Bass Something 2, and it <b>replaces everything</b> there. Stop Bass Something 2 first. Bass Something 2 checks the
   whole file before anything changes. Then its screen asks <b>RESTORE FROM USB?</b> Press <kbd>SEL</kbd> on the FM-1 to restore, or
   <kbd>HOME</kbd> to keep what you have.</p>
   <div class="row">
@@ -127,7 +179,7 @@ cable. This page works in Chrome or Edge, and there is nothing to install.</p>
 <script>
 "use strict";
 // --- backup protocol: begin (tools/fm1_backup.py, device/backup.c; tested by tests/backup_page_test.mjs)
-const FW = { name: "Bass-Something-2", id: "FM-1_62", magic: "BS2B", version: Number("1"), ext: "bs2" };
+const FW = { name: "Bass Something 2", id: "FM-1_62", magic: "BS2B", version: Number("1"), ext: "bs2" };
 const PB = (() => {
   const HS_QUERY = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];   // fm1_install.py / fm1ota.js
   // the one with the body 01: the whole identity (HS_QUERY gets NAME_ and three digits, M-UPGRADE 3.11's limit)
@@ -764,5 +816,9 @@ $("askYes").addEventListener("click", async () => {
   }
 });
 </script>
+<footer>
+  <p class="small">Bass Something 2 by John Brown (<a href="https://github.com/imijes" target="_blank" rel="noopener">@imijes<span class="sr" data-t="newtab"> (opens in a new tab)</span></a>), <a href="https://github.com/imijes/bass-something-2/blob/main/LICENSE" target="_blank" rel="noopener">MPL-2.0<span class="sr" data-t="newtab"> (opens in a new tab)</span></a>, built on the work of others: see <a href="../manual/#s13">Credits</a> in the manual.<br>
+    M-VAVE and FM-1 are trademarks of their respective owners; Novation and Bass Station of Focusrite Audio Engineering Ltd. Bass Something 2 is not affiliated with M-VAVE or Novation.</p>
+</footer>
 </body>
 </html>
