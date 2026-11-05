@@ -52,8 +52,9 @@ the screen, sound and MIDI. There's no Bluetooth or USB host there, and the app 
 doesn't start can be recovered too. For details, see felucca-bsp's `tools/fm1_rescue.sh`.
 
 At power-on the screen shows BASS SOMETHING 2 in cyan, "Inspired by the Bass Station 2" under it, and an oscilloscope whose
-wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.6) is in the bottom
-right corner. Then the panel opens on the patch you last saved. The emulator shows the same splash when you switch it
+wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.7) is in the bottom
+right corner. v0.7 brings Drum Something (section 6) and the 2026-11-05 platform update: a faster install, FM-1s with
+the UC25HQ80 flash chip, and USB audio on macOS 15. It uses 515,520 B of the FM-1's flash, with about 66 KB free. Then the panel opens on the patch you last saved. The emulator shows the same splash when you switch it
 on.
 
 ---
@@ -912,7 +913,7 @@ writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL 
 SysEx Dump. A red display shows the main value where a page has one: GLOBAL MIDI's the MIDI channel (ALL, OFF or the
 number), GLOBAL DRUMS' the drums' channel, GLOBAL CLOCK's the tempo (while MIDI clock leads, its tempo as measured over
 every two beats; dashes until then) with the clock's state beside it, GLOBAL DUMP's the patch. GLOBAL DISPLAY shows the
-firmware's version (VERSION v0.6). The on/off settings are slide switches.
+firmware's version (VERSION v0.7). The on/off settings are slide switches.
 
 On every GLO page, the right of the page's own bar shows the audio's load (for a moment after a change, what changed
 instead), for example **CPU 34/41**. The first number is the

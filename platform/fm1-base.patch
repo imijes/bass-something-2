@@ -1,8 +1,8 @@
 diff --git a/device/main_fm1.c b/device/main_fm1.c
-index 5eaa87b..a210a3f 100644
+index 33fe670..5027ee9 100644
 --- a/device/main_fm1.c
 +++ b/device/main_fm1.c
-@@ -13,6 +13,11 @@ extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[];
+@@ -15,6 +15,11 @@ extern uint8_t _app_xip_end[];
  #define FS 44100u
  #define REND_FRAMES HALF_FRAMES             /* app_render's frames per call */
  static int32_t abuf[2u * HALF_WORDS] __attribute__((aligned(4)));
@@ -14,7 +14,7 @@ index 5eaa87b..a210a3f 100644
  
  #define DBG_MAGIC 0x44424731u                       /* "DBG1": read with `fm1t memr` */
  struct fm1b_dbg {
-@@ -57,6 +62,9 @@ static void render_block(int32_t *o)                /* ALNK0: one half, measured
+@@ -71,6 +76,9 @@ static void render_block(int32_t *o)                /* ALNK0: one half, measured
          const int full = 0;
  #endif
          for (k = 0; k < HALF_FRAMES; k += REND_FRAMES) {
@@ -24,7 +24,7 @@ index 5eaa87b..a210a3f 100644
              if (radio_quiet) {                        /* the radio calibrating: no flash reads (radio.c) */
  #ifdef APP_QUIET
                  app_quiet(o + 2u * k, REND_FRAMES);
-@@ -66,13 +74,26 @@ static void render_block(int32_t *o)                /* ALNK0: one half, measured
+@@ -80,12 +88,28 @@ static void render_block(int32_t *o)                /* ALNK0: one half, measured
                      o[2u * k + i] = 0;
  #endif
              } else {
@@ -44,94 +44,35 @@ index 5eaa87b..a210a3f 100644
              }
              if (radio_quiet)
                  continue;
- #if FELUCCA_UAC_OUT
--            uac_play(o + 2u * k, REND_FRAMES, full ? 4096u : master_pos * master_pos >> 12);   /* the computer's audio,
--                                                                                         * at MASTER */
-+            if (!route)                             /* (routed: the app had it) */
-+                uac_play(o + 2u * k, REND_FRAMES, full ? 4096u : master_pos * master_pos >> 12);   /* the computer's
-+                                                                                         * audio, at MASTER */
- #endif
- #if FELUCCA_UAC
-             uac_tap(o + 2u * k, REND_FRAMES);       /* the USB audio input: the same master output */
-@@ -89,6 +110,9 @@ static void render_block(int32_t *o)                /* ALNK0: one half, measured
+-            uac_mix(o + 2u * k, REND_FRAMES, gain, master_pos, full, usb_play_q12);   /* the USB
+-                                                     * recording, then the computer's audio, then MASTER if full */
++            uac_mix(o + 2u * k, REND_FRAMES, gain, master_pos, full,
++#if FELUCCA_UAC_OUT
++                    route ? UAC_MIX_ROUTED :        /* (routed: the app had the computer's audio) */
++#endif
++                    usb_play_q12);                  /* the USB recording, then the computer's audio, then MASTER if
++                                                     * full */
+ #if FM1B_BT_AUDIO
+ #ifdef APP_BT_FRAMES
+             bta_streamed = (uint8_t)own_bta_feed(app_bt_frames(o + 2u * k, REND_FRAMES), REND_FRAMES);   /* (the app's
+@@ -98,6 +122,9 @@ static void render_block(int32_t *o)                /* ALNK0: one half, measured
                  for (i = 0; i < 2u * REND_FRAMES; i++)
                      o[2u * k + i] = 0;
              }
 +#endif
 +#ifdef APP_SPEAKER
-+            app_speaker(o + 2u * k, REND_FRAMES, fm1_jack_in());   /* (after the USB audio input's tap and Bluetooth) */
++            app_speaker(o + 2u * k, REND_FRAMES, (int)fm1_hp_in());   /* (after the USB audio input's tap and Bluetooth) */
  #endif
          }
      }
-@@ -826,8 +850,9 @@ static void safe_main(void)
-             uint32_t n;
-             if (ota_frame_get(&p, &n) && log_frame(p, n))
-                 ota_frame_done();
-+            else
-+                ota_service();                      /* (only at a frame the log didn't take) */
-         }
--        ota_service();
-         if (usb.ota_req) {
-             usb.ota_req = 0;
-             if (flash_ok)
-@@ -863,6 +888,7 @@ static void fm1_main(void)
-     int32_t knob = 512 * 16;
-     uint32_t batt_t = 0;                            /* (the battery's last reading, fm1_ms) */
-     uint32_t last_frame = 0;
-+    int took;                                       /* a SysEx frame taken this pass (not the updater's) */
-     {
-         uint32_t f = irq_save();
-         rails_boot[0] = fm1_p33_read(FM1_P3_ANA_CON6);
-@@ -980,8 +1006,9 @@ static void fm1_main(void)
-                 master_pos = mirror_in_master(remote.master >= 0 ? (uint32_t)remote.master : (uint32_t)(knob / 4));
-             }
-         }
--        if (!fm1_an.con && !fm1_an.pend && fm1_ms - batt_t >= 100u) {   /* the battery, ten times a second (plat_battery) */
--            int32_t b = fm1_adc_read(FM1_ADC_BATT);
-+        if (fm1_ms - batt_t >= 100u) {              /* the battery, ten times a second (plat_battery); the scan's
-+                                                     * reading while it owns the converter (the keys' readings on) */
-+            int32_t b = fm1_an.con || fm1_an.pend ? (int32_t)fm1_an.batt : fm1_adc_read(FM1_ADC_BATT);
-             batt_t = fm1_ms;
-             if (b > 0)
-                 batt_raw = batt_raw ? batt_raw + (b - batt_raw) / 16 : b;
-@@ -995,9 +1022,11 @@ static void fm1_main(void)
- #ifdef APP_LOOP
-         app_loop();                                 /* the app's background (a radio's tasks) */
- #endif
--        {   /* a screen reader's SysEx (announce.c), before the updater looks */
-+        {   /* a screen reader's SysEx (announce.c), before the updater looks; the updater only at a frame none took
-+             * (the next one waiting, else, would be its own, dropped if not) */
-             const uint8_t *p;
-             uint32_t n;
-+            took = 0;
-             if (ota_frame_get(&p, &n) && (ann_frame(p, n, fm1_ms) || log_frame(p, n) || remote_frame(p, n)
- #if FM1B_WIFI
-                                           || wifi_frame(p, n)
-@@ -1011,11 +1040,14 @@ static void fm1_main(void)
- #ifdef APP_SYSEX
-                                           || app_sysex(p, n)
- #endif
--                                          ))
-+                                          )) {
-                 ota_frame_done();
-+                took = 1;
-+            }
-         }
-         fm1b_dbg.stage = 4;
--        usb_cmd(ota_service());                     /* M-UPGRADE handshake; the commands in its framing (backup,
-+        if (!took)
-+            usb_cmd(ota_service());                 /* M-UPGRADE handshake; the commands in its framing (backup,
-                                                      * mirror, the app's); other SysEx is dropped */
- #if FM1B_BACKUP
-         bu_step();                                  /* a backup streaming to the host */
 diff --git a/device/plat_fm1.c b/device/plat_fm1.c
-index 48477b9..8e69e74 100644
+index 2694c4f..cf97152 100644
 --- a/device/plat_fm1.c
 +++ b/device/plat_fm1.c
-@@ -200,6 +200,11 @@ void plat_host_patience(uint32_t try_ms, uint32_t total_ms)
- /* USB audio full: the render at full level for the USB audio input, MASTER after it (main_fm1.c render_block) */
- static volatile uint8_t uac_full;
- void plat_usb_audio_full(int on) { uac_full = (uint8_t)(on != 0); }
+@@ -297,6 +297,11 @@ void plat_usb_audio_full(int on) { uac_full = (uint8_t)(on != 0); }
+ /* the computer's USB audio's level in the mix, 0..4096 (uac_mix.h; read by the render: one word, no lock) */
+ static volatile uint32_t usb_play_q12 = 4096u;
+ void plat_usb_play_gain(uint32_t q12) { usb_play_q12 = q12 > 4096u ? 4096u : q12; }
 +/* USB audio output as the app's input: the route asked, and the block app_render may read (main_fm1.c render_block) */
 +static volatile uint8_t uac_route;
 +static const int32_t *uac_in_now;
@@ -140,26 +81,50 @@ index 48477b9..8e69e74 100644
  void plat_yield(void)
  {
      ble_poll();                                   /* Bluetooth: its notifications go out while the screen draws */
+diff --git a/device/uac_mix.h b/device/uac_mix.h
+index 7753fd5..79b82ff 100644
+--- a/device/uac_mix.h
++++ b/device/uac_mix.h
+@@ -15,14 +15,17 @@
+ 
+ /* o: n stereo frames of the render (24-bit, as the I2S takes them; at 4096 when full, else at gain); gain: MASTER's gain
+  * (APP_GAIN), put on after the tap when full; master: MASTER's position 0..4096; play_q12: the computer's audio's level,
+- * 0 muted .. 4096 as sent */
++ * 0 muted .. 4096 as sent, or UAC_MIX_ROUTED: the app took the computer's audio as its input (plat_usb_audio_route),
++ * so it is not read again here */
++#define UAC_MIX_ROUTED 0xFFFFFFFFu
+ static inline void uac_mix(int32_t *o, uint32_t n, uint32_t gain, uint32_t master, int full, uint32_t play_q12)
+ {
+ #if FELUCCA_UAC
+     uac_tap(o, n);                                  /* the USB audio input: the app's output, before the computer's */
+ #endif
+ #if FELUCCA_UAC_OUT
+-    uac_play(o, n, full ? play_q12 : (master * master >> 12) * play_q12 >> 12);   /* the computer's audio, at MASTER */
++    if (play_q12 != UAC_MIX_ROUTED)
++        uac_play(o, n, full ? play_q12 : (master * master >> 12) * play_q12 >> 12);   /* the computer's audio, at MASTER */
+ #else
+     (void)master, (void)play_q12;
+ #endif
 diff --git a/host/plat_host.c b/host/plat_host.c
-index 0a56f9a..adf2614 100644
+index 41ab361..f136e66 100644
 --- a/host/plat_host.c
 +++ b/host/plat_host.c
-@@ -22,7 +22,11 @@
-  *   ble connect | ble link | ble disconnect   a central listening, or linked and not yet listening (FM1B_BLE: the
-  *                                stand-in stack is ready a second after the start)
+@@ -24,7 +24,11 @@
+  *   bta add NAME | bta drop NAME a Bluetooth audio device around, or gone (FM1B_BT_AUDIO: a link to it is lost)
+  *   jack in | jack out           headphones into the jack, or out (plat_headphones; nothing plugged at the start)
   *   wav FILE | wavstop           start / stop recording the output
 + *   xrun                         a missed deadline, as the device counts them (plat_xruns)
-+ *   jack 0|1                     the headphone jack empty, or something in it (APP_SPEAKER; 1 by default)
++ *                                (also 1 / 0; APP_SPEAKER's jack is 1 until a script says)
   *   peakreset                    restart the output peak (expect peak_db_min / peak_db_max)
 + *   usbtone HZ                   the computer plays a sine over USB audio at half of full level (0: silence): the
 + *                                app's input with plat_usb_audio_route on
   *   shot FILE.png                save the screen
   *   leds                         print the lit buttons and keys (keys: # bright, + dim)
   *   out                          print the MIDI sent since the last "out" (and forget it; clocks not shown)
-@@ -525,6 +529,12 @@ int plat_host_read(uint32_t addr, uint8_t *dst, uint32_t n) { (void)addr, (void)
- void plat_host_patience(uint32_t try_ms, uint32_t total_ms) { (void)try_ms, (void)total_ms; }
- static int uac_full;                            /* plat_usb_audio_full: the render at full level, MASTER after it */
+@@ -1316,6 +1320,12 @@ static int uac_full;                            /* plat_usb_audio_full: the rend
  void plat_usb_audio_full(int on) { uac_full = on != 0; }
+ static uint32_t usb_play_q12 = 4096u;            /* plat_usb_play_gain: no USB audio on the host; kept for a test */
+ void plat_usb_play_gain(uint32_t q12) { usb_play_q12 = q12 > 4096u ? 4096u : q12; }
 +/* USB audio output as the app's input: a computer playing a sine (usbtone HZ, 0 silence) at half of full level */
 +static int uac_route;
 +static const int32_t *uac_in_now;
@@ -169,17 +134,17 @@ index 0a56f9a..adf2614 100644
  
  /* flash: one buffer per object, kept across a simulated reboot */
  static uint8_t store[OBJ_NOBJ][PLAT_STORE_MAX];
-@@ -584,7 +594,8 @@ int plat_store_save(uint32_t obj, const void *src, uint32_t len)
- 
- static uint32_t cpu_pct;
- uint32_t plat_cpu_pct(void) { return cpu_pct; }
+@@ -1497,7 +1507,8 @@ static void ds_fill(ds_rec_t *r)                    /* what the simulator has of
+     app_stats(r->app);
+ #endif
+ }
 -uint32_t plat_xruns(void) { return 0; }
 +static uint32_t sim_xruns;                       /* xrun: a missed deadline, as the device counts it */
 +uint32_t plat_xruns(void) { return sim_xruns; }
- uint32_t plat_ticks24(void)                     /* the host's monotonic clock, at the device's rate */
- {
-     struct timespec t;
-@@ -981,16 +992,32 @@ static void sim_ms_begin(uint32_t ms)
+ void plat_code_window(const void *end) { (void)end; }
+ /* disk mode: no computer in the simulator; the app's screen and flush still run */
+ static const plat_disk_t *host_disk;
+@@ -1963,16 +1974,32 @@ static void sim_ms_begin(uint32_t ms)
  #endif
  }
  
@@ -212,16 +177,24 @@ index 0a56f9a..adf2614 100644
      dt = now_ns() - t0;
      render_ns_total += dt;
      render_budget_ns_total += APP_BLOCK * 1e9 / 44100.0;
-@@ -1421,8 +1448,16 @@ int main(int argc, char **argv)
+@@ -2545,7 +2572,10 @@ int main(int argc, char **argv)
+             run_ms(1);
+             plat_host_exact = 0;
+         } else if (!strcmp(cmd, "jack")) {          /* jack in | jack out: the headphone jack (plat_headphones) */
+-            host_hp = !strcmp(a, "in");
++            host_hp = !strcmp(a, "in") || !strcmp(a, "1");
++#ifdef APP_SPEAKER
++            sim_jack = host_hp;                     /* (APP_SPEAKER's jack: 1 by default) */
++#endif
+             run_ms(2);
+         } else if (!strcmp(cmd, "master")) {
+             master = (uint32_t)atoi(a);
+@@ -2603,8 +2633,12 @@ int main(int argc, char **argv)
              wav_open(out);
          } else if (!strcmp(cmd, "wavstop"))
              wav_close();
 +        else if (!strcmp(cmd, "xrun"))             /* xrun: a missed deadline */
 +            sim_xruns++;
-+#ifdef APP_SPEAKER
-+        else if (!strcmp(cmd, "jack"))             /* jack 0|1: the headphone jack empty, or something in it */
-+            sim_jack = atoi(a);
-+#endif
          else if (!strcmp(cmd, "peakreset"))
              peak_out = 0.0f;
 +        else if (!strcmp(cmd, "usbtone"))          /* usbtone HZ: the computer plays a sine over USB audio (0: silence) */
@@ -230,13 +203,13 @@ index 0a56f9a..adf2614 100644
              snprintf(out, sizeof out, "%s/%s", dir, a);
              png_write(out);
 diff --git a/include/plat.h b/include/plat.h
-index 772a7c2..56ea847 100644
+index 47503f9..a0f632d 100644
 --- a/include/plat.h
 +++ b/include/plat.h
-@@ -215,6 +215,13 @@ void plat_host_patience(uint32_t try_ms, uint32_t total_ms);   /* each try's wai
- /* USB audio full (FM1B_UAC): 1, the USB audio input at full level (the app's render at gain 4096), MASTER for the
-  * speaker and headphones only; 0, both at MASTER (the default) */
- void plat_usb_audio_full(int on);
+@@ -445,6 +445,13 @@ void plat_usb_audio_full(int on);
+  * before the computer's audio is mixed in, whatever this is: recording the FM-1 never records the computer's own
+  * playback (device/uac_mix.h). Without usb_audio_out, nothing */
+ void plat_usb_play_gain(uint32_t q12);
 +/* USB audio output as the app's input (FM1B_UAC_OUT): on, the computer's audio is the app's to use (a synth's external
 + * input: through its filter and amplifier) and no longer plays after it; off (the default), it plays at MASTER after
 + * the app's render. Read once a render: a change takes the next */
@@ -247,35 +220,13 @@ index 772a7c2..56ea847 100644
  
  /* the keys' velocity and pressure (an app with APP_KEY_SENSE): on, the scan reads the keys on the analog rows and
   * hands each reading to the app (app_key_sample, app_key_probe); off by default */
-@@ -280,6 +287,9 @@ uint32_t plat_cpu2_stack(void);        /* how deep its stack (2816 B) has gone,
-  *   APP_OVERLOAD    void app_overload(void)       the render took over 90 % of its time (shed voices)
-  *   APP_SPLASH      void app_splash(void)         the first screen at boot, instead of the name
-  *   APP_GAIN(m)     the render's gain from MASTER's position m (0..4096; default the square, m * m >> 12)
+@@ -602,6 +609,9 @@ int app_stats_quiet(void);
+  *   APP_BATTERY_RAW (no function) plat_battery_raw is built (the battery's reading, for an app's own volts)
+  *   APP_CPU_KHZ     (no function) plat_cpu_khz is built (the CPU's clock)
+  *   APP_DIM_LEVELS  (no function) plat_dim_ns is built (the dim lights at any of many brightnesses)
 + *   APP_SPEAKER     void app_speaker(int32_t *lr, uint32_t n, int jack)   what the speaker and headphones get, after the
 + *                   USB audio input's tap and Bluetooth's feed; jack: 1 something in the headphone jack, which cuts the
 + *                   speaker (the speaker plays the left channel alone). In the audio interrupt
   *   APP_QUIET       void app_quiet(int32_t *lr, uint32_t n)   the render while the flash must not be read (the
   *                   radio's first second, FM1B_BLE): keep time without sound (default: silence)
   *   APP_KEY_SENSE   void app_key_sample(uint32_t key, uint32_t v, uint32_t ticks, int driven) (rows PA7 / PA8),
-diff --git a/tools/build.py b/tools/build.py
-index a6607e3..46bd7e8 100755
---- a/tools/build.py
-+++ b/tools/build.py
-@@ -48,6 +48,8 @@ APP_DIR holds the app (app.h, app.c, its sources) and its fm1.toml:
-   usb_audio_first = true     the USB audio streaming interfaces listed first in the audio control collection
-                              (felucca-bsp FELUCCA_UAC_AS_FIRST, from Felucca 1.5.1): macOS then shows the FM-1 as an audio
-                              device beside its MIDI; bcdDevice +0.08 (a changed device to the computer)
-+  usb_audio_midi_ac = true   MIDI on an audio control interface of its own, after the audio function (felucca-bsp
-+                             FELUCCA_UAC_MIDI_AC); use instead of usb_audio_first; bcdDevice +0.80
-   usb_host = true            the USB port as a MIDI host when the app asks (FM1B_USB_HOST: felucca-bsp's
-                              FELUCCA_USB_HOST, docs/USB_HOST.md; plat_usb_host in plat.h): a USB-MIDI controller or
-                              synth, directly or behind one powered hub (the FM-1 gives no power). Boot is a device
-@@ -579,6 +581,8 @@ def build_app():
-             flags.append(f"-D{flag}={int(bool(CONF[key]))}")
-     if CONF.get("usb_audio_first"):
-         flags.append("-DFELUCCA_UAC_AS_FIRST=1")
-+    if CONF.get("usb_audio_midi_ac"):
-+        flags.append("-DFELUCCA_UAC_MIDI_AC=1")
-     for flag in ("FM1B_CDC", "FM1B_UAC", "FM1B_UAC_OUT", "FM1B_TRS"):
-         v = os.environ.get(flag)    # unset: fm1.toml's, the app's (app.h) or the platform's default (device/unity.c)
-         if v in ("0", "1"):

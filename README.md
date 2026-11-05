@@ -2,7 +2,10 @@
 
 A monosynth inspired by the legendary Novation Bass Station II, built for the M-VAVE FM-1. It's also a companion for Cyma Forma's RND Synth (firmware
 1.4): 32 seed slots with their locks, and a mixer for its four tracks. It runs on an iPhone or iPad in RemoteFM1 too. It's built on fm1-base, started from fm1-base's `template/`.
-The manual (`docs/MANUAL.md`) describes everything it does.
+It also has a second instrument, Drum Something: a drum machine inspired by the Sequential Circuits Drumtraks, with
+synthesized voices on virtual EPROMs, patterns, songs and MIDI out. The manual (`docs/MANUAL.md`) describes everything
+it does. To see what's new in v0.7, read `docs/RELEASE_v0.7.md`. The v0.7 firmware is 515,520 B, with about 66 KB of
+flash and 19.9 KB of RAM free (`docs/SIZE_LOG.md`).
 
 | File | What |
 | --- | --- |
@@ -25,10 +28,13 @@ The manual (`docs/MANUAL.md`) describes everything it does.
 ## Build, test, install
 
 Bass Something 2 builds in an [fm1-base](https://github.com/charlesvestal/fm1-base) checkout (bs2/ at its root) at
-d8ff8f4, with its felucca-bsp at 305c372, plus two platform patches that aren't upstream yet (`platform/`): the
-computer's USB audio as the synth's external input (`plat_usb_audio_route`, `plat_usb_audio_in`; fm1-base #17), the
-battery read while the keys' velocity is on (felucca-bsp #19, fm1-base #16), and received SysEx queued instead of one
-message at a time, so a bank sent without gaps arrives whole (felucca-bsp #20, fm1-base #15). From the fm1-base root:
+698e2cb, with its felucca-bsp at f878800, plus the changes in `platform/` that aren't upstream yet:
+- the computer's USB audio as the synth's external input (`plat_usb_audio_route`, `plat_usb_audio_in`; fm1-base #17);
+- the speaker told about the headphone jack (`APP_SPEAKER`);
+- the host's xrun count, for tests;
+- felucca-bsp's EP0 fix (#28).
+
+From the fm1-base root:
 
     git apply bs2/platform/fm1-base.patch
     git -C bsp apply ../bs2/platform/felucca-bsp.patch
@@ -43,12 +49,12 @@ Then, from the repository root:
 
 The site (bs2/build/site), from a release:
 
-    tools/build.py bs2 --release 0.6 && tools/build.py bs2 --web --release 0.6
-    tools/build.py bs2 --rfm1 --release 0.6               # RemoteFM1 (iOS): bs2/build/rfm1/bass_something_2-0.6.rfm1,
+    tools/build.py bs2 --release 0.7 && tools/build.py bs2 --web --release 0.7
+    tools/build.py bs2 --rfm1 --release 0.7               # RemoteFM1 (iOS): bs2/build/rfm1/bass_something_2-0.7.rfm1,
                                                           # a release asset; build it from a pushed commit (its source_url)
-    python3 bs2/site/make_site.py bs2/build/bass-something-2-0.6.fwsc 0.6
+    python3 bs2/site/make_site.py bs2/build/bass-something-2-0.7.fwsc 0.7
     (cd bs2/build/site && python3 -m http.server 8765)    # http://localhost:8765
-    python3 bs2/site/publish_pages.py 0.6                 # https://imijes.github.io/bass-something-2/
+    python3 bs2/site/publish_pages.py 0.7                 # https://imijes.github.io/bass-something-2/
 
 Bass Something 2 is by John Brown ([@imijes](https://github.com/imijes)). Credits for everyone whose work it builds on: `docs/MANUAL.md`, section 13.
 
