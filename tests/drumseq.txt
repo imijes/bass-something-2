@@ -95,6 +95,7 @@ tap SEQ
 expect dt_fn 4
 expect dt_rec 1
 tap SEQ
+tap SEQ
 expect dt_fn 1
 # STOP: out of RECORD MODE, the number
 tap PLAY
@@ -145,10 +146,12 @@ tap SEQ
 tap SEQ
 tap SEQ
 tap SEQ
+tap SEQ
 expect dt_fn 4
 spin ALGO 2
 wait 30
 expect dt_swing 2
+tap SEQ
 tap SEQ
 tap SEQ
 tap SEQ
@@ -295,11 +298,13 @@ spin PRESET -1
 wait 30
 expect dt_swing 3
 tap SEQ
+tap SEQ
 expect dt_fn 0
 expect dt_rec 0
 tap SEQ
 expect dt_fn 4
 expect dt_rec 0
+tap SEQ
 tap SEQ
 expect dt_fn 0
 # recording: SEQ goes on to Swing, still recording; ALGO is the swing there, Error Correct elsewhere
@@ -316,6 +321,7 @@ expect dt_rec 1
 spin ALGO -1
 wait 30
 expect dt_swing 2
+tap SEQ
 tap SEQ
 expect dt_fn 1
 expect dt_rec 1
@@ -503,6 +509,7 @@ tap SEQ
 tap SEQ
 tap SEQ
 tap SEQ
+tap SEQ
 tap REC
 wait 30
 expect dt_rec 1
@@ -541,6 +548,7 @@ expect dt_fn 6
 spin ALGO 1
 wait 30
 expect dt_meas 2
+tap SEQ
 tap SEQ
 tap SEQ
 tap SEQ
@@ -637,7 +645,7 @@ expect dt_tempo 120
 # a song: the manual's AABA in song 45 (5-2): ARP to SONG, its number; BUILD MODE, ENTER; each pattern, ENTER; ENTER to leave
 expect dt_pat 20
 tap ARP
-expect dt_fn 9
+expect dt_fn 10
 spin PRESET 45
 wait 30
 expect dt_song 45
@@ -648,10 +656,10 @@ expect dt_run 0
 tap ARP
 tap ARP
 tap ARP
-expect dt_fn 12
+expect dt_fn 13
 tap SEL
 wait 30
-expect dt_fn 13
+expect dt_fn 14
 expect dt_step 0
 # PRESET the step (the left display), ALGO the pattern (the right)
 spin ALGO 20
@@ -662,7 +670,7 @@ expect dt_step 1
 expect dt_slen 1
 tap SEL
 wait 30
-expect dt_fn 9
+expect dt_fn 10
 expect dt_slen 1
 # empty patterns at its end stop it; a loop of pattern 20 twice, then the end: round again, step by step
 tap ARP
@@ -684,23 +692,23 @@ wait 30
 tap ARP
 tap ARP
 tap ARP
-expect dt_fn 16
+expect dt_fn 17
 tap SEL
 wait 30
-expect dt_fn 13
+expect dt_fn 14
 expect dt_slen 3
 tap ARP
-expect dt_fn 14
+expect dt_fn 15
 spin ALGO -2
 wait 30
 tap SEL
 wait 30
-expect dt_fn 13
+expect dt_fn 14
 expect dt_step 2
 expect dt_slen 3
 tap SEL
 wait 30
-expect dt_fn 9
+expect dt_fn 10
 # run: the song runs its patterns, the changes accumulating over its loops
 tap PLAY
 wait 200
@@ -719,12 +727,12 @@ expect dt_insong 0
 # copy to 46; a saved song is back after a reboot
 tap ARP
 tap ARP
-expect dt_fn 11
+expect dt_fn 12
 spin ALGO 1
 wait 30
 tap SEL
 wait 30
-expect dt_fn 9
+expect dt_fn 10
 spin PRESET 1
 wait 30
 expect dt_song 46
@@ -742,22 +750,22 @@ tap ARP
 tap ARP
 tap ARP
 tap ARP
-expect dt_fn 12
+expect dt_fn 13
 tap SEL
 wait 30
 tap ARP
 tap ARP
 tap ARP
 tap ARP
-expect dt_fn 17
+expect dt_fn 18
 tap SEL
 wait 30
 expect dt_slen 2
 tap SEL
 wait 30
-expect dt_fn 9
-tap ARP
 expect dt_fn 10
+tap ARP
+expect dt_fn 11
 spin ALGO 0
 tap SEL
 wait 30
@@ -802,17 +810,18 @@ tap SEQ
 tap SEQ
 tap SEQ
 tap SEQ
+tap SEQ
 expect dt_fn 0
 tap ARP
 wait 400
 expect page 34
-expect dt_fn 9
+expect dt_fn 10
 expect zoom 256
 wait 2400
 expect zoom 0
 tap ARP
 wait 300
-expect dt_fn 10
+expect dt_fn 11
 expect zoom 256
 shot drum-song.png
 spin PRESET 0

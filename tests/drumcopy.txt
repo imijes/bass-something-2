@@ -25,6 +25,7 @@ expect dt_fn 8
 expect dt_used 0
 hint Nothing to copy
 tap SEQ
+tap SEQ
 expect dt_fn 0
 # 00: 4/4, a measure, a snare
 tap REC
@@ -49,6 +50,7 @@ expect dt_fn 5
 spin ALGO 1
 wait 30
 expect dt_len 64
+tap SEQ
 tap SEQ
 tap SEQ
 tap SEQ
@@ -262,6 +264,7 @@ tap SEQ
 tap SEQ
 tap SEQ
 tap SEQ
+tap SEQ
 expect dt_fn 7
 tap SEL
 wait 30
@@ -281,6 +284,7 @@ spin ALGO 200
 wait 30
 expect dt_meas 99
 expect dt_len 9504
+tap SEQ
 tap SEQ
 tap SEQ
 tap SEQ

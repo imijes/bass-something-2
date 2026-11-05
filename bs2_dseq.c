@@ -88,9 +88,11 @@ static struct {
     uint32_t idx, click_t;                   /* the next hit; the next metronome beat */
     int32_t skip[NDT];                       /* a hit recorded ahead of the playhead: not this pass (heard on the next) */
     float click, click_ph, click_inc, click_g;   /* the metronome's envelope, phase, pitch, level */
+    uint8_t roll, roll_d, roll_v, roll_a;    /* the roll key held: its drum, velocity, accent */
+    float roll_t, roll_g, roll_inc;          /* ticks since its last hit, between hits, a sample's */
 } dq PLAT_POOL;
 static fifo_t dqq;                           /* main loop -> audio: op | a << 8 | b << 16 */
-enum { DQC_RUN, DQC_STOP, DQC_CUE, DQC_HIT, DQC_EKEY, DQC_ERASE, DQC_COPY, DQC_SONG, DQC_SCUE };
+enum { DQC_RUN, DQC_STOP, DQC_CUE, DQC_HIT, DQC_EKEY, DQC_ERASE, DQC_COPY, DQC_SONG, DQC_SCUE, DQC_ROLL, DQC_ROLLOFF };
 #ifdef PLAT_HOST
 static uint32_t dq_clicks;                   /* (the host's: the metronome's beats, for tests/drumseq.txt) */
 #endif
@@ -431,12 +433,42 @@ static void dq_step(void)
     }
     dq_next(p);
 }
+/* the roll key: the drum again and again at the roll's rate (the list's ROLL), as if played: recorded too */
+static float dq_roll_grid(void)
+{
+    return (float)DQ_ROLL[set.droll < DQ_NROLL ? set.droll : DQ_ROLL_16];
+}
+static void dq_roll_hit(void)
+{
+    const uint32_t d = dq.roll_d, l = dt_level(d, dq.roll_v, dq.roll_a);
+    if (dq.rec == DQR_ERASE)
+        return;
+    dt_hit(d, dt.tune[d], l);
+    dq_out(d, l);
+    dq_hit_in(d, dq.roll_a);
+}
+static void dq_roll_on(uint32_t d, uint32_t b)
+{
+    const int was = dq.roll;
+    dq.roll = 1, dq.roll_d = (uint8_t)d, dq.roll_v = (uint8_t)(b & 0x7Fu), dq.roll_a = (uint8_t)(b >> 7);
+    if (was)                                 /* (another drum tapped as it rolls: that one's, in time) */
+        return;
+    dq.roll_g = dq_roll_grid();
+    dq.roll_inc = (float)dt.tempo * (24.0f / 60.0f / BS2_RATE);
+    dq.roll_t = dq.run ? dt_pos - dq.roll_g * (float)(uint32_t)(dt_pos / dq.roll_g) : 0.0f;   /* (running: on the pattern's grid) */
+    if (dq.roll_t < dq.roll_g / 2.0f)        /* (now, unless the grid's next is nearer) */
+        dq_roll_hit();
+}
 static inline void dq_sample(void)           /* each sample (audio interrupt) */
 {
     if (dq.run) {
         dt_pos += dq.inc;
         if (dt_pos >= dq.next)
             dq_step();
+    }
+    if (dq.roll && (dq.roll_t += dq.roll_inc) >= dq.roll_g) {
+        dq.roll_t -= dq.roll_g;
+        dq_roll_hit();
     }
 }
 static inline float dq_click_next(void)      /* the metronome, its beats a short square's */
@@ -481,6 +513,12 @@ static void dq_block(void)
         case DQC_HIT:
             dq_hit_in(a, b);
             break;
+        case DQC_ROLL:
+            dq_roll_on(a, b);
+            break;
+        case DQC_ROLLOFF:
+            dq.roll = 0;
+            break;
         case DQC_EKEY:
             dq_erase_key(a);
             break;
@@ -510,6 +548,10 @@ static void dq_block(void)
         }
     } else {
         dq.inc = (float)dt.tempo * (24.0f / 60.0f / BS2_RATE);
+    }
+    if (dq.roll) {
+        dq.roll_g = dq_roll_grid();
+        dq.roll_inc = (float)dt.tempo * (24.0f / 60.0f / BS2_RATE);
     }
     dt_lock_h = set.dswing_lock && dq.run && dq.cur < DQ_NPAT ? 0.24f * (float)DQ_SWING[dqm.pat[dq.cur].swing] : 0.0f;
     if (dq.run && dq.cur < DQ_NPAT)          /* (RECORD MODE just on: its metronome) */

@@ -70,19 +70,19 @@ tap SEQ
 expect dt_fn 3
 shot drum-fn.png
 tap ARP
-expect dt_fn 9
+expect dt_fn 10
 tap ARP
 tap ARP
 tap ARP
-expect dt_fn 12
-tap SEL
 expect dt_fn 13
+tap SEL
+expect dt_fn 14
 tap ARP
+expect dt_fn 15
+tap SEL
 expect dt_fn 14
 tap SEL
-expect dt_fn 13
-tap SEL
-expect dt_fn 9
+expect dt_fn 10
 spin PRESET 5
 expect dt_song 5
 expect dt_pat 0
@@ -101,6 +101,7 @@ tap SEQ
 expect dt_fn 3
 tap SEQ
 expect dt_fn 4
+tap SEQ
 tap SEQ
 expect dt_fn 1
 tap PLAY
@@ -126,6 +127,10 @@ tap EDIT
 tap EDIT
 tap EDIT
 tap EDIT
+tap EDIT
+tap EDIT
+tap EDIT
+tap EDIT
 wait 30
 expect page 31
 expect dt_sel 9
@@ -133,6 +138,9 @@ shot drum-ch6.png
 spin K4 1
 wait 30
 shot drum-ch6-zoom.png
+tap EDIT
+tap EDIT
+tap EDIT
 tap EDIT
 wait 30
 expect page 26

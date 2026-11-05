@@ -41,7 +41,13 @@ typedef struct {
     uint8_t dswing_lock;                 /* Swing Lock (DRUM MODS): the bass's swing the running pattern's (was spare, 0: off) */
     uint8_t dtrans_off;                  /* TRANSPORT (DRUM MODS) off: the drums' run and stop leave the bass alone (was spare,
                                           * 0: on, as MIDI's start and stop) */
+    uint8_t droll;                       /* the drums' roll: its rate, DQ_ROLL's (older records: 1/16, settings_defaults) */
+    uint8_t spare4[3];
 } settings_t;
+/* the roll's rates, as other machines' note repeat: ticks (96 a bar), the fraction, a triplet's */
+enum { DQ_NROLL = 9, DQ_ROLL_16 = 5 };
+static const uint8_t DQ_ROLL[DQ_NROLL] = {48, 24, 16, 12, 8, 6, 4, 3, 2}, DQ_ROLL_N[DQ_NROLL] = {2, 4, 4, 8, 8, 16, 16, 32, 32},
+                     DQ_ROLL_T[DQ_NROLL] = {0, 0, 1, 0, 1, 0, 1, 0, 1};
 /* now, as a time kept with 0 for none: never ahead of the clock, or now - it wraps round to a very long time */
 static uint32_t ms_stamp(void) { return (plat_ms() - 1u) | 1u; }
 #define SET_V1_SIZE 8u                   /* the record before the GLO pages: magic to ble_off */
@@ -1281,6 +1287,7 @@ static void settings_defaults(settings_t *s)
     s->spk = s->pop = s->zoom_off = 0;           /* (spk 0: FLAT; pop 0: 1.5 s; zoom_off 0: AUTO) */
     s->dchan = s->dcc_chan = 10;            /* (the drums: GM's channel) */
     s->dswing_lock = s->dtrans_off = 0;
+    s->droll = DQ_ROLL_16;
     {
         static const seqmem_t L = SEQ_LINE, E = {.len = 0, .step = {SEQ_REST}};
         uint32_t i, j;
@@ -1344,7 +1351,7 @@ _Static_assert(offsetof(patch_t, env_trig) == BANK_V10_PSIZE, "version 10's: 11'
 _Static_assert(offsetof(patch_t, lfo_delay) == BANK_V11_PSIZE, "version 11's: 12's without the LFOs' delay on");
 _Static_assert(offsetof(patch_t, ofm) == BANK_V12_PSIZE, "version 12's: 13's without Osc Filter Mod on");
 _Static_assert(sizeof(settings_t) <= PLAT_STORE_MAX, "the settings fit a store object");
-_Static_assert(sizeof(settings_t) == SET_V4_SIZE + 4u, "the settings end with no padding");
+_Static_assert(sizeof(settings_t) == SET_V4_SIZE + 8u, "the settings end with no padding");
 static bank_t bank PLAT_POOL;
 static void patch_sane(patch_t *p);          /* (the UI's: by its controls' ranges) */
 static void bank_factory(void);              /* (the factory patches: after the dumps' reader) */
@@ -1476,6 +1483,8 @@ static void rnd_load(void);
 static void ui_start(void);
 void app_init(void)
 {
+    if (set.droll >= DQ_NROLL)
+        set.droll = DQ_ROLL_16;
     settings_t d;
     int n = plat_store_load(OBJ_SETTINGS, &set, sizeof set);
     uint32_t i;
@@ -1554,7 +1563,6 @@ static struct {
     uint8_t dt_oct_dirty;
     uint32_t dt_until;
     uint32_t dt_mid;                     /* the keys at the lights' middle level (a channel's others) */
-    uint32_t dt_slide_at;                /* a Channel page's header sliding in since (0: in place) */
     uint32_t mpan_at;                    /* the camera panning between the two HOMEs since (mpan_band; 0: not) */
 } ui PLAT_POOL;
 /* Knob Zoom's camera (below, zoom_step) */
@@ -1567,6 +1575,7 @@ enum { ZH_NONE, ZH_DIVE, ZH_PAGE, ZH_RISE, ZH_OPEN, ZH_CLOSE };   /* zoom.home: 
                                                 * section page, coming out; a section's button in (sect_open, dt_open), HOME's out (home_back) */
 #define ZOOM_DIVE_MS 450u                    /* HOME's dive, the whole way in (and out: ZOOM_RISE_MS) */
 #define ZOOM_RISE_MS 550u
+#define ZOOM_SETTLE_Z 26                     /* the page as a section's dive lands on it: 1.1x, easing to 1x (ZOOM_OUT_MS) */
 static struct {                             /* (all 0 at rest: in the pool) */
     int16_t z, x, y, tx, ty;                 /* the scale over 1x (Q8, 0: none), the focus and where it heads (panel px) */
     int16_t hx, hy;                          /* HOME's: the CC's section's middle (panel px) */
@@ -1576,6 +1585,7 @@ static struct {                             /* (all 0 at rest: in the pool) */
     uint8_t sv[5], v[5];                     /* HOME's views (zoom_views); the CC's page's */
     uint8_t hp, dsv, dnew;                   /* the HOME it dives from; Drum Something's: its selected drum, the CC's */
     uint8_t bk;                              /* ZH_OPEN: the section's button */
+    uint8_t settle;                          /* its page just landed on, a little close: the camera easing back, its map and hint after */
     uint8_t fn_ok;                           /* the drums' lit function drawn: tx, ty its LED and words */
     uint32_t fn_at;                          /* when SEQ or ARP last moved it (0: none): the camera goes to it a while */
     uint32_t at, cc_at;                      /* the last step's time; the last CC's from HOME */
@@ -1735,7 +1745,7 @@ static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRI
 #define DRUM_PAGE(g) ((g) >= PG_DHOME && (g) < PG_GAUD)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
 #define DCH_PAGE(g) ((g) >= PG_DCH1 && (g) <= PG_DCH6)   /* its Channel pages */
 /* the 400's two LED lists, one number each: PATTERN's, then SONG's, BUILD MODE's own under it */
-enum { DTF_PAT, DTF_REC, DTF_ERASEI, DTF_ERROR, DTF_SWING, DTF_TIME, DTF_MEAS, DTF_ERASEP, DTF_COPYP,
+enum { DTF_PAT, DTF_REC, DTF_ERASEI, DTF_ERROR, DTF_SWING, DTF_TIME, DTF_MEAS, DTF_ERASEP, DTF_COPYP, DTF_ROLL,
        DTF_SONG, DTF_ERASES, DTF_COPYS, DTF_BUILD, DTF_BPAT, DTF_BVOL, DTF_BTEMPO, DTF_BINS, DTF_BDEL, NDTF };
 enum { DTS_NONE, DTS_FN, DTS_TEMPO, DTS_VOL, DTS_TUNE };   /* the header's moment: a function's name, the tempo over both
                                               * displays, the selected drum's level or pitch on the left one */
@@ -2295,6 +2305,10 @@ static int dt_value(uint32_t k, int32_t e)
         dt_refuse("Stop to change length");
         return 0;
     }
+    if (f == DTF_ROLL) {                     /* (the roll's rate: any time; kept with the settings, glo_keep) */
+        set.droll = (uint8_t)clamp((int32_t)set.droll + e, 0, DQ_NROLL - 1);
+        return 1;
+    }
     if (dq.run && dq.rec && f != DTF_ERROR && !live)   /* (recording: only what's lit, nothing moved by chance) */
         return 0;
     if (f == DTF_PAT || (!dq.run && f == DTF_REC) || (dq.run && f < DTF_SONG && f != DTF_ERROR && !live)) {   /* running: a cue, the current one's till its end */
@@ -2379,9 +2393,9 @@ static int dt_knob_wide(uint32_t k)
     if (k == EN_K1 || k == EN_K2 || k == EN_SELECT)
         return 1;
     if (k == EN_PRESET)
-        return f != DTF_ERROR && f != DTF_SWING && f != DTF_BVOL && (f != DTF_BTEMPO || !ui.dt_step);
+        return f != DTF_ERROR && f != DTF_ROLL && f != DTF_SWING && f != DTF_BVOL && (f != DTF_BTEMPO || !ui.dt_step);
     if (k == EN_ALGO)
-        return f != DTF_ERROR && f != DTF_SWING && f != DTF_TIME && f != DTF_BVOL && (f != DTF_BTEMPO || !ui.dt_step);
+        return f != DTF_ERROR && f != DTF_ROLL && f != DTF_SWING && f != DTF_TIME && f != DTF_BVOL && (f != DTF_BTEMPO || !ui.dt_step);
     return 0;
 }
 #define DT_BOTH_OCT (1u << B_OCTDN | 1u << B_OCTUP)
@@ -3258,7 +3272,7 @@ static const char *hint_of(uint32_t k)       /* encoder k's here (as its page's 
     static const char *const ROW_H[NRR] = {"Track's engine", "Track's level", "Track's reverb"};
     static const char *const DT_H[NDTF] = {   /* PRESET's and ALGO's, on each drum function */
         [DTF_PAT] = "Pick the Pattern", [DTF_REC] = "Pick the Pattern", [DTF_ERROR] = "Timing grid, 96 = off", [DTF_SWING] = "Swing amount",
-        [DTF_MEAS] = "Bars in the pattern", [DTF_ERASEP] = "Pattern to erase", [DTF_COPYP] = "Pattern to copy onto", [DTF_SONG] = "Pick the Song",
+        [DTF_MEAS] = "Bars in the pattern", [DTF_ERASEP] = "Pattern to erase", [DTF_COPYP] = "Pattern to copy onto", [DTF_ROLL] = "Roll speed", [DTF_SONG] = "Pick the Song",
         [DTF_ERASES] = "Song to erase", [DTF_COPYS] = "Song to copy onto", [DTF_BUILD] = "Pick the Song", [DTF_BVOL] = "Volume change",
         [DTF_BTEMPO] = "Tempo change"};
     if (DRUM_PAGE(ui.page))
@@ -3308,10 +3322,10 @@ static uint32_t tap_page(uint32_t k)
 static uint32_t dt_seq_next(uint32_t f)
 {
     if (dq.run && dq.rec)                    /* (in the loop: what's used in it) */
-        return f == DTF_REC ? DTF_ERASEI : f == DTF_ERASEI ? DTF_ERROR : f == DTF_ERROR ? DTF_SWING : DTF_REC;
-    if (dq.run)                              /* (playing: the number and the swing, nothing that arms it) */
-        return f == DTF_SWING ? DTF_PAT : DTF_SWING;
-    return f < DTF_COPYP ? f + 1u : DTF_PAT;
+        return f == DTF_REC ? DTF_ERASEI : f == DTF_ERASEI ? DTF_ERROR : f == DTF_ERROR ? DTF_SWING : f == DTF_SWING ? DTF_ROLL : DTF_REC;
+    if (dq.run)                              /* (playing: the number, the swing and the roll, nothing that arms it) */
+        return f == DTF_SWING ? DTF_ROLL : f == DTF_ROLL ? DTF_PAT : DTF_SWING;
+    return f < DTF_ROLL ? f + 1u : DTF_PAT;
 }
 static uint32_t dt_arp_next(uint32_t f)
 {
@@ -3326,6 +3340,8 @@ static uint32_t dt_glo_next(uint32_t g)      /* the settings the two share, from
     return g == PG_GDRUM ? PG_GMIDI : g == PG_GMIDI ? PG_GCLK : g == PG_GCLK ? PG_GAUD
            : g == PG_GAUD ? PG_GCTL : g == PG_GCTL ? PG_GDISP : PG_GDRUM;
 }
+static const char *const DT_SHORT[NDT] = {"BASS", "SNARE", "RIM", "TOM 1", "TOM 2", "CRASH", "RIDE", "CLOSE", "OPEN",
+                                          "CLAPS", "TAMB", "COW", "CABA"};   /* (a key's width) */
 static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page */
 {
     static const char *const TAP_NAME[NPAGES] = {
@@ -3343,11 +3359,11 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
                                        [B_OCTUP] = "Tempo up"};
     static const char *const FN_NAME[NDTF] = {   /* a function, as its button's tap goes there */
         [DTF_PAT] = "Patterns", [DTF_REC] = "Record", [DTF_ERASEI] = "Erase Instrument", [DTF_ERROR] = "Error Correct", [DTF_SWING] = "Swing",
-        [DTF_TIME] = "Time Signature", [DTF_MEAS] = "Measures", [DTF_ERASEP] = "Erase Pattern", [DTF_COPYP] = "Copy Pattern", [DTF_SONG] = "Songs",
+        [DTF_TIME] = "Time Signature", [DTF_MEAS] = "Measures", [DTF_ERASEP] = "Erase Pattern", [DTF_COPYP] = "Copy Pattern", [DTF_ROLL] = "Roll", [DTF_SONG] = "Songs",
         [DTF_ERASES] = "Erase Song", [DTF_COPYS] = "Copy Song", [DTF_BUILD] = "Build Mode", [DTF_BPAT] = "Build Pattern", [DTF_BVOL] = "Build Volume",
         [DTF_BTEMPO] = "Build Tempo", [DTF_BINS] = "Build Insert", [DTF_BDEL] = "Build Delete"};
     static const char *const FN_DO[NDTF] = {   /* what the function lit waits for, after its button's next */
-        [DTF_REC] = ", PLAY: record", [DTF_ERASEI] = ", hold a drum: erase", [DTF_ERASEP] = ", SEL: erase", [DTF_COPYP] = ", SEL: copy", [DTF_ERASES] = ", SEL: erase",
+        [DTF_REC] = ", PLAY: record", [DTF_ROLL] = ", PLAY: record", [DTF_ERASEI] = ", hold a drum: erase", [DTF_ERASEP] = ", SEL: erase", [DTF_COPYP] = ", SEL: copy", [DTF_ERASES] = ", SEL: erase",
         [DTF_COPYS] = ", SEL: copy", [DTF_BUILD] = ", SEL: enter", [DTF_BPAT] = ", SEL: enter", [DTF_BVOL] = ", SEL: enter", [DTF_BTEMPO] = ", SEL: enter",
         [DTF_BINS] = ", SEL: insert", [DTF_BDEL] = ", SEL: delete"};
     static const char *const SEL_H[NDTF] = {   /* SEL's, on the function lit */
@@ -3360,13 +3376,11 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
     if (ui.drum && !RND_PAGE(ui.page)) {     /* (every button the drums', as dt_button: the bass's form) */
         const uint32_t f = ui.dt_fn;
         const char *to = 0, *more = 0;
-        static char ch[] = "Channel 1";
         switch (k) {
         case B_SEL:
             return dq.run ? 0 : SEL_H[f];
         case B_EDIT:
-            ch[8] = (char)('1' + (DCH_PAGE(ui.page) ? (ui.page - PG_DCH1 + 1u) % NDTCH : DT_CH[ui.dt_sel]));
-            to = ch;
+            to = DT_SHORT[DCH_PAGE(ui.page) ? (ui.dt_sel + 1u) % NDT : ui.dt_sel];
             break;
         case B_SEQ:
             to = ui.page == PG_DPAT ? FN_NAME[dt_seq_next(f)] : "Patterns";
@@ -3521,10 +3535,20 @@ static void mode_switch(void)
  * Tambourine, DT_*'s order; General MIDI's bass drum a C too), then Cowbell F#, Cabasa the top G; the first black key
  * ACCENT held */
 static const uint8_t DT_PAD[NDT] = {7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 25, 26};
+#define DT_ROLL_KEY 0u                       /* the lowest F: held, the selected drum rolls (dq_roll_on) */
+static void dt_roll(uint32_t d, uint32_t v, uint32_t keys)
+{
+    static const uint8_t BK[11] = PLAT_BLACK_KEYS;
+    dq_cmd(DQC_ROLL, d, v | (keys >> BK[0] & 1u) << 7);
+}
 static void dt_key(uint32_t k, uint32_t v, uint32_t keys)
 {
     static const uint8_t BK[11] = PLAT_BLACK_KEYS;
     uint32_t i;
+    if (k == DT_ROLL_KEY) {
+        dt_roll(ui.dt_sel, v, keys);
+        return;
+    }
     for (i = 0; i < NDT; i++)
         if (DT_PAD[i] == k) {
             const uint32_t acc = keys >> BK[0] & 1u;
@@ -3543,6 +3567,8 @@ static void dt_key(uint32_t k, uint32_t v, uint32_t keys)
                 }
             }
             ui.dt_sel = (uint8_t)i;          /* (tapped: VOLUME and TUNING are its now) */
+            if (keys >> DT_ROLL_KEY & 1u)    /* (and what's rolling) */
+                dt_roll(i, ui.vel[DT_ROLL_KEY], keys);
             if (zoom.home && zoom.home != ZH_OPEN && zoom.home != ZH_CLOSE && zoom.hp == PG_DHOME) {   /* (on a dive: the tap's, there and back) */
                 zoom.dnew = zoom.dsv = (uint8_t)i;
                 if (ui.page == PG_DHOME && zoom.g != PG_DCH1 + DT_CH[i])   /* (still on HOME, another channel's: no dive) */
@@ -3561,6 +3587,7 @@ static uint32_t dt_keys_lit(uint32_t *mid)
     const uint32_t hit = dt_lit();
     uint32_t i, m = 0;
     *mid = 0;
+    m |= ui.keys & 1u << DT_ROLL_KEY;
     for (i = 0; i < NDT; i++) {
         if (hit >> i & 1u)
             m |= 1u << DT_PAD[i];
@@ -3586,8 +3613,8 @@ static void dt_list(uint32_t f)              /* the pattern list's: its function
 {
     if (f == DTF_ERASEP || f == DTF_COPYP)
         ui.dt_tgt = ui.dt_pat < DQ_NPAT ? ui.dt_pat : 0;
-    if (ui.dt_pat < DQ_NPAT && !(f == DTF_SWING && dq.run))   /* (at the swing as it runs: recording or not, as it was) */
-        dq.rec = f == DTF_REC || f == DTF_ERROR ? DQR_REC : f == DTF_ERASEI ? DQR_ERASE : DQR_OFF;
+    if (ui.dt_pat < DQ_NPAT && !((f == DTF_SWING || f == DTF_ROLL) && dq.run))   /* (at the swing or the roll as it runs: recording or not, as it was) */
+        dq.rec = f == DTF_REC || f == DTF_ERROR || f == DTF_ROLL ? DQR_REC : f == DTF_ERASEI ? DQR_ERASE : DQR_OFF;
     dt_fn_go(f);
 }
 static void dt_copied(uint32_t f, int added)  /* SEL on COPY / APPEND TO, done: said, back at list's number f (refused: said,
@@ -3709,15 +3736,18 @@ static void dt_button(uint32_t k)
 {
     uint32_t f = ui.dt_fn;
     switch (k) {
-    case B_EDIT: {                           /* the Channel pages: from the selected drum's, then the next */
-        const uint32_t c = DCH_PAGE(ui.page) ? (ui.page - PG_DCH1 + 1u) % NDTCH : DT_CH[ui.dt_sel];
-        uint32_t i;
-        for (i = NDT; DCH_PAGE(ui.page) && i-- > 0;)   /* (moved on: the channel's first, K3 and K4 on what shows) */
-            if (DT_CH[i] == c)
-                ui.dt_sel = (uint8_t)i;
-        dt_open(PG_DCH1 + c, k);
+    case B_EDIT:                             /* the Channel pages: the selected drum's, then the next drum; a new page only at
+                                              * the next channel */
+        if (DCH_PAGE(ui.page)) {
+            const uint32_t c = DT_CH[ui.dt_sel];
+            ui.dt_sel = (uint8_t)((ui.dt_sel + 1u) % NDT);
+            if (DT_CH[ui.dt_sel] == c) {
+                ui.redraw = 1;
+                break;
+            }
+        }
+        dt_open(PG_DCH1 + DT_CH[ui.dt_sel], k);
         break;
-    }
     case B_SEQ:                              /* the 400's SELECT PATTERN FUNCTIONS: running in RECORD MODE, round what's
                                               * used in the loop (Record, Erase Instrument, Error Correct, and Swing, ours);
                                               * stopped, RECORD MODE and those two arm it */
@@ -3785,7 +3815,7 @@ static void dt_button(uint32_t k)
                 dq_cmd(DQC_SONG, ui.dt_song, 0);
             }
         } else if (ui.dt_pat < DQ_NPAT && (dq.rec || dqm.pat[ui.dt_pat].n)) {
-            if (f > DTF_SWING && f < DTF_SONG)
+            if (f > DTF_SWING && f < DTF_ROLL)
                 ui.dt_fn = DTF_PAT;
             dq_cmd(DQC_RUN, ui.dt_pat, 0);
         }
@@ -3914,6 +3944,8 @@ static void input(void)
             key_send(0x90u, (uint32_t)note, v, ui.och[k]);
         } else if (!(keys & bit) && (ui.keys & bit)) {
             ui.prs[k] = 0;
+            if (k == DT_ROLL_KEY)            /* (in either mode: HOME may have left the drums while it rolled) */
+                dq_cmd(DQC_ROLLOFF, 0, 0);
             fifo_put(&keyq, (uint32_t)note);  /* (LOCAL turned off while it was held: still let go) */
             key_send(0x80u, ui.dno[k] ? ui.dno[k] : (uint32_t)note, 0, ui.och[k]);
             ui.och[k] = ui.dno[k] = 0;
@@ -3937,6 +3969,7 @@ static void input(void)
             page_go(zoom.g);
         }
         zoom_close_end();
+        zoom.settle = 0;
         hint_show(k);                        /* (Hints: what it does, from the page it's pressed on) */
         said = ui.hint;
         if (ui.drum && k != B_HOME && k != B_REC && k != B_GLO
@@ -4053,6 +4086,7 @@ static void input(void)
         zoom.fn_at = 0;                      /* (a knob: the camera on it) */
         zoom.home = ZH_NONE;                 /* (HOME's CC's page: kept, the user's now) */
         ui.map_until = ui.hint_until = 0;    /* (a knob turned: the map goes, and a button's hint; its value stays) */
+        zoom.settle = 0;
         ui.last_enc = (uint8_t)l;
         ui.val_until = pop_until();
         ui.redraw = 1;
@@ -4134,8 +4168,8 @@ static void ui_start(void) { ui.page = PG_HOME; }   /* the first page, after the
 
 /* the tabs: the buttons, each its pages: SEL the MASTER, EDIT the oscillators and the mixer, FX the filters and the
  * effects */
-enum { SEC_SEL, SEC_ENV, SEC_LFO, SEC_FX, SEC_ARP, SEC_SEQ, SEC_EDIT, SEC_GLO, NSEC };
-static const char *const SEC_NAME[NSEC] = {"SEL", "ENV", "LFO", "FX", "ARP", "SEQ", "EDIT", "GLO"};
+enum { SEC_FX, SEC_SEL, SEC_ENV, SEC_LFO, SEC_ARP, SEC_SEQ, SEC_EDIT, SEC_GLO, NSEC };
+static const char *const SEC_NAME[NSEC] = {"FX", "SEL", "ENV", "LFO", "ARP", "SEQ", "EDIT", "GLO"};
 static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDIT, [PG_MENV] = SEC_ENV,
                                          [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL,
                                          [PG_ARP] = SEC_ARP, [PG_SEQ] = SEC_SEQ, [PG_AENV] = SEC_ENV, [PG_FX] = SEC_EDIT,
@@ -4419,19 +4453,16 @@ static int zoom_step(uint32_t now)           /* a frame: 1 when the camera moved
         const float u = fm_clampf(zoom.u + (in ? (float)dt / ZOOM_DIVE_MS : -(float)dt / ZOOM_RISE_MS), 0.0f, 1.0f);
         zoom.u = u;
         zoom.x = zoom.hx, zoom.y = zoom.hy, zoom.pg = ui.page;
-        zoom.z = (int16_t)(256.0f * fm_exp2f(u * u * (3.0f - 2.0f * u) * zoom.lc) - 255.5f);
+        zoom.z = (int16_t)(256.0f * fm_exp2f(u * u * (2.0f - u) * zoom.lc) - 255.5f);   /* (still moving at the page's end: the cut in the move) */
         if (!in && u <= 0.0f) {
             zoom.home = ZH_NONE;
             zoom.z = 0;
             ui.map_until = pop_until();
         } else if (in && u >= 1.0f) {
-            zoom.z = 0;
             page_go(zoom.g);
-            if (DCH_PAGE(zoom.g)) {          /* (its header slides in: the map after it) */
-                ui.dt_slide_at = now | 1u;
-                ui.map_until = 0;
-            }
-            hint_show(zoom.bk);
+            ui.map_until = 0;                /* (the map and hint: once it's settled) */
+            zoom.pg = ui.page, zoom.z = ZOOM_SETTLE_Z, zoom.settle = 1;
+            zoom.x = zoom.tx = DCH_PAGE(zoom.g) ? 0 : 120, zoom.y = zoom.ty = DCH_PAGE(zoom.g) ? 0 : TALL_H / 2;   /* (a Channel page: from its top left, as HOME's row lands) */
         }
         return 1;
     }
@@ -4472,8 +4503,14 @@ static int zoom_step(uint32_t now)           /* a frame: 1 when the camera moved
         return zoom.z != z || zoom.x != x || zoom.y != y || ui.redraw;
     }
     if (zoom.pg != ui.page)                  /* (another page: from the whole of it) */
-        zoom.z = 0;
+        zoom.z = 0, zoom.settle = 0;
     zoom.z = (int16_t)zoom_ease(zoom.z, aim ? ZOOM_MAX : 0, dt, aim ? ZOOM_IN_MS : ZOOM_OUT_MS);
+    if (zoom.settle && (!zoom.z || aim)) {   /* (a section's dive settled, or the camera on to a knob or function: its map, its button's hint) */
+        zoom.settle = 0;
+        ui.map_until = pop_until();
+        hint_show(zoom.bk);
+        ui.redraw = 1;
+    }
     if (!z && aim)                           /* (from the whole panel: straight at it) */
         zoom.x = zoom.tx, zoom.y = zoom.ty;
     else if (zoom.z) {
@@ -5801,6 +5838,17 @@ static void h_digit_c(int32_t x, int32_t y, char c, uint16_t col)   /* a digit, 
             cv_rect(x + R[i][0], y + R[i][1], R[i][2], R[i][3], col);
 }
 static void h_digit(int32_t x, int32_t y, char c) { h_digit_c(x, y, c, RGB(252, 78, 112)); }   /* the display's */
+/* the case's rounded ends: the face going on round them, the light on the shoulder, dark where it turns away (steps of
+ * 8: no tint on the 565 panel) */
+static void bs_ends(void)
+{
+    static const uint8_t E[4] = {8, 24, 40, 32};   /* from the outside in; then the face's 24 */
+    int32_t i;
+    for (i = 0; i < 4; i++) {
+        cv_rect(i, HOME_Y, 1, pan_h - HOME_Y, grey(E[i]));
+        cv_rect(239 - i, HOME_Y, 1, pan_h - HOME_Y, grey(E[i]));
+    }
+}
 static void home_draw(void)
 {
     static const int16_t TOP_GAP[3] = {333, 753, 924}, MID_GAP[4] = {333, 402, 693, 1140};
@@ -5824,9 +5872,10 @@ static void home_draw(void)
         disc(240 - HOME_L - 10, 43, 2, RGB(252, 78, 112));
     tag(240 - HOME_L - 42, 31, EN_PRESET);
     scope_paint();                           /* (what plays and its tempo: the footer's) */
-    /* the panel: its face (flat, as the theme: no cheeks), the blue bars (their gaps, the lines down from them), the
+    /* the panel: its face, round its ends, the blue bars (their gaps, the lines down from them), the
      * keys' strip */
     cv_rect(0, HOME_Y, 240, pan_h - HOME_Y, grey(24));
+    bs_ends();
     h_rect(63, 33, 1230, 15, P_BAR);
     h_rect(63, 190, 1230, 3, P_BAR);
     for (i = 0; i < 3; i++) {
@@ -6162,11 +6211,11 @@ static void dt_cheek(int32_t x, int32_t y0, int32_t edge, int32_t shadow)
     int32_t i, y;
     for (i = 0; i < 6; i++) {
         cv_rect(x + i, y0, 1, h, W[0]);
-        for (y = -4; y < h; y += 8) {
+        for (y = -4; y < (int32_t)pan_h; y += 8) {   /* (by the panel's rows: the same grain whatever y0) */
             const uint32_t r = rfx_hash((uint32_t)(x + i), (uint32_t)(y + 8) / 8u);
             const int32_t at = y + (int32_t)(r % 6u), n = 3 + (int32_t)(r >> 4 & 7u) % 6;
-            if (at >= 0)                     /* (none above the plate) */
-                cv_rect(x + i, y0 + at, 1, at + n > h ? h - at : n, W[1u + (r >> 8) % 3u]);
+            if (at >= y0)                    /* (none above the plate) */
+                cv_rect(x + i, at, 1, at + n > (int32_t)pan_h ? (int32_t)pan_h - at : n, W[1u + (r >> 8) % 3u]);
         }
     }
     cv_rect(edge, y0, 1, h, RGB(200, 128, 72));
@@ -6278,6 +6327,8 @@ static void dt_digits(char *l, char *r)
         r[0] = 'E', r[1] = 'r';
     else if (f == DTF_ERROR)
         l[0] = '1', l[1] = '-', dt_two(r, DQ_EC[p->ec]);
+    else if (f == DTF_ROLL)
+        l[0] = '1', l[1] = DQ_ROLL_T[set.droll] ? 't' : '-', dt_two(r, DQ_ROLL_N[set.droll]);
     else if (f == DTF_SWING)
         dt_two(r, DQ_SWING[p->swing]);
     else if (f == DTF_TIME)
@@ -6297,7 +6348,7 @@ static void dt_head_top(void)                /* the name and the two displays, o
 {
     static const char *const NAME[NDTF][2] = {
         {"PATTERN", "NUMBER"}, {"RECORD", "MODE"}, {"ERASE", "INSTRUMENT"}, {"ERROR", "CORRECT"}, {"SWING", "PERCENT"},
-        {"TIME", "SIGNATURE"}, {"NUMBER OF", "MEASURES"}, {"ERASE", "PATTERN"}, {"COPY OR", "APPEND TO"}, {"SONG", "NUMBER"},
+        {"TIME", "SIGNATURE"}, {"NUMBER OF", "MEASURES"}, {"ERASE", "PATTERN"}, {"COPY OR", "APPEND TO"}, {"ROLL", "RATE"}, {"SONG", "NUMBER"},
         {"ERASE", "SONG"}, {"COPY OR", "APPEND TO"}, {"BUILD", "MODE"}, {"BUILD:", "PATTERN"}, {"BUILD:", "VOLUME"},
         {"BUILD:", "TEMPO"}, {"BUILD:", "INSERT"}, {"BUILD:", "DELETE"}};
     const int fn = ui.dt_show == DTS_FN || dq.rec;   /* (recording or erasing: said all the while) */
@@ -6337,13 +6388,13 @@ static void dt_tag_away(uint32_t k, int32_t x)
 }
 static const int16_t DT_CH_U[NDTCH + 1] = {415, 487, 630, 773, 916, 1059, 1348};   /* its channels' frames across HOME */
 
-static void dch_key(int32_t x, int32_t y, int lit)   /* a black key, 25 x 25: its recess, its walls, the cap, the bright
+static void dch_key(int32_t x, int32_t y, int lit)   /* a black key, 28 x 32: its recess, its walls, the cap, the bright
                                               * wall at its right; lit, the cap white */
 {
-    cv_rect(x, y, 25, 25, RGB(0, 0, 0));
-    cv_rect(x + 2, y + 2, 21, 21, grey(16));
-    cv_rect(x + 4, y + 4, 15, 17, lit ? P_SILK : grey(40));
-    cv_rect(x + 19, y + 4, 2, 17, lit ? P_SILK : grey(200));
+    cv_rect(x, y, 28, 32, RGB(0, 0, 0));
+    cv_rect(x + 2, y + 2, 24, 28, grey(16));
+    cv_rect(x + 4, y + 4, 18, 24, lit ? P_SILK : grey(40));
+    cv_rect(x + 22, y + 4, 2, 24, lit ? P_SILK : grey(200));
 }
 /* the two sections' pages (SEQ, ARP): the faceplate itself, closer: the section and the displays and keypad beside it, on
  * the photo's measures at 0.43 px across, 0.5 down (the print's rows want the height); its print in small capitals */
@@ -6519,6 +6570,40 @@ static void dfn_tags(void)                   /* what turns here: PRESET and ALGO
     dt_tag_away(EN_K3, 100);
     dt_tag_away(EN_K4, 150);
 }
+/* the roll's own place on the list: a plate screwed on under the print, as a modification to the machine would be
+ * (plate()'s aluminium, its Dymo tape), its LED lit as the rest; SEQ goes to it after COPY / APPEND TO */
+static void dt_roll_plate(void)
+{
+    /* (x0: its LED under the list's) */
+    const int lit = ui.dt_fn == DTF_ROLL;
+    const int32_t x0 = dt_px(951) - 15, x1 = x0 + 86, y0 = dt_py(262), y1 = y0 + 37;
+    int32_t y;
+    char t[7] = "1/", n[4];
+    int_text(DQ_ROLL_N[set.droll], n);
+    text_cat(t, n);
+    if (DQ_ROLL_T[set.droll])
+        text_cat(t, "T");
+    if (lit && zoom.fn_at) {                 /* (the camera's aim, as dfn_row's) */
+        zoom.tx = (int16_t)((x0 + x1) / 2);
+        zoom.ty = (int16_t)((y0 + y1) / 2);
+        zoom.pg = ui.page;
+        zoom.fn_ok = 1;
+    }
+    cv_rect(x0 + 2, y0 + 2, x1 - x0, y1 - y0, grey(8));
+    for (y = y0; y < y1; y++) {
+        const uint32_t h = (uint32_t)y * 2654435761u >> 27;
+        cv_rect(x0, y, x1 - x0, 1, grey(158 + (int32_t)(h % 16u) - (y % 3 == 0 ? 6 : 0)));
+    }
+    cv_rect(x0, y0, x1 - x0, 1, grey(225));
+    cv_rect(x0, y0, 1, y1 - y0, grey(205));
+    cv_rect(x0, y1 - 1, x1 - x0, 1, grey(90));
+    cv_rect(x1 - 1, y0, 1, y1 - y0, grey(100));
+    screw(x0 + 6, (y0 + y1) / 2);
+    screw(x1 - 7, (y0 + y1) / 2);
+    cv_rect(x0 + 13, (y0 + y1) / 2 - 1, 5, 3, lit ? RGB(255, 40, 72) : RGB(96, 16, 32));
+    dymo(x0 + 45, y0 + 3, "ROLL", RGB(235, 235, 235));   /* its label tape, as the mods' */
+    dymo(x0 + 45, y0 + 19, t, lit ? P_CYAN : RGB(235, 235, 235));
+}
 static void dpat_draw(void)
 {
     static const struct { int16_t led, text, v; uint8_t f; const char *s; } L[9] = {
@@ -6538,6 +6623,7 @@ static void dpat_draw(void)
     dt_hline(951, 975, 183);
     for (i = 0; i < 9u; i++)
         dfn_row(L[i].led, L[i].text, L[i].v, ui.dt_fn == L[i].f, L[i].s);
+    dt_roll_plate();
     dfn_tags();
     dt_crop_end();
 }
@@ -6570,7 +6656,6 @@ static void dsong_draw(void)
  * VOLUME and TUNING stay put from page to page, the two displays over them; its keys the FM-1's piano keys', lit as they are;
  * the drum selected, its LED lit */
 #define DCH_ACTIVE_G 64                      /* the active channel's plate (the rest: DT_FACE_G) */
-#define DCH_SLIDE_MS 280u                    /* the header coming down, once the camera's landed */
 static int32_t dch_width(uint32_t c)         /* a channel's frame: 31 a key */
 {
     int32_t i, n = 0;
@@ -6580,45 +6665,36 @@ static int32_t dch_width(uint32_t c)         /* a channel's frame: 31 a key */
 }
 static void dch_draw(void)
 {
-    static const char *const SHORT[NDT] = {"BASS", "SNARE", "RIM", "TOM 1", "TOM 2", "CRASH", "RIDE", "CLOSED", "OPEN",
-                                           "CLAPS", "TAMB", "COWBELL", "CABASA"};
     static const uint8_t BK[11] = PLAT_BLACK_KEYS;
     const uint32_t c = ui.page - PG_DCH1, lit = dt_lit();
     const uint16_t print = grey(216);
     char t[5] = "CH 1";
     int32_t i, k, x0, X, j = 0, top, low, ky, ly, tk;
-    const uint32_t sl = ui.dt_slide_at ? plat_ms() - ui.dt_slide_at : DCH_SLIDE_MS;
     /* the faceplate's lower row, one scale both ways, from where HOME's camera lands (dt_open): the cut unseen */
-    dt_ux0 = 151, dt_x0 = 9, dt_sx = 430, dt_vy0 = 409, dt_y0 = 49, dt_sy = 430;
-    top = dt_py(409), low = dt_py(642), ky = dt_py(530), ly = dt_py(603);
-    if (sl < DCH_SLIDE_MS) {                 /* just landed: the plate on up, the upper row's feet, the header coming down */
-        const float u = (float)sl / (float)DCH_SLIDE_MS, e = u * u * (3.0f - 2.0f * u);
-        const int32_t d = (int32_t)(-45.0f * (1.0f - e));
-        cv_rect(0, 0, 240, pan_h, DT_FACE);
-        dt_cheek(0, 0, 0, 5);
-        dt_frame(166, 205, 318, 350, 1);
-        dt_frame(330, 57, 643, 350, 0);
-        cv_oy += d;
-        dt_head_top();
-        cv_oy -= d;
-    } else
-        dt_head(0);                          /* the name, the two displays, the plate with its left cheek: PER INSTRUMENT's
-                                              * end of the faceplate */
-    dfn_box(dt_px(151), top, dt_px(364), low);
-    dt_knob_at((float)dt_px(180) + 8.0f, (float)dt_py(453) + 2.0f, 9.5f, (float)dt.vol[ui.dt_sel] / 15.0f, 150, 100, 1.0f, 1, 0);
-    dt_knob_at((float)dt_px(309) + 8.0f, (float)dt_py(453) + 2.0f, 9.5f, (float)dt.tune[ui.dt_sel] / 15.0f, 150, 100, 1.0f, 1, 0);
-    tk = dt_py(453) + 2;
-    dt_tiny(dt_px(180) + 8 - 11, top + 32, "VOLUME", print);
-    dt_tiny(dt_px(309) + 8 - 11, top + 32, "TUNING", print);
-    dt_tiny((dt_px(151) + dt_px(364)) / 2 - 26, top + 41, "PER INSTRUMENT", grey(190));
-    tag(dt_px(180) + 8, tk, EN_K3);
-    tag(dt_px(309) + 8, tk, EN_K4);
-    cv_rect(dt_px(168) + 3, ky - 6, 5, 3, dq.run && !dt_blink() ? RGB(255, 40, 72) : RGB(96, 16, 32));   /* RUN's LED */
-    dch_key(dt_px(168), ky, dq.run && !dt_blink());
-    dch_key(dt_px(289), ky, ui.drum && ui.keys >> BK[0] & 1u);
-    dt_tiny(dt_px(168) - 3, ly, "RUN/STOP", print);
-    dt_tiny(dt_px(289), ly, "ACCENT", print);
-    x0 = c == 5u ? 105 : dt_px(415);         /* where the faceplate has it (CH 6 fills the rest: a little nearer) */
+    dt_ux0 = 151, dt_x0 = 9, dt_sx = 430, dt_vy0 = 409, dt_sy = 560;
+    dt_y0 = 15 + (zoom.settle ? 13 * zoom.z / ZOOM_SETTLE_Z : 0);   /* (taller, the header's rows its own, centred on the plate; as the camera lands, from where HOME's row is) */
+    top = dt_py(409), low = dt_py(642), ky = dt_py(540), ly = dt_py(605);
+    cv_rect(0, 0, 240, pan_h, DT_FACE);  /* the plate alone, its left cheek: PER INSTRUMENT's end of the faceplate */
+    dt_cheek(0, 0, 0, 5);
+    dfn_box(dt_px(151), top, 105, low);
+    dt_knob_at(33.0f, (float)top + 20.0f, 12.0f, (float)dt.vol[ui.dt_sel] / 15.0f, 150, 100, 1.0f, 1, 0);
+    dt_knob_at(81.0f, (float)top + 20.0f, 12.0f, (float)dt.tune[ui.dt_sel] / 15.0f, 150, 100, 1.0f, 1, 0);
+    tk = top + 20;
+    silk_text(33, top + 34, "VOLUME", print);
+    silk_text(81, top + 34, "TUNING", print);
+    dt_tiny(57 - 27, top + 50, "PER INSTRUMENT", grey(190));
+    cv_rect(23, top + 45, 1, 8, grey(190));  /* its bracket, up to VOLUME and TUNING */
+    cv_rect(23, top + 52, 5, 1, grey(190));
+    cv_rect(91, top + 45, 1, 8, grey(190));
+    cv_rect(87, top + 52, 5, 1, grey(190));
+    tag(33, tk, EN_K3);
+    tag(81, tk, EN_K4);
+    cv_rect(31, ky - 6, 5, 3, dq.run && !dt_blink() ? RGB(255, 40, 72) : RGB(96, 16, 32));   /* RUN's LED */
+    dch_key(19, ky, dq.run && !dt_blink());
+    dch_key(67, ky, ui.drum && ui.keys >> BK[0] & 1u);
+    silk_text(36, ly, "RUN/STOP", print);    /* (each a little right of its key: clear of the frame, of each other) */
+    silk_text(83, ly, "ACCENT", print);
+    x0 = c == 5u ? 108 : 127;                /* (the faceplate's gap after PER INSTRUMENT; CH 6, the widest: nearer, to fit) */
     X = x0 + dch_width(c);
     if (c == 5u)
         dfn_box(x0, top, X, low);
@@ -6640,26 +6716,25 @@ static void dch_draw(void)
         }
     }
     t[3] = (char)('1' + c);
-    dt_tiny((x0 + X) / 2 - 7, top + 7, t, print);
+    silk_text((x0 + X) / 2, top + 5, t, print);
     for (i = 0; i < (int32_t)NDT; i++)
         if (DT_CH[i] == c) {
             const int32_t kx = x0 + 4 + 31 * j++, sel = i == (int32_t)ui.dt_sel;
-            const int32_t w = 4 * (int32_t)strlen(SHORT[i]) - 1;
-            cv_rect(kx + 10, ky - 6, 5, 3, sel ? RGB(255, 40, 72) : RGB(96, 16, 32));
+            cv_rect(kx + 12, ky - 6, 5, 3, sel ? RGB(255, 40, 72) : RGB(96, 16, 32));
             dch_key(kx, ky, (int)(lit >> i & 1u));
-            dt_tiny(kx + 12 - w / 2, ly, SHORT[i], sel ? P_SILK : grey(170));
+            silk_text(kx + 14, ly, DT_SHORT[i], sel ? P_SILK : grey(170));
         }
     for (k = (int32_t)c + 1; k < (int32_t)NDTCH && X < 240; X += dch_width((uint32_t)k), k++) {   /* the ones after, as the faceplate has them */
         t[3] = (char)('1' + k);
         j = 0;
         for (i = 0; i < (int32_t)NDT; i++)
             if (DT_CH[i] == (uint32_t)k) {
-                const int32_t kx = X + 4 + 31 * j++, w = 4 * (int32_t)strlen(SHORT[i]) - 1;
-                cv_rect(kx + 10, ky - 6, 5, 3, RGB(96, 16, 32));
+                const int32_t kx = X + 4 + 31 * j++;
+                cv_rect(kx + 12, ky - 6, 5, 3, RGB(96, 16, 32));
                 dch_key(kx, ky, (int)(lit >> i & 1u));
-                dt_tiny(kx + 12 - w / 2, ly, SHORT[i], grey(170));
+                silk_text(kx + 14, ly, DT_SHORT[i], grey(170));
             }
-        dt_tiny(X + dch_width((uint32_t)k) / 2 - 7, top + 7, t, print);
+        silk_text(X + dch_width((uint32_t)k) / 2, top + 5, t, print);
     }
     dt_tag_preset();
     dt_tag_away(EN_SELECT, 50);
@@ -7193,7 +7268,7 @@ static uint32_t live(void)
     case PG_DSONG:
     case PG_DPINFO:
     case PG_DSINFO:
-        return (ui.dt_slide_at ? (plat_ms() / 16u & 0x3FFFu) << 14 : 0u) ^ dt_lit() | (ui.keys >> 1 & 1u) << 31 | (uint32_t)dt_blink() << 30 | (uint32_t)(dq.run != 0u) << 29
+        return dt_lit() | (ui.keys >> 1 & 1u) << 31 | (uint32_t)dt_blink() << 30 | (uint32_t)(dq.run != 0u) << 29
                | (uint32_t)(dq.full && plat_ms() / 300u % 2u) << 28;
     case PG_GMIDI:
     case PG_GCLK:
@@ -7399,12 +7474,6 @@ void app_frame(void)
     }
     if (ui.map_until && now >= ui.map_until) {   /* the map's moment over */
         ui.map_until = 0;
-        ui.redraw = 1;
-    }
-    if (ui.dt_slide_at && (ui.page < PG_DCH1 || ui.page > PG_DCH6 || now - ui.dt_slide_at >= 280u)) {
-        if (DCH_PAGE(ui.page))
-            ui.map_until = pop_until();
-        ui.dt_slide_at = 0;
         ui.redraw = 1;
     }
     if (ui.dt_show && now >= ui.dt_until) {  /* the drums' header's moment */
@@ -7641,6 +7710,8 @@ int app_expect(const char *what, int *got)
         *got = dt_rec_light();
     else if (!strcmp(what, "dt_tempo"))      /* the drums' tempo; Swing Lock's setting, its first 8th (x100); the bass's 16th */
         *got = dt.tempo;
+    else if (!strcmp(what, "droll"))
+        *got = set.droll;
     else if (!strcmp(what, "dswing_lock"))
         *got = set.dswing_lock;
     else if (!strcmp(what, "dt_lock"))

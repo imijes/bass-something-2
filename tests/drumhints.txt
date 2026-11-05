@@ -10,7 +10,7 @@ expect hints 1
 # a press: its hint from the page it's on; let go, the next tap's
 tap EDIT
 wait 1500
-hint EDIT tap: Channel 2
+hint EDIT tap: SNARE
 press HOME
 wait 30
 hint The whole panel
@@ -62,7 +62,10 @@ wait 30
 hint SEQ tap: Copy Pattern, SEL: erase
 tap SEQ
 wait 30
-hint SEQ tap: Patterns, SEL: copy
+hint SEQ tap: Roll, SEL: copy
+tap SEQ
+wait 30
+hint SEQ tap: Patterns, PLAY: record
 tap SEQ
 wait 30
 hint SEQ tap: Record
@@ -114,6 +117,7 @@ tap ENV
 wait 30
 hint ENV tap: Time Signature
 # a tap refused says why, not the next tap's
+tap SEQ
 tap SEQ
 tap SEQ
 tap SEQ

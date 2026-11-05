@@ -489,6 +489,8 @@ does a drum job, listed below, and the keys play the drums.
 
 The drums start at the low C and go up the white keys. The first black key is ACCENT: hold it for an accented hit.
 
+The lowest F is ROLL: hold it and the selected drum repeats at the rate set on the ROLL plate (SEQ, after COPY / APPEND TO). Tap another drum while holding to roll that one. ACCENT works when pressed before ROLL. While recording, the roll is recorded.
+
 | Channel | Keys and drums |
 | --- | --- |
 | 1 | C: Bass |
@@ -520,7 +522,7 @@ Tapping a drum selects it for K3 and K4. On HOME, those two knobs zoom in to the
 | Button | Tap | Again or held |
 | --- | --- | --- |
 | HOME | Drum Something's HOME | On HOME, a tap switches to the synth. Held a second elsewhere: the same |
-| EDIT | The selected drum's Channel page | The next channel |
+| EDIT | The selected drum's Channel page | The next drum, moving page at each new channel |
 | SEQ | The PATTERN page | The next pattern function |
 | ARP | The SONG page | The next song function |
 | ENV | The pattern's bars | Its time signature |
@@ -565,8 +567,9 @@ SEQ steps through the page's list:
 | # OF MEASURES | ALGO: the bars. Empty patterns only | |
 | ERASE PATTERN | ALGO: which | Erases it, back to one bar of 4/4 |
 | COPY / APPEND TO | ALGO: where to, starting on this pattern | On an empty pattern, a copy with its settings. On one with hits, added after them, in its own settings. There's no undo. The hint says what happened: `Copied to 05`, `Added to 05`, or why not, `Nothing to copy`, `Memory full` or `Pattern too long` |
+| ROLL | ALGO: the rate of the ROLL key: 1/2, 1/4, 1/4T, 1/8, 1/8T, 1/16 (the default), 1/16T, 1/32, 1/32T. Also while running. Stopped, like ERROR CORRECT, it arms recording: PLAY records | |
 
-While a pattern runs, SEQ only moves between the number and the swing. While it records, SEQ goes round Record, Erase, Error Correct and Swing. PATTERN INFO (FX, twice) shows the pattern's settings, its hits and the memory left, shared by all the patterns: about 4,000 hits.
+While a pattern runs, SEQ only moves between the number, the swing and Roll. While it records, SEQ goes round Record, Erase, Error Correct, Swing and Roll. PATTERN INFO (FX, twice) shows the pattern's settings, its hits and the memory left, shared by all the patterns: about 4,000 hits.
 
 ### Songs
 

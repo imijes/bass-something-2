@@ -148,6 +148,9 @@ expect page 16
 expect zoom >0
 wait 500
 expect page 0
+# (landed a little close: easing back to the whole page)
+expect zoom >0
+wait 300
 expect zoom 0
 tap HOME
 wait 1500

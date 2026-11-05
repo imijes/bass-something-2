@@ -141,3 +141,31 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-04 | 7c69c52+ | Copy and append say what they did; no stuck FULL; bars counted from the length | 508,212 | +576 | 73,352 | 78,420 | +16 | 19,884 | 161,896 |
 | 2026-11-04 | 7c69c52+ | Song copy says what it did and refuses what won't fit | 508,468 | +256 | 73,096 | 78,420 | +0 | 19,884 | 161,896 |
 | 2026-11-04 | 7c69c52+ | ERASE SONG works from song 99 | 508,468 | +0 | 73,096 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Grey cheeks on the bass pages, the drums' grain | 508,548 | +80 | 73,016 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Bass cheeks on HOME: the faceplate's height only | 508,564 | +16 | 73,000 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Bass cheeks on HOME move with the camera's pan | 508,564 | +0 | 73,000 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Cheek grain by the panel's rows, none jumping with y0 | 508,596 | +32 | 72,968 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Bass cheeks by section: FX right, SEL/ARP/SEQ left, ENV/LFO none | 508,644 | +48 | 72,920 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Bass section cheeks 4 wide; HOME's plate and cheeks one piece, the dive landing on them | 508,740 | +96 | 72,824 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Bass cheeks replaced by the case's rounded ends | 508,708 | -32 | 72,856 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Header tabs: FX first | 508,692 | -16 | 72,872 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Rounded ends on the bass HOME only | 508,596 | -96 | 72,968 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Drum Channel pages: the frames centred on the plate | 508,596 | +0 | 72,968 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Section dives: the cut in the move, a settle after, the map and hint once settled | 508,644 | +48 | 72,920 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Drum Channel pages: no header slide | 508,244 | -400 | 73,320 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Drum Channel pages: no header, the frames centred on the whole plate | 509,172 | +928 | 72,392 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Drum Channel pages: larger, in the header's rows | 508,692 | -480 | 72,872 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Drum Channel pages: fitted, the print readable | 508,244 | -448 | 73,320 | 78,420 | +0 | 19,884 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Drum EDIT steps through the drums; CH 6 in two pages | 508,164 | -80 | 73,400 | 78,404 | -16 | 19,900 | 161,896 |
+| 2026-11-04 | 35d62b5+ | A dive's settle gives way to the camera's aim | 508,180 | +16 | 73,384 | 78,404 | +0 | 19,900 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Drum Channel pages: the gap back, CH 6 whole | 508,244 | +64 | 73,320 | 78,404 | +0 | 19,900 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Drum Channel pages: RUN/STOP, ACCENT, PER INSTRUMENT in the small print | 508,244 | +0 | 73,320 | 78,404 | +0 | 19,900 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Drum Channel pages: PER INSTRUMENT's bracket, the keys' names back | 508,324 | +80 | 73,240 | 78,404 | +0 | 19,900 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Drum Channel pages: the keys' names clear of the frame | 508,324 | +0 | 73,240 | 78,404 | +0 | 19,900 | 161,896 |
+| 2026-11-04 | 35d62b5+ | Drum roll on the lowest F, at Error Correct's grid | 508,692 | +368 | 72,872 | 78,404 | +0 | 19,900 | 161,912 |
+| 2026-11-04 | 35d62b5+ | ROLL on the SEQ list, a plate of its own: 1/2 to 1/32T | 509,524 | +832 | 72,040 | 78,404 | +0 | 19,900 | 161,920 |
+| 2026-11-04 | 35d62b5+ | ROLL lit, stopped, arms recording | 509,524 | +0 | 72,040 | 78,404 | +0 | 19,900 | 161,920 |
+| 2026-11-04 | 35d62b5+ | ROLL's plate smaller, its labels fit | 509,620 | +96 | 71,944 | 78,404 | +0 | 19,900 | 161,920 |
+| 2026-11-04 | 35d62b5+ | ROLL's plate: its screws full size | 509,556 | -64 | 72,008 | 78,404 | +0 | 19,900 | 161,920 |
+| 2026-11-04 | 35d62b5+ | ROLL's plate: the mods' label tape | 509,428 | -128 | 72,136 | 78,404 | +0 | 19,900 | 161,920 |
+| 2026-11-04 | 35d62b5+ | ROLL's plate: its LED under the list's | 509,444 | +16 | 72,120 | 78,404 | +0 | 19,900 | 161,920 |
