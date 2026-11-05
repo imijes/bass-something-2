@@ -84,8 +84,10 @@ def theme(page, here, css):
     else:                                         # the installer
         html = re.sub(r"<body>\n", lambda m: m.group(0) + tabs(here, up, "narrow"), html, count=1)
         html, n = re.subn(r"<footer>.*?</footer>", lambda m: FOOTER.format(up=up), html, count=1, flags=re.S)
+        if n != 1:                                # fm1-base's backup page has none: ours goes at the end
+            html, n = re.subn(r"</body>", lambda m: FOOTER.format(up=up) + "\n" + m.group(0), html, count=1)
         if n != 1:
-            raise SystemExit(f"{page}: no <footer> to put the credits' pointer in")
+            raise SystemExit(f"{page}: no <footer> or </body> to put the credits' pointer in")
     page.write_text(html, encoding="utf-8")
 
 

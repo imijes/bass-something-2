@@ -13,6 +13,7 @@ It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of 
 A second instrument plays beside the synth: [Drum Something](#s6), 13 drums with their own sequencer and songs.
 
 ![The Bass Something 2 screen with a note playing: the section tabs, the HOME page (the name, the red P01 display, the scope drawing the note's wave, the whole Bass Station II panel), the keys with the held one in cyan, then OCT +0, P01, 120 BPM, VOL 50% and ARP OFF](img/screen-home.png "Bass Something 2 playing")
+![Drum Something's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "Drum Something")
 
 ---
 
