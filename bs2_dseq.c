@@ -436,7 +436,7 @@ static void dq_step(void)
 /* the roll key: the drum again and again at the roll's rate (the list's ROLL), as if played: recorded too */
 static float dq_roll_grid(void)
 {
-    return (float)DQ_ROLL[set.droll < DQ_NROLL ? set.droll : DQ_ROLL_16];
+    return (float)DQ_ROLL[set.droll < DQ_NROLL ? set.droll : DQ_ROLL_DEF];
 }
 static void dq_roll_hit(void)
 {

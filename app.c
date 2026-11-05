@@ -41,11 +41,11 @@ typedef struct {
     uint8_t dswing_lock;                 /* Swing Lock (DRUM MODS): the bass's swing the running pattern's (was spare, 0: off) */
     uint8_t dtrans_off;                  /* TRANSPORT (DRUM MODS) off: the drums' run and stop leave the bass alone (was spare,
                                           * 0: on, as MIDI's start and stop) */
-    uint8_t droll;                       /* the drums' roll: its rate, DQ_ROLL's (older records: 1/16, settings_defaults) */
+    uint8_t droll;                       /* the drums' roll: its rate, DQ_ROLL's (older records: settings_defaults') */
     uint8_t spare4[3];
 } settings_t;
 /* the roll's rates, as other machines' note repeat: ticks (96 a bar), the fraction, a triplet's */
-enum { DQ_NROLL = 9, DQ_ROLL_16 = 5 };
+enum { DQ_NROLL = 9, DQ_ROLL_DEF = 5 };   /* (1/16) */
 static const uint8_t DQ_ROLL[DQ_NROLL] = {48, 24, 16, 12, 8, 6, 4, 3, 2}, DQ_ROLL_N[DQ_NROLL] = {2, 4, 4, 8, 8, 16, 16, 32, 32},
                      DQ_ROLL_T[DQ_NROLL] = {0, 0, 1, 0, 1, 0, 1, 0, 1};
 /* now, as a time kept with 0 for none: never ahead of the clock, or now - it wraps round to a very long time */
@@ -1287,7 +1287,7 @@ static void settings_defaults(settings_t *s)
     s->spk = s->pop = s->zoom_off = 0;           /* (spk 0: FLAT; pop 0: 1.5 s; zoom_off 0: AUTO) */
     s->dchan = s->dcc_chan = 10;            /* (the drums: GM's channel) */
     s->dswing_lock = s->dtrans_off = 0;
-    s->droll = DQ_ROLL_16;
+    s->droll = DQ_ROLL_DEF;
     {
         static const seqmem_t L = SEQ_LINE, E = {.len = 0, .step = {SEQ_REST}};
         uint32_t i, j;
@@ -1484,7 +1484,7 @@ static void ui_start(void);
 void app_init(void)
 {
     if (set.droll >= DQ_NROLL)
-        set.droll = DQ_ROLL_16;
+        set.droll = DQ_ROLL_DEF;
     settings_t d;
     int n = plat_store_load(OBJ_SETTINGS, &set, sizeof set);
     uint32_t i;
