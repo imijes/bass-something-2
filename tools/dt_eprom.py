@@ -5,8 +5,10 @@
 would be given, in ROM time. Writes bs2/eprom/NAME.wav (8-bit, at the voice's ROM rate at the first tuning step, to listen
 to) and bs2/dt_eprom.h (the firmware's tables). The zeros at a voice's end are cut.
 
-  tools/build.py bs2 --host, then from the fm1-base root: python3 bs2/tools/dt_eprom.py BASS SNARE:low RIM TOM1:low TOM2 CRASH RIDE CHH OHH CLAPS TAMB COWBELL CABASA
-  (NAME:low also makes the take its low tunings use: steps 1-3 differ from the rest where a voice has low fields),
+  tools/build.py bs2 --host, then from the fm1-base root: python3 bs2/tools/dt_eprom.py BASS SNARE:lowonly RIM TOM1:lowonly TOM2 CRASH RIDE CHH OHH CLAPS TAMB COWBELL CABASA
+  (NAME:low also makes the take its low tunings use: steps 1-3 differ from the rest where a voice has low fields;
+  NAME:lowonly keeps that take alone, read faster for every tuning as one ROM would be: the Snare's and the Toms' since
+  v0.7.3, 22.7 KB less, the firmware 3 dB down at steps 4 on (DT_EPROM_LOWONLY) to keep their old level there),
   then tools/build.py bs2 --host again."""
 import re
 import subprocess
@@ -42,7 +44,8 @@ def export(name, step, tmp):
 
 
 def main():
-    wanted = {a.split(":")[0]: a.endswith(":low") for a in sys.argv[1:]}
+    wanted = {a.split(":")[0]: a.split(":")[1] if ":" in a else "" for a in sys.argv[1:]}
+    lowonly = 0
     rates = rom_rates()
     (BS2 / "eprom").mkdir(exist_ok=True)
     arrays, rows, total = [], [], 0
@@ -54,7 +57,10 @@ def main():
             if name in ALIAS:                # (the same voice: the same ROM, filled in below)
                 rows.append(name)
                 continue
-            takes = [("", 8)] + ([("_LOW", 1)] if wanted[name] else [])
+            takes = {"": [("", 8)], "low": [("", 8), ("_LOW", 1)], "lowonly": [("_LOW", 1)]}[wanted[name]]
+            if wanted[name] == "lowonly":
+                lowonly |= 1 << ORDER.index(name)
+                lowonly |= sum(1 << ORDER.index(a) for a, b in ALIAS.items() if b == name)
             row = []
             for suffix, step in takes:
                 d = export(name, step, tmp)
@@ -69,12 +75,13 @@ def main():
                 row.append(f"{{DT_E_{name}{suffix}, {len(d)}u}}")
                 print(f"{name}{suffix}: {len(d)} B, {len(d) / rates[name]:.2f} s at {rates[name]} Hz")
             rows.append("{" + ", ".join(row + ["{0, 0}"] * (2 - len(row))) + "}")
-    rows = [next(r for r in rows if f"DT_E_{ALIAS[n]}," in r) if n in ALIAS else n for n in rows]
+    rows = [next(r for r in rows if re.search(rf"DT_E_{ALIAS[n]}(_LOW)?,", r)) if n in ALIAS else n for n in rows]
     (BS2 / "dt_eprom.h").write_text(
         "/* SPDX-License-Identifier: MPL-2.0\n * Copyright (C) 2026 John Brown */\n"
         "/* Drum Something's virtual EPROMs, made from its own voices by tools/dt_eprom.py: don't edit. */\n"
         + "\n".join(arrays) + "\nstatic const struct { const int8_t *d; uint32_t n; } DT_EPROM[][2] = {\n    "
-        + ",\n    ".join(rows) + "};\n")
+        + ",\n    ".join(rows) + "};\n"
+        + f"#define DT_EPROM_LOWONLY 0x{lowonly:04X}u   /* (the voices with their low take alone: :lowonly) */\n")
     print(f"total {total} B")
 
 

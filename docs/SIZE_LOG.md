@@ -174,3 +174,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-05 | 17fd537+ | fm1-base + felucca-bsp upstream update (2026-11-05) | 515,520 | +5,820 | 66,044 | 78,420 | +16 | 19,884 | 161,928 |
 | 2026-11-05 | 14b74ec+ | Demo: P01 DUB PLATE, its roots line, drum pattern 00 (16 bars) | 516,512 | +992 | 65,052 | 78,420 | +0 | 19,884 | 161,928 |
 | 2026-11-05 | dea535e+ | demo from the author's FM-1 backup | 516,496 | -16 | 65,068 | 78,420 | +0 | 19,884 | 161,928 |
+| 2026-11-05 | 5a15fd8+ | snare and toms: the low take alone, read faster at every tuning | 493,776 | -22,720 | 87,788 | 78,420 | +0 | 19,884 | 161,928 |

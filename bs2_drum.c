@@ -694,6 +694,8 @@ static float dt_decay(float tau, float rate, float per)
  * 8-bit numbers its DAC would be given, and read at the tuned rate as the 400's ROMs were; the VCF, the level, the
  * output filters and the room stay live. [1] the low tunings' take where a voice has one (its low fields: steps 1-3) */
 #include "dt_eprom.h"
+#define DT_LOWONLY_TRIM 0.708f               /* -3 dB: a voice with its low take alone (DT_EPROM_LOWONLY), at steps 4 on, where
+                                              * that take's body is louder than the take it replaced (since v0.7.3) */
 static uint8_t dt_use_eprom = 1;             /* 0: every voice made live (the host's A/B) */
 #ifdef PLAT_HOST
 static struct { int8_t *d; uint32_t n; } dt_baked[NDT][2];   /* (dt_bake: a voice's ROM made here and now, before its table) */
@@ -750,6 +752,8 @@ static void dt_hit(uint32_t d, uint32_t tune, uint32_t level)
     c->len = (uint32_t)(v->len * rom);
     c->lvl = (float)level * (1.0f / 255.0f);
     c->tab = dt_eprom_of(d, tune, &c->len);
+    if (c->tab && tune >= 3u && (DT_EPROM_LOWONLY >> d & 1u))
+        c->lvl *= DT_LOWONLY_TRIM;           /* (the low take read at the higher tunings: their old level) */
     if (!c->tab)
         c->len = (uint32_t)(v->len * rom);
     c->lpk = v->lp > 0.0f ? v->lp : 1.0f;
