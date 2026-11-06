@@ -105,9 +105,9 @@ expect page 10
 tap HOME
 wait 1500
 # HOME's K3: the filter's Resonance, the same way
-expect reso 0
+expect reso 48
 turn K3 2
-expect reso 2
+expect reso 50
 wait 100
 expect page 16
 expect zoom >0
@@ -116,7 +116,7 @@ expect page 10
 expect zoom 256
 said RESONANCE
 turn K3 1
-expect reso 3
+expect reso 51
 wait 900
 expect page 10
 wait 400

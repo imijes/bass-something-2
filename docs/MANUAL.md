@@ -55,8 +55,15 @@ doesn't start can be recovered too. For details, see felucca-bsp's `tools/fm1_re
 At power-on the screen shows BASS SOMETHING 2 in cyan, "Inspired by the Bass Station 2" under it, and an oscilloscope whose
 wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.7) is in the bottom
 right corner. v0.7 brings Drum Something (section 6) and the 2026-11-05 platform update: a faster install, FM-1s with
-the UC25HQ80 flash chip, and USB audio on macOS 15. It uses 515,520 B of the FM-1's flash, with about 66 KB free. Then the panel opens on the patch you last saved. The emulator shows the same splash when you switch it
-on.
+the UC25HQ80 flash chip, and USB audio on macOS 15. v0.7.1 adds the demo below. It uses 516,528 B of the FM-1's flash, with
+about 65 KB free. Then the panel opens on the patch you last saved. The emulator shows the same splash when you
+switch it on.
+
+**The demo:** a new Bass Something 2 (and the emulator) starts with something to play along with: P01 DUB PLATE, a dub
+bass, with its two-bar roots line in sequence 1, and the drums' pattern 00, sixteen bars of dub techno at 122 BPM
+with a fill every fourth bar. Hold HOME to switch to the drums and press PLAY: the bass sequence starts with them (DRUM
+MODS' TRANSPORT). Turn the bass's knobs while it plays, or press HOME to go back to the synth's pages; a key
+transposes the line. It's only there until you save over it.
 
 ---
 
@@ -639,7 +646,7 @@ basses, P11 to P20 leads, and P21 to P32 show off the rest of the voice:
 
 | Patch | Name | What it shows |
 |---|---|---|
-| P01 | SUB ZERO | a sine an octave down with the sine sub under it: felt more than heard |
+| P01 | DUB PLATE | the demo's bass: two saws and a loud sine sub under the 24 dB filter, swept slowly by LFO 2 |
 | P02 | STATION BASS | the classic: two saws at 16', the square sub, a short filter envelope |
 | P03 | ACID SLIDE | the Acid filter with high resonance; overlap the notes to slide |
 | P04 | RUBBER PLUCK | a narrow pulse through the 12 dB filter, short and round |

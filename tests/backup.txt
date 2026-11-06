@@ -8,7 +8,7 @@ expect page 16
 # a sound saved (P01's Frequency, the patch's), a GLO setting that keeps itself, the drums' pattern saved
 turn K4 2
 wait 30
-expect cutoff 52
+expect cutoff 60
 tap SAVE
 wait 30
 expect dirty 0
@@ -85,7 +85,7 @@ wait 2000
 expect drum 0
 turn K4 3
 wait 2700
-expect cutoff 55
+expect cutoff 63
 tap SAVE
 wait 30
 tap GLO
@@ -102,7 +102,7 @@ restore out:saved.bs2
 said STOP FIRST
 key w4 up
 wait 1000
-expect cutoff 55
+expect cutoff 63
 expect chan 7
 expect dt_used 2
 # damaged: refused, nothing changed
@@ -110,7 +110,7 @@ backup out:bad.bs2
 backup_damage out:bad.bs2
 restore out:bad.bs2
 said NOT RESTORED
-expect cutoff 55
+expect cutoff 63
 expect chan 7
 expect dt_used 2
 # the good one: all of it back, on HOME, nothing waiting to save
@@ -125,12 +125,12 @@ wait 30
 expect drum 0
 expect page 16
 expect dirty 0
-expect cutoff 52
+expect cutoff 60
 expect chan 5
 expect dt_used 1
 # and through a power-off
 reboot
 wait 600
-expect cutoff 52
+expect cutoff 60
 expect chan 5
 expect dt_used 1

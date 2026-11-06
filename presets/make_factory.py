@@ -44,9 +44,12 @@ DEFAULTS = dict(
 
 PATCHES = [
     # ---- P01-P10: basses ----
-    ("SUB ZERO", dict(        # a sine an octave down and the sub's under it: felt more than heard
-        wave1=SINE, range1=R16, lvl2=0, sub_wave=SUB_SINE, lvl_sub=110, cutoff=50, reso=0, key_trk=4,
-        amp_a=4, amp_d=60, amp_s=110, amp_r=40, vel_amp=30, drive=10)),
+    ("DUB PLATE", dict(       # the demo's (sequence 1, drum pattern 00, song 00): two saws and a loud sine sub under
+        # the 24 dB filter, opened a little by each note's envelope; LFO 2 sweeps the cutoff slowly, as a dub's hand on it
+        wave1=SAW, wave2=SAW, range1=R16, range2=R16, fine2=8, lvl1=120, lvl2=90, sub_wave=SUB_SINE, lvl_sub=127,
+        filter=LP24, cutoff=58, reso=48, drive=30, dist=30, key_trk=3,
+        menv_d=56, menv_s=20, menv_r=40, menv_cut=20, amp_a=2, amp_d=80, amp_s=120, amp_r=46,
+        lfo2_wave=L_TRI, lfo2_rate=14, lfo2_cut=12, lfo_keysync=(0, 0), glide=8)),
     ("STATION BASS", dict(    # the classic: two saws at 16', the square sub, the mod envelope on a low cutoff
         range1=R16, range2=R16, fine2=9, sub_wave=SUB_SQUARE, lvl_sub=100, cutoff=34, reso=35,
         menv_d=58, menv_s=25, menv_r=40, menv_cut=34, amp_a=2, amp_d=70, amp_s=110, amp_r=36, drive=20)),
