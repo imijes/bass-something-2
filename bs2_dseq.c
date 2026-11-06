@@ -634,15 +634,9 @@ static void ds_copy(uint32_t a, uint32_t b)  /* song a onto b: empty, a copy, it
         d->step[de + i] = t->step[i];
     dq.dirty = 1;
 }
-/* the demo at first power-on, with P01 DUB PLATE's sequence (app.c SEQ_LINE): pattern 00, 16 bars of 16ths, a dub techno
- * groove: the kick on the quarters, its 3 accented with the rim's (the one drop's), the hats on the off-beats, the cabasa
- * on each beat's last 16th, a little swing. Every fourth bar a fill, each its own, and a crash on the bar after. The
- * drums' tunings for it: the kick 5, the snare 6, the rim 7, the hats, cymbals and percussion (channel 6) high */
-#define DQ_DEMO_TEMPO 122u
-#define DQ_DEMO_SWING 1u                     /* (DQ_SWING's 54 %) */
-#define DQ_DEMO_MASTER 48u                   /* the drums' MASTER: about 8 dB down, so the bass sits with them */
-#define DQ_DEMO_BARS 16u
-#define DQ_DEMO_HAT_VOL 5u                   /* the hats' VOLUME: well under the kick, snare, rim and toms (15) */
+/* the demo at first power-on, "i've used up 94% of my usage tokens": pattern 00 and the drums' levels, tunings, master
+ * and tempo as saved on the author's FM-1, with its P01 (app.c), from presets/demo.h (make_demo.py) */
+#include "presets/demo.h"
 #if defined(PLAT_HOST) && !defined(PLAT_WEB) && !defined(PLAT_RFM1)
 #include <stdlib.h>                          /* (getenv) */
 #endif
@@ -656,59 +650,19 @@ static int dq_demo_on(void)                  /* the host simulator's tests start
     return 1;
 #endif
 }
-/* a bar: a line per drum, X an accented hit, x a hit, 0-9 a-f a hit with that tuning locked (the toms'), . none */
-typedef struct { uint8_t drum; char hits[17]; } dq_demo_t;
-static const dq_demo_t DQ_GROOVE[] = {
-    {DT_BASS, "x...x...X...x..."}, {DT_RIM, "........X......."}, {DT_CHH, "..x...x...x....."},
-    {DT_OHH, "..............x."}, {DT_CABASA, "...x...x...x...x"}, {0, ""}};
-static const dq_demo_t DQ_FILL1[] = {        /* bar 4: two toms each, high then low */
-    {DT_BASS, "x...x...X...x..."}, {DT_RIM, "........X......."}, {DT_CHH, "..x...x...x....."},
-    {DT_CABASA, "...x...x...x...."}, {DT_TOM1, "............99.."}, {DT_TOM2, "..............55"}, {0, ""}};
-static const dq_demo_t DQ_FILL2[] = {        /* bar 8: a snare roll into the next */
-    {DT_BASS, "x...x...X...x..."}, {DT_RIM, "........X......."}, {DT_CHH, "..x...x...x....."},
-    {DT_CABASA, "...x...x........"}, {DT_SNARE, "............xxxX"}, {0, ""}};
-static const dq_demo_t DQ_FILL3[] = {        /* bar 12: the toms falling */
-    {DT_BASS, "x...x...X...x..."}, {DT_RIM, "........X......."}, {DT_CHH, "..x...x........."},
-    {DT_CABASA, "...x...x........"}, {DT_TOM1, "..........ca8..."}, {DT_TOM2, ".............753"}, {0, ""}};
-static const dq_demo_t DQ_FILL4[] = {        /* bar 16: the snare on the 3, claps and cowbell, round to the top */
-    {DT_BASS, "x...x...X...x..."}, {DT_SNARE, "........X......."}, {DT_CHH, "..x...x...x....."},
-    {DT_CABASA, "...x...x........"}, {DT_CLAPS, "............X.x."}, {DT_COWBELL, "...........x...x"}, {0, ""}};
-static const dq_demo_t *const DQ_FILLS[4] = {DQ_FILL1, DQ_FILL2, DQ_FILL3, DQ_FILL4};
-static const uint8_t DQ_DEMO_TUNE[NDT] = {5, 6, 7, 9, 5, 11, 11, 15, 5, 11, 11, 11, 11};   /* (DT_*'s order) */
-static uint32_t dq_hex(char c) { return c <= '9' ? (uint32_t)(c - '0') : (uint32_t)(c - 'a' + 10); }
 static void dq_demo(void)                    /* (the pool empty, the patterns their defaults) */
 {
-    dq_pat_t *q = &dqm.pat[0];
-    uint32_t b, s;
-    const dq_demo_t *l;
-    for (s = 0; s < NDT; s++)
-        dt.tune[s] = DQ_DEMO_TUNE[s];
-    dt.vol[DT_BASS] = dt.vol[DT_SNARE] = dt.vol[DT_RIM] = dt.vol[DT_TOM1] = dt.vol[DT_TOM2] = 15u;
-    dt.vol[DT_CHH] = dt.vol[DT_OHH] = DQ_DEMO_HAT_VOL;
-    q->meas = DQ_DEMO_BARS;
-    q->len = DQ_DEMO_BARS * dq_bar(q);
-    q->swing = DQ_DEMO_SWING;
-    q->start = 0;
-    for (b = 0; b < DQ_DEMO_BARS; b++) {
-        const dq_demo_t *bar = b % 4u == 3u ? DQ_FILLS[b / 4u] : DQ_GROOVE;
-        for (s = 0; s < 16u; s++) {          /* (in time order, as the pool keeps a pattern's hits) */
-            const uint32_t t = (b * 16u + s) * 6u;
-            if (b % 4u == 0u && !s && dqm.used < DQ_HITS)   /* (the crash after each fill) */
-                dqm.ev[dqm.used++] = t | (uint32_t)DT_CRASH << 19 | 1u << 23;
-            for (l = bar; l->hits[0]; l++) {
-                const char c = l->hits[s];
-                uint32_t e = t | (uint32_t)l->drum << 19;
-                if (c == '.' || dqm.used >= DQ_HITS)
-                    continue;
-                if (c == 'X')
-                    e |= 1u << 23;
-                else if (c != 'x')
-                    e |= 15u << 24 | dq_hex(c) << 28;
-                dqm.ev[dqm.used++] = e;
-            }
-        }
+    uint32_t i;
+    for (i = 0; i < NDT; i++) {
+        dt.vol[i] = DEMO_DT_VOL[i];
+        dt.tune[i] = DEMO_DT_TUNE[i];
     }
-    q->n = dqm.used;
+    dt.master = DEMO_DT_MASTER;
+    dt.tempo = DEMO_DT_TEMPO;
+    dqm.pat[0] = DEMO_PAT;
+    for (i = 0; i < DEMO_PAT.n; i++)
+        dqm.ev[i] = DEMO_HITS[i];
+    dqm.used = DEMO_PAT.n;
 }
 static void dq_init(void)
 {
@@ -750,8 +704,6 @@ static void dq_init(void)
         }
         if (dq_demo_on()) {
             dq_demo();
-            dt.tempo = DQ_DEMO_TEMPO;
-            dt.master = DQ_DEMO_MASTER;
         }
     }
     if (!dq_load(&dsm, (uint32_t)sizeof dsm, OBJ_DS0, ds_sum, DS_NOBJ) || dsm.magic != DSONG_MAGIC) {

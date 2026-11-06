@@ -1222,33 +1222,27 @@ void app_panic(void)
     voice.amp.stage = voice.menv.stage = ENV_IDLE;
 }
 
-/* a bass line to start from (sequence 1's at first power-on; the demo with P01 DUB PLATE and the drums' pattern 00):
- * two bars of 16ths in G minor, from G2 (a key plays it from there), an original roots line in the Studio One manner:
- * the 1 left empty, long low notes, bar 1 a call (G, then the D on the 3, down through C and Bb), bar 2 its answer (F,
- * the low D) and a pickup run up from F into the next */
-#define SEQ_LINE {.len = 32, .step = {SEQ_REST, SEQ_REST, 43, 43, 43, 43, SEQ_REST, 46, 50, 50, 50, SEQ_REST,            \
-                                      48, SEQ_REST, 46, 46, SEQ_REST, SEQ_REST, 41, 41, 41, SEQ_REST, 38, 38,           \
-                                      SEQ_REST, SEQ_REST, 41, 43, 45, 46, 48, SEQ_REST},                                \
-                  .leg = {0x1Cu, 0x43u, 0x4Cu, 0x00u}}   /* (a bit: the step held into the next, 2-4 8-9 14 18-19 22) */
+/* the first sequence: the demo's (presets/demo.h: P01's, as saved on the author's FM-1), or, in the host simulator
+ * without BS2_DEMO=1 (dq_demo_on), the tests' line: v0.7's, C3, D#3 tied over two steps */
+_Static_assert(DEMO_PSIZE == sizeof(patch_t), "presets/demo.h's P01 is this patch_t's (make_demo.py again)");
 #if defined(PLAT_HOST) && !defined(PLAT_WEB) && !defined(PLAT_RFM1)
-/* the host simulator's tests' line, without BS2_DEMO=1 (dq_demo_on): v0.7's, C3, D#3 tied over two steps */
 #define SEQ_TEST_LINE {.len = 8, .step = {48, 48, 60, 48, 51, 51, 55, 58, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST,        \
                                           SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST,        \
                                           SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST,        \
                                           SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST},                 \
                        .leg = {1u << 4}}
-static void seq_line(seqmem_t *q)            /* the first sequence: the demo's, or the tests' */
-{
-    static const seqmem_t L = SEQ_LINE, T = SEQ_TEST_LINE;
-    *q = dq_demo_on() ? L : T;
-}
-#else
+#endif
 static void seq_line(seqmem_t *q)
 {
-    static const seqmem_t L = SEQ_LINE;
-    *q = L;
-}
+#if defined(PLAT_HOST) && !defined(PLAT_WEB) && !defined(PLAT_RFM1)
+    static const seqmem_t T = SEQ_TEST_LINE;
+    if (!dq_demo_on()) {
+        *q = T;
+        return;
+    }
 #endif
+    memcpy(q, DEMO_PATCH + offsetof(patch_t, sq), sizeof *q);
+}
 static void patch_defaults(patch_t *p)       /* the sound at first power-on: no modulation (the amounts at 0) */
 {
     static const patch_t D = {
@@ -1259,7 +1253,6 @@ static void patch_defaults(patch_t *p)       /* the sound at first power-on: no 
         .lfo = {{.wave = LFO_TRI, .rate = 75}, {.wave = LFO_TRI, .rate = 52}},   /* (the INIT PATCH's: 7.9 Hz, 3 Hz) */
         .lfo_keysync = {0, 1},
         .arp_on = 0, .arp_mode = ARP_UP, .arp_oct = 1, .latch = 0, .gate = 50, .tempo = 120,
-        .sq = SEQ_LINE,
         .menv_o2 = 0, .pw1 = 50, .pw2 = 50, .pwm1 = 0, .pwm2 = 0, .noise = 0, .glide = 0, .rhythm = NRHY,
         .swing = 50,
         .lvl1 = 127, .lvl2 = 127, .lvl_sub = 89,   /* (the sub at 0.7: version 4's mix) */
@@ -1361,6 +1354,7 @@ typedef struct {
     patch_t p[NSLOTS];
 } bank_t;
 _Static_assert(sizeof(bank_t) <= PLAT_STORE_MAX, "the bank fits a store object");
+_Static_assert(DEMO_BANK_VERSION == BANK_VERSION, "presets/demo.h's P01 is this version's (make_demo.py again)");
 _Static_assert(offsetof(patch_t, ring) == BANK_V1_PSIZE, "version 1's patches are version 2's without the ring");
 _Static_assert(offsetof(patch_t, arp_on) == BANK_V2_PSIZE, "version 2's patches are version 3's without the arp");
 _Static_assert(SEQ_GAP > BANK_V2_PSIZE && SEQ_GAP <= BANK_V3_PSIZE, "the gap: in version 3's patches on, not 2's");
@@ -2125,8 +2119,10 @@ static void bank_factory(void)
         bsx_import(PRESETS[i], sizeof PRESETS[i], &bank.p[i], name);
         patch_sane(&bank.p[i]);
     }
-    if (dq_demo_on())
-        bank.p[0].tempo = DQ_DEMO_TEMPO;     /* (P01 DUB PLATE: the demo's tempo, the drums' too) */
+    if (dq_demo_on()) {                      /* (P01: the demo's, as saved on the author's FM-1) */
+        memcpy(&bank.p[0], DEMO_PATCH, sizeof bank.p[0]);
+        patch_sane(&bank.p[0]);
+    }
 }
 
 static void step_text(uint32_t v, char *t)   /* a step: its note, or REST */
@@ -4191,7 +4187,7 @@ void app_input_only(void) { input(); }
 #define P_KEYB RGB(10, 10, 10)
 /* the firmware's version as shown (the splash, GLO DISPLAY): a release's "v0.6", a development build's the last release
  * and "DEV" ("v0.6 DEV": built after it; BS2_RELEASE bumped with each release) */
-#define BS2_RELEASE "0.7.1"
+#define BS2_RELEASE "0.7.2"
 #define VERSION_TEXT (APP_VERSION[0] >= '0' && APP_VERSION[0] <= '9' ? "v" APP_VERSION : "v" BS2_RELEASE " " APP_VERSION)
 static void ui_start(void) { ui.page = PG_HOME; }   /* the first page, after the splash: HOME */
 
