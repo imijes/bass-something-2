@@ -1,7 +1,7 @@
 # Bass Something 2's build settings (tools/build.py)
 name = "Bass-Something-2"      # APP_NAME is in app.h; this names the build's files (bass-something-2.fwsc,
                                # bass-something-2_host); bs2/site/make_site.py shows it as "Bass Something 2"
-id_prefix = "FM-1_62"          # package identity (each firmware its own): dev FM-1_6200, releases FM-1_62XXYYZZ
+id_prefix = "FM-1_69"          # package identity (each firmware its own, since v0.7.3; was FM-1_62, which Veffbox also uses): dev FM-1_6900, releases FM-1_69XXYYZZ (8 digits at most)
 usb_manufacturer = "imijes"
 usb_product = "Bass Something 2 FM-1"   # "fm-1" in it: the installer and fm1_install.py find the port by that
 o2 = []                        # separate units compiled at -O2 (an app's DSP)
