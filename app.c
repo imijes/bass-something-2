@@ -6457,7 +6457,10 @@ static void dfn_row(int32_t led_u, int32_t text_u, int32_t v, int lit, const cha
 {
     const int32_t y = dt_py(v);
     if (lit && zoom.fn_at) {                 /* (the camera's aim: its LED and its words together) */
-        zoom.tx = (int16_t)((dt_px(led_u) + dt_px(text_u) + 4 * (int32_t)strlen(s)) / 2);
+        int32_t n = 0;                       /* (its words' length: no strlen on the device) */
+        while (s[n])
+            n++;
+        zoom.tx = (int16_t)((dt_px(led_u) + dt_px(text_u) + 4 * n) / 2);
         zoom.ty = (int16_t)y;
         zoom.pg = ui.page;
         zoom.fn_ok = 1;

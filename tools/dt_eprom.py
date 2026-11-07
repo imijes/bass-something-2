@@ -5,11 +5,13 @@
 would be given, in ROM time. Writes bs2/eprom/NAME.wav (8-bit, at the voice's ROM rate at the first tuning step, to listen
 to) and bs2/dt_eprom.h (the firmware's tables). The zeros at a voice's end are cut.
 
-  tools/build.py bs2 --host, then from the fm1-base root: python3 bs2/tools/dt_eprom.py BASS SNARE:lowonly RIM TOM1:lowonly TOM2 CRASH RIDE CHH OHH CLAPS TAMB COWBELL CABASA
+  tools/build.py bs2 --host, then from the fm1-base root: python3 bs2/tools/dt_eprom.py BASS SNARE:lowonly RIM TOM1:lowonly TOM2 CRASH@2.5 RIDE@2.5 CHH OHH CLAPS TAMB COWBELL CABASA
   (NAME:low also makes the take its low tunings use: steps 1-3 differ from the rest where a voice has low fields;
   NAME:lowonly keeps that take alone, read faster for every tuning as one ROM would be: the Snare's and the Toms' since
   v0.7.3, 22.7 KB less, the firmware 3 dB down at steps 4 on (DT_EPROM_LOWONLY) to keep their old level there),
+  NAME@SECONDS cuts a take there, faded out over its last 0.4 s (the cymbals' tails since v0.7.3: CRASH@2.5 RIDE@2.5),
   then tools/build.py bs2 --host again."""
+import math
 import re
 import subprocess
 import sys
@@ -43,8 +45,22 @@ def export(name, step, tmp):
     return data
 
 
+FADE = 0.4                                   # NAME@SECONDS: the take cut there, faded out over its last FADE s
+
+
+def fade(d, secs, rate):
+    """a take cut at SECS, its last FADE s faded out (a raised cosine), as 8-bit numbers again"""
+    n, f = min(len(d), int(secs * rate)), int(FADE * rate)
+    v = [b - 256 if b > 127 else b for b in d[:n]]
+    for i in range(max(0, n - f), n):
+        v[i] = round(v[i] * 0.5 * (1 + math.cos(math.pi * (i - (n - f)) / f)))
+    return bytes(x & 255 for x in v).rstrip(b"\0")
+
+
 def main():
-    wanted = {a.split(":")[0]: a.split(":")[1] if ":" in a else "" for a in sys.argv[1:]}
+    args = [re.fullmatch(r"(\w+)(?::(\w+))?(?:@([\d.]+))?", a).groups() for a in sys.argv[1:]]
+    wanted = {n: k or "" for n, k, _ in args}
+    cut = {n: float(t) for n, _, t in args if t}
     lowonly = 0
     rates = rom_rates()
     (BS2 / "eprom").mkdir(exist_ok=True)
@@ -64,6 +80,8 @@ def main():
             row = []
             for suffix, step in takes:
                 d = export(name, step, tmp)
+                if name in cut:
+                    d = fade(d, cut[name], rates[name])
                 total += len(d)
                 with wave.open(str(BS2 / "eprom" / f"{name}{suffix}.wav"), "wb") as w:
                     w.setnchannels(1)
