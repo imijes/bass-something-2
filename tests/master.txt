@@ -6,6 +6,19 @@ bank_init
 wait 600
 # HOME first (the whole panel), SEL the MASTER, HOME again, SEL again
 expect page 16
+# K1 on HOME: the bass's own volume (the FM-1's MASTER knob the master over all), in on the MASTER's Volume as
+# HOME's other knobs go to theirs; there, back to full
+listen
+turn K1 -27
+wait 30
+said BASS VOLUME 100
+wait 900
+expect page 5
+turn K1 27
+wait 30
+said BASS VOLUME 127
+wait 3000
+expect page 16
 tap SEL
 wait 500
 expect page 5

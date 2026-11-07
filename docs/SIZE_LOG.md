@@ -178,3 +178,5 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-07 | 9791b3b+ | crash and ride cut at 2.5 s, faded over 0.4 s | 477,696 | -16,080 | 103,868 | 78,420 | +0 | 19,884 | 161,928 |
 | 2026-11-07 | 1915bf5+ | room moved to the FX bus (bs2_fx.c), sent post-fader | 477,712 | +16 | 103,852 | 78,420 | +0 | 19,884 | 161,936 |
 | 2026-11-07 | 5ca75f0+ | 128 patch slots (four bank pages) and patch names (PATCH NAME mod page) | 479,664 | +1,952 | 101,900 | 78,516 | +96 | 19,788 | 175,344 |
+| 2026-11-07 | d6a6ac3+ | RMI 368X engine, no UI yet (bs2_rmi.c, rmi_tab.h; MIDI ch 3) | 494,268 | +14,604 | 87,296 | 78,852 | +336 | 19,452 | 175,344 |
+| 2026-11-07 | d6a6ac3+ | per-instrument volumes (bass on K1: HOME, MASTER; RMI by CC 7), RMI level | 494,732 | +464 | 86,832 | 78,852 | +0 | 19,452 | 175,344 |

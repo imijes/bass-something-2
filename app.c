@@ -42,7 +42,10 @@ typedef struct {
     uint8_t dtrans_off;                  /* TRANSPORT (DRUM MODS) off: the drums' run and stop leave the bass alone (was spare,
                                           * 0: on, as MIDI's start and stop) */
     uint8_t droll;                       /* the drums' roll: its rate, DQ_ROLL's (older records: settings_defaults') */
-    uint8_t spare4[3];
+    uint8_t bvol_off;                    /* the bass's own volume (the MASTER page's Volume, K1), under full: 127 - it
+                                          * (stored so: older records' spare 0, full) */
+    uint8_t rvol_off;                    /* the RMI's own volume, as bvol_off (its faceplate's fader) */
+    uint8_t spare4[1];
 } settings_t;
 /* the roll's rates, as other machines' note repeat: ticks (96 a bar), the fraction, a triplet's */
 enum { DQ_NROLL = 9, DQ_ROLL_DEF = 5 };   /* (1/16) */
@@ -528,6 +531,7 @@ static fifo_t ccq;                           /* audio -> main loop: MIDI in's CC
 static int store_save(uint32_t obj, const void *src, uint32_t len);   /* plat_store_save, told if it is in silence */
 #include "bs2_fx.c"                       /* the FX bus: one room every instrument sends into (fx_room_send, fx_next) */
 #include "bs2_drum.c"                     /* Drum Something: the drum voices (dt_hit, dt_note, dt_next) */
+#include "bs2_rmi.c"                      /* the RMI 368X, the third instrument (rmi_note, rmi_next) */
 /* the clock's BPM: the drums', the master, while a pattern runs (the bass on the same clock, as on a 400 sending MIDI
  * clock to a Bass Station II); else the patch's */
 static float clock_bpm(void) { return dt_running ? (float)dt.tempo : (float)patch.tempo; }
@@ -894,6 +898,10 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
                 dt_note(d1, d2);             /* (Note Off: nothing, as the 400) */
             else if ((st & 0xF0u) == 0xB0u && (set.dcc_chan == CH_ALL || set.dcc_chan == ch))
                 dt_cc(d1, d2);
+            if (ch == 3u && ((st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u))   /* the RMI (until its pages: channel 3) */
+                rmi_note(d1, (st & 0xF0u) == 0x90u ? d2 : 0u);
+            else if (ch == 3u && (st & 0xF0u) == 0xB0u)
+                rmi_cc(d1, d2);
         }
         if (st != 0xF8u && st != 0xFEu) {    /* (clock and active sensing would flood the screen) */
             midi_last = pkt;
@@ -1008,6 +1016,7 @@ static float sag_gain(void)                  /* a modulation step: the gain the 
 }
 
 #define DT_MIX 4.0f                          /* +12 dB */
+#define RMI_MIX 1.4f                         /* the RMI's: a note's peak about the bass's (a chord over it), at full volumes */
 #define OUT_FS 8300000.0f                    /* the output's full scale, as MASTER's gain has it */
 #define OUT_KNEE (0.7f * OUT_FS)
 /* the last thing out: drums on the bass near full MASTER rounded into full scale, not cut there; under the knee nothing */
@@ -1042,6 +1051,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
      * (so a note opens it, as the Bass Station II's Ext In) and the distortion; at 0 it plays apart, after the synth */
     const int32_t *ext = plat_usb_audio_in();
     float le = (float)patch.lvl_ext * (0.5f / 127.0f / 8388608.0f);
+    const float bass_vol = (float)(127u - set.bvol_off) * (1.0f / 127.0f);   /* (the bass's own Volume, for the block) */
     adsr_t menv, aenv;
     fcoef_t fc, fm;
 #ifdef PLAT_HOST
@@ -1050,6 +1060,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     plat_usb_audio_route(patch.lvl_ext != 0u);   /* (from the next render) */
     midi_in();
     dt_block();
+    rmi_block();
     dq_block();
     if (!afx_on)
         ax = (afx_t){-1, 0, 0, 0};
@@ -1192,7 +1203,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             }
             if (!(++scope_ph & 3u))          /* (HOME's scope: every 4th, before the volume) */
                 scope_buf[scope_w++ & (SCOPE_N - 1u)] = (int8_t)fm_clampf(s * 100.0f, -127.0f, 127.0f);
-            s *= 0.3f * gain_now;
+            s *= 0.3f * gain_now * bass_vol;   /* (MASTER: the FM-1's knob, over every instrument; the bass's own Volume) */
 #ifdef PLAT_HOST
             dsum += s;
             dabs += fm_fabsf(s);
@@ -1202,6 +1213,8 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                 float g = DT_MIX * 0.3f * gain_now * ((float)dt.master / 127.0f);   /* the drums: after the bass's chain, over
                                                   * its level (hits, it sustains), under their own MASTER VOLUME (K2) */
                 s += dt_next(g) + dq_click_next() * g;
+                s += rmi_next(RMI_MIX * 0.3f * gain_now * (float)(127u - set.rvol_off) * (1.0f / 127.0f));   /* the RMI: as
+                                                  * the drums, after the bass's chain, under its own volume */
             }
             s += fx_next();                  /* the FX bus's returns, on the master */
             s = out_soft(s);
@@ -1580,6 +1593,7 @@ void app_init(void)
     uint32_t i;
     settings_defaults(&d);
     fx_init();
+    rmi_init();
     dt_init();
     dq_init();
     if (n < (int)SET_V1_SIZE || set.magic != SET_MAGIC || set.octave < -2 || set.octave > 2 || set.slot >= NSLOTS
@@ -2566,6 +2580,17 @@ static int knob_turn(uint32_t k, int32_t e)
 {
     if (ui.page == PG_NAME)
         return name_turn(k, e);
+    if ((ui.page == PG_PATCH || ui.page == PG_HOME) && k == EN_K1) {   /* the MASTER's Volume (on HOME too): the bass's
+                                              * own (kept with the GLO settings); the FM-1's MASTER knob is the master
+                                              * over all */
+        static const param_t BVOL = {"VOLUME", 0, 0, 127, 0};
+        char t[8];
+        e = knob_accel(k, e, &BVOL);         /* (GLO CONTROLS' Knobs: its speed-up, as every knob's) */
+        set.bvol_off = (uint8_t)(127 - clamp(127 - (int32_t)set.bvol_off + e, 0, 127));
+        int_text(127u - set.bvol_off, t);
+        app_say("BASS VOLUME", t);
+        return 0;
+    }
     if (ui.page == PG_GCLK && k == EN_K1) {  /* the tempo, as on ARP: the patch's, MIDI clock's while it leads */
         int r;
         ui.page = PG_ARP;
@@ -3359,10 +3384,10 @@ static uint32_t notes_lit(uint32_t *below, uint32_t *above)
  * and back: Knob Zoom's dive, as for the knob's CC (zoom_cc_in); no zoom (KNOB ZOOM OFF): HOME's own knob moves. The
  * drums' HOME: K3 and K4, the selected drum's Volume and Tuning, the dive to its Channel page (zoom_dt_cc); no zoom: as
  * on their other pages */
-#define HOME_KNOB_PAGE(p) ((p) == EN_K2 ? PG_ARP : PG_TUNE)
+#define HOME_KNOB_PAGE(p) ((p) == EN_K1 ? PG_PATCH : (p) == EN_K2 ? PG_ARP : PG_TUNE)
 static int home_knob(uint32_t p)
 {
-    if (p != EN_K3 && p != EN_K4 && (ui.drum || p != EN_K2))
+    if (p != EN_K3 && p != EN_K4 && (ui.drum || (p != EN_K2 && p != EN_K1)))
         return 0;
     if (ui.drum)
         return !set.zoom_off
@@ -3375,6 +3400,14 @@ static void home_knob_turn(uint32_t p, int32_t e)
     char t[12];
     if (!ui.drum)
         ui.page = HOME_KNOB_PAGE(p);
+    if (!ui.drum && p == EN_K1) {            /* the bass's volume (said as it turns): in on the MASTER's Volume */
+        knob_turn(p, e);
+        ui.page = pg;
+        if (!set.zoom_off)
+            zoom_cc_in(&PARAMS[PG_PATCH][EN_K1]);
+        ui.redraw = 1;
+        return;
+    }
     knob_turn(p, e);
     knob_text(p, t);
     app_say(knob_title(p), t);
@@ -3397,8 +3430,8 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_EMOD] = {"Which envelope", [EN_K1] = "Touch response", "Loop the envelope", "How many loops", "Drum-style hold"},
     [PG_LFO1] = {"Glide time", "Speed or delay", [EN_K1] = "LFO 1 shape", "LFO 1 speed", "LFO 2 speed", "LFO 2 shape"},
     [PG_LFO2] = {"Which LFO", [EN_K1] = "Restart each note", "Follow the tempo", "Smooth its edges"},
-    [PG_PATCH] = {[EN_PRESET] = "Pick a patch"},
-    [PG_HOME] = {[EN_PRESET] = "Pick a patch"},
+    [PG_PATCH] = {[EN_PRESET] = "Pick a patch", [EN_K1] = "Bass volume"},
+    [PG_HOME] = {[EN_PRESET] = "Pick a patch", [EN_K1] = "Bass volume"},
     [PG_ARP] = {[EN_ALGO] = "Hold the notes", "Arp on or off", "Speed, BPM", "Rhythm pattern", "Note order",
                 "Octave span"},
     [PG_AMOD] = {[EN_K1] = "Restart every 2 bars", "Swing feel"},
@@ -5242,11 +5275,10 @@ static void master_draw(void)
 {
     char t[4];
     int32_t i;
-    uint32_t vol = plat_master();
     panel_head("MASTER");
-    bs2_knob(44, 56, 20, (int32_t)vol, 4095, 0u);   /* Volume */
+    bs2_knob(44, 56, 20, 127 - (int32_t)set.bvol_off, 127, knob_lit(EN_K1) ? KF_LIT : 0u);   /* Volume: the bass's own */
     print_c(44, 80, "Volume", P_SILK);
-    tag_at(44, 56, "MASTER", 0);
+    tag(44, 56, EN_K1);
     cv_text(8, 106, &FONT_B, "BASS", P_SILK);   /* the name, where a Bass Station II has its maker's */
     cv_text(cv_text(8, 122, &FONT_B, "SOMETHING", P_SILK) + 5, 122, &FONT_B, "2", P_BAR);
     cv_rect(96, 22, 136, 50, RGB(4, 4, 4));  /* the display: black, its window, three digits */
@@ -6110,8 +6142,8 @@ static void home_draw(void)
     h_rect(70, 168, 105, 10, P_CYAN);
     /* the MASTER: Volume, the display, the Org. Value LEDs, Save and the Patch buttons */
     {
-        static const param_t VOL = {"VOLUME", 0, 0, 4095, 0};
-        h_knob(90, 65, 0, &VOL, (int32_t)plat_master());
+        static const param_t VOL = {"VOLUME", 0, 0, 127, 0};   /* (the bass's own: K1) */
+        h_knob(90, 65, 0, &VOL, 127 - (int32_t)set.bvol_off);
     }
     h_rect(175, 54, 135, 45, RGB(4, 4, 4));
     h_rect(180, 58, 75, 36, RGB(20, 16, 20));

@@ -694,13 +694,13 @@ the synth's wave as it plays (two of its periods, standing still while a note is
 large as a loud one; a flat line in silence), and under them a Bass Station II's whole front panel, drawn to the scale of the keys
 at the foot of the screen (they stand for its keys and its wheels together). Every knob, fader, switch and LED on it
 shows the sound as it is set, and follows it as you change it on the other pages. PRESET picks the patch here, as on
-MASTER. K2 sets the arp's Rhythm, K3 the filter's Resonance and K4 its Frequency: the panel zooms in to that knob on its
+MASTER. K1 is the bass's own volume, as the MASTER page's Volume. K2 sets the arp's Rhythm, K3 the filter's Resonance and K4 its Frequency: the panel zooms in to that knob on its
 page (ARP or FILTERS) as you turn it, and back out to HOME a second after you stop. A section's button (FX, SEL, ENV, LFO, ARP, SEQ or EDIT) zooms in on that section of the
 panel and opens its page; any button or knob on the way gets you there at once. HOME on that page does the reverse: the
 panel appears up close on the section and zooms back out. GLOBAL DISPLAY's KNOB ZOOM OFF makes both changes straight away.
 
 The MASTER page (SEL) is the Bass Station II's Master section: the Volume
-(the FM-1's MASTER knob, as it's set), the display with the patch in red, its dot lit while there are changes not
+(the bass's own volume, K1), the display with the patch in red, its dot lit while there are changes not
 saved, the Org. Value arrows, the Save button and the Patch buttons.
 
 The Org. Value arrows, right of the display, work as the Bass Station II's: after you change a control of the sound
@@ -711,6 +711,7 @@ follow the control changed last, on whichever page. The display shows that contr
 
 | Control | What it does |
 | --- | --- |
+| K1 | Volume: the bass's own volume, 0 to 127 (127, full, is the default). It's kept with the GLO settings, not the patch, like a mixer's fader: the drums have their own (their MASTER VOLUME) and the FM-1's MASTER knob is the master over everything. |
 | PRESET | The Patch buttons: picks a patch, P01 to 128, and plays it at once; the button the way you turned lights. Changes you haven't saved to the patch you leave are lost. An arp or a sequence that is playing keeps playing, in the new sound. |
 | SAVE | Stores the sound into the patch shown. |
 
