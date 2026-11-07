@@ -3,7 +3,7 @@
 Bass Something 2 turns the M-VAVE FM-1 into a monosynth inspired by the Novation Bass Station II. It has two oscillators
 and a sub, a ring modulator and noise. The filter is Classic (low, band or high pass at 24 or 12 dB) or Acid (a
 diode ladder), with drive and distortion. It has a mod envelope, an amp envelope, two LFOs, the Bass Station II's 32
-arp rhythms with its 32-step sequencer (four sequences) and 32 patches. Patches go to and from a Bass Station II editor as SysEx. Everything
+arp rhythms with its 32-step sequencer (four sequences) and 128 named patches, as many as a Bass Station II holds. Patches go to and from a Bass Station II editor as SysEx. Everything
 shows on the FM-1's screen as a small Bass Station II front panel, and MIDI goes in and out over USB, Bluetooth and
 TRS.
 
@@ -638,10 +638,13 @@ CCs 33 to 45 set each drum's tuning and 46 to 58 its volume, in the order Bass, 
 
 ## 7. Patches and saving
 
-Bass Something 2 holds 32 patches, P01 to P32. Each patch is a complete sound: the settings of every control described
-in [section 4](#s4), plus the arp and the sequence.
+Bass Something 2 holds 128 patches, P01 to P99 and then 100 to 128 (the display has three digits, as a Bass Station
+II's). Each patch is a complete sound: the settings of every control described in [section 4](#s4), plus the arp and
+the sequence, and a name of up to 16 characters.
 
-A new Bass Something 2 starts with 32 factory patches of its own, each with the default sequence. P01 to P10 are
+A new Bass Something 2 starts with 32 factory patches of its own in P01 to P32, each with the default sequence, and
+the INIT patch, named INIT, in P33 to P128. Updating from a firmware with 32 patches keeps yours in P01 to P32 and
+adds the INIT patches after them; until you name them, your 32 have no name. P01 to P10 are
 basses, P11 to P20 leads, and P21 to P32 show off the rest of the voice:
 
 | Patch | Name | What it shows |
@@ -708,8 +711,15 @@ follow the control changed last, on whichever page. The display shows that contr
 
 | Control | What it does |
 | --- | --- |
-| PRESET | The Patch buttons: picks a patch, P01 to P32, and plays it at once; the button the way you turned lights. Changes you haven't saved to the patch you leave are lost. An arp or a sequence that is playing keeps playing, in the new sound. |
+| PRESET | The Patch buttons: picks a patch, P01 to 128, and plays it at once; the button the way you turned lights. Changes you haven't saved to the patch you leave are lost. An arp or a sequence that is playing keeps playing, in the new sound. |
 | SAVE | Stores the sound into the patch shown. |
+
+**PATCH NAME** (SEL again on the MASTER page; SEL once more goes back) is the patch's mod: a Bass Station II has no
+way to name a patch on the synth, so its name is set here. The page shows the name's 16 letters with the cursor's lit.
+K2 (CURSOR) moves the cursor, K3 (LETTER) changes the letter under it (a space, A to Z, a to z, 0 to 9, then
+`- . , ' & + ! # / ( )`), and K4 (CLEAR) clears the name from the cursor to the end. The screen says the whole name as
+it changes. The name is part of the sound: SAVE keeps it with the patch, and a patch change without SAVE leaves it as
+it was. Names go out with SysEx dumps and come in with them.
 
 **SAVE** works on every page but RND SEED (where it keeps the RND Synth's patch). It stores the sound into its patch and keeps the
 settings: the octave and the patch you're on (the FM-1 starts on it next time). While something isn't saved, SAVE is
@@ -749,15 +759,16 @@ Bass Something 2 reads and writes Novation Bass Station II patch dumps, so a Bas
 its sounds, and Bass Station II patches (`.syx` files) can play on the FM-1. SysEx goes over the USB cable only.
 
 The website's [SysEx page](https://imijes.github.io/bass-something-2/sysex/) does all of this from Chrome or Edge, with
-no other software: it gets the sound or all 32 patches and saves them as a `.syx` file, and sends `.syx` files to the
+no other software: it gets the sound or all 128 patches and saves them as a `.syx` file, and sends `.syx` files to the
 FM-1 with the pause between messages set for you.
 
 **From the FM-1 to an editor:**
 
-- On GLOBAL DUMP (GLO four times), press SEL: the sound goes out as one dump, named Bass Smth 2 and its number (Bass Smth 2 01: a patch name holds 16 characters).
+- On GLOBAL DUMP (GLO four times), press SEL: the sound goes out as one dump, with its name (a patch with no name goes
+  as Bass Smth 2 and its number, Bass Smth 2 01).
   The screen says SYSEX SENT.
-- On GLOBAL DUMP (GLO four times), press FX: all 32 patches go out as a bank, Bass Smth 2 01 to Bass Smth 2 32, each
-  addressed to its own patch number (0 to 31), as a Bass Station II bank file is. Record them into one `.syx` file
+- On GLOBAL DUMP (GLO four times), press FX: all 128 patches go out as a bank, each with its name and addressed to its
+  own patch number (0 to 127), as a Bass Station II bank file is. Record them into one `.syx` file
   and it's a backup: sent back, each patch returns to its own slot. The patch you're on goes as it sounds now, with
   changes not yet saved.
 - A computer can ask for the sound: SysEx `F0 7D 42 53 32 01 F7` sends the same dump as SEL on GLOBAL DUMP.
@@ -767,14 +778,14 @@ FM-1 with the pause between messages set for you.
 **From an editor to the FM-1:** choose the FM-1 as the editor's MIDI output and send the patch (in an editor, it's
 usually called Send or Send to synth). Any Bass Station II patch dump works, with a name (firmware 2.5 and later) or
 without one. A dump sent as the current sound loads into the sound you're playing now, and the screen says SYSEX
-LOADED and the patch's name. Press SAVE to keep it in the patch you're on. To keep it in another patch, pick that
+LOADED and the patch's name, which it takes as its own. Press SAVE to keep it in the patch you're on. To keep it in another patch, pick that
 patch on the MASTER page first.
 
 **A whole bank:** a Bass Station II bank file (a `.syx` of up to 128 patches, each addressed to its patch number, as
-sound packs and librarians save them) loads straight into the FM-1's patches: patch 0 into P01, 1 into P02 and on to
-31 into P32. The FM-1 has 32 patches, so the rest of a 128-patch bank is left out. The screen says BANK IN and the
-first one's name, and a second after the last one it saves the bank and says BANK LOADED and how many came in (32
-IN, 96 LEFT for a whole Bass Station II bank). **This replaces the patches it reaches, without SAVE**: send GLOBAL
+sound packs and librarians save them) loads straight into the FM-1's patches, names and all: patch 0 into P01, 1 into
+P02 and on to 127 into 128, so a whole Bass Station II's bank comes over as it is. The screen says BANK IN and the
+first one's name, and a second after the last one it saves the bank and says BANK LOADED and how many came in (128
+PATCHES for a whole Bass Station II bank). **This replaces the patches it reaches, without SAVE**: send GLOBAL
 DUMP's bank to the computer first if you want to keep them. Each patch keeps its own sequence, tempo and gate.
 
 From v0.3 the file can go as fast as the computer sends it: the FM-1 queues the messages and holds the computer back
@@ -936,7 +947,7 @@ up the sound for a moment. In silence nothing is heard and it isn't counted; whi
 ![GLO AUDIO: what the speaker's setting reaches, then the Speaker switch and the Tune knob](img/screen-glo-audio.png "GLO, again: AUDIO")
 ![GLO CONTROLS: what each does, then the Velocity and Knobs knobs](img/screen-glo-controls.png "GLO, again: CONTROLS")
 ![GLO DISPLAY: what the pop-ups are, then the Knob Zoom switch, the Hints switch and the Pop-ups knob](img/screen-glo-disp.png "GLO, again: DISPLAY")
-![GLO DUMP: P01 on the display, then the All 32 button (FX) and the Sound button (SEL)](img/screen-glo-dump.png "GLO, again: DUMP (the last)")
+![GLO DUMP: P01 on the display, then the All 128 button (FX) and the Sound button (SEL)](img/screen-glo-dump.png "GLO, again: DUMP (the last)")
 
 Holding GLO for a second opens the RND pages, for the RND Synth: see RND Synth.
 

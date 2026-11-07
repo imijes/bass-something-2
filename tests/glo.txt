@@ -459,7 +459,7 @@ wait 30
 expect page 20
 tap FX
 wait 30
-said SYSEX SENT ALL 32
+said SYSEX SENT ALL 128
 # SAVE keeps them: a reboot reads them back (the tune at -25, the channel any, CC CHAN 3)
 tap SAVE
 wait 30

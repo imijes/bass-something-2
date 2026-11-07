@@ -1,0 +1,68 @@
+# 128 slots and their names: PATCH NAME (SEL on the MASTER: the patch's mod), kept by SAVE through a reboot; the
+# slots past 32 (their own store objects) the INIT patch, named INIT; slot 128 on the display as three digits.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/names.txt bs2/build/host
+wait 600
+listen
+tap SEL
+wait 30
+tap SEL
+wait 30
+expect page 39
+said PATCH NAME
+# K2 the cursor, K3 its letter, K4 cleared from it on: "DUB PLATE" to "DVB PLATE", "DVB", then a letter past its end
+turn K2 1
+wait 30
+turn K3 1
+wait 30
+said PATCH NAME DVB PLATE
+turn K2 2
+wait 30
+turn K4 1
+wait 30
+said PATCH NAME DVB
+turn K2 2
+wait 30
+turn K3 2
+wait 30
+said PATCH NAME DVB  B
+expect dirty 1
+tap SAVE
+wait 30
+expect dirty 0
+reboot
+wait 600
+tap SEL
+wait 30
+tap SEL
+wait 30
+turn K3 1
+wait 30
+turn K3 -1
+wait 30
+said PATCH NAME DVB  B
+# the slots past 32: the INIT patch, named; the last, 128, kept as the slot through a reboot
+tap SEL
+wait 30
+expect page 5
+turn PRESET 40
+wait 30
+expect slot 40
+said PATCH 41
+turn PRESET 100
+wait 30
+expect slot 127
+said PATCH 128
+shot p128.png
+tap SEL
+wait 30
+turn K3 1
+wait 30
+turn K3 -1
+wait 30
+said PATCH NAME INIT
+tap SAVE
+wait 30
+reboot
+wait 600
+expect slot 127

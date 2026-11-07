@@ -2,7 +2,7 @@
 <!-- SPDX-License-Identifier: MPL-2.0
      Copyright (C) 2026 John Brown
      Bass Something 2's SysEx page: Bass Station II patch dumps to and from the FM-1 over Web MIDI (bs2_sysex.c reads
-     and writes them; app_sysex answers F0 7D 42 53 32 01 / 03 F7 with the sound / all 32), in the firmware's own
+     and writes them; app_sysex answers F0 7D 42 53 32 01 / 03 F7 with the sound / all 128), in the firmware's own
      colours (app.c P_*), as the emulator page -->
 <html lang="en">
 <head>
@@ -99,11 +99,11 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
   <section aria-labelledby="h-get">
     <h2 id="h-get">From the FM-1: back up</h2>
     <div>
-      <p>Ask for the sound you're playing, or all 32 patches. Pressing SEL or FX on the FM-1's GLOBAL DUMP page
+      <p>Ask for the sound you're playing, or all 128 patches. Pressing SEL or FX on the FM-1's GLOBAL DUMP page
         (<kbd>GLO</kbd> three times) arrives here too.</p>
       <div class="row">
         <button id="get-sound" disabled>Get the sound</button>
-        <button id="get-all" disabled>Get all 32</button>
+        <button id="get-all" disabled>Get all 128</button>
         <button id="save" class="go" disabled>Save .syx</button>
         <button id="clear" disabled>Clear</button>
       </div>
@@ -117,7 +117,7 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
     <div>
       <p>A single patch loads into the sound you're playing: press <kbd>SAVE</kbd> on the FM-1 to keep it. A bank (each
         patch addressed to its number, as a backup from above or a Bass Station II sound pack) goes straight into the
-        FM-1's patches, P01 to P32.</p>
+        FM-1's patches, P01 to 128, names and all.</p>
       <div class="drop" id="drop">
         <p style="margin:0 0 .6rem">Drop <code>.syx</code> files here, or</p>
         <label class="sr" for="file">Choose .syx files</label>
@@ -168,7 +168,7 @@ function table(list, rows) {
     const s = dumpSlot(m), tr = body.insertRow();
     const a = tr.insertCell(), b = tr.insertCell();
     a.className = "slot";
-    a.textContent = s >= 32 ? slotText(s) + " (left out)" : slotText(s);
+    a.textContent = s >= 128 ? slotText(s) + " (left out)" : slotText(s);
     b.textContent = dumpName(m) || "(no name)";
   }
   list.replaceChildren(t);
@@ -243,7 +243,7 @@ function ask(msg, what) {
   setTimeout(() => { if (!got.length) say("get-status", "No answer. Check that the FM-1 runs Bass Something 2 and the ports above are its own.", "bad"); }, 3000);
 }
 $("get-sound").addEventListener("click", () => ask(ASK_SOUND, "the sound"));
-$("get-all").addEventListener("click", () => ask(ASK_ALL, "all 32 patches"));
+$("get-all").addEventListener("click", () => ask(ASK_ALL, "all 128 patches"));
 $("clear").addEventListener("click", () => {
   got = [];
   $("got-list").innerHTML = '<p class="empty">Nothing received yet.</p>';
@@ -284,7 +284,7 @@ async function load(files) {
     say("send-status", other ? `${other} other SysEx message${other === 1 ? "" : "s"} left out.` : "", "bad");
   } else {
     table($("send-list"), all);
-    const banked = all.filter((m) => dumpSlot(m) >= 0 && dumpSlot(m) < 32).length;
+    const banked = all.filter((m) => dumpSlot(m) >= 0 && dumpSlot(m) < 128).length;
     $("bank-warn").hidden = !banked;
     say("send-status", `${all.length} patch${all.length === 1 ? "" : "es"} ready` +
         (other ? `, ${other} other SysEx message${other === 1 ? "" : "s"} left out.` : "."));

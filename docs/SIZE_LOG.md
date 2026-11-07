@@ -177,3 +177,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-05 | 5a15fd8+ | snare and toms: the low take alone, read faster at every tuning | 493,776 | -22,720 | 87,788 | 78,420 | +0 | 19,884 | 161,928 |
 | 2026-11-07 | 9791b3b+ | crash and ride cut at 2.5 s, faded over 0.4 s | 477,696 | -16,080 | 103,868 | 78,420 | +0 | 19,884 | 161,928 |
 | 2026-11-07 | 1915bf5+ | room moved to the FX bus (bs2_fx.c), sent post-fader | 477,712 | +16 | 103,852 | 78,420 | +0 | 19,884 | 161,936 |
+| 2026-11-07 | 5ca75f0+ | 128 patch slots (four bank pages) and patch names (PATCH NAME mod page) | 479,664 | +1,952 | 101,900 | 78,516 | +96 | 19,788 | 175,344 |

@@ -1351,14 +1351,16 @@ static void settings_defaults(settings_t *s)
 #define SEQ_GAP (offsetof(patch_t, sq.step) + 16u)   /* where version 7's patches (3's on) lack those, SEQ_GAP_N */
 #define SEQ_GAP_N (NSTEPS - 16u + NSTEPS / 8u)
 #define V7_TIE 129u                      /* version 7's tie, a step of its own: legato from the step before now */
-#define NSLOTS 32u
+#define NPSLOT 32u                       /* a bank page's slots: a store object each (OBJ_PATCHES, OBJ_PATCHES1..3) */
+#define NBANKP 4u                        /* the pages */
+#define NSLOTS (NBANKP * NPSLOT)         /* the slots: 128, as a Bass Station II's */
 typedef struct {
     uint32_t magic;
     uint16_t version;
-    uint8_t nslots, psize;
-    patch_t p[NSLOTS];
+    uint8_t nslots, psize;               /* (nslots: a page's, NPSLOT) */
+    patch_t p[NPSLOT];
 } bank_t;
-_Static_assert(sizeof(bank_t) <= PLAT_STORE_MAX, "the bank fits a store object");
+_Static_assert(sizeof(bank_t) <= PLAT_STORE_MAX, "a bank page fits a store object");
 _Static_assert(DEMO_BANK_VERSION == BANK_VERSION, "presets/demo.h's P01 is this version's (make_demo.py again)");
 _Static_assert(offsetof(patch_t, ring) == BANK_V1_PSIZE, "version 1's patches are version 2's without the ring");
 _Static_assert(offsetof(patch_t, arp_on) == BANK_V2_PSIZE, "version 2's patches are version 3's without the arp");
@@ -1373,27 +1375,79 @@ _Static_assert(offsetof(patch_t, lfo_delay) == BANK_V11_PSIZE, "version 11's: 12
 _Static_assert(offsetof(patch_t, ofm) == BANK_V12_PSIZE, "version 12's: 13's without Osc Filter Mod on");
 _Static_assert(sizeof(settings_t) <= PLAT_STORE_MAX, "the settings fit a store object");
 _Static_assert(sizeof(settings_t) == SET_V4_SIZE + 8u, "the settings end with no padding");
-static bank_t bank PLAT_POOL;
+static bank_t bank[NBANKP] PLAT_POOL;
+#define BANK_P(s) (bank[(s) / NPSLOT].p[(s) % NPSLOT])   /* slot s's patch */
+static uint32_t bank_obj(uint32_t pg) { return pg ? OBJ_PATCHES1 + pg - 1u : OBJ_PATCHES; }   /* page pg's object */
+/* the slots' names (OBJ_NAMES): a Bass Station II's 16 characters each, kept apart from the patches (so patch_t and
+ * the bank's pages stay as they were); a name's unused end 0s, an empty one no name (a dump goes out by its slot) */
+#define PNAME_N 16u
+#define NAMES_MAGIC 0x4E325342u          /* "BS2N" */
+typedef struct {
+    uint32_t magic;
+    char n[NSLOTS][PNAME_N];
+} names_t;
+_Static_assert(sizeof(names_t) <= PLAT_STORE_MAX, "the names fit a store object");
+static names_t names PLAT_POOL;
+static char cur_name[PNAME_N];               /* the sound's name (the edit buffer's, as patch: SAVE keeps it) */
+/* PATCH NAME's letters, in K2's order (a dump's name may hold others: shown, K2 from the space) */
+static const char NAME_CH[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-.,'&+!#/()";
+#define NNAME_CH (sizeof NAME_CH - 1u)
+static uint32_t name_ch(char c)              /* c's place in NAME_CH (0, the space: none) */
+{
+    uint32_t i;
+    for (i = 0; i < NNAME_CH && NAME_CH[i] != c; i++)
+        ;
+    return i < NNAME_CH ? i : 0u;
+}
 static void patch_sane(patch_t *p);          /* (the UI's: by its controls' ranges) */
 static void bank_factory(void);              /* (the factory patches: after the dumps' reader) */
 
-static void bank_load(void)
+static uint8_t names_dirty;                  /* the names changed since they were saved (save, bank_in_step) */
+static void name_put(char *d, const char *t)   /* a name from t: its first PNAME_N characters, the rest 0s */
 {
+    uint32_t i;
+    for (i = 0; i < PNAME_N; i++)
+        d[i] = *t ? *t++ : 0;
+}
+static void name_set(uint32_t s, const char *t)   /* slot s's name */
+{
+    name_put(names.n[s], t);
+    names_dirty = 1;
+}
+static void names_load(void)                 /* (before the bank: a page made anew names its slots) */
+{
+    if (plat_store_load(OBJ_NAMES, &names, sizeof names) != (int)sizeof names || names.magic != NAMES_MAGIC) {
+        memset(&names, 0, sizeof names);
+        names.magic = NAMES_MAGIC;
+    }
+}
+static int names_save(void)                  /* 0: kept (or nothing to keep) */
+{
+    if (!names_dirty)
+        return 0;
+    if (store_save(OBJ_NAMES, &names, sizeof names) != 0)
+        return -1;
+    names_dirty = 0;
+    return 0;
+}
+static void bank_page_load(uint32_t pg)   /* page pg from its object; its INIT patches (page 0: the factory's) if none */
+{
+    bank_t *b = &bank[pg];
     uint32_t i, ps, v;
-    int n = plat_store_load(OBJ_PATCHES, &bank, sizeof bank);
-    v = bank.version;
+    int n = plat_store_load(bank_obj(pg), b, sizeof *b);
+    v = b->version;
     ps = v == 1u ? BANK_V1_PSIZE : v == 2u ? BANK_V2_PSIZE : v == 3u ? BANK_V3_PSIZE : v == 4u ? BANK_V4_PSIZE
        : v == 5u ? BANK_V5_PSIZE : v == 6u ? BANK_V6_PSIZE : v == 7u ? BANK_V7_PSIZE : v == 8u ? BANK_V8_PSIZE
        : v == 9u ? BANK_V9_PSIZE : v == 10u ? BANK_V10_PSIZE : v == 11u ? BANK_V11_PSIZE : v == 12u ? BANK_V12_PSIZE : 0u;
-    if (ps && n == (int)(offsetof(bank_t, p) + NSLOTS * ps) && bank.magic == BANK_MAGIC && bank.nslots == NSLOTS
-        && bank.psize == ps) {               /* an older version: each patch moved up, what it lacks filled in */
-        uint8_t *b = (uint8_t *)bank.p;
+    if (ps && n == (int)(offsetof(bank_t, p) + NPSLOT * ps) && b->magic == BANK_MAGIC && b->nslots == NPSLOT
+        && b->psize == ps) {               /* an older version: each patch moved up, what it lacks filled in */
+        uint8_t *o = (uint8_t *)b->p;
         uint32_t gap = ps >= SEQ_GAP && v <= 7u ? SEQ_GAP_N : 0u, j;   /* (versions 3 to 7: the sequence's 16 steps,
                                                                     * then the gap) */
-        for (i = NSLOTS * ps; i-- > 0u;)     /* (the last byte first: none is overwritten unread) */
-            b[i / ps * sizeof(patch_t) + i % ps + (i % ps >= SEQ_GAP ? gap : 0u)] = b[i];
-        for (i = 0; i < NSLOTS; i++) {
-            patch_t *q = &bank.p[i];
+        for (i = NPSLOT * ps; i-- > 0u;)     /* (the last byte first: none is overwritten unread) */
+            o[i / ps * sizeof(patch_t) + i % ps + (i % ps >= SEQ_GAP ? gap : 0u)] = o[i];
+        for (i = 0; i < NPSLOT; i++) {
+            patch_t *q = &b->p[i];
             int8_t a = q->menv_o1;           /* the mod envelope's one destination to its three depths */
             uint32_t d = (uint8_t)q->menv_cut;
             patch_fill(q, ps + gap);
@@ -1435,21 +1489,36 @@ static void bank_load(void)
             q->menv_o1 = d == DEST_PITCH ? a : 0;
             q->menv_o2 = d == DEST_PITCH || d == DEST_OSC2 ? a : 0;
         }
-        bank.version = BANK_VERSION;
-        bank.psize = sizeof(patch_t);
-        n = sizeof bank;
+        b->version = BANK_VERSION;
+        b->psize = sizeof(patch_t);
+        n = sizeof *b;
     }
-    if (n != (int)sizeof bank || bank.magic != BANK_MAGIC
-        || bank.version != BANK_VERSION || bank.nslots != NSLOTS || bank.psize != sizeof(patch_t)) {
-        bank.magic = BANK_MAGIC;
-        bank.version = BANK_VERSION;
-        bank.nslots = NSLOTS;
-        bank.psize = sizeof(patch_t);
-        bank_factory();
+    if (n != (int)sizeof *b || b->magic != BANK_MAGIC
+        || b->version != BANK_VERSION || b->nslots != NPSLOT || b->psize != sizeof(patch_t)) {
+        b->magic = BANK_MAGIC;
+        b->version = BANK_VERSION;
+        b->nslots = NPSLOT;
+        b->psize = sizeof(patch_t);
+        if (pg)
+            for (i = 0; i < NPSLOT; i++) {
+                patch_defaults(&b->p[i]);
+                name_set(pg * NPSLOT + i, "INIT");
+            }
+        else
+            bank_factory();
     }
-    for (i = 0; i < NSLOTS; i++)
-        patch_sane(&bank.p[i]);
+    for (i = 0; i < NPSLOT; i++)
+        patch_sane(&b->p[i]);
 }
+
+static void bank_load(void)
+{
+    uint32_t i;
+    names_load();
+    for (i = 0; i < NBANKP; i++)
+        bank_page_load(i);
+}
+static int bank_save(uint32_t s) { return store_save(bank_obj(s / NPSLOT), &bank[s / NPSLOT], sizeof(bank_t)); }   /* slot s's page */
 
 /* a test build's (BS2_TEST_PATCHES 1): slots 24..32 hold the sounds to record (the waves, the pulse and its PWM, the
  * noise, the glide, the mod envelope on the pitches, an arp rhythm, the swing), played from slot 24 at octave 0, at
@@ -1460,7 +1529,7 @@ static void bank_load(void)
 #define NTEST 9u
 static void test_patches(void)
 {
-    patch_t *p = &bank.p[NSLOTS - NTEST];
+    patch_t *p = &BANK_P(NPSLOT - NTEST);
     uint32_t i;
     for (i = 0; i < NTEST; i++) {            /* the defaults, the filter open, no beating */
         patch_defaults(&p[i]);
@@ -1495,7 +1564,7 @@ static void test_patches(void)
     p[8].cutoff = 90;
     for (i = 0; i < NTEST; i++)
         patch_sane(&p[i]);
-    set.slot = NSLOTS - NTEST;
+    set.slot = NPSLOT - NTEST;
     set.octave = 0;
 }
 
@@ -1527,7 +1596,8 @@ void app_init(void)
     rnd_load();
     if (BS2_TEST_PATCHES)
         test_patches();
-    patch = bank.p[set.slot];
+    patch = BANK_P(set.slot);
+    memcpy(cur_name, names.n[set.slot], PNAME_N);
     ui_start();
 }
 
@@ -1564,6 +1634,7 @@ static struct {
     uint8_t pw_src;                      /* their pulse width's switch: what its knob sets (PW_*) */
     uint8_t flt_classic;                 /* the FILTERS' Classic setting while Acid is on (FLT_*), for its way back */
     uint8_t lfo_delay;                   /* the LFOS' Delay/Speed switch (ALGO) at Delay: their knobs the delays */
+    uint8_t name_at;                     /* PATCH NAME's cursor: the letter its K2 changes, 0..PNAME_N-1 */
     uint8_t lfo_sel;                     /* the LFO mods' LFO (SELECT): 0 LFO 1, 1 LFO 2 */
     uint8_t env_sel;                     /* the ENVELOPES' Env Select (SELECT): what the faders set, 0 the amp envelope,
                                           * 1 the mod envelope, 2 both (Amp+Mod) */
@@ -1758,12 +1829,13 @@ static void ble_device_button(void)
  * empty places set nothing */
 enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GCLK, PG_GDISP, PG_GDUMP,
        PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
-       PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, PG_GAUD, PG_GCTL, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
+       PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, PG_GAUD, PG_GCTL, PG_NAME, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI", "GLOBAL CLOCK",
                                               "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
                                               "GLOBAL DRUMS", "DRUM HOME", "CHANNEL 1", "CHANNEL 2", "CHANNEL 3",
-                                              "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL CONTROLS"};
+                                              "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL CONTROLS",
+                                              "PATCH NAME"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME && (g) < PG_GAUD)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
@@ -2120,14 +2192,16 @@ static void bank_factory(void)
 {
     char name[BSX_NAME_N + 1u];
     uint32_t i;
-    for (i = 0; i < NSLOTS; i++) {
-        patch_defaults(&bank.p[i]);
-        bsx_import(PRESETS[i], sizeof PRESETS[i], &bank.p[i], name);
-        patch_sane(&bank.p[i]);
+    for (i = 0; i < NPSLOT; i++) {           /* (page 0's: P01..P32, named as their dumps are) */
+        patch_defaults(&bank[0].p[i]);
+        bsx_import(PRESETS[i], sizeof PRESETS[i], &bank[0].p[i], name);
+        patch_sane(&bank[0].p[i]);
+        name_set(i, name);
     }
     if (dq_demo_on()) {                      /* (P01: the demo's, as saved on the author's FM-1) */
-        memcpy(&bank.p[0], DEMO_PATCH, sizeof bank.p[0]);
-        patch_sane(&bank.p[0]);
+        memcpy(&bank[0].p[0], DEMO_PATCH, sizeof bank[0].p[0]);
+        patch_sane(&bank[0].p[0]);
+        name_set(0, "DEMO");
     }
 }
 
@@ -2204,13 +2278,26 @@ static void step_legato(void)                /* recording: the step just played 
     step_say(i, seq_leg(&patch.sq, i) ? "LEGATO ON" : "LEGATO OFF");
 }
 
-static void slot_n_text(uint32_t s, char *t)   /* 01 .. 32 */
+static void slot_n_text(uint32_t s, char *t)   /* 01 .. 99, 100 .. 128 */
 {
-    t[0] = (char)('0' + (s + 1u) / 10u);
-    t[1] = (char)('0' + (s + 1u) % 10u);
-    t[2] = 0;
+    uint32_t n = s + 1u, i = 0;
+    if (n >= 100u)
+        t[i++] = (char)('0' + n / 100u);
+    t[i++] = (char)('0' + n / 10u % 10u);
+    t[i++] = (char)('0' + n % 10u);
+    t[i] = 0;
 }
 static void slot_text(char *t) { slot_n_text(set.slot, t); }
+static void slot_disp(char *t)               /* the display's three digits: P01 .. P99, then 100 .. 128 (as a Bass
+                                              * Station II's) */
+{
+    if (set.slot >= 99u) {
+        slot_text(t);
+        return;
+    }
+    t[0] = 'P';
+    slot_text(t + 1);
+}
 
 #include "bs2_rnd.c"                      /* RND seeds: the RND Synth's, captured, kept in their table, sent back */
 
@@ -2258,7 +2345,7 @@ static const uint8_t ENC_MAP[NPAGES] = {
     [PG_AENV] = EMAP(EP_SP, 0), [PG_MENV] = EMAP(EP_SP, 0), [PG_EMOD] = EMAP(EP_SP, 0),   /* Env Select (Triggering beside) */
     [PG_LFO1] = EMAP(EP_SP, 0), [PG_LFO2] = EMAP(EP_SP, 1),   /* Glide, Delay/Speed beside; the mods' LFO, 3 knobs */
     [PG_GMIDI] = EMAP(EP_SP, 0),                               /* CC Chan */
-    [PG_GCLK] = EMAP(EP_SAME, 0), [PG_GAUD] = EMAP(EP_SAME, 2), [PG_GCTL] = EMAP(EP_SAME, 2),
+    [PG_GCLK] = EMAP(EP_SAME, 0), [PG_GAUD] = EMAP(EP_SAME, 2), [PG_GCTL] = EMAP(EP_SAME, 2), [PG_NAME] = EMAP(EP_SAME, 1),
     [PG_GDRUM] = EMAP(EP_SP, 3),                               /* the drums' CC Chan; Channel on K4 */
     [PG_SEQ] = EMAP(EP_ROW, 0),                                /* SEQ, LENGTH, STEP */
     [PG_FMOD] = EMAP(EP_SAME, 3), [PG_EFX] = EMAP(EP_SAME, 2), [PG_XMOD] = EMAP(EP_SAME, 2),
@@ -2474,8 +2561,11 @@ static int dt_turn(uint32_t k, int32_t e)
     dq.dirty = 1;
     return 1;
 }
+static int name_turn(uint32_t k, int32_t e);
 static int knob_turn(uint32_t k, int32_t e)
 {
+    if (ui.page == PG_NAME)
+        return name_turn(k, e);
     if (ui.page == PG_GCLK && k == EN_K1) {  /* the tempo, as on ARP: the patch's, MIDI clock's while it leads */
         int r;
         ui.page = PG_ARP;
@@ -2518,7 +2608,8 @@ static int knob_turn(uint32_t k, int32_t e)
             seq_keep(1);                     /* (the sequence made here, kept before it goes) */
             ui.dt_b_saved = ui.dt_b_paused = 0;   /* (TRANSPORT's memory: of the sound that was) */
             set.slot = (uint8_t)s;
-            patch = bank.p[s];
+            patch = BANK_P(s);
+            memcpy(cur_name, names.n[s], PNAME_N);
             ui.org = 0;
             ui.org_at = 0;
             if (on) {                        /* the arp or the sequencer playing: on still, as it was (the new
@@ -2656,6 +2747,8 @@ static int knob_turn(uint32_t k, int32_t e)
 }
 static const char *knob_name(uint32_t k)
 {
+    if (ui.page == PG_NAME)
+        return k == EN_K1 ? "CURSOR" : k == EN_K2 ? "LETTER" : k == EN_K3 ? "CLEAR" : 0;
     if (ui.page == PG_SEQ && (k == EN_PRESET || k == EN_K1 || k == EN_K2))
         return k == EN_PRESET ? "STEP" : k == EN_K1 ? "NOTE" : "LEGATO";
     if (ui.page == PG_ARP && (k == EN_PRESET || k == EN_ALGO))
@@ -2747,6 +2840,14 @@ static void knob_text(uint32_t k, char *t)
         ui.page = PG_ARP;
         knob_text(k, t);
         ui.page = PG_GCLK;
+        return;
+    }
+    if (ui.page == PG_NAME) {                /* (the cursor's place, its letter) */
+        t[0] = 0;
+        if (k == EN_K1)
+            int_text(ui.name_at + 1u, t);
+        else if (k == EN_K2)
+            t[0] = cur_name[ui.name_at] > ' ' ? cur_name[ui.name_at] : '_', t[1] = 0;
         return;
     }
     q = knob_param(k);
@@ -2897,8 +2998,15 @@ static void page_go(uint32_t g)
 
 static void save(void)                       /* the settings, and the sound into its slot */
 {
-    bank.p[set.slot] = patch;
-    if (set_store() == 0 && store_save(OBJ_PATCHES, &bank, sizeof bank) == 0) {
+    uint32_t i;
+    BANK_P(set.slot) = patch;
+    for (i = PNAME_N; i && cur_name[i - 1u] <= ' '; i--)   /* (its spaces at the end left off) */
+        cur_name[i - 1u] = 0;
+    if (memcmp(names.n[set.slot], cur_name, PNAME_N)) {
+        memcpy(names.n[set.slot], cur_name, PNAME_N);
+        names_dirty = 1;
+    }
+    if (set_store() == 0 && bank_save(set.slot) == 0 && names_save() == 0) {
         char t[4];
         set_dirty = 0;
         slot_text(t);
@@ -2993,7 +3101,7 @@ static void seq_keep(int now)                /* the main loop's (input); NOW: at
     static seqkeep_t pend PLAT_POOL;         /* the sequence as last seen differing from the saved */
     static uint32_t pend_at;                 /* when it was (0: none waiting) */
     seqkeep_t cur, kept;
-    patch_t *b = &bank.p[set.slot];
+    patch_t *b = &BANK_P(set.slot);
     seq_of(&patch, &cur);
     seq_of(b, &kept);
     if (seq_same(&cur, &kept)) {
@@ -3014,7 +3122,7 @@ static void seq_keep(int now)                /* the main loop's (input); NOW: at
     b->tempo = cur.tempo;
     b->swing = cur.swing;
     pend_at = 0;
-    if (store_save(OBJ_PATCHES, &bank, sizeof bank) != 0)
+    if (bank_save(set.slot) != 0)
         app_say("SEQ KEEP", "FAILED");
 }
 
@@ -3062,15 +3170,23 @@ static uint8_t sx_bank[NSLOTS][BSX_LEN];
 static struct {
     uint32_t at;                             /* when the last bank dump came in */
     uint8_t n, skipped;                      /* the slots it wrote, the patches past them */
+    uint8_t pages;                           /* the bank's pages it wrote into, a bit each */
 } bank_in;
 static void sysex_slot(uint32_t s, const patch_t *p, int32_t to, char *name)   /* one dump out, named by its slot;
                                                                              * TO: the sound's (-1) or a bank's */
 {
+    const char *n = s == set.slot ? cur_name : names.n[s];   /* (the playing slot's as it sounds) */
     char t[4];
+    uint32_t i;
     name[0] = 0;
-    text_cat(name, "Bass Smth 2 ");   /* (the name, short: a dump's holds 16) */
-    slot_n_text(s, t);
-    text_cat(name, t);
+    for (i = 0; i < PNAME_N && n[i]; i++)
+        name[i] = n[i];
+    name[i] = 0;
+    if (!i) {                                /* (no name: by its slot, short: a dump's holds 16) */
+        text_cat(name, "Bass Smth 2 ");
+        slot_n_text(s, t);
+        text_cat(name, t);
+    }
     bsx_export(p, name, to, sx_out);
     plat_sysex_send(sx_out, BSX_LEN);
 #ifdef PLAT_HOST
@@ -3089,12 +3205,14 @@ static void sysex_dump_all(void)             /* GLO DUMP: every slot, a bank's d
     char name[BSX_NAME_N + 1u];
     uint32_t s;
     for (s = 0; s < NSLOTS; s++)
-        sysex_slot(s, s == set.slot ? &patch : &bank.p[s], (int32_t)s, name);
-    app_say("SYSEX SENT", "ALL 32");
+        sysex_slot(s, s == set.slot ? &patch : &BANK_P(s), (int32_t)s, name);
+    app_say("SYSEX SENT", "ALL 128");
 }
 static void bank_in_step(void)               /* the main loop's (input): a bank come in, written once it has ended */
 {
     char t[24], v[12];
+    uint32_t i;
+    int bad = 0;
     if ((!bank_in.n && !bank_in.skipped) || plat_ms() - bank_in.at < BANK_IN_MS)
         return;
     int_text(bank_in.n, t);                  /* "32 IN, 96 LEFT", or "5 PATCHES" */
@@ -3104,11 +3222,14 @@ static void bank_in_step(void)               /* the main loop's (input): a bank 
         text_cat(t, v);
         text_cat(t, " LEFT");
     }
-    if (store_save(OBJ_PATCHES, &bank, sizeof bank) == 0)
+    for (i = 0; i < NBANKP && !bad; i++)    /* (each page a dump wrote) */
+        if (bank_in.pages >> i & 1u)
+            bad = bank_save(i * NPSLOT) != 0;
+    if (!bad && names_save() == 0)
         app_say("BANK LOADED", t);
     else
         app_say("BANK LOAD", "FAILED");
-    bank_in.n = bank_in.skipped = 0;
+    bank_in.n = bank_in.skipped = bank_in.pages = 0;
 }
 /* Backup and restore over USB (fm1-base's: device/backup.c, tools/fm1_backup.py, web/backup): everything saved. SAVE stays
  * the player's: a sound or drums changed and not saved aren't saved for it, so aren't in the backup (only what keeps itself:
@@ -3164,20 +3285,24 @@ int app_sysex(const uint8_t *p, uint32_t n)  /* main loop: 1 = this app's */
         return 1;
     }
     if (to >= 0)
-        q = bank.p[to];                      /* (the slot's own sequence, tempo, gate kept) */
+        q = BANK_P(to);                      /* (the slot's own sequence, tempo, gate kept) */
     if (!bsx_import(p, n, &q, name))
         return 0;
     patch_sane(&q);                          /* each field held to its control's range */
     if (to < 0) {
         patch = q;
+        name_put(cur_name, name);
         set_dirty = 1;
         ui.redraw = 1;
         app_say("SYSEX LOADED", name);
         return 1;
     }
-    bank.p[to] = q;
+    BANK_P(to) = q;
+    name_set((uint32_t)to, name);
+    bank_in.pages |= (uint8_t)(1u << ((uint32_t)to / NPSLOT));
     if ((uint32_t)to == set.slot) {          /* (the slot playing: its new sound now; else no redraw, a dump's time) */
         patch = q;
+        memcpy(cur_name, names.n[to], PNAME_N);
         ui.redraw = 1;
     }
     bank_in.n++;
@@ -3290,6 +3415,7 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_GCLK] = {[EN_K1] = "Speed, BPM", [EN_K3] = "Send MIDI clock", "Clock to follow"},
     [PG_GAUD] = {[EN_K1] = "The speaker's sound, or off", "Master tune"},
     [PG_GCTL] = {[EN_K1] = "Touch curve", "Knob speed-up"},
+    [PG_NAME] = {[EN_K1] = "Which letter", "Change it", "Clear to the end"},
     [PG_GDISP] = {[EN_PRESET] = "Zoom on what turns", [EN_K1] = "These hints", "Pop-up time"},
     [PG_GDRUM] = {"Drums' CC channel", [EN_K1] = "Drums' note channel"},
     [PG_GRND] = {[EN_PRESET] = "Pick a seed slot"},
@@ -3379,7 +3505,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [PG_OSC] = "Oscillators", [PG_MIX] = "Pulse Width", [PG_FX] = "Sub + Mixer", [PG_AENV] = "Envelopes",
         [PG_MENV] = "Triggering", [PG_EMOD] = "Env Mods", [PG_LFO1] = "LFOs", [PG_LFO2] = "LFO Mods",
         [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods",
-        [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Controls",
+        [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Controls", [PG_NAME] = "Patch Name",
         [PG_GDISP] = "Display", [PG_GDUMP] = "Dump", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
         [PG_RTRK] = "RND Tracks", [PG_GDRUM] = "Drums"};
     static char tap[48];                     /* "GLO tap: System, hold: RND Synth Companion" */
@@ -3448,9 +3574,9 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
     }
     if (k == B_SEL)
         return rec ? "Tie last step" : ui.page == PG_GDUMP ? "Send this sound" : ui.page == PG_RPAT ? "Unlock everything"
-               : ui.page == PG_GRND ? "Ask the RND Synth" : "Patch";
+               : ui.page == PG_GRND ? "Ask the RND Synth" : ui.page == PG_PATCH ? "Patch Name" : "Patch";
     if (k == B_FX && (rec || ui.page == PG_GDUMP || ui.page == PG_GRND))
-        return rec ? "Rest step" : ui.page == PG_GDUMP ? "Send all 32" : "Send seed to RND";
+        return rec ? "Rest step" : ui.page == PG_GDUMP ? "Send all 128" : "Send seed to RND";
     if (k == B_SAVE && ui.page == PG_GRND)
         return "Keep RND's patch";
     if ((g = tap_page(k)) < NPAGES || k == B_SEQ || k == B_REC) {   /* a section's (or REC): its next page (or what
@@ -4028,8 +4154,8 @@ static void input(void)
         else if (k == B_SEL && ui.page == PG_GRND) {   /* the synth asked again */
             rnd_ask();
             app_say("RND", "ASKED");
-        } else if (k == B_SEL)                   /* the MASTER: you select a patch there */
-            sect_open(PG_PATCH, k);
+        } else if (k == B_SEL)                   /* the MASTER: you select a patch there; again, its mod: the name */
+            sect_open(ui.page == PG_PATCH ? PG_NAME : PG_PATCH, k);
         else if (k == B_SAVE && ui.page == PG_GRND)   /* the seed shown into its slot */
             rnd_store();
         else if (k == B_SAVE)
@@ -4202,7 +4328,7 @@ static void ui_start(void) { ui.page = PG_HOME; }   /* the first page, after the
 enum { SEC_FX, SEC_SEL, SEC_ENV, SEC_LFO, SEC_ARP, SEC_SEQ, SEC_EDIT, SEC_GLO, NSEC };
 static const char *const SEC_NAME[NSEC] = {"FX", "SEL", "ENV", "LFO", "ARP", "SEQ", "EDIT", "GLO"};
 static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDIT, [PG_MENV] = SEC_ENV,
-                                         [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL,
+                                         [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL, [PG_NAME] = SEC_SEL,
                                          [PG_ARP] = SEC_ARP, [PG_SEQ] = SEC_SEQ, [PG_AENV] = SEC_ENV, [PG_FX] = SEC_EDIT,
                                          [PG_TUNE] = SEC_FX, [PG_FMOD] = SEC_FX,
                                          [PG_EMOD] = SEC_ENV, [PG_EFX] = SEC_FX, [PG_XMOD] = SEC_FX, [PG_AMOD] = SEC_ARP, [PG_HOME] = NSEC,
@@ -4931,6 +5057,64 @@ static void mod_draw(void)
         print_c(cx, 117, t, grey(36));
     }
 }
+/* PATCH NAME (SEL on the MASTER: the patch's mod, as the Bass Station II has no way to name one): the name's 16
+ * letters, K1 the cursor, K2 its letter (NAME_CH), K3 the name cleared from the cursor on; SAVE keeps it with the
+ * sound. Said whole as it changes */
+static int name_turn(uint32_t k, int32_t e)
+{
+    char w[PNAME_N + 1u];
+    uint32_t i;
+    if (k == EN_K1)
+        ui.name_at = (uint8_t)clamp((int32_t)ui.name_at + e, 0, PNAME_N - 1);
+    else if (k == EN_K2) {
+        for (i = 0; i < ui.name_at; i++)     /* (a letter past the end: spaces up to it) */
+            if (!cur_name[i])
+                cur_name[i] = ' ';
+        i = (uint32_t)(((int32_t)name_ch(cur_name[ui.name_at]) + e % (int32_t)NNAME_CH + (int32_t)NNAME_CH)
+                       % (int32_t)NNAME_CH);
+        cur_name[ui.name_at] = NAME_CH[i];
+        set_dirty = 1;
+    } else if (k == EN_K3) {
+        for (i = ui.name_at; i < PNAME_N; i++)
+            cur_name[i] = 0;
+        set_dirty = 1;
+    } else
+        return 0;
+    for (i = 0; i < PNAME_N && cur_name[i]; i++)
+        w[i] = cur_name[i];
+    w[i] = 0;
+    app_say("PATCH NAME", i ? w : "NO NAME");
+    return 0;
+}
+static void name_draw(void)
+{
+    static const char *const LBL[3] = {"CURSOR", "LETTER", "CLEAR"};
+    char t[4] = {0};
+    uint32_t i;
+    plate("PATCH");
+    dymo(120, 30, "PATCH NAME", RGB(235, 235, 235));
+    for (i = 0; i < PNAME_N; i++) {          /* its letters, a cell each; the cursor's lit, underlined */
+        const int32_t x = 24 + 12 * (int32_t)i;
+        const int at = i == ui.name_at;
+        cv_rect(x, 46, 11, 20, at ? P_CDIM : grey(28));
+        t[0] = cur_name[i] > ' ' ? cur_name[i] : 0;
+        t[1] = 0;
+        if (t[0])
+            print_c(x + 6, 50, t, at ? P_CYAN : RGB(235, 235, 235));
+        if (at)
+            cv_rect(x, 64, 11, 2, P_CYAN);
+    }
+    for (i = 0; i < 3u; i++) {               /* its knobs, each one's tape, what it sets under it */
+        const int32_t cx = 10 + 220 * (2 * (int32_t)i + 1) / 6;
+        const int32_t v = i == 0u ? ui.name_at : i == 1u ? (int32_t)name_ch(cur_name[ui.name_at]) : 0;
+        const int32_t span = i == 0u ? PNAME_N - 1 : i == 1u ? (int32_t)NNAME_CH - 1 : 1;
+        bs2_knob(cx, 96, 14, v, span, KF_PLATE | (knob_lit(EN_K1 + i) ? KF_LIT : 0u));
+        tag(cx, 96, EN_K1 + i);
+        dymo(cx, 117, LBL[i], RGB(235, 235, 235));
+        knob_text(EN_K1 + i, t);
+        print_c(cx, 131, t, grey(36));
+    }
+}
 static void osc_wave_icon(int32_t x, int32_t y, uint32_t w, uint16_t c);
 /* an LFO's waves as printed by its LEDs, 8 x 7 from x, y: LFO_* (the saw falling, the S&H steps) */
 static void lfo_wave_icon(int32_t x, int32_t y, uint32_t w, uint16_t c)
@@ -5037,7 +5221,7 @@ static int org_dir(void)
     if (!q)
         return 0;
     v = param_get(q, &patch);
-    o = param_get(q, &bank.p[set.slot]);
+    o = param_get(q, &BANK_P(set.slot));
     return v < o ? 1 : v > o ? -1 : 0;
 }
 static void seg_num(int32_t v, char *t)      /* v in three digits, right to left: "  5", "-12", "120" */
@@ -5067,8 +5251,7 @@ static void master_draw(void)
     cv_text(cv_text(8, 122, &FONT_B, "SOMETHING", P_SILK) + 5, 122, &FONT_B, "2", P_BAR);
     cv_rect(96, 22, 136, 50, RGB(4, 4, 4));  /* the display: black, its window, three digits */
     cv_rect(100, 26, 72, 42, RGB(20, 16, 20));
-    t[0] = 'P';
-    slot_text(t + 1);
+    slot_disp(t);
     if (ui.org_at) {                         /* (a control just changed: its value, as the Bass Station II's, -63..127) */
         seg_num(param_get(ui.org, &patch), t);
     }
@@ -5278,13 +5461,12 @@ static void glo_disp_draw(void)
     tag(208, GLO_ROW, EN_K2);
     print_c(208, GLO_ROW + 18, "Pop-ups", P_SILK);
 }
-/* GLOBAL DUMP: the patch on the display; SEL sends it, FX all 32, as the Bass Station II's SysEx (two buttons, as
+/* GLOBAL DUMP: the patch on the display; SEL sends it, FX all 128, as the Bass Station II's SysEx (two buttons, as
  * the FM-1's are: FX at the left, SEL at the right) */
 static void glo_dump_draw(void)
 {
     char t[4];
-    t[0] = 'P';
-    slot_text(t + 1);
+    slot_disp(t);
     glo_frame("SysEx Dump");
     seg_display(8, 40, t, 3);
     print_c(50, 90, "Patch", P_SILK);
@@ -5292,7 +5474,7 @@ static void glo_dump_draw(void)
     cv_text(118, 54, &FONT_T, "patch dumps, over USB", P_SILK);
     cv_text(118, 70, &FONT_T, "GLO settings save", P_DIM);
     cv_text(118, 80, &FONT_T, "themselves", P_DIM);
-    panel_button(30, 108, 72, 28, "All 32", 0, 0);
+    panel_button(30, 108, 72, 28, "All 128", 0, 0);
     tag_at(66, 108, "FX", 1);              /* (buttons: on their top edges, their names left showing) */
     tag_at(174, 108, "SEL", 1);
     print_c(66, 139, "FX", P_SILK);
@@ -5894,8 +6076,7 @@ static void home_draw(void)
     cv_text(10, 12, &FONT_B, "BASS", P_SILK);
     cv_text(cv_text(10, 30, &FONT_B, "SOMETHING", P_SILK) + 5, 30, &FONT_B, "2", P_BAR);
     cv_rect(10, 49, 116, 2, P_BAR);
-    d[0] = 'P';
-    slot_text(d + 1);
+    slot_disp(d);
     if (ui.org_at)                           /* (a control just changed: its value) */
         seg_num(param_get(ui.org, &patch), d);
     seg_display(240 - HOME_L - 84, 6, d, 3);   /* (its right edge the panel's: 84 wide) */
@@ -6044,7 +6225,7 @@ static void home_sect(uint32_t g, int16_t *x, int16_t *y, float *lc)   /* page g
                                     {333, 693, 190}, {693, 1140, 190}, {1140, 1293, 190}, {63, 333, 33}};   /* across, its top */
     const uint32_t i = g == PG_OSC || g == PG_MIX ? 0u : g == PG_FX ? 1u : g == PG_TUNE || g == PG_FMOD ? 2u
                        : g == PG_ARP || g == PG_AMOD || g == PG_SEQ ? 3u : g == PG_LFO1 || g == PG_LFO2 ? 4u
-                       : g == PG_EFX || g == PG_XMOD ? 6u : g == PG_PATCH ? 7u : 5u;
+                       : g == PG_EFX || g == PG_XMOD ? 6u : g == PG_PATCH || g == PG_NAME ? 7u : 5u;
     const int32_t w = HX(S[i][1]) - HX(S[i][0]), h = HL(S[i][2] == 33 ? 157 : 146);
     *x = (int16_t)((HX(S[i][0]) + HX(S[i][1])) / 2);
     *y = (int16_t)(HY(S[i][2]) + h / 2);
@@ -7142,6 +7323,8 @@ static void panel_draw(void)                 /* the page's section panel, from u
             trig_draw();
         else if (ui.page == PG_EMOD || ui.page == PG_LFO2 || ui.page == PG_XMOD || ui.page == PG_AMOD)
             mod_draw();
+        else if (ui.page == PG_NAME)
+            name_draw();
         else if (ui.page == PG_ARP)
             arp_draw();
         else if (ui.page == PG_SEQ)
@@ -7985,7 +8168,7 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "pw1_now"))
         *got = pw1_now;
     else if (!strcmp(what, "kept_tempo"))   /* the slot's saved patch's tempo (the store's) */
-        *got = bank.p[set.slot].tempo;
+        *got = BANK_P(set.slot).tempo;
     else if (!strcmp(what, "hushed"))
         *got = hushed;
     else if (!strcmp(what, "amp_lvl"))
@@ -8041,9 +8224,9 @@ static uint8_t *bank_old(uint32_t v, uint32_t ps)
     patch_defaults(&d);
     h->magic = BANK_MAGIC;
     h->version = (uint16_t)v;
-    h->nslots = NSLOTS;
+    h->nslots = NPSLOT;
     h->psize = (uint8_t)ps;
-    for (i = 0; i < NSLOTS; i++) {
+    for (i = 0; i < NPSLOT; i++) {
         for (j = 0; j < ps; j++)
             r[offsetof(bank_t, p) + i * ps + j] = ((const uint8_t *)&d)[j < SEQ_GAP || v >= 8u ? j : j + SEQ_GAP_N];
         if (v <= 7u)
@@ -8261,12 +8444,17 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         return 1;
     }
     if (!strcmp(cmd, "bank_init")) {         /* every slot the INIT patch (the defaults: before the factory patches),
-                                              * saved and playing: what the older tests start from */
+                                              * unnamed, saved and playing: what the older tests start from */
         uint32_t i;
-        for (i = 0; i < NSLOTS; i++)
-            patch_defaults(&bank.p[i]);
-        store_save(OBJ_PATCHES, &bank, sizeof bank);
-        patch = bank.p[set.slot];
+        for (i = 0; i < NSLOTS; i++) {       /* (no names: each dump out by its slot) */
+            patch_defaults(&BANK_P(i));
+            name_set(i, "");
+        }
+        memset(cur_name, 0, PNAME_N);
+        for (i = 0; i < NBANKP; i++)
+            bank_save(i * NPSLOT);
+        names_save();
+        patch = BANK_P(set.slot);
         return 1;
     }
     if (!strcmp(cmd, "set_v2")) {            /* the settings as the firmware before the sequences saved them: 16 bytes,
@@ -8318,7 +8506,7 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
             OLD(0, sq.step[1]) = V7_TIE;
             OLD(0, key_trk) = 3;
         }
-        store_save(OBJ_PATCHES, r, offsetof(bank_t, p) + NSLOTS * ps);
+        store_save(OBJ_PATCHES, r, offsetof(bank_t, p) + NPSLOT * ps);
         return 1;
     }
     if (!strcmp(cmd, "sysex_bank_out")) {    /* the last bank sent (GLO DUMP's), into FILE: a .syx of 32 dumps */

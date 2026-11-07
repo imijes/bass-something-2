@@ -264,7 +264,7 @@ wait 30
 expect page 20
 tap SEL
 wait 30
-said SYSEX SENT Bass Smth 2 01
+said SYSEX SENT Deep ORGAN
 sysex_out bs2/build/host/sysex_rt.syx
 tap EDIT
 wait 30
@@ -309,7 +309,7 @@ turn PRESET -30
 wait 300
 sysex_in bs2/build/host/sysex_rt.syx
 wait 30
-said SYSEX LOADED Bass Smth 2 01
+said SYSEX LOADED Deep ORGAN
 expect vel_amp 40
 expect vel_menv -25
 expect coarse1 3
@@ -359,8 +359,8 @@ sysex_in bs2/tests/syx/short.syx
 wait 30
 expect cutoff 44
 # a bank (bank3.syx: each dump a "store into patch N", as a whole bank's file is; Analog Beast 24 into patch 2, Deep
-# ORGAN into 31, 47 Sub Bass into 40): into the slots P03 and P32, not the sound; 40 past the FM-1's 32, left. Written
-# once it has ended; each slot keeps its own sequence
+# ORGAN into 31, 47 Sub Bass into 40): into the slots P03, P32 and P41 (a Bass Station II's 128), not the sound, each
+# named as its dump. Written once it has ended; each slot keeps its own sequence
 expect slot 0
 sysex_in bs2/tests/syx/bank3.syx
 wait 30
@@ -368,7 +368,7 @@ said BANK IN P03 Analog Beast 24
 expect cutoff 44
 expect kept_tempo 120
 wait 1100
-said BANK LOADED 2 IN, 1 LEFT
+said BANK LOADED 3 PATCHES
 reboot
 wait 600
 wait 30
@@ -401,7 +401,7 @@ wait 30
 expect page 20
 tap FX
 wait 30
-said SYSEX SENT ALL 32
+said SYSEX SENT ALL 128
 sysex_bank_out bs2/build/host/bank_rt.syx
 press ENV
 release ENV
@@ -425,15 +425,15 @@ tap SAVE
 wait 30
 sysex_in bs2/build/host/bank_rt.syx
 wait 30
-said BANK IN P01 Bass Smth 2 01
+said BANK IN P01 DUB PLATE
 expect cutoff 47
 wait 1100
-said BANK LOADED 32 PATCHES
+said BANK LOADED 128 PATCHES
 expect dirty 0
 # a computer asks for every slot (F0 7D 42 53 32 03 F7)
 sysex_in bs2/tests/syx/ask_all.syx
 wait 30
-said SYSEX SENT ALL 32
+said SYSEX SENT ALL 128
 # the envelopes' Triggering and retriggering go out in a dump and come back (the amp envelope Single, retriggering;
 # the mod envelope Autoglide; both first at Multi, no retriggering: the dump this sound came from had its own)
 tap ENV

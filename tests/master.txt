@@ -1,5 +1,5 @@
 # The MASTER page (SEL; the first page is HOME's, the whole panel): a patch change leaves the arp and the sequencer playing; the Patch button lit is the way
-# PRESET went; SEL does nothing here (the sound's dump is GLO DUMP's SEL).
+# PRESET went; SEL here opens its mod, PATCH NAME (the sound's dump is GLO DUMP's SEL).
 # tools/build.py bs2 --host, then from the repository's root
 #   bs2/build/host/bass-something-2_host bs2/tests/master.txt bs2/build/host
 bank_init
@@ -30,7 +30,10 @@ expect pdir 1
 spin PRESET -9
 expect pdir -1
 expect slot 0
-# SEL: nothing (no dump said)
+# SEL: its mod, PATCH NAME (no dump said); again, the MASTER
+tap SEL
+wait 30
+expect page 39
 tap SEL
 wait 30
 expect page 5

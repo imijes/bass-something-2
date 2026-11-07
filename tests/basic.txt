@@ -40,7 +40,8 @@ release EDIT
 tap SAVE
 wait 30
 expect dirty 0
-expect store_writes 3
+# (bank_init's four bank pages and the names; SAVE's settings and the slot's page)
+expect store_writes 7
 reboot
 wait 600
 expect octave 1
