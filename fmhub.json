@@ -1,0 +1,9 @@
+{
+  "what": "A Bass Station II style mono synth with arpeggiator and 32-step sequencer, plus Drum Something, a Drumtraks-inspired drum machine with patterns and songs. Factory patches, SysEx patch dumps and a first-boot demo groove.",
+  "author": "John Brown",
+  "kinds": ["synth", "drums"],
+  "play": "https://imijes.github.io/bass-something-2/emu/",
+  "cheat": "https://imijes.github.io/bass-something-2/manual/",
+  "image": "docs/img/screen-home.png",
+  "color": "#3aadec"
+}
