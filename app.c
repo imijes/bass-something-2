@@ -526,6 +526,7 @@ static fifo_t recq;                          /* audio -> main loop: MIDI in's no
 static fifo_t ccq;                           /* audio -> main loop: MIDI in's CCs on CC CHAN, number | value << 8 */
 #define NOTE_ALL_OFF 0xFFu
 static int store_save(uint32_t obj, const void *src, uint32_t len);   /* plat_store_save, told if it is in silence */
+#include "bs2_fx.c"                       /* the FX bus: one room every instrument sends into (fx_room_send, fx_next) */
 #include "bs2_drum.c"                     /* Drum Something: the drum voices (dt_hit, dt_note, dt_next) */
 /* the clock's BPM: the drums', the master, while a pattern runs (the bass on the same clock, as on a 400 sending MIDI
  * clock to a Bass Station II); else the patch's */
@@ -1197,8 +1198,12 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             dabs += fm_fabsf(s);
 #endif
             dq_sample();
-            s += (dt_next() + dq_click_next()) * DT_MIX * 0.3f * gain_now * ((float)dt.master / 127.0f);   /* the drums: after the bass's chain, over
+            {
+                float g = DT_MIX * 0.3f * gain_now * ((float)dt.master / 127.0f);   /* the drums: after the bass's chain, over
                                                   * its level (hits, it sustains), under their own MASTER VOLUME (K2) */
+                s += dt_next(g) + dq_click_next() * g;
+            }
+            s += fx_next();                  /* the FX bus's returns, on the master */
             s = out_soft(s);
             o[0] = (int32_t)s;
             o[1] = (int32_t)s;
@@ -1505,6 +1510,7 @@ void app_init(void)
     int n = plat_store_load(OBJ_SETTINGS, &set, sizeof set);
     uint32_t i;
     settings_defaults(&d);
+    fx_init();
     dt_init();
     dq_init();
     if (n < (int)SET_V1_SIZE || set.magic != SET_MAGIC || set.octave < -2 || set.octave > 2 || set.slot >= NSLOTS
@@ -8194,7 +8200,7 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
                     long e;
                     t0 = dt_prof_ns();
                     for (i = 0; i < APP_BLOCK; i++)
-                        (void)dt_next();
+                        (void)dt_next(1.0f), (void)fx_next();   /* (the room too, as it was in dt_next) */
                     e = dt_prof_ns() - t0;
                     sum += e;
                     if (e > pk)

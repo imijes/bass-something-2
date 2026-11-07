@@ -203,10 +203,6 @@ enum { DTC_BASS, DTC_SNARE, DTC_TOMS, DTC_CYM, DTC_HATS, DTC_PERC, NDTCH };
 #define DT_TOM_BODY 0.665f                   /* the Toms' modes' decays against the recordings' (the room the rest) */
 #define DT_TOM_ROOM 0.35f                    /* the Toms' send into the room */
 #define DT_SN_ROOM 0.06f                     /* the Snare's */
-#define DT_ROOM_RT 0.45f                     /* the room's reverberation time (-60 dB), s */
-#define DT_ROOM_DAMP 0.85f                   /* its walls' damping: a one-pole low pass's step in its loop */
-#define DT_ROOM_IN 0.06f                     /* the room's input low pass, a one-pole's step (darker in, no tin) */
-#define DT_ROOM_WET 0.6f                     /* its level out */
 #define DT_SN_LOW 0.0f                       /* the Snare's body longer by this at the first step (dt_voice_t low) */
 #define DT_SN_LOW_DB 4.2f                    /* its body louder by this at the first step (dt_voice_t low_db: the
                                               * hit not as far over it at the low tunings) */
@@ -525,22 +521,6 @@ static struct {
                                               * master, the bass on it (clock_bpm) */
     dt_ch_t ch[NDTCH];
 } dt PLAT_POOL;
-/* The room: a drum's tail is mostly the space it was played in (the 400's own samples had theirs in them), and a
- * resonator ringing on sounds a synth's. So the voices' modes ring short and a small room makes the tail, in real
- * time (not ROM time: the same room at every tuning). Two allpasses smear the hit, then four delay lines (23..41 ms)
- * fed back through a Hadamard mix, each with its walls' low pass; their sum is the room's sound. */
-#define DT_NRL 4u                            /* the delay lines */
-#define DT_NAP 4u                            /* the allpasses smearing the hit (four: two left a tin can's ring) */
-static const uint16_t DT_RL[DT_NRL + DT_NAP] = {1031, 1327, 1523, 1801, 142, 107, 379, 277};   /* lines, allpasses */
-typedef struct {
-    uint16_t at, len, i;                     /* a ring in dt_room.buf: where it starts, its length, its place */
-} dt_ring_t;
-static struct {
-    float buf[1031 + 1327 + 1523 + 1801 + 142 + 107 + 379 + 277];
-    dt_ring_t ring[DT_NRL + DT_NAP];
-    float in, lp[DT_NRL], g[DT_NRL];         /* the input's filter, the walls', each line's feedback for DT_ROOM_RT */
-    uint32_t idle;                           /* samples since a voice last played (the room stops once it is quiet) */
-} dt_room PLAT_POOL;
 static fifo_t dtq;                           /* main loop -> audio: a hit, drum | tune << 4 | level << 8 */
 static volatile uint32_t dt_flash;           /* audio -> main loop: the drums hit since the screen last looked, a bit
                                               * each (dt_flash_take) */
@@ -568,49 +548,6 @@ static void dt_init(void)
     dt.tune[DT_TOM2] = 5u;
     for (i = 0; i < NDTCH; i++)
         dt.ch[i].drum = DT_NONE;
-    {
-        uint16_t at = 0;
-        for (i = 0; i < DT_NRL + DT_NAP; i++) {
-            dt_room.ring[i] = (dt_ring_t){at, DT_RL[i], 0};
-            at = (uint16_t)(at + DT_RL[i]);
-        }
-        for (i = 0; i < DT_NRL; i++)         /* -60 dB in DT_ROOM_RT: 10^(-3 len / (RT rate)) a pass */
-            dt_room.g[i] = fm_exp2f(-3.0f * 3.321928f * (float)DT_RL[i] / (DT_ROOM_RT * BS2_RATE));
-        dt_room.idle = 0xFFFFFFFFu;
-    }
-}
-
-/* a ring's sample now, and the ring on a sample */
-static inline float *dt_ring_at(dt_ring_t *r) { return &dt_room.buf[r->at + r->i]; }
-static inline void dt_ring_on(dt_ring_t *r) { r->i = (uint16_t)(r->i + 1u >= r->len ? 0u : r->i + 1u); }
-
-/* the room's next sample, from x (audio interrupt) */
-static inline float dt_room_next(float x)
-{
-    float y[DT_NRL], h0, h1, h2, h3, out = 0.0f;
-    uint32_t k;
-    x = dt_room.in += (x - dt_room.in) * DT_ROOM_IN;
-    for (k = DT_NRL; k < DT_NRL + DT_NAP; k++) {    /* the allpasses (0.6) */
-        float *p = dt_ring_at(&dt_room.ring[k]), t = *p;
-        *p = x + 0.6f * t;
-        x = t - 0.6f * *p;
-        dt_ring_on(&dt_room.ring[k]);
-    }
-    for (k = 0; k < DT_NRL; k++) {           /* the lines' outputs, through the walls */
-        y[k] = *dt_ring_at(&dt_room.ring[k]);
-        out += y[k];
-        dt_room.lp[k] += (y[k] - dt_room.lp[k]) * (1.0f - DT_ROOM_DAMP);
-    }
-    h0 = dt_room.lp[0] + dt_room.lp[1];      /* the Hadamard mix (a half: it keeps the energy) */
-    h1 = dt_room.lp[0] - dt_room.lp[1];
-    h2 = dt_room.lp[2] + dt_room.lp[3];
-    h3 = dt_room.lp[2] - dt_room.lp[3];
-    y[0] = h0 + h2, y[1] = h1 + h3, y[2] = h0 - h2, y[3] = h1 - h3;
-    for (k = 0; k < DT_NRL; k++) {
-        *dt_ring_at(&dt_room.ring[k]) = x + 0.5f * y[k] * dt_room.g[k];
-        dt_ring_on(&dt_room.ring[k]);
-    }
-    return out * (0.25f * DT_ROOM_WET);
 }
 
 #ifdef PLAT_HOST
@@ -890,8 +827,9 @@ static void dt_cc(uint32_t cc, uint32_t v)
 
 /* a sound cut off, by the next hit on its channel or its sample's end: its last output falls away in about 2 ms */
 #define DT_FADE_K 0.98873f
-/* the drums' next output sample (audio interrupt), -1..1 at a full level */
-static inline float dt_next(void)
+/* the drums' next output sample at level g (audio interrupt), -1..1 at a full level; their room send, at g too, into
+ * the FX bus (bs2_fx.c) */
+static inline float dt_next(float g)
 {
     uint32_t i;
     float s = 0.0f, r = 0.0f;
@@ -907,7 +845,7 @@ static inline float dt_next(void)
         }
         if (c->drum == DT_NONE)
             continue;
-        dt_room.idle = 0;
+        fx_wake();
         c->pos += c->inc;
         to = c->pos >> 16;
         while (c->k < to) {                  /* each ROM sample passed: made, to 8 bits, through the DAC */
@@ -946,14 +884,11 @@ static inline float dt_next(void)
         if (c->drum == DT_NONE)              /* (the sample's end: faded out too) */
             c->fade += c->last;
     }
-    if (dt_room.idle < (uint32_t)(2.0f * DT_ROOM_RT * BS2_RATE)) {   /* (the room quiet: left alone) */
-        dt_room.idle++;
-        s += dt_room_next(r);
-    }
 #ifdef PLAT_HOST
-    s *= dt_test_gain;
+    g *= dt_test_gain;
 #endif
-    return s;
+    fx_room_send(r * g);                     /* (after the drums' level: a post-fader send) */
+    return s * g;
 }
 
 /* a block's start (audio interrupt): the main loop's hits */
