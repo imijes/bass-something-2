@@ -46,7 +46,16 @@ typedef struct {
                                           * (stored so: older records' spare 0, full) */
     uint8_t rvol_off;                    /* the RMI's own volume, as bvol_off (its faceplate's fader) */
     uint8_t spare4[1];
+    uint8_t rmi_tabs;                    /* the RMI's tone tablets down, a bit each, RT_* (ELECTRA PANEL: SEL the
+                                          * tablet, PRESET it on or off; older records: settings_defaults', PIANO) */
+    uint8_t rmi_organ, rmi_accent;       /* its ORGAN MODE and ACCENTER tablets: 0 up, 1 down */
+    uint8_t rmi_bass;                    /* its BASS slider: the bass boost, 0..127 (64, the middle: none) */
+    uint8_t spare5[8];                   /* (the first: once the RMI's own velocity; its touch is GLO CONTROLS' now) */
 } settings_t;
+/* the RMI's tone tablets, as its panel's (any of them down at once: their stops layered, as the 368X's) */
+enum { RT_PIANO, RT_PIANO_PP, RT_HARPSI, RT_HARPSI_PP, RT_LUTE, NRT };
+static const char *const RT_NAME[NRT] = {"PIANO", "PIANO PP", "HARPSI", "HARPSI PP", "LUTE"};
+static const char *const RT_ABBR[NRT] = {"PNO", "PNO PP", "HRP", "HRP PP", "LUTE"};
 /* the roll's rates, as other machines' note repeat: ticks (96 a bar), the fraction, a triplet's */
 enum { DQ_NROLL = 9, DQ_ROLL_DEF = 5 };   /* (1/16) */
 static const uint8_t DQ_ROLL[DQ_NROLL] = {48, 24, 16, 12, 8, 6, 4, 3, 2}, DQ_ROLL_N[DQ_NROLL] = {2, 4, 4, 8, 8, 16, 16, 32, 32},
@@ -57,6 +66,7 @@ static uint32_t ms_stamp(void) { return (plat_ms() - 1u) | 1u; }
 #define SET_V2_SIZE offsetof(settings_t, mem)   /* the record before the sequences (16 bytes stored: a byte of padding) */
 #define SET_V3_SIZE offsetof(settings_t, knobs)  /* the record before the knobs' response */
 #define SET_V4_SIZE offsetof(settings_t, dchan)  /* the record before the drums' MIDI */
+#define SET_V5_SIZE offsetof(settings_t, rmi_tabs)   /* the record before the RMI's panel */
 enum { CH_OFF = 0, CH_ALL = 17 };
 enum { CLK_AUTO, CLK_INT, CLK_EXT, NCLK };   /* MIDI clock followed when it comes; never; always (none: stopped) */
 enum { VC_SOFT, VC_NORMAL, VC_HARD, NVC };
@@ -528,6 +538,7 @@ static fifo_t keyq;                          /* main loop -> audio: note | veloc
 static fifo_t recq;                          /* audio -> main loop: MIDI in's notes while recording */
 static fifo_t ccq;                           /* audio -> main loop: MIDI in's CCs on CC CHAN, number | value << 8 */
 #define NOTE_ALL_OFF 0xFFu
+#define KEYQ_RMI (1u << 16)                  /* (keyq: a key of the RMI's mode, rmi_note's) */
 static int store_save(uint32_t obj, const void *src, uint32_t len);   /* plat_store_save, told if it is in silence */
 #include "bs2_fx.c"                       /* the FX bus: one room every instrument sends into (fx_room_send, fx_next) */
 #include "bs2_drum.c"                     /* Drum Something: the drum voices (dt_hit, dt_note, dt_next) */
@@ -886,7 +897,10 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
     uint32_t pkt, e;
     int port;
     while (fifo_get(&keyq, &e))
-        note_in(e & 0xFFu, e >> 8);
+        if (e & KEYQ_RMI)
+            rmi_note(e & 0xFFu, (e >> 8) & 0xFFu);
+        else
+            note_in(e & 0xFFu, e >> 8);
     while (plat_midi_in(&pkt, &port)) {
         uint32_t st = (pkt >> 8) & 0xFFu, d1 = (pkt >> 16) & 0x7Fu, d2 = pkt >> 24;
         uint32_t ours = set.chan == CH_ALL || (set.chan != CH_OFF && (st & 0x0Fu) == set.chan - 1u);   /* (GLO MIDI) */
@@ -1303,6 +1317,7 @@ static int set_store(void)                   /* the settings into the store: 0 d
 }
 static void settings_defaults(settings_t *s)
 {
+    memset(s, 0, sizeof *s);                 /* (what isn't set below: 0, the volumes full, the spares clear) */
     s->magic = SET_MAGIC;
     s->octave = 0;
     s->slot = 0;
@@ -1321,6 +1336,8 @@ static void settings_defaults(settings_t *s)
     s->dchan = s->dcc_chan = 10;            /* (the drums: GM's channel) */
     s->dswing_lock = s->dtrans_off = 0;
     s->droll = DQ_ROLL_DEF;
+    s->rmi_tabs = 1u << RT_PIANO;            /* (the RMI: PIANO down, its BASS in the middle) */
+    s->rmi_bass = 64;
     {
         static const seqmem_t E = {.len = 0, .step = {SEQ_REST}};
         uint32_t i, j;
@@ -1387,7 +1404,8 @@ _Static_assert(offsetof(patch_t, env_trig) == BANK_V10_PSIZE, "version 10's: 11'
 _Static_assert(offsetof(patch_t, lfo_delay) == BANK_V11_PSIZE, "version 11's: 12's without the LFOs' delay on");
 _Static_assert(offsetof(patch_t, ofm) == BANK_V12_PSIZE, "version 12's: 13's without Osc Filter Mod on");
 _Static_assert(sizeof(settings_t) <= PLAT_STORE_MAX, "the settings fit a store object");
-_Static_assert(sizeof(settings_t) == SET_V4_SIZE + 8u, "the settings end with no padding");
+_Static_assert(sizeof(settings_t) == SET_V5_SIZE + 12u, "the settings end with no padding");
+_Static_assert(offsetof(settings_t, spare5) < 256u, "every setting a param_t's offset (a byte) reaches");
 static bank_t bank[NBANKP] PLAT_POOL;
 #define BANK_P(s) (bank[(s) / NPSLOT].p[(s) % NPSLOT])   /* slot s's patch */
 static uint32_t bank_obj(uint32_t pg) { return pg ? OBJ_PATCHES1 + pg - 1u : OBJ_PATCHES; }   /* page pg's object */
@@ -1654,6 +1672,9 @@ static struct {
                                           * 1 the mod envelope, 2 both (Amp+Mod) */
     uint32_t lit;                        /* the keys whose notes are held (notes_lit): lit, on the keys and on screen */
     uint8_t drum;                        /* Drum Something's mode (HOME held): the keys its instruments, HOME its page */
+    uint8_t rmi;                         /* the RMI's mode (HOME on the drums' HOME): the keys its, HOME its page */
+    uint32_t rkeys;                      /* the keys sounding the RMI (their release its too) */
+    uint8_t rmi_cur;                     /* ELECTRA PANEL's cursor: the tone tablet PRESET switches, RT_* (SEL moves it) */
     uint32_t dt_at[NDT];                 /* when each drum was last hit (dt_flash_take): its key lit a moment */
     uint8_t dt_sel;                      /* the drum last tapped: what VOLUME and TUNING (K3, K4) set */
     uint8_t dt_fn;                       /* the function lit in the 400's LED lists (DTF_*): SEQ and ARP step them */
@@ -1672,11 +1693,13 @@ static struct {
     uint32_t dt_mid;                     /* the keys at the lights' middle level (a channel's others) */
     uint8_t dt_drop;                     /* a Channel page: the header's rows down over it, a knob turning (dt_drop_step) */
     uint32_t dt_drop_at;                 /* its last step */
-    uint32_t mpan_at;                    /* the camera panning between the two HOMEs since (mpan_band; 0: not) */
+    uint32_t mpan_at;                    /* the camera panning from one HOME down to the next since (mpan_band; 0: not) */
+    uint8_t mpan_from;                   /* the mode it pans from: 0 the synth's, 1 the drums', 2 the RMI's */
 } ui PLAT_POOL;
 /* Knob Zoom's camera (below, zoom_step) */
 #define ZOOM_MAX 256                         /* Q8, over 1x: 2x (crisp once there: whole pixels) */
-#define ZOOM_HOLD_MS 1000u
+#define ZOOM_HOLD_MS 1000u                   /* the camera held on a knob after its last turn; a dive from HOME too, on
+                                              * every HOME alike */
 #define DFN_ZOOM_MS 2200u                    /* the camera on a drum function just picked (SEQ, ARP) */
 #define ZOOM_IN_MS 64u                       /* the damping's time constants */
 #define ZOOM_OUT_MS 96u
@@ -1843,17 +1866,21 @@ static void ble_device_button(void)
  * empty places set nothing */
 enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GCLK, PG_GDISP, PG_GDUMP,
        PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
-       PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, PG_GAUD, PG_GCTL, PG_NAME, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
+       PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, PG_GAUD, PG_GCTL, PG_NAME, PG_RHOME, PG_RSEL,
+       NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI", "GLOBAL CLOCK",
                                               "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
                                               "GLOBAL DRUMS", "DRUM HOME", "CHANNEL 1", "CHANNEL 2", "CHANNEL 3",
                                               "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL CONTROLS",
-                                              "PATCH NAME"};
+                                              "PATCH NAME", "ELECTRA HOME", "ELECTRA PANEL"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME && (g) < PG_GAUD)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
 #define DCH_PAGE(g) ((g) >= PG_DCH1 && (g) <= PG_DCH6)   /* its Channel pages */
+#define RMI_PAGE(g) ((g) >= PG_RHOME && (g) <= PG_RSEL)   /* the RMI's pages (HOME on the drums' HOME: its mode, ui.rmi) */
+static uint32_t mode_home(void);             /* the mode's HOME */
+static void zoom_rmi(uint32_t k);            /* RMI HOME's knob: in on RMI PANEL's */
 /* the 400's two LED lists, one number each: PATTERN's, then SONG's, BUILD MODE's own under it */
 enum { DTF_PAT, DTF_REC, DTF_ERASEI, DTF_ERROR, DTF_SWING, DTF_TIME, DTF_MEAS, DTF_ERASEP, DTF_COPYP, DTF_ROLL,
        DTF_SONG, DTF_ERASES, DTF_COPYS, DTF_BUILD, DTF_BPAT, DTF_BVOL, DTF_BTEMPO, DTF_BINS, DTF_BDEL, NDTF };
@@ -1968,6 +1995,9 @@ static const param_t PARAMS[NPAGES][NE] = {
                   [EN_K1] = {"CHANNEL", SF(dchan), CH_OFF, CH_ALL, CHAN_NAME}},
     [PG_DMOD] = {[EN_K3] = {"SWING LOCK", SF(dswing_lock), 0, 1, OFF_ON},
                  [EN_K4] = {"TRANSPORT", SF(dtrans_off), 0, 1, ON_OFF}},
+    [PG_RSEL] = {[EN_PRESET] = {"TABLET", SF(rmi_tabs), 0, (1 << NRT) - 1, 0},   /* (its turn: the cursor's on or off) */ [EN_K1] = {"BASS", SF(rmi_bass), 0, 127, 0},
+                 [EN_K2] = {"ORGAN MODE", SF(rmi_organ), 0, 1, OFF_ON}, [EN_K3] = {"ACCENTER", SF(rmi_accent), 0, 1, OFF_ON},
+                 [EN_K4] = {"VOL", SF(rvol_off), 0, 127, 0}},   /* (VOL: rvol_off turned and shown upside down, knob_turn) */
     [PG_GDISP] = {[EN_PRESET] = {"KNOB ZOOM", SF(zoom_off), 0, 1, AUTO_OFF},
                   [EN_K1] = {"HINTS", SF(hints), 0, 1, OFF_ON}, [EN_K2] = {"POP-UPS", SF(pop), 0, NPOP - 1, 0}},
 };
@@ -2580,15 +2610,24 @@ static int knob_turn(uint32_t k, int32_t e)
 {
     if (ui.page == PG_NAME)
         return name_turn(k, e);
-    if ((ui.page == PG_PATCH || ui.page == PG_HOME) && k == EN_K1) {   /* the MASTER's Volume (on HOME too): the bass's
-                                              * own (kept with the GLO settings); the FM-1's MASTER knob is the master
-                                              * over all */
-        static const param_t BVOL = {"VOLUME", 0, 0, 127, 0};
+    if (ui.page == PG_RSEL && k == EN_PRESET) {   /* ELECTRA PANEL's PRESET: the cursor's tone tablet, right down, left
+                                              * up (SEL moves the cursor) */
+        const uint32_t c = ui.rmi_cur < NRT ? ui.rmi_cur : 0u;
+        set.rmi_tabs = (uint8_t)(e > 0 ? set.rmi_tabs | 1u << c : set.rmi_tabs & ~(1u << c));
+        app_say(RT_NAME[c], set.rmi_tabs >> c & 1u ? "ON" : "OFF");
+        return 0;
+    }
+    if (((ui.page == PG_PATCH || ui.page == PG_HOME) && k == EN_K1) || (ui.page == PG_RSEL && k == EN_K4)) {   /* the
+                                              * MASTER's Volume (on HOME too): the bass's own; RMI PANEL's VOL: the RMI's
+                                              * (both kept with the GLO settings, under full); the FM-1's MASTER knob is
+                                              * the master over all */
+        static const param_t VOL = {"VOLUME", 0, 0, 127, 0};
+        uint8_t *off = ui.page == PG_RSEL ? &set.rvol_off : &set.bvol_off;
         char t[8];
-        e = knob_accel(k, e, &BVOL);         /* (GLO CONTROLS' Knobs: its speed-up, as every knob's) */
-        set.bvol_off = (uint8_t)(127 - clamp(127 - (int32_t)set.bvol_off + e, 0, 127));
-        int_text(127u - set.bvol_off, t);
-        app_say("BASS VOLUME", t);
+        e = knob_accel(k, e, &VOL);          /* (GLO CONTROLS' Knobs: its speed-up, as every knob's) */
+        *off = (uint8_t)(127 - clamp(127 - (int32_t)*off + e, 0, 127));
+        int_text(127u - *off, t);
+        app_say(ui.page == PG_RSEL ? "ELECTRA VOLUME" : "BASS VOLUME", t);
         return 0;
     }
     if (ui.page == PG_GCLK && k == EN_K1) {  /* the tempo, as on ARP: the patch's, MIDI clock's while it leads */
@@ -2867,6 +2906,15 @@ static void knob_text(uint32_t k, char *t)
         ui.page = PG_GCLK;
         return;
     }
+    if (ui.page == PG_RSEL && k == EN_PRESET) {   /* (the cursor's tablet: on or off) */
+        t[0] = 0;
+        text_cat(t, set.rmi_tabs >> (ui.rmi_cur < NRT ? ui.rmi_cur : 0u) & 1u ? "ON" : "OFF");
+        return;
+    }
+    if (ui.page == PG_RSEL && k == EN_K4) {  /* (VOL: the RMI's volume, rvol_off upside down) */
+        int_text(127u - set.rvol_off, t);
+        return;
+    }
     if (ui.page == PG_NAME) {                /* (the cursor's place, its letter) */
         t[0] = 0;
         if (k == EN_K1)
@@ -3048,10 +3096,12 @@ static void save(void)                       /* the settings, and the sound into
 static uint8_t hushed;                       /* quiet_step's: 1 when silent QUIET_MS */
 static int sounding(void)                    /* anything playing or ringing out */
 {
-    uint32_t i, drums = dq.run;              /* (the drums too: a write under them is a dropout) */
+    uint32_t i, drums = dq.run;              /* (the drums too: a write under them is a dropout; the RMI's notes) */
     for (i = 0; i < NDTCH; i++)
         drums |= dt.ch[i].drum != DT_NONE;
-    return drums || eng.src != SRC_NONE || seq_auto || voice_note >= 0 || voice.amp.stage != ENV_IDLE;
+    for (i = 0; i < RMI_NV; i++)
+        drums |= rmi.v[i].key != RMI_NK;
+    return drums || ui.rkeys || eng.src != SRC_NONE || seq_auto || voice_note >= 0 || voice.amp.stage != ENV_IDLE;
 }
 static void quiet_step(void)                 /* the main loop's (input), before the keepers */
 {
@@ -3274,7 +3324,7 @@ void app_backup_hold(int on) { backup_held = (uint8_t)on; }
 void app_backup_restored(void)               /* as at power-on: HOME, on the synth */
 {
     app_init();
-    ui.drum = 0;
+    ui.drum = ui.rmi = 0;
     zoom.home = ZH_NONE;
     zoom.z = 0;
     set_dirty = 0;
@@ -3387,6 +3437,9 @@ static uint32_t notes_lit(uint32_t *below, uint32_t *above)
 #define HOME_KNOB_PAGE(p) ((p) == EN_K1 ? PG_PATCH : (p) == EN_K2 ? PG_ARP : PG_TUNE)
 static int home_knob(uint32_t p)
 {
+    if (ui.rmi)                              /* RMI HOME: PRESET and K1-K4 RMI PANEL's (the voice, BASS, ORGAN MODE,
+                                              * ACCENTER, VOL) */
+        return (p >= EN_K1 || p == EN_PRESET) && (ui.page == PG_RHOME || (zoom.home && zoom.hp == PG_RHOME && zoom.g == PG_RSEL && zoom.ke == p));
     if (p != EN_K3 && p != EN_K4 && (ui.drum || (p != EN_K2 && p != EN_K1)))
         return 0;
     if (ui.drum)
@@ -3398,6 +3451,18 @@ static void home_knob_turn(uint32_t p, int32_t e)
 {
     const uint8_t pg = ui.page;
     char t[12];
+    if (ui.rmi) {                            /* (RMI PANEL's, in on it) */
+        ui.page = PG_RSEL;
+        if (knob_turn(p, e)) {
+            knob_text(p, t);
+            app_say(knob_title(p), t);
+        }
+        ui.page = pg;
+        if (!set.zoom_off)
+            zoom_rmi(p);
+        ui.redraw = 1;
+        return;
+    }
     if (!ui.drum)
         ui.page = HOME_KNOB_PAGE(p);
     if (!ui.drum && p == EN_K1) {            /* the bass's volume (said as it turns): in on the MASTER's Volume */
@@ -3449,6 +3514,8 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_GAUD] = {[EN_K1] = "The speaker's sound, or off", "Master tune"},
     [PG_GCTL] = {[EN_K1] = "Touch curve", "Knob speed-up"},
     [PG_NAME] = {[EN_K1] = "Which letter", "Change it", "Clear to the end"},
+    [PG_RSEL] = {[EN_PRESET] = "This tablet on or off", [EN_K1] = "Bass boost", "No decay, as an organ", "A sharper attack",
+                 "Its own volume"},
     [PG_GDISP] = {[EN_PRESET] = "Zoom on what turns", [EN_K1] = "These hints", "Pop-up time"},
     [PG_GDRUM] = {"Drums' CC channel", [EN_K1] = "Drums' note channel"},
     [PG_GRND] = {[EN_PRESET] = "Pick a seed slot"},
@@ -3538,7 +3605,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [PG_OSC] = "Oscillators", [PG_MIX] = "Pulse Width", [PG_FX] = "Sub + Mixer", [PG_AENV] = "Envelopes",
         [PG_MENV] = "Triggering", [PG_EMOD] = "Env Mods", [PG_LFO1] = "LFOs", [PG_LFO2] = "LFO Mods",
         [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods",
-        [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Controls", [PG_NAME] = "Patch Name",
+        [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Controls", [PG_NAME] = "Patch Name", [PG_RSEL] = "Electra Panel",
         [PG_GDISP] = "Display", [PG_GDUMP] = "Dump", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
         [PG_RTRK] = "RND Tracks", [PG_GDRUM] = "Drums"};
     static char tap[48];                     /* "GLO tap: System, hold: RND Synth Companion" */
@@ -3561,8 +3628,10 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [DTF_BUILD] = "Enter Build Mode", [DTF_BPAT] = "Enter, or leave Build", [DTF_BVOL] = "Enter the step", [DTF_BTEMPO] = "Enter the step",
         [DTF_BINS] = "Insert a step", [DTF_BDEL] = "Delete the step"};
     const int rec = seq_rec && ui.page == PG_SEQ;
-    if (k == B_HOME && ui.page == (ui.drum ? PG_DHOME : PG_HOME))   /* (on it: the other mode, mode_switch) */
-        return ui.drum ? "HOME tap: Bass Something 2" : "HOME tap: Drum Something";
+    if (k == B_HOME && ui.page == mode_home())   /* (on it: the next mode, mode_switch) */
+        return ui.drum ? "HOME tap: Electra-Something 368X" : ui.rmi ? "HOME tap: Bass Something 2" : "HOME tap: Drum Something";
+    if (ui.rmi && (RMI_PAGE(ui.page) || ui.page < PG_HOME))   /* (the RMI's: its panel and mods, rmi_button) */
+        return k == B_SEL ? (ui.page == PG_RSEL ? "Next tablet" : "Electra Panel") : k == B_HOME ? "Electra Home" : 0;
     if (ui.drum && !RND_PAGE(ui.page)) {     /* (every button the drums', as dt_button: the bass's form) */
         const uint32_t f = ui.dt_fn;
         const char *to = 0, *more = 0;
@@ -3683,6 +3752,23 @@ static void dt_bass_transport(int run)
 }
 static void mode_switch(void);
 static void sect_open(uint32_t g, uint32_t k);
+static uint32_t mode_home(void) { return ui.drum ? PG_DHOME : ui.rmi ? PG_RHOME : PG_HOME; }   /* the mode's HOME */
+/* the RMI's buttons (its mode, but HOME, REC, GLO and the octaves): SEL its panel, there the next tone tablet; SAVE:
+ * nothing to (its panel keeps itself, with the GLO settings); the rest the bass's, not its */
+static void rmi_button(uint32_t k)
+{
+    if (k == B_SEL && ui.page == PG_RSEL) {  /* (there: the cursor to the next tone tablet, the panel sliding to it) */
+        ui.rmi_cur = (uint8_t)((ui.rmi_cur + 1u) % NRT);
+        ui.last_enc = EN_PRESET;
+        ui.redraw = 1;
+        app_say(RT_NAME[ui.rmi_cur], set.rmi_tabs >> ui.rmi_cur & 1u ? "ON" : "OFF");
+    } else if (k == B_SEL)
+        sect_open(PG_RSEL, k);
+    else if (k == B_SAVE)
+        app_say("ELECTRA", "KEEPS ITSELF");
+    else
+        app_say("ELECTRA", "SEL: ITS PANEL");
+}
 static void hold_tap(uint32_t k)
 {
     const char *const said = ui.hint;        /* (what the tap refuses, said over this) */
@@ -3690,7 +3776,7 @@ static void hold_tap(uint32_t k)
         dt_button(k);
     else if (k == B_REC && ui.drum && (ui.page != PG_GMIDI || !FM1B_BLE_CENTRAL || set.ble_off))
         dt_rec_tap();
-    else if (k == B_HOME && ui.page == (ui.drum ? PG_DHOME : PG_HOME))   /* HOME on it: the other mode's */
+    else if (k == B_HOME && ui.page == mode_home())   /* HOME on it: the next mode's */
         mode_switch();
     else if (k == B_HOME)                         /* HOME: the whole panel (the first page), the mode's */
         home_back();
@@ -3708,13 +3794,20 @@ static void hold_tap(uint32_t k)
         hint_show(k);                        /* (its hint again from where it went: the next tap's) */
 }
 
-/* HOME tapped on HOME, or held: the synth's mode or Drum Something's, on its HOME. From the other's HOME, the whole panel,
- * the camera pans there (mpan_band: the drums' panel under the synth's), its map after; from anywhere else (held), at once */
+/* HOME tapped on HOME, or held: the next mode, the synth's, Drum Something's, the RMI's, round, on its HOME. From a
+ * HOME, the whole panel, the camera pans down there (mpan_band: the next HOME's panel under this one's), its map after;
+ * else at once */
 static void mode_switch(void)
 {
-    const int pan = ui.page == (ui.drum ? PG_DHOME : PG_HOME) && !zoom.z && !zoom.home;
-    ui.drum = (uint8_t)!ui.drum;
-    page_go(ui.drum ? PG_DHOME : PG_HOME);
+    const int pan = ui.page == mode_home() && !zoom.z && !zoom.home;
+    ui.mpan_from = (uint8_t)(ui.drum ? 1u : ui.rmi ? 2u : 0u);
+    if (ui.drum)
+        ui.drum = 0, ui.rmi = 1;
+    else if (ui.rmi)
+        ui.rmi = 0;
+    else
+        ui.drum = 1;
+    page_go(mode_home());
     if (pan) {
         ui.mpan_at = ms_stamp();
         ui.map_until = 0;
@@ -4126,6 +4219,13 @@ static void input(void)
                 dt_key(k, v, keys);
                 continue;
             }
+            if (ui.rmi) {                    /* the RMI's: its notes (out on its channel, 3, until it has its own) */
+                ui.rkeys |= bit;
+                fifo_put(&keyq, (uint32_t)note | v << 8 | KEYQ_RMI);
+                ui.och[k] = 3;
+                key_send(0x90u, (uint32_t)note, v, 3u);
+                continue;
+            }
             if (set.local)                   /* (LOCAL off: MIDI out alone) */
                 fifo_put(&keyq, (uint32_t)note | v << 8);
             if (seq_rec)
@@ -4136,7 +4236,9 @@ static void input(void)
             ui.prs[k] = 0;
             if (k == DT_ROLL_KEY)            /* (in either mode: HOME may have left the drums while it rolled) */
                 dq_cmd(DQC_ROLLOFF, 0, 0);
-            fifo_put(&keyq, (uint32_t)note);  /* (LOCAL turned off while it was held: still let go) */
+            fifo_put(&keyq, (uint32_t)note | (ui.rkeys & bit ? KEYQ_RMI : 0u));   /* (LOCAL turned off while it was
+                                              * held: still let go; the RMI's, its: the mode may have changed) */
+            ui.rkeys &= ~bit;
             key_send(0x80u, ui.dno[k] ? ui.dno[k] : (uint32_t)note, 0, ui.och[k]);
             ui.och[k] = ui.dno[k] = 0;
         } else if ((keys & bit) && touch_pressure(k) != ui.prs[k]) {   /* pressure: poly aftertouch */
@@ -4165,6 +4267,9 @@ static void input(void)
         if (ui.drum && k != B_HOME && k != B_REC && k != B_GLO
             && !(RND_PAGE(ui.page) && (k == B_SEL || k == B_FX || k == B_SAVE)))   /* (the RND pages keep their own) */
             dt_button(k);
+        else if (ui.rmi && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && !RND_PAGE(ui.page)
+                 && ui.page != PG_GDUMP)
+            rmi_button(k);
         else if (k == B_ARP || k == B_SEQ || k == B_GLO || k == B_REC || k == B_HOME) {   /* on release, or once held
                                               * HOLD_MS (hold_step) */
             ui.hold_k = (uint8_t)k;
@@ -4361,7 +4466,7 @@ static void ui_start(void) { ui.page = PG_HOME; }   /* the first page, after the
 enum { SEC_FX, SEC_SEL, SEC_ENV, SEC_LFO, SEC_ARP, SEC_SEQ, SEC_EDIT, SEC_GLO, NSEC };
 static const char *const SEC_NAME[NSEC] = {"FX", "SEL", "ENV", "LFO", "ARP", "SEQ", "EDIT", "GLO"};
 static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDIT, [PG_MENV] = SEC_ENV,
-                                         [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL, [PG_NAME] = SEC_SEL,
+                                         [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL, [PG_NAME] = SEC_SEL, [PG_RHOME] = NSEC, [PG_RSEL] = SEC_SEL,
                                          [PG_ARP] = SEC_ARP, [PG_SEQ] = SEC_SEQ, [PG_AENV] = SEC_ENV, [PG_FX] = SEC_EDIT,
                                          [PG_TUNE] = SEC_FX, [PG_FMOD] = SEC_FX,
                                          [PG_EMOD] = SEC_ENV, [PG_EFX] = SEC_FX, [PG_XMOD] = SEC_FX, [PG_AMOD] = SEC_ARP, [PG_HOME] = NSEC,
@@ -4616,24 +4721,40 @@ static void zoom_go(uint32_t g, uint32_t k, const uint8_t *v)   /* the CC's page
         zoom.home = ZH_DIVE;
     }
 }
+/* Every HOME's knob zoom, one way: a control turned on HOME (home), the camera dives to it, encoder k on page g, with
+ * the views v there (0: HOME's own), from its box on HOME (its middle x, y; the scale, log2, it fills the screen at:
+ * taken for a new dive), held while it turns, back out ZOOM_HOLD_MS after (zoom_step). The instruments say only where:
+ * the synth's by its control (zoom_cc_in), the drums' by their channel (zoom_dt_cc), the RMI's by its strip (zoom_rmi) */
+static void zoom_dive(uint32_t home, uint32_t g, uint32_t k, const uint8_t *v, int16_t x, int16_t y, float lc)
+{
+    uint8_t w[5];
+    uint32_t i;
+    zoom_keep(home);
+    for (i = 0; i < 5u; i++)
+        w[i] = v ? v[i] : zoom.sv[i];
+    if (g != zoom.g || !zoom.home)
+        zoom.hx = x, zoom.hy = y, zoom.lc = lc;
+    zoom_go(g, k, w);
+}
 static void zoom_cc_in(const param_t *q)     /* a CC's control q changed (on HOME, or on the way from it) */
 {
     uint8_t v[5];
     uint32_t k, g;
+    int16_t x, y;
+    float lc;
     if (zoom.home == ZH_OPEN)                /* (a section's page on its way: that page's) */
         return;
-    zoom_keep(PG_HOME);
+    zoom_keep(PG_HOME);                      /* (its views, before zoom_find reads them) */
     if ((g = zoom_find(q, v, &k)) == PG_HOME)   /* (none: as it is) */
         return;
-    if (g != zoom.g || !zoom.home)
-        home_sect(g, &zoom.hx, &zoom.hy, &zoom.lc);
-    zoom_go(g, k, v);
+    home_sect(g, &x, &y, &lc);
+    zoom_dive(PG_HOME, g, k, v, x, y, lc);
 }
 static int zoom_step(uint32_t now)           /* a frame: 1 when the camera moved (the panel drawn again) */
 {
     const uint32_t dt = zoom.at ? now - zoom.at : 0u, last = ui.turned_at[ui.last_enc];
     const int fn = zoom.fn_at && zoom.fn_ok && now - zoom.fn_at < DFN_ZOOM_MS;   /* (a function just picked: to read it) */
-    const int aim = !set.zoom_off && zoom.pg == ui.page
+    const int aim = !set.zoom_off && zoom.pg == ui.page && ui.page != PG_RSEL   /* (ELECTRA PANEL slides instead) */
                     && (fn || (zoom.k == ui.last_enc + 1u && last && now - last < ZOOM_HOLD_MS));
     const int16_t z = zoom.z, x = zoom.x, y = zoom.y;
     zoom.at = now;
@@ -4656,8 +4777,8 @@ static int zoom_step(uint32_t now)           /* a frame: 1 when the camera moved
         }
         return 1;
     }
-    if (zoom.home == ZH_PAGE && !aim)        /* (the CCs done: back out) */
-        zoom.home = ZH_RISE;
+    if (zoom.home == ZH_PAGE && !aim && !(ui.turned_at[zoom.ke] && now - ui.turned_at[zoom.ke] < ZOOM_HOLD_MS))
+        zoom.home = ZH_RISE;                 /* (its knob still, ZOOM_HOLD_MS: back out, on every page alike) */
     if (zoom.home == ZH_DIVE || zoom.home == ZH_RISE) {   /* (HOME's dive: along its path) */
         const int in = zoom.home == ZH_DIVE;
         float u = zoom.u + (in ? (float)dt / ZOOM_DIVE_MS : -(float)dt / ZOOM_RISE_MS), l;
@@ -5147,6 +5268,208 @@ static void name_draw(void)
         knob_text(EN_K1 + i, t);
         print_c(cx, 131, t, grey(36));
     }
+}
+/* The RMI's pages, after its photos: one strip over its keys, brushed silver in bands, the BASS slider at its left,
+ * seven white stop tablets between two black blocks, the VOL slider at its right; a black case, its lid's slots, a
+ * silver badge. A tablet down: lit under; a slider's cap black, its name on it */
+static void rmi_voice_text(char *t)          /* the tone tablets down, as a voice: "HARPSI", "PNO+HRP PP+LUTE" */
+{
+    uint32_t i, n = 0;
+    t[0] = 0;
+    for (i = 0; i < NRT; i++)
+        n += set.rmi_tabs >> i & 1u;
+    for (i = 0; i < NRT; i++)
+        if (set.rmi_tabs >> i & 1u) {
+            if (t[0])
+                text_cat(t, "+");
+            text_cat(t, n > 1u ? RT_ABBR[i] : RT_NAME[i]);
+        }
+    if (!n)
+        text_cat(t, "NO TONE");
+}
+static uint32_t rmi_down(void)               /* the tablets down, a bit each (RT order: the voice's, ORGAN, ACCENTER) */
+{
+    return (set.rmi_tabs & 31u) | (set.rmi_organ ? 32u : 0u) | (set.rmi_accent ? 64u : 0u);
+}
+/* ELECTRA PANEL: the strip up close, as its photo has it (PANEL_CENTER, tools/rmi_local's measures), 0.4 a pixel
+ * from x 380, y 419: too wide for the screen, so it slides (rp_vx) to what's being set, as the drums' channels do:
+ * PRESET the voice's tablets, K1 the BASS slider, K2 ORGAN MODE, K3 ACCENTER, K4 the VOL slider */
+#define RPX(x) ((int32_t)(((x) - 380) * 2 / 5) - rp_x)
+#define RPY(y) ((int32_t)(((y) - 419) * 2 / 5) + 2)
+static int32_t rp_x;                         /* (the view's left, in the strip's columns: rsel_draw's) */
+static float rp_vx = -1.0f;                  /* the view sliding there (-1: not yet: at once) */
+static uint8_t rp_moving;                    /* still sliding: the next frame draws it again */
+static const int16_t RT_X[7][2] = {{887, 985}, {998, 1096}, {1109, 1207}, {1219, 1317}, {1328, 1426}, {1436, 1534},
+                                   {1545, 1644}};
+static const char *const RT_LBL[7][2] = {{"PIANO", 0}, {"PIANO", "PP"}, {"HARPSI", 0}, {"HARPSI", "PP"}, {"LUTE", 0},
+                                         {"ORGAN", "MODE"}, {"ACCENTER", 0}};   /* (as the tablets' own print) */
+static void rmi_slider(int32_t sx, int32_t v, const char *name, uint32_t k)   /* its slot at photo x sx, its cap at v */
+{
+    const int32_t x = RPX(sx), y0 = RPY(484), y1 = RPY(734), h = RPY(670) - RPY(574), lit = knob_lit(k);
+    const int32_t y = y1 - h / 2 - (y1 - y0 - h) * v / 127;
+    cv_rect(x - 2, y0, 5, y1 - y0, RGB(8, 8, 8));
+    cv_rect(x - 15, y - h / 2, 31, h, RGB(12, 12, 12));   /* its cap: black, its name on it, lit as it moves */
+    cv_rect(x - 15, y - h / 2, 31, 2, grey(70));
+    cv_rect(x - 13, y - 2, 27, 1, lit ? P_CYAN : grey(40));
+    cv_text(x - text_w(&FONT_T, name) / 2, y - 12, &FONT_T, name, lit ? P_CYAN : grey(225));
+    tag(x, y + 6, k);
+}
+static void rsel_draw(void)
+{
+    const uint32_t dn = rmi_down(), k = ui.last_enc, c = ui.rmi_cur < NRT ? ui.rmi_cur : 0u;
+    int32_t i, f;
+    float to;
+    f = k == EN_K1 ? 507 : k == EN_K4 ? 2028 : k == EN_K2 ? (RT_X[5][0] + RT_X[5][1]) / 2
+        : k == EN_K3 ? (RT_X[6][0] + RT_X[6][1]) / 2 : (RT_X[c][0] + RT_X[c][1]) / 2;   /* (else the cursor's tablet) */
+    to = fm_clampf((float)((f - 380) * 2 / 5 - 120), 0.0f, (float)((2150 - 380) * 2 / 5 - 240));
+    rp_vx = rp_vx < 0.0f ? to : rp_vx + (to - rp_vx) * 0.35f;   /* (eased: a third of the way a frame) */
+    rp_moving = fm_fabsf(to - rp_vx) > 0.5f;
+    rp_x = (int32_t)(rp_vx + 0.5f);
+    cv_rect(0, 0, 240, TALL_H, RGB(10, 11, 10));
+    {                                        /* the bands, their stripes (each about 30 of the photo's rows) */
+        static const int16_t TOP[3][2] = {{425, 445}, {475, 505}, {535, 555}}, LOW[3][2] = {{618, 650}, {680, 707}, {738, 769}};
+        cv_rect(0, RPY(419), 240, RPY(588) - RPY(419), RGB(182, 189, 182));
+        cv_rect(0, RPY(588), 240, RPY(618) - RPY(588), RGB(106, 117, 108));
+        cv_rect(0, RPY(618), 240, RPY(805) - RPY(618), RGB(132, 144, 128));
+        cv_rect(0, RPY(805), 240, TALL_H - RPY(805), RGB(115, 116, 113));
+        for (i = 0; i < 3; i++) {
+            cv_rect(0, RPY(TOP[i][0]), 240, RPY(TOP[i][1]) - RPY(TOP[i][0]), RGB(195, 203, 196));
+            cv_rect(0, RPY(LOW[i][0]), 240, RPY(LOW[i][1]) - RPY(LOW[i][0]), RGB(165, 176, 166));
+        }
+    }
+    rmi_slider(507, set.rmi_bass, "BASS", EN_K1);
+    rmi_slider(2028, 127 - set.rvol_off, "VOL", EN_K4);
+    cv_rect(RPX(778), RPY(492), RPX(877) - RPX(778), RPY(734) - RPY(492), RGB(12, 12, 12));   /* the black blocks */
+    cv_rect(RPX(1653), RPY(492), RPX(1752) - RPX(1653), RPY(734) - RPY(492), RGB(12, 12, 12));
+    cv_rect(RPX(882), RPY(486), RPX(1650) - RPX(882), RPY(694) - RPY(486), RGB(38, 38, 36));   /* (their gaps' shadow) */
+    for (i = 0; i < 7; i++) {                /* the tablets: white, their print, a crease; down: lower, greyer, lit */
+        const int32_t x = RPX(RT_X[i][0]), w = RPX(RT_X[i][1]) - x, d = (int32_t)(dn >> i & 1u), y = RPY(490) + 4 * d;
+        if (x > 240 || x + w < 0)
+            continue;
+        cv_rect(x, y, w, RPY(690) - y, d ? RGB(206, 205, 188) : RGB(232, 231, 212));   /* (ivory, as the photo's) */
+        cv_rect(x, RPY(588) + 2 * d, w, 1, RGB(150, 150, 140));
+        if (d) {
+            cv_rect(x, RPY(490), w, 4, grey(70));
+            cv_rect(x + 3, RPY(690) + 3, w - 6, 3, P_CYAN);
+        }
+        cv_text(x + w / 2 - text_w(&FONT_T, RT_LBL[i][0]) / 2, y + 14, &FONT_T, RT_LBL[i][0], RGB(10, 10, 10));
+        if (RT_LBL[i][1])
+            cv_text(x + w / 2 - text_w(&FONT_T, RT_LBL[i][1]) / 2, y + 23, &FONT_T, RT_LBL[i][1], RGB(10, 10, 10));
+    }
+    {                                        /* the cursor: its tablet outlined (SEL moves it, PRESET switches it) */
+        const int32_t x = RPX(RT_X[c][0]), w = RPX(RT_X[c][1]) - x, y = RPY(486), h = RPY(694) - y;
+        cv_rect(x - 2, y, w + 4, 2, P_CYAN);
+        cv_rect(x - 2, y + h - 2, w + 4, 2, P_CYAN);
+        cv_rect(x - 2, y, 2, h, P_CYAN);
+        cv_rect(x + w, y, 2, h, P_CYAN);
+        tag(x + w / 2, RPY(640), EN_PRESET);
+    }
+    tag((RPX(RT_X[5][0]) + RPX(RT_X[5][1])) / 2, RPY(660), EN_K2);
+    tag((RPX(RT_X[6][0]) + RPX(RT_X[6][1])) / 2, RPY(660), EN_K3);
+}
+/* RMI HOME (Electra-Something 368X): as the other two HOMEs, its name, what plays (no display: the 368X has none); the strip
+ * (ELECTRA PANEL's) slid down to the keys (the footer's, its keyboard); between them its notes as they ring, each a bar at
+ * its key's place as tall as its level now, the most it reached falling slowly over it (rbar_paint) */
+/* the front panel, as FRONT2 has it (from x 600 at 0.186 a pixel; its foot, y 594, on the keys) */
+#define RFX(x) ((int32_t)(((x) - 600) * 186 / 1000))
+#define RFY(y) (TALL_H - (int32_t)((594 - (y)) * 186 / 1000))
+static void seg_display(int32_t x, int32_t y, const char *t, uint32_t n);
+enum { RB_X = 6, RB_Y = 58, RB_W = 228, RB_H = 58 };   /* the bars' place, over the front panel */
+static float rb_pk[RMI_NK];                  /* each key's mark: the most its level reached, falling */
+static uint32_t rb_at;                       /* (when the marks last fell) */
+static int rbar_live(void)                   /* a note ringing, or a mark still falling */
+{
+    uint32_t i;
+    for (i = 0; i < RMI_NV; i++)
+        if (rmi.v[i].key != RMI_NK)
+            return 1;
+    for (i = 0; i < RMI_NK; i++)
+        if (rb_pk[i] > 0.0f)
+            return 1;
+    return 0;
+}
+static void rbar_paint(void)
+{
+    float lv[RMI_NK];
+    uint32_t i, now = plat_ms();
+    const float fall = (float)(now - rb_at) * (1.0f / 900.0f);   /* (a mark falls the whole height in 0.9 s) */
+    rb_at = now;
+    for (i = 0; i < RMI_NK; i++)
+        lv[i] = 0.0f;
+    for (i = 0; i < RMI_NV; i++) {           /* each voice's level now, on its key (0..1 over 40 dB) */
+        const rmi_voice_t *v = &rmi.v[i];
+        if (v->key < RMI_NK) {
+            const float l = (v->g[0] + v->g[1] + v->g[2]) * v->rel * v->vg;
+            const float h = l > 1e-4f ? fm_clampf(1.0f + 20.0f * fm_log2f(l) * 0.30103f / 40.0f, 0.0f, 1.0f) : 0.0f;
+            lv[v->key] = fm_maxf(lv[v->key], h);
+        }
+    }
+    cv_rect(RB_X, RB_Y + RB_H, RB_W, 1, grey(40));   /* (its floor) */
+    for (i = 0; i < RMI_NK; i++) {
+        const int32_t x = RB_X + (int32_t)i * (RB_W - 3) / (int32_t)(RMI_NK - 1u);
+        rb_pk[i] = fm_maxf(lv[i], rb_pk[i] - fall);
+        if (lv[i] > 0.0f) {
+            const int32_t h = (int32_t)(lv[i] * RB_H + 0.5f);
+            cv_rect(x, RB_Y + RB_H - h, 3, h, P_CDIM);
+            cv_rect(x, RB_Y + RB_H - h, 3, h > 2 ? 2 : h, P_CYAN);
+        }
+        if (rb_pk[i] > 0.02f)                /* (its mark, falling) */
+            cv_rect(x, RB_Y + RB_H - (int32_t)(rb_pk[i] * RB_H), 3, 1, P_SILK);
+        else
+            rb_pk[i] = 0.0f;
+    }
+}
+static void rbar_frame(void)                 /* the bars alone, over HOME as it's drawn */
+{
+    cv_begin(240, RB_H + 1, P_BG);
+    cv_oy = -RB_Y;
+    rbar_paint();
+    cv_blit(0, 20 + RB_Y);
+}
+static void rhome_draw(void)
+{
+    char vc[32];
+    rmi_voice_text(vc);
+    cv_rect(0, 0, 240, TALL_H, P_BG);
+    cv_text(10, 12, &FONT_B, "ELECTRA-", P_SILK);   /* the name; the voice and its tablets (no display: the 368X has
+                                              * none) */
+    cv_text(cv_text(10, 30, &FONT_B, "SOMETHING", P_SILK) + 5, 30, &FONT_B, "368X", P_BAR);
+    cv_rect(10, 49, 116, 2, P_BAR);
+    cv_text(232 - text_w(&FONT_XS, vc), 6, &FONT_XS, vc, P_CYAN);
+    if (set.rmi_organ)
+        cv_text(232 - text_w(&FONT_T, "ORGAN MODE"), 20, &FONT_T, "ORGAN MODE", P_SILK);
+    if (set.rmi_accent)
+        cv_text(232 - text_w(&FONT_T, "ACCENTER"), set.rmi_organ ? 29 : 20, &FONT_T, "ACCENTER", P_SILK);
+    tag(232 - text_w(&FONT_XS, vc) / 2, 10, EN_PRESET);
+    rbar_paint();
+    {                                        /* the front panel: the case's top edge, its black, the strip's bands,
+                                              * BASS and VOL, the blocks, the tablets (lit as they're down), the badge,
+                                              * the lip over the keys */
+        const uint32_t dn = rmi_down();
+        uint32_t i;
+        cv_rect(RFX(612), RFY(404), RFX(1877) - RFX(612), RFY(416) - RFY(404), grey(140));
+        cv_rect(RFX(612), RFY(416), RFX(1877) - RFX(612), RFY(448) - RFY(416), RGB(62, 63, 62));
+        cv_rect(RFX(646), RFY(448), RFX(1836) - RFX(646), RFY(540) - RFY(448), RGB(148, 160, 145));
+        cv_rect(RFX(646), RFY(540), RFX(1836) - RFX(646), RFY(571) - RFY(540), RGB(117, 120, 116));
+        cv_rect(RFX(612), RFY(448), RFX(646) - RFX(612), RFY(594) - RFY(448), RGB(30, 30, 30));   /* its ends */
+        cv_rect(RFX(1836), RFY(448), RFX(1877) - RFX(1836), RFY(594) - RFY(448), RGB(30, 30, 30));
+        cv_rect(RFX(612), RFY(571), RFX(1877) - RFX(612), RFY(594) - RFY(571), RGB(22, 22, 21));
+        cv_rect(RFX(1068), RFY(456), 1, RFY(536) - RFY(456), RGB(10, 10, 10));   /* BASS, VOL: slots, caps */
+        cv_rect(RFX(1415), RFY(456), 1, RFY(536) - RFY(456), RGB(10, 10, 10));
+        cv_rect(RFX(1068) - 2, RFY(536) - 3 - (RFY(536) - RFY(462)) * set.rmi_bass / 127, 5, 4, RGB(10, 10, 10));
+        cv_rect(RFX(1415) - 2, RFY(536) - 3 - (RFY(536) - RFY(462)) * (127 - set.rvol_off) / 127, 5, 4, RGB(10, 10, 10));
+        cv_rect(RFX(1133), RFY(462), RFX(1155) - RFX(1133), RFY(518) - RFY(462), RGB(12, 12, 12));   /* the blocks */
+        cv_rect(RFX(1332), RFY(462), RFX(1352) - RFX(1332), RFY(518) - RFY(462), RGB(12, 12, 12));
+        for (i = 0; i < 7u; i++)
+            cv_rect(RFX(1157 + 25 * (int32_t)i), RFY(466), 4, RFY(514) - RFY(466), dn >> i & 1u ? P_CYAN : RGB(229, 228, 211));
+        cv_rect(RFX(1529), RFY(548), RFX(1788) - RFX(1529), RFY(568) - RFY(548), RGB(175, 178, 171));   /* the badge */
+        tag(RFX(1243), RFY(490), EN_PRESET);
+    }
+}
+/* RMI HOME's knob k (K1-K4) turned: RMI PANEL's, the camera in on it from the strip, as HOME's on the bass's pages */
+static void zoom_rmi(uint32_t k)             /* (its box: the tablets on the front panel) */
+{
+    zoom_dive(PG_RHOME, PG_RSEL, k, 0, (int16_t)RFX(1243), (int16_t)RFY(490), fm_log2f(240.0f / (float)(RFX(1450) - RFX(1040))));
 }
 static void osc_wave_icon(int32_t x, int32_t y, uint32_t w, uint16_t c);
 /* an LFO's waves as printed by its LEDs, 8 x 7 from x, y: LFO_* (the saw falling, the S&H steps) */
@@ -7132,14 +7455,14 @@ static void dt_open(uint32_t g, uint32_t k)
  * to the whole panel; a dive's, back along its path; the rest (GLO's, the drums' plates: no way in) at once */
 static void home_back(void)
 {
-    const uint32_t g = ui.page, h = ui.drum ? PG_DHOME : PG_HOME;
+    const uint32_t g = ui.page, h = mode_home();
     ui.turned_at[ui.last_enc] = 0;           /* (a knob just turned, a function just picked: not on HOME as it lands) */
     zoom.fn_at = 0;
     if (zoom.home == ZH_DIVE || zoom.home == ZH_PAGE || zoom.home == ZH_RISE) {
         zoom.home = ZH_RISE;
         return;
     }
-    if (set.zoom_off || !(ui.drum ? DCH_PAGE(g) || g == PG_DPAT || g == PG_DSONG : PAGE_SEC[g] != SEC_GLO)) {
+    if (set.zoom_off || ui.rmi || !(ui.drum ? DCH_PAGE(g) || g == PG_DPAT || g == PG_DSONG : PAGE_SEC[g] != SEC_GLO)) {
         page_go(h);
         return;
     }
@@ -7169,20 +7492,11 @@ static void dmod_draw(void)
 }
 static void zoom_dt_cc(uint32_t cc)          /* a drum's CC (dt_cc): its channel's page, its knob */
 {
-    const uint32_t vol = cc >= DT_CC_VOL, d = cc - (vol ? DT_CC_VOL : DT_CC_TUNE), c = DT_CH[d], g = PG_DCH1 + c;
-    uint8_t v[5];
-    uint32_t i;
-    zoom_keep(PG_DHOME);
-    for (i = 0; i < 5u; i++)
-        v[i] = zoom.sv[i];
-    if (g != zoom.g || !zoom.home) {
-        const int32_t x = dt_px(DT_CH_U[c]), X = dt_px(DT_CH_U[c + 1u]), h = dt_py(642) - dt_py(409);
-        zoom.hx = (int16_t)((x + X) / 2);
-        zoom.hy = (int16_t)(dt_py(409) + h / 2);
-        zoom.lc = fm_log2f(fm_minf(fm_minf(240.0f / (float)(X - x), (float)TALL_H / (float)h), 6.0f));
-    }
+    const uint32_t vol = cc >= DT_CC_VOL, d = cc - (vol ? DT_CC_VOL : DT_CC_TUNE), c = DT_CH[d];
+    const int32_t x = dt_px(DT_CH_U[c]), X = dt_px(DT_CH_U[c + 1u]), h = dt_py(642) - dt_py(409);   /* (its channel's box) */
     zoom.dnew = (uint8_t)d;
-    zoom_go(g, vol ? EN_K3 : EN_K4, v);
+    zoom_dive(PG_DHOME, PG_DCH1 + c, vol ? EN_K3 : EN_K4, 0, (int16_t)((x + X) / 2), (int16_t)(dt_py(409) + h / 2),
+              fm_log2f(fm_minf(fm_minf(240.0f / (float)(X - x), (float)TALL_H / (float)h), 6.0f)));
 }
 static void dhome_draw(void)
 {
@@ -7304,25 +7618,35 @@ static void rfx_draw(void)
     dymo(120, y + 54, s, t >= 300u + 60u * (sizeof W - 2u) ? P_CYAN : RGB(235, 235, 235));
 }
 
-/* the camera between the two HOMEs: band i of the panel, its rows s down the synth's panel with the drums' under it */
+/* the camera between two HOMEs: band i of the panel, its rows s down the last mode's HOME with the next one's under it
+ * (round: the synth's, the drums', the RMI's, the synth's) */
 #define MPAN_MS 450u
+static void mpan_home(uint32_t m)            /* mode m's HOME, drawn as though it were up */
+{
+    ui.drum = (uint8_t)(m == 1u), ui.rmi = (uint8_t)(m == 2u);
+    ui.page = (uint8_t)mode_home();
+    if (m == 1u)
+        dhome_draw();
+    else if (m == 2u)
+        rhome_draw();
+    else
+        home_draw();
+}
 static void mpan_band(uint32_t i)
 {
-    const uint32_t page = ui.page, drum = ui.drum;
+    const uint32_t page = ui.page, drum = ui.drum, rm = ui.rmi, to = drum ? 1u : rm ? 2u : 0u;
     const float u = fm_clampf((float)(plat_ms() - ui.mpan_at) / (float)MPAN_MS, 0.0f, 1.0f), e = u * u * (3.0f - 2.0f * u);
-    const int32_t s = (int32_t)((float)TALL_H * (drum ? e : 1.0f - e) + 0.5f), top = (int32_t)i * (TALL_H / 2) + s;
+    const int32_t s = (int32_t)((float)TALL_H * e + 0.5f), top = (int32_t)i * (TALL_H / 2) + s;
     if (top < TALL_H) {
-        ui.page = PG_HOME, ui.drum = 0;
         cv_oy = -top;
-        home_draw();
+        mpan_home(ui.mpan_from);
     }
     if (top + TALL_H / 2 > TALL_H) {
-        ui.page = PG_DHOME, ui.drum = 1;
         cv_oy = TALL_H - top;
         cv_rect(0, 0, 240, TALL_H, P_BG);
-        dhome_draw();
+        mpan_home(to);
     }
-    ui.page = (uint8_t)page, ui.drum = (uint8_t)drum;
+    ui.page = (uint8_t)page, ui.drum = (uint8_t)drum, ui.rmi = (uint8_t)rm;
     ntags = 0;                               /* (the controls' labels: when it lands) */
 }
 
@@ -7357,6 +7681,10 @@ static void panel_draw(void)                 /* the page's section panel, from u
             mod_draw();
         else if (ui.page == PG_NAME)
             name_draw();
+        else if (ui.page == PG_RSEL)
+            rsel_draw();
+        else if (ui.page == PG_RHOME)
+            rhome_draw();
         else if (ui.page == PG_ARP)
             arp_draw();
         else if (ui.page == PG_SEQ)
@@ -7829,6 +8157,13 @@ void app_frame(void)
         panel_draw();
     }
     last_live = i;
+    if (ui.page == PG_RSEL && rp_moving)      /* (ELECTRA PANEL sliding: its next frame) */
+        ui.redraw = 1;
+    if (ui.page == PG_RHOME && !zoom.z && !rfx_at && now - scope_at >= 33u && (rbar_live() || scope_was)) {
+        scope_at = now;                      /* (RMI HOME's bars: as the scope, while they move, once more after) */
+        scope_was = (uint8_t)rbar_live();
+        rbar_frame();
+    }
     if (ui.page == PG_HOME && !zoom.z && !rfx_at && !ui.mpan_at && now - scope_at >= 33u && (scope_live() || scope_was)) {
         scope_at = now;                      /* (HOME's scope: 30 times a second while it sounds, once more after) */
         scope_was = scope_live();

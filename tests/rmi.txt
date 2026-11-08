@@ -1,0 +1,68 @@
+# Electra-Something 368X, the RMI 368X's mode (bs2_rmi.c): HOME on the drums' HOME, its keys, ELECTRA PANEL (SEL: SEL
+# again the next tone tablet, PRESET it on or off, K1 BASS, K2
+# ORGAN MODE, K3 ACCENTER, K4 VOL); its touch GLO CONTROLS' Velocity; its HOME's knobs the panel's, the camera in on
+# them; HOME on it back to the bass's.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/rmi.txt bs2/build/host
+wait 600
+listen
+tap HOME
+wait 1000
+said DRUM HOME
+tap HOME
+wait 1000
+said ELECTRA HOME
+expect page 40
+key 7 down 100
+wait 300
+key 7 up
+wait 300
+# its HOME's PRESET: the cursor's tone tablet (PIANO, at first) off and on, in on the panel's tablets
+turn PRESET -1
+wait 30
+said PIANO OFF
+turn PRESET 1
+wait 30
+said PIANO ON
+wait 3000
+expect page 40
+tap SEL
+wait 500
+expect page 41
+turn K2 1
+wait 30
+said ORGAN MODE ON
+turn K2 -1
+wait 30
+said ORGAN MODE OFF
+turn K4 -27
+wait 30
+said ELECTRA VOLUME 100
+turn K4 27
+wait 30
+said ELECTRA VOLUME 127
+# SEL there: the cursor on, the next tablet; PRESET switches it: PIANO and HARPSI layered
+tap SEL
+wait 30
+said PIANO PP OFF
+tap SEL
+wait 30
+said HARPSI OFF
+turn PRESET 1
+wait 30
+said HARPSI ON
+turn PRESET -1
+wait 30
+said HARPSI OFF
+tap FX
+wait 30
+said ELECTRA SEL: ITS PANEL
+tap SAVE
+wait 30
+said ELECTRA KEEPS ITSELF
+tap HOME
+wait 600
+expect page 40
+tap HOME
+wait 600
+expect page 16

@@ -3,9 +3,11 @@
  * half-octave band its cycles (the harpsichord's two, crossfaded from its peak to 0.3 s after), per key its
  * envelope's first 0.3 s, the slope after it and its level. The rest of the tail is the room's (bs2_fx.c), as the
  * drums': the note fades a little faster than the recording and its send fills it in. Polyphonic: RMI_NV voices, the
- * oldest taken for a new key. ORGAN MODE keys the stops with its own envelopes (no percussive decay, a slow one).
- * Until its pages: MIDI channel 3 plays it, CC 20/21/22 there its PIANO, HARPSI and ORGAN MODE stops (64 up: on),
- * CC 7 its volume, CC 64 the sustain pedal */
+ * oldest taken for a new key. Its panel (RMI PANEL, kept with the GLO settings): the voice (its tablets down), ORGAN
+ * MODE (the stops keyed with its own envelopes: no percussive decay, a slow one), ACCENTER (its keying's thump at
+ * each note's start, under the harpsichord and the lute: the low keys', to A#2, and the rest's, as recorded), BASS (a
+ * boost about 98 Hz, as its 1.2 H / 2.2 uF tank) and VOL. MIDI channel 3 plays it too, CC 7 its volume, CC 64 the
+ * sustain pedal (CC 20/21/22: PIANO, HARPSI, ORGAN MODE, the tests') */
 #include "rmi_tab.h"
 
 #define RMI_NV 8u                            /* voices */
@@ -15,20 +17,34 @@
 #define RMI_SEND 0.5f                        /* into the room */
 #define RMI_REL 0.9993f                      /* a key let go: its level's step a sample (about 60 ms to -40 dB) */
 #define RMI_XF 0.3f                          /* the harpsichord's crossfade, s from its peak */
-enum { RMS_PIANO = 1u, RMS_HARPSI = 2u, RMS_ORGAN = 4u };
+#define RMI_PP 0.2f                          /* a PP tablet's level against its stop's (pianissimo: the manual's "the
+                                              * same but softer", its path's resistor; not measurable here: -14 dB, by
+                                              * ear, -8 dB too little) */
+#define RMI_VEL 0.7f                         /* the keys' touch (GLO CONTROLS' Velocity curve): a note's level from
+                                              * 1 - RMI_VEL (softest) to 1 (hardest); the 368X had none */
+#define RMI_LUTE 2.0f                        /* LUTE's level: the harpsichord's cycles through its low pass (by ear: about the harpsichord's) */
+#define RMI_BASS_DB 12.0f                    /* the BASS slider's reach, dB each way from the middle */
+#define RMI_LUTE_K 0.17f                     /* its low pass's step (two one-poles, ~1.3 kHz: the schematic's 100 mH
+                                              * into 820 ohms) */
 typedef struct {
     uint8_t key;                             /* 0..RMI_NK-1, or RMI_NK: free */
     uint8_t held;                            /* its key down (or the sustain pedal holding it) */
     uint32_t ph, inc;                        /* its cycle's phase and step, a whole cycle 2^32 */
     uint32_t t, age;                         /* samples since its key went down; its order among the voices */
     float rel;                               /* 1 while held, then falling */
-    float g[2], dg[2];                       /* this block's level for the piano's and harpsichord's cycles, its step */
+    float vg;                                /* its level by its key's touch (RMI_VEL) */
+    float g[3], dg[3];                       /* this block's level for the piano's, the harpsichord's and the lute's
+                                              * (the harpsichord's cycles, low-passed after) layers, its step */
 } rmi_voice_t;
 static struct {
     rmi_voice_t v[RMI_NV];
-    uint8_t stops, sustain;
+    uint8_t sustain, cc_p, cc_h;             /* (the pedal; CC 20 and 21's tablets, the tests') */
+    uint8_t bass;                            /* the BASS its boost was made for (0xFF: none yet) */
     uint32_t age;
-} rmi = {.stops = RMS_PIANO};
+    float b0, b1, b2, a1, a2, x1, x2, y1, y2;   /* the boost: a peaking biquad's, its state */
+    float l1, l2;                            /* LUTE's low pass, on every voice's lute layer at once (as the 368X's
+                                              * tone changer, after the keys) */
+} rmi = {.bass = 0xFFu};
 
 static void rmi_init(void)
 {
@@ -88,15 +104,19 @@ static void rmi_note(uint32_t note, uint32_t vel)
     v->t = 0;
     v->age = ++rmi.age;
     v->rel = 1.0f;
-    v->g[0] = v->g[1] = v->dg[0] = v->dg[1] = 0.0f;
+    v->vg = 1.0f - RMI_VEL * (1.0f - (float)vel * (1.0f / 127.0f));
+    v->g[0] = v->g[1] = v->g[2] = v->dg[0] = v->dg[1] = v->dg[2] = 0.0f;
 }
 
 static void rmi_cc(uint32_t c, uint32_t v)   /* (until its pages: its stops by CC, the sustain pedal) */
 {
-    const uint32_t b = c == 20u ? RMS_PIANO : c == 21u ? RMS_HARPSI : c == 22u ? RMS_ORGAN : 0u;
     uint32_t i;
-    if (b)
-        rmi.stops = (uint8_t)(v >= 64u ? rmi.stops | b : rmi.stops & ~b);
+    if (c == 20u || c == 21u) {              /* (PIANO, HARPSI: their tablets) */
+        const uint32_t b = 1u << (c == 20u ? RT_PIANO : RT_HARPSI);
+        set.rmi_tabs = (uint8_t)(v >= 64u ? set.rmi_tabs | b : set.rmi_tabs & ~b);
+    }
+    if (c == 22u)
+        set.rmi_organ = v >= 64u;
     if (c == 7u)                             /* (its volume, the faceplate's fader: kept with the settings) */
         set.rvol_off = (uint8_t)(127u - v);
     if (c == 64u) {                          /* the sustain pedal: up, what it held let go */
@@ -110,20 +130,32 @@ static void rmi_cc(uint32_t c, uint32_t v)   /* (until its pages: its stops by C
 /* a block's start (audio interrupt): each voice's levels for the block, a step a sample to them */
 static void rmi_block(void)
 {
+    const uint32_t tb = set.rmi_tabs;        /* the tone tablets down: each layer's level, a PP's softer */
+    const float gv[3] = {(float)(tb >> RT_PIANO & 1u) + RMI_PP * (float)(tb >> RT_PIANO_PP & 1u),
+                         (float)(tb >> RT_HARPSI & 1u) + RMI_PP * (float)(tb >> RT_HARPSI_PP & 1u),
+                         RMI_LUTE * (float)(tb >> RT_LUTE & 1u)};
     uint32_t i;
+    if (set.rmi_bass != rmi.bass) {          /* the BASS slider moved: its boost again (RBJ's peaking EQ, Q 0.9) */
+        const float a = fm_exp2f(((float)set.rmi_bass - 64.0f) * (RMI_BASS_DB / 64.0f / 40.0f) * 3.321928f);
+        const float w = 2.0f * FM_PI * 98.0f / BS2_RATE, al = fm_sinf(w) / 1.8f, cw = fm_cosf(w), a0 = 1.0f + al / a;
+        rmi.bass = set.rmi_bass;
+        rmi.b0 = (1.0f + al * a) / a0, rmi.b1 = -2.0f * cw / a0, rmi.b2 = (1.0f - al * a) / a0;
+        rmi.a1 = -2.0f * cw / a0, rmi.a2 = (1.0f - al / a) / a0;
+    }
     for (i = 0; i < RMI_NV; i++) {
         rmi_voice_t *v = &rmi.v[i];
-        float to[2];
+        float to[3];
         uint32_t s;
         if (v->key == RMI_NK)
             continue;
-        for (s = 0; s < 2u; s++) {           /* (the stop's envelope: its own, or ORGAN MODE's) */
-            const rmi_key_t *e = rmi.stops & RMS_ORGAN ? &RMI_K_ORGAN[v->key] : s ? &RMI_K_HARPSI[v->key]
-                                                                                  : &RMI_K_PIANO[v->key];
-            to[s] = rmi.stops & (s ? RMS_HARPSI : RMS_PIANO) ? rmi_env(e, v->t + APP_BLOCK) : 0.0f;
+        for (s = 0; s < 3u; s++) {           /* (each layer's envelope: its own, or ORGAN MODE's; the lute's the
+                                              * harpsichord's, its cycles' keying) */
+            const rmi_key_t *e = set.rmi_organ ? (s ? &RMI_K_HORGAN[v->key] : &RMI_K_ORGAN[v->key])
+                                 : s ? &RMI_K_HARPSI[v->key] : &RMI_K_PIANO[v->key];
+            to[s] = gv[s] > 0.0f ? gv[s] * v->vg * rmi_env(e, v->t + APP_BLOCK) : 0.0f;
             v->dg[s] = (to[s] - v->g[s]) * (1.0f / APP_BLOCK);
         }
-        if (to[0] + to[1] < 1e-5f && v->g[0] + v->g[1] < 1e-5f)   /* (gone quiet: free) */
+        if (to[0] + to[1] + to[2] < 1e-5f && v->g[0] + v->g[1] + v->g[2] < 1e-5f)   /* (gone quiet: free) */
             v->key = RMI_NK;
     }
 }
@@ -131,7 +163,7 @@ static void rmi_block(void)
 /* the instrument's next sample at level g (audio interrupt), its room send at g too into the FX bus */
 static inline float rmi_next(float g)
 {
-    float s = 0.0f;
+    float s = 0.0f, lute = 0.0f;
     uint32_t i;
     for (i = 0; i < RMI_NV; i++) {
         rmi_voice_t *v = &rmi.v[i];
@@ -148,7 +180,8 @@ static inline float rmi_next(float g)
             const int8_t *d = RMI_PIANO[b].d[0];
             o += v->g[0] * ((float)d[j & (n - 1u)] * (1.0f - f) + (float)d[(j + 1u) & (n - 1u)] * f);
         }
-        if (v->g[1] > 0.0f || v->dg[1] > 0.0f) {   /* the harpsichord: its two, crossfaded from its peak on */
+        if (v->g[1] > 0.0f || v->dg[1] > 0.0f || v->g[2] > 0.0f || v->dg[2] > 0.0f) {   /* the harpsichord: its two,
+                                              * crossfaded from its peak on (the lute's layer too, low-passed after) */
             const uint32_t n = RMI_HARPSI[b].n;
             const float p = (float)(v->ph >> 8) * ((float)n * (1.0f / 16777216.0f));
             const uint32_t j = (uint32_t)p, j1 = (j + 1u) & (n - 1u);
@@ -159,9 +192,20 @@ static inline float rmi_next(float g)
             const float a = (float)d0[j & (n - 1u)] * (1.0f - f) + (float)d0[j1] * f;
             const float c = (float)d1[j & (n - 1u)] * (1.0f - f) + (float)d1[j1] * f;
             o += v->g[1] * (a + (c - a) * w);
+            lute += v->g[2] * v->rel * (a + (c - a) * w);
+        }
+        if (set.rmi_accent && set.rmi_tabs & (1u << RT_HARPSI | 1u << RT_HARPSI_PP | 1u << RT_LUTE)) {   /* ACCENTER: its
+                                              * thump, under the harpsichord or the lute, at the note's start */
+            const uint32_t lo = v->key + RMI_LO <= 46u ? 0u : 1u, j = v->t >> 3;
+            if (j + 1u < RMI_ACC[lo].n) {
+                const float f = (float)(v->t & 7u) * 0.125f;
+                o += 127.0f * RMI_ACC[lo].lvl * v->vg
+                     * ((float)RMI_ACC[lo].d[j] * (1.0f - f) + (float)RMI_ACC[lo].d[j + 1u] * f) * (1.0f / 127.0f);
+            }
         }
         v->g[0] += v->dg[0];
         v->g[1] += v->dg[1];
+        v->g[2] += v->dg[2];
         v->ph += v->inc;
         v->t++;
         if (!v->held) {                      /* (let go: falling) */
@@ -171,7 +215,14 @@ static inline float rmi_next(float g)
         }
         s += o * v->rel;
     }
-    s *= g * (1.0f / 127.0f);
+    rmi.l1 += (lute - rmi.l1) * RMI_LUTE_K;   /* LUTE: its low pass, every voice's lute layer at once */
+    rmi.l2 += (rmi.l1 - rmi.l2) * RMI_LUTE_K;
+    s = (s + rmi.l2) * g * (1.0f / 127.0f);
+    {                                        /* BASS: its boost */
+        const float y = rmi.b0 * s + rmi.b1 * rmi.x1 + rmi.b2 * rmi.x2 - rmi.a1 * rmi.y1 - rmi.a2 * rmi.y2;
+        rmi.x2 = rmi.x1, rmi.x1 = s, rmi.y2 = rmi.y1, rmi.y1 = y;
+        s = y;
+    }
     fx_room_send(s * RMI_SEND);
     return s;
 }

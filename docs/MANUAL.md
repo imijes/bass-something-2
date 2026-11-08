@@ -93,7 +93,7 @@ GLOBAL CONTROLS' KNOBS sets how much they speed up, from FINE to COARSE.
 
 | Button | Page | Again |
 | --- | --- | --- |
-| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash). On HOME, a tap switches to Drum Something and back, the camera panning between their panels. From any other page, a hold switches at once | |
+| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash). On HOME, a tap goes round the three instruments, the camera panning down to the next one's panel: Bass Something 2, Drum Something, Electra-Something 368X, and back. From any other page, a hold switches at once | |
 | SEL | MASTER: the patch, picked, saved and sent | |
 | ENV | ENVELOPES: Env Select (PRESET) and the four faders | TRIGGERING; then the group's mods (velocity, retriggering, fixed sustain) |
 | LFO | PORTA and LFOS: the glide, both LFOs' waves and knobs, the Delay/Speed switch | the group's mods (keysync, Speed/Sync, slew) |
@@ -491,7 +491,7 @@ contains no samples of the original.
 
 ![Drum Something's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "HOME, tapped on HOME")
 
-Tap HOME on HOME to switch between the two instruments. From any other page, hold it for a second. In Drum Something, every button
+Tap HOME on HOME to go round the instruments: Bass Something 2, Drum Something, Electra-Something 368X (see [Electra-Something 368X](#rmi)), and back. From any other page, hold it for a second. In Drum Something, every button
 does a drum job, listed below, and the keys play the drums.
 
 ### Its keys and channels
@@ -635,6 +635,34 @@ Notes play each drum, and the keys and patterns send them too: Bass 36, Rim 37, 
 CCs 33 to 45 set each drum's tuning and 46 to 58 its volume, in the order Bass, Snare, Rim, Tom 1, Tom 2, Crash, Ride, Closed Hat, Open Hat, Claps, Tambourine, Cowbell, Cabasa. MIDI Start and Stop run the drums.
 
 ---
+
+<a id="rmi"></a>
+### Electra-Something 368X
+
+The third instrument, Electra-Something 368X, is after the RMI Electra-piano 368X, the 1970s electronic piano with
+its seven stop tablets: a piano, a harpsichord and a lute, each from its own tone generator per key, polyphonic (eight
+notes at once here). Tap HOME on Drum Something's HOME to reach it. Its HOME has its name, the tone tablets down (with ORGAN MODE and
+ACCENTER when down) and its stop strip down on the keys (the FM-1's keys are its keyboard); between them its notes as they
+ring, each a bar over its key's place as tall as its level, a mark falling slowly from the most it reached.
+
+**ELECTRA PANEL** (SEL; SEL again there moves along the tablets) is the stop strip up close, BASS slider at the left, the tablets, VOL at the right:
+
+| Control | What it does |
+| --- | --- |
+| SEL, PRESET | The tone tablets, as the 368X's: SEL moves the cursor (a cyan outline) along PIANO, PIANO PP, HARPSI, HARPSI PP and LUTE, the panel sliding to it; PRESET turns that tablet on (right) or off (left). Any of them can be down at once, their sounds layered as the 368X layers them: PIANO with HARPSI is its "honky-tonk". PP is pianissimo, very soft: the same tone, about 14 dB down. |
+| K1 · BASS | The bass boost, around 98 Hz: the middle is none, up boosts, down cuts. |
+| K2 · ORGAN MODE | Notes hold while their keys do, with a slow fade, instead of a piano's decay. |
+| K3 · ACCENTER | A thump at the start of each note, as the 368X's keying made it, under the harpsichord and lute voices (the low keys, to A#2, have their own). |
+| K4 · VOL | Its own volume. The FM-1's MASTER knob is the master over all three instruments. |
+
+On its HOME, PRESET and K1 to K4 do the same, the camera zooming in on the panel as they turn. It answers the
+keys' touch (the 368X didn't): the softest note at about a third of the hardest, through GLO CONTROLS' Velocity
+curve. The panel keeps itself with the GLO settings, so SAVE has nothing to do here. MIDI channel
+3 plays it from outside too (CC 7 its volume, CC 64 the sustain pedal), and its keys' notes go out on channel 3.
+
+Its sound is synthesised, each key's tone and decay modelled on recordings of a real 368X; its tail is the room
+Drum Something uses. LUTE is the harpsichord's tone through the 368X's lute filter (a low pass about 1.3 kHz),
+its level set by ear, as is how much softer a PP tablet is: the recordings can't measure those.
 
 ## 7. Patches and saving
 

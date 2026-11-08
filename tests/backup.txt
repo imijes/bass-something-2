@@ -81,6 +81,10 @@ wait 30
 press HOME
 wait 1100
 release HOME
+wait 600
+press HOME
+wait 1100
+release HOME
 wait 2000
 expect drum 0
 turn K4 3

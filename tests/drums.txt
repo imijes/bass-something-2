@@ -105,10 +105,17 @@ expect rsplash 0
 wait 600
 expect mpan 0
 expect page 25
-# and back to the synth, the same way; a button ends it at once; a hold there switches too
+# and on round the modes, the camera panning down to each: the RMI's, then the synth's; a button ends a pan at once; a
+# hold switches too
 tap HOME
 wait 100
 expect drum 0
+expect page 40
+expect mpan 1
+wait 600
+expect mpan 0
+tap HOME
+wait 100
 expect page 16
 expect mpan 1
 wait 600
@@ -124,6 +131,12 @@ wait 30
 tap HOME
 wait 600
 expect drum 0
+expect page 40
+press HOME
+wait 1100
+expect page 16
+release HOME
+wait 600
 press HOME
 wait 1100
 expect drum 1
@@ -142,12 +155,22 @@ expect drum 1
 expect page 25
 expect mpan 0
 wait 600
-# from another page, held: straight to the other's HOME, no pan
+# from another page, held: straight to the next mode's HOME, no pan (the RMI's, then from its panel, SEL, the synth's, then
+# from the synth's EDIT the drums')
 tap GLO
 wait 30
 press HOME
 wait 1100
 expect drum 0
+expect page 40
+expect mpan 0
+release HOME
+wait 30
+tap SEL
+wait 30
+expect page 41
+press HOME
+wait 1100
 expect page 16
 expect mpan 0
 release HOME
@@ -184,7 +207,11 @@ wait 30
 expect dt_hits 6
 key w15 up
 key b10 up
-# HOME held again: the synth's mode, its HOME
+# HOME held again, twice: the RMI's mode, then the synth's, its HOME
+press HOME
+wait 1100
+release HOME
+wait 600
 press HOME
 wait 1100
 release HOME

@@ -243,7 +243,11 @@ shot drum-dive.png
 wait 2000
 expect page 25
 expect dt_sel 12
-# back to the synth: its buttons its own
+# back to the synth (the RMI's mode on the way): its buttons its own
+press HOME
+wait 1100
+release HOME
+wait 600
 press HOME
 wait 1100
 release HOME

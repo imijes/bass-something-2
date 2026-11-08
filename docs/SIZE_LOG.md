@@ -180,3 +180,8 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-07 | 5ca75f0+ | 128 patch slots (four bank pages) and patch names (PATCH NAME mod page) | 479,664 | +1,952 | 101,900 | 78,516 | +96 | 19,788 | 175,344 |
 | 2026-11-07 | d6a6ac3+ | RMI 368X engine, no UI yet (bs2_rmi.c, rmi_tab.h; MIDI ch 3) | 494,268 | +14,604 | 87,296 | 78,852 | +336 | 19,452 | 175,344 |
 | 2026-11-07 | d6a6ac3+ | per-instrument volumes (bass on K1: HOME, MASTER; RMI by CC 7), RMI level | 494,732 | +464 | 86,832 | 78,852 | +0 | 19,452 | 175,344 |
+| 2026-11-07 | 23f62bb+ | RMI mode: RMI HOME, RMI PANEL, RMI MODS (voice, bass boost, organ, accenter, vol, velocity) | 498,544 | +3,812 | 83,020 | 78,916 | +64 | 19,388 | 175,384 |
+| 2026-11-07 | 23f62bb+ | Electra-Something 368X HOME (header, decay bars, strip on the keys), pages from the photos | 499,152 | +608 | 82,412 | 79,188 | +272 | 19,116 | 175,384 |
+| 2026-11-07 | 23f62bb+ | Electra pages from the photos: FRONT2 front panel on HOME, PANEL_CENTER close-up sliding to focus | 500,112 | +960 | 81,452 | 79,188 | +0 | 19,116 | 175,384 |
+| 2026-11-07 | 23f62bb+ | Electra: measured key orders, harpsichord Organ Mode, Accenter | 503,024 | +2,912 | 78,540 | 79,188 | +0 | 19,116 | 175,384 |
+| 2026-11-07 | 23f62bb+ | Electra hybrid: independent tone tablets (SEL cursor, PRESET on/off), PP -14 dB, LUTE filter, layers in phase | 503,272 | +248 | 78,292 | 79,252 | +64 | 19,052 | 175,392 |
