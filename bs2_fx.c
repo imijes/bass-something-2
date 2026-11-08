@@ -1,7 +1,8 @@
 /* The FX bus: one of each effect, shared by every instrument, as a mixer's aux sends into one rack (one room, so its
  * memory once). An instrument sends into an effect after its own level (a post-fader send: fx_room_send) and wakes the
  * bus while it plays (fx_wake); fx_next is the effects' returns, a sample at a time, on the master after the
- * instruments. Each instrument's send shows as its own mod; the effect behind it is the one here. Today: the room. */
+ * instruments. Each instrument's send shows as its own mod; the effect behind it is the one here. Today: the room, and
+ * the Space Echo (bs2_se.c). */
 
 /* The room: a drum's tail is mostly the space it was played in (the 400's own samples had theirs in them), and a
  * resonator ringing on sounds a synth's. So the voices' modes ring short and a small room makes the tail, in real
@@ -26,6 +27,7 @@ static struct {
 #define FX_IDLE ((uint32_t)(2.0f * FX_ROOM_RT * BS2_RATE))   /* the bus asleep after this long unwoken (its tails out) */
 static struct {
     float room;                              /* this sample's sends into the room, summed */
+    float se;                                /* and into the Space Echo (bs2_se.c) */
     uint32_t idle;                           /* samples since an instrument last woke the bus (it stops once quiet) */
 } fx PLAT_POOL;
 
@@ -39,8 +41,9 @@ static void fx_init(void)
     }
     for (i = 0; i < FX_NRL; i++)             /* -60 dB in FX_ROOM_RT: 10^(-3 len / (RT rate)) a pass */
         fx_room.g[i] = fm_exp2f(-3.0f * 3.321928f * (float)FX_RL[i] / (FX_ROOM_RT * BS2_RATE));
-    fx.room = 0.0f;
+    fx.room = 0.0f, fx.se = 0.0f;
     fx.idle = 0xFFFFFFFFu;
+    se_init();
 }
 
 /* an instrument playing (audio interrupt): the bus on until its tails are out */
@@ -81,13 +84,17 @@ static inline float fx_room_next(float x)
     return out * (0.25f * FX_ROOM_WET);
 }
 
-/* the effects' returns, a sample (audio interrupt): the sends taken, the bus left alone while it sleeps */
+/* an instrument's send into the Space Echo, after its level (audio interrupt) */
+static inline void fx_se_send(float x) { fx.se += x; }
+
+/* the effects' returns, a sample (audio interrupt): the sends taken, the room left alone while the bus sleeps (the
+ * echo sleeps on its own: its tail can outlast the bus's) */
 static inline float fx_next(void)
 {
-    float x = fx.room;
-    fx.room = 0.0f;
+    const float x = fx.room, e = se_next(fx.se + SE_TRY * x);
+    fx.room = 0.0f, fx.se = 0.0f;
     if (fx.idle >= FX_IDLE)
-        return 0.0f;
+        return e;
     fx.idle++;
-    return fx_room_next(x);
+    return e + fx_room_next(x);
 }

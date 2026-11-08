@@ -188,3 +188,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-07 | 97af2ba+ | Electra on the second core (rmi_job), two-pass mix | 505,788 | +2,516 | 75,776 | 83,476 | +4,224 | 14,828 | 177,440 |
 | 2026-11-08 | ac3bc9a | fm1-base and felucca-bsp upstream sync (update-2026-11-08) | 507,084 | +1,296 | 74,480 | 83,508 | +32 | 14,796 | 177,440 |
 | 2026-11-08 | ac3bc9a+ | rmi_buf to the pool | 507,084 | +0 | 74,480 | 82,484 | -1,024 | 15,820 | 178,464 |
+| 2026-11-08 | 720ef69+ | Space Echo phase 1: tape core (bs2_se.c), 44.8 KB tape in the pool; CPU0 45/49 (was 41/44) | 508,092 | +1,008 | 73,472 | 82,484 | +0 | 15,820 | 223,296 |

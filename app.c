@@ -540,6 +540,7 @@ static fifo_t ccq;                           /* audio -> main loop: MIDI in's CC
 #define NOTE_ALL_OFF 0xFFu
 #define KEYQ_RMI (1u << 16)                  /* (keyq: a key of the RMI's mode, rmi_note's) */
 static int store_save(uint32_t obj, const void *src, uint32_t len);   /* plat_store_save, told if it is in silence */
+#include "bs2_se.c"                       /* the Space Echo, on the FX bus */
 #include "bs2_fx.c"                       /* the FX bus: one room every instrument sends into (fx_room_send, fx_next) */
 #include "bs2_drum.c"                     /* Drum Something: the drum voices (dt_hit, dt_note, dt_next) */
 #include "bs2_rmi.c"                      /* the RMI 368X, the third instrument (rmi_note, rmi_next) */
