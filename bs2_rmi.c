@@ -235,7 +235,7 @@ static inline float rmi_next(uint32_t *woke)
 
 /* a block of the instrument (the render's job, from after rmi_block: on the second core while the first renders the
  * bass and the drums, else on the first before them), into rmi_buf at level 1 */
-static float rmi_buf[APP_BLOCK];
+static float rmi_buf[APP_BLOCK] PLAT_POOL;
 static volatile uint32_t rmi_woke;           /* a voice sounded in it (the FX bus woken for it) */
 static volatile uint32_t rmi_ticks;          /* how long it took (plat_ticks24's): the second core's load */
 static void rmi_job(uint32_t n)

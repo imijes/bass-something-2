@@ -186,3 +186,5 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-07 | 23f62bb+ | Electra: measured key orders, harpsichord Organ Mode, Accenter | 503,024 | +2,912 | 78,540 | 79,188 | +0 | 19,116 | 175,384 |
 | 2026-11-07 | 23f62bb+ | Electra hybrid: independent tone tablets (SEL cursor, PRESET on/off), PP -14 dB, LUTE filter, layers in phase | 503,272 | +248 | 78,292 | 79,252 | +64 | 19,052 | 175,392 |
 | 2026-11-07 | 97af2ba+ | Electra on the second core (rmi_job), two-pass mix | 505,788 | +2,516 | 75,776 | 83,476 | +4,224 | 14,828 | 177,440 |
+| 2026-11-08 | ac3bc9a | fm1-base and felucca-bsp upstream sync (update-2026-11-08) | 507,084 | +1,296 | 74,480 | 83,508 | +32 | 14,796 | 177,440 |
+| 2026-11-08 | ac3bc9a+ | rmi_buf to the pool | 507,084 | +0 | 74,480 | 82,484 | -1,024 | 15,820 | 178,464 |
