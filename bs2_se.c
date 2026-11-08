@@ -28,12 +28,13 @@
 #define SE_LEN 23120u                        /* the tape: head 3 at its slowest (504 ms), WOW's 4 %, the Hermite's 3 */
 #define SE_STEP 32u                          /* the motor, the wobble and the filters, worked out every this many samples */
 #define SE_SPRINGS 3u                        /* the spring tank's */
-#define SE_SP_LEN 1760u                      /* a spring's loop, at most */
+#define SE_SP_RATE (0.5f * BS2_RATE)         /* the spring's own rate: all it says is under 2 kHz, so half (half the work) */
+#define SE_SP_LEN 880u                       /* a spring's loop, at most */
 #define SE_SP_AP 12u                         /* the stretched allpasses before the springs */
 #define SE_SP_A 0.6f                         /* their coefficient (and the loops') */
 #define SE_SP_G 1.059f                       /* a round trip's gain: with the loop's filters, 0.912 at 1 kHz (2.9 s
                                               * to -60 dB at 38.5 ms, measured), and under it everywhere */
-#define SE_SP_DAMP 0.35f                     /* the loops' damping, a one-pole's step (3 kHz) */
+#define SE_SP_DAMP 0.5775f                   /* the loops' damping, a one-pole's step (3 kHz) */
 #define SE_SP_LOW_HZ 400.0f                  /* and their low cut, a one-pole */
 #define SE_SP_GAIN 1.9f                      /* REVERB VOLUME 10's level (Outer Space 2's) */
 #define SE_SP_IDLE (uint32_t)(4.0f * BS2_RATE)   /* the spring asleep this long after its input stops (its tail out) */
@@ -47,14 +48,15 @@ typedef struct {
     float b0, b1, b2, a1, a2, s1, s2;        /* a biquad, transposed direct form II */
 } se_bq_t;
 
-static const uint16_t SE_SP_D[SE_SPRINGS] = {1663, 1698, 1741};   /* the springs' round trips, samples (37.7..39.5 ms) */
-static const uint16_t SE_SP_T[SE_SPRINGS] = {300, 520, 700};      /* where each is first heard (7, 12, 16 ms) */
+static const uint16_t SE_SP_D[SE_SPRINGS] = {832, 849, 870};     /* the springs' round trips, its samples (37.7..39.5 ms) */
+static const uint16_t SE_SP_T[SE_SPRINGS] = {150, 260, 350};      /* where each is first heard (7, 12, 16 ms) */
 static struct {
     float line[SE_SPRINGS][SE_SP_LEN];
-    float ap[SE_SP_AP][2], lap[SE_SPRINGS][2][2], damp[SE_SPRINGS], low[SE_SPRINGS], lowx[SE_SPRINGS];
+    float ap[SE_SP_AP], lap[SE_SPRINGS][2], damp[SE_SPRINGS], low[SE_SPRINGS], lowx[SE_SPRINGS];
+    float x0, y0;                            /* the pair's first input; the last output (the rate halved, then doubled) */
     se_bq_t hp, lp, ohp, olp;                /* the band passes in and out */
     uint32_t w, idle;                        /* the springs' write; samples since the spring last had input */
-    uint32_t ph;                             /* the allpasses' phase (z^-2: two states each) */
+    uint32_t odd;                            /* the pair's first sample taken */
 } se_sp PLAT_POOL;
 
 static int16_t se_tape[SE_LEN] PLAT_POOL;
@@ -126,16 +128,16 @@ static void se_init(void)
     for (i = 0; i < SE_SPRINGS * SE_SP_LEN; i++)
         se_sp.line[0][i] = 0.0f;
     for (i = 0; i < SE_SP_AP; i++)
-        se_sp.ap[i][0] = se_sp.ap[i][1] = 0.0f;
+        se_sp.ap[i] = 0.0f;
     for (i = 0; i < SE_SPRINGS; i++)
-        se_sp.lap[i][0][0] = se_sp.lap[i][0][1] = se_sp.lap[i][1][0] = se_sp.lap[i][1][1] = se_sp.damp[i] = 0.0f,
+        se_sp.lap[i][0] = se_sp.lap[i][1] = se_sp.damp[i] = 0.0f,
         se_sp.low[i] = se_sp.lowx[i] = 0.0f;
     se_sp.hp = se_sp.lp = se_sp.ohp = se_sp.olp = (se_bq_t){0};
-    se_bq_set(&se_sp.hp, 4, 500.0f, 0.7f, 0.0f, BS2_RATE);
-    se_bq_set(&se_sp.lp, 0, 1600.0f, 0.7f, 0.0f, BS2_RATE);
-    se_bq_set(&se_sp.ohp, 4, 500.0f, 0.7f, 0.0f, BS2_RATE);
-    se_bq_set(&se_sp.olp, 0, 1600.0f, 0.7f, 0.0f, BS2_RATE);
-    se_sp.w = 0, se_sp.idle = SE_SP_IDLE, se_sp.ph = 0;
+    se_bq_set(&se_sp.hp, 4, 500.0f, 0.7f, 0.0f, SE_SP_RATE);
+    se_bq_set(&se_sp.lp, 0, 1600.0f, 0.7f, 0.0f, SE_SP_RATE);
+    se_bq_set(&se_sp.ohp, 4, 500.0f, 0.7f, 0.0f, SE_SP_RATE);
+    se_bq_set(&se_sp.olp, 0, 1600.0f, 0.7f, 0.0f, SE_SP_RATE);
+    se_sp.w = 0, se_sp.idle = SE_SP_IDLE, se_sp.odd = 0, se_sp.x0 = se_sp.y0 = 0.0f;
     se.m = se.d = se_target(), se.dv = 0.0f;
     se.h1 = se.h2 = se.hx = se.hx2 = 0.0f;
     se.lp = se.lo = se.hi = se.nw = se.nf = se.nw2 = se.nf2 = (se_bq_t){0};
@@ -196,11 +198,10 @@ static void se_sp_flush(void)
 {
     uint32_t k;
     for (k = 0; k < SE_SP_AP; k++)
-        se_sp.ap[k][0] = fm_flush(se_sp.ap[k][0]), se_sp.ap[k][1] = fm_flush(se_sp.ap[k][1]);
+        se_sp.ap[k] = fm_flush(se_sp.ap[k]);
     for (k = 0; k < SE_SPRINGS; k++) {
         se_sp.damp[k] = fm_flush(se_sp.damp[k]), se_sp.low[k] = fm_flush(se_sp.low[k]);
-        se_sp.lap[k][0][0] = fm_flush(se_sp.lap[k][0][0]), se_sp.lap[k][0][1] = fm_flush(se_sp.lap[k][0][1]);
-        se_sp.lap[k][1][0] = fm_flush(se_sp.lap[k][1][0]), se_sp.lap[k][1][1] = fm_flush(se_sp.lap[k][1][1]);
+        se_sp.lap[k][0] = fm_flush(se_sp.lap[k][0]), se_sp.lap[k][1] = fm_flush(se_sp.lap[k][1]);
     }
     se_sp.hp.s1 = fm_flush(se_sp.hp.s1), se_sp.hp.s2 = fm_flush(se_sp.hp.s2);
     se_sp.lp.s1 = fm_flush(se_sp.lp.s1), se_sp.lp.s2 = fm_flush(se_sp.lp.s2);
@@ -214,36 +215,51 @@ static void se_sp_flush(void)
  * stretched allpasses in each loop and a chain of them before smear every pass into the spring's chirp (Valimaki, Parker
  * and Abel, "Parametric spring reverberation effect", 2010: an allpass in z^-2, many in a row), a one-pole in each loop
  * the springs' damping, and band passes in and out its narrow band (500 Hz..2 kHz, measured). */
-static inline float se_ap2(float *r, float x)  /* (a + z^-2) / (1 + a z^-2): its two states, the sample's phase */
+static inline float se_ap(float *r, float x)   /* (a + z^-1) / (1 + a z^-1) at the spring's rate: z^-2 at the app's */
 {
-    const float o = r[se_sp.ph], v = x - SE_SP_A * o;
-    r[se_sp.ph] = v;
+    const float o = *r, v = x - SE_SP_A * o;
+    *r = v;
     return SE_SP_A * v + o;
 }
 
-static inline float se_spring_next(float x)
+/* a sample at the spring's rate */
+static inline float se_spring_run(float x)
 {
-    const float la = 1.0f / (1.0f + 6.2831853f * SE_SP_LOW_HZ / BS2_RATE);
+    const float la = 1.0f / (1.0f + 6.2831853f * SE_SP_LOW_HZ / SE_SP_RATE);
     uint32_t k;
     float out = 0.0f;
     x = se_bq(&se_sp.lp, se_bq(&se_sp.hp, x));
     for (k = 0; k < SE_SP_AP; k++)
-        x = se_ap2(se_sp.ap[k], x);
+        x = se_ap(&se_sp.ap[k], x);
     for (k = 0; k < SE_SPRINGS; k++) {
         float *l = se_sp.line[k];
         const uint32_t w = se_sp.w, rd = w >= SE_SP_D[k] ? w - SE_SP_D[k] : w + SE_SP_LEN - SE_SP_D[k];
         const uint32_t t = w >= SE_SP_T[k] ? w - SE_SP_T[k] : w + SE_SP_LEN - SE_SP_T[k];
-        const float fb = se_ap2(se_sp.lap[k][1], se_ap2(se_sp.lap[k][0], l[rd]));
+        const float fb = se_ap(&se_sp.lap[k][1], se_ap(&se_sp.lap[k][0], l[rd]));
         se_sp.damp[k] += (fb - se_sp.damp[k]) * SE_SP_DAMP;
         se_sp.low[k] = la * (se_sp.low[k] + se_sp.damp[k] - se_sp.lowx[k]), se_sp.lowx[k] = se_sp.damp[k];
         l[w] = x + SE_SP_G * se_sp.low[k];
         out += l[t];
     }
     se_sp.w = se_sp.w + 1u >= SE_SP_LEN ? 0u : se_sp.w + 1u;
-    se_sp.ph ^= 1u;
     if (!(se_sp.w & (SE_STEP - 1u)))
         se_sp_flush();
     return se_bq(&se_sp.olp, se_bq(&se_sp.ohp, out));
+}
+
+/* the spring's next sample, from the input x: a pair's average in at half the rate, straight lines between its outputs
+ * (its band passes the anti-aliasing and the smoothing: 1.6 kHz, far under the half rate's 11 kHz) */
+static inline float se_spring_next(float x)
+{
+    float y;
+    if ((se_sp.odd ^= 1u) != 0u) {
+        se_sp.x0 = x;
+        return se_sp.y0;
+    }
+    y = se_spring_run(0.5f * (se_sp.x0 + x));
+    x = 0.5f * (se_sp.y0 + y);
+    se_sp.y0 = y;
+    return x;
 }
 
 /* the tape's next sample, from the input x (INPUT's gain on it) (audio interrupt) */
