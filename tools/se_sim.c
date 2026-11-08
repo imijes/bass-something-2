@@ -37,14 +37,20 @@ static void wav(const char *dir, const char *name, const float *x, uint32_t n)
     fclose(f);
 }
 
-/* the knobs, the motor run in from the middle for 6 s (as the reference's renders), then x through it */
-static void run(const char *dir, const char *name, uint8_t mode, float rate, float inten, int dry, uint32_t n,
-                float (*src)(uint32_t), int glide)
+typedef struct {
+    uint8_t mode;
+    float rate, inten, input, bass, treble, wow;
+} knobs_t;
+
+/* the knobs (the rest at 5, WOW off unless asked), then x through it; glide: REPEAT RATE 0 -> 10 at 5 s, back at 15 s */
+static void run(const char *dir, const char *name, knobs_t k, int dry, uint32_t n, float (*src)(uint32_t), int glide)
 {
     uint32_t i;
     se_init();
-    se.mode = (uint8_t)(mode - 1u), se.intensity = inten, se.echo = 0.5f;
-    se.rate = glide ? 0.0f : rate, se.d = se_target();
+    se.mode = (uint8_t)(k.mode - 1u), se.intensity = k.inten, se.echo = 0.5f, se.wow = k.wow;
+    se.input = k.input ? k.input : 0.5f, se.bass = k.bass ? k.bass : 0.5f, se.treble = k.treble ? k.treble : 0.5f;
+    se.rate = glide ? 0.0f : k.rate, se.m = se.d = se_target();
+    se_lp_set(se.m);
     for (i = 0; i < n; i++) {
         const float t = (float)i / (float)SR, x = src(i);
         if (glide)
@@ -56,6 +62,13 @@ static void run(const char *dir, const char *name, uint8_t mode, float rate, flo
 
 static float impulse(uint32_t i) { return i == SR / 2u ? 0.5f : 0.0f; }
 static float sine1k(uint32_t i) { return i >= SR / 2u ? 0.125893f * sinf(6.2831853f * 1000.0f * (float)i / SR) : 0.0f; }
+static float sweep(uint32_t i)               /* 1 s silence, 10 s exponential sweep 20 Hz..20 kHz at -18 dBFS */
+{
+    const double T = 10.0, k = log(1000.0), t = (double)i / SR - 1.0;
+    if (t < 0.0 || t >= T)
+        return 0.0f;
+    return (float)(0.125893 * sin(6.283185307 * 20.0 * T / k * (exp(k * t / T) - 1.0)));
+}
 static float steps(uint32_t i)               /* 200 Hz, -36..0 dBFS in 3 dB steps: 0.5 s on, 0.25 s off, from 0.5 s */
 {
     const float t = (float)i / SR - 0.5f;
@@ -68,16 +81,26 @@ static float steps(uint32_t i)               /* 200 Hz, -36..0 dBFS in 3 dB step
 int main(int argc, char **argv)
 {
     const char *d = argc > 1 ? argv[1] : ".";
-    run(d, "SE 01 Heads slow", 11, 0.0f, 0.0f, 1, SR * 8, impulse, 0);
-    run(d, "SE 02 Heads mid", 11, 0.5f, 0.0f, 1, SR * 8, impulse, 0);
-    run(d, "SE 03 Heads fast", 11, 1.0f, 0.0f, 1, SR * 8, impulse, 0);
-    run(d, "SE 08 Drive normal", 1, 0.5f, 0.0f, 0, SR * 12, steps, 0);
-    run(d, "SE 10 Intensity 3", 1, 1.0f, 0.3f, 0, SR * 18, impulse, 0);
-    run(d, "SE 11 Intensity 5", 1, 1.0f, 0.5f, 0, SR * 18, impulse, 0);
-    run(d, "SE 12 Intensity 6", 1, 1.0f, 0.6f, 0, SR * 18, impulse, 0);
-    run(d, "SE 13 Intensity 7", 1, 1.0f, 0.7f, 0, SR * 18, impulse, 0);
-    run(d, "SE 14 Runaway", 1, 0.5f, 0.85f, 0, SR * 18, impulse, 0);
-    run(d, "SE 19 Motor glide", 1, 0.0f, 0.0f, 0, SR * 27, sine1k, 1);
+#define K(...) ((knobs_t){__VA_ARGS__})
+    run(d, "SE 01 Heads slow", K(11, 0.0f, 0.0f), 1, SR * 8, impulse, 0);
+    run(d, "SE 02 Heads mid", K(11, 0.5f, 0.0f), 1, SR * 8, impulse, 0);
+    run(d, "SE 03 Heads fast", K(11, 1.0f, 0.0f), 1, SR * 8, impulse, 0);
+    run(d, "SE 04 Wow flutter", K(1, 0.5f, 0.0f, .wow = 0.1f), 0, SR * 14, sine1k, 0);
+    run(d, "SE 04b Wow flutter 3", K(1, 0.5f, 0.0f, .wow = 0.3f), 0, SR * 14, sine1k, 0);
+    run(d, "SE 04c Wow flutter 10", K(1, 0.5f, 0.0f, .wow = 1.0f), 0, SR * 14, sine1k, 0);
+    run(d, "SE 05 Tape slow", K(1, 0.0f, 0.0f), 0, SR * 15, sweep, 0);
+    run(d, "SE 06 Tape mid", K(1, 0.5f, 0.0f), 0, SR * 15, sweep, 0);
+    run(d, "SE 07 Tape fast", K(1, 1.0f, 0.0f), 0, SR * 15, sweep, 0);
+    run(d, "SE 08 Drive normal", K(1, 0.5f, 0.0f), 0, SR * 12, steps, 0);
+    run(d, "SE 09 Drive hot", K(1, 0.5f, 0.0f, .input = 1.0f), 0, SR * 12, steps, 0);
+    run(d, "SE 10 Intensity 3", K(1, 1.0f, 0.3f), 0, SR * 18, impulse, 0);
+    run(d, "SE 11 Intensity 5", K(1, 1.0f, 0.5f), 0, SR * 18, impulse, 0);
+    run(d, "SE 12 Intensity 6", K(1, 1.0f, 0.6f), 0, SR * 18, impulse, 0);
+    run(d, "SE 13 Intensity 7", K(1, 1.0f, 0.7f), 0, SR * 18, impulse, 0);
+    run(d, "SE 14 Runaway", K(1, 0.5f, 0.85f, .wow = 0.1f), 0, SR * 18, impulse, 0);
+    run(d, "SE 16 EQ max", K(1, 0.5f, 0.0f, .bass = 1.0f, .treble = 1.0f), 0, SR * 15, sweep, 0);
+    run(d, "SE 17 EQ min", K(1, 0.5f, 0.0f, .bass = 1e-6f, .treble = 1e-6f), 0, SR * 15, sweep, 0);
+    run(d, "SE 19 Motor glide", K(1, 0.0f, 0.0f), 0, SR * 27, sine1k, 1);
     printf("wrote the SE tests to %s\n", d);
     return 0;
 }

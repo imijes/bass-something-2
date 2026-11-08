@@ -76,8 +76,10 @@ noise or drops, everything else at Init.
   the same rate and meet.
 - **Bass/Treble range:** the plugin goes to about **±20 dB** (at 100 Hz and 5 kHz), but Roland's spec says ±10 dB.
   - **Decision:** ±10 dB, unless it sounds too tame.
-- **Wow and flutter** (the plugin's default, 10%): **0.13% rms, 0.18% peak**, strongest at 1–2.7 Hz (wow) and
-  about 6.7 Hz (flutter).
+- **Wow and flutter:** the first figure here (0.13%) was wrong: it was the resolution of a coarse FFT. Measured
+  properly, it's **0.012% rms** at the plugin's default (10%), and the knob goes with its square: 0.11% at 30%,
+  0.49% at 60%, 1.33% at full. The wobble is random, spread over 1–7 Hz, with about a third of its power below
+  4 Hz (wow) and two thirds above (flutter).
 - **Spring** (long decay), in two types:
   - **Dark:** centroid 1.3 kHz, a 7 ms onset, RT60 about 2.3 s.
   - **Bright:** centroid 3.2 kHz, RT60 about 2.9 s.
