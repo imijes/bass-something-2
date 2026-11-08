@@ -77,6 +77,12 @@ static void rmi_note(uint32_t note, uint32_t vel)
 {
     uint32_t i, k = note - RMI_LO;
     rmi_voice_t *v = 0;
+    if (note == NOTE_ALL_OFF) {              /* (the octave changed: no key's note-off would find its note) */
+        for (i = 0; i < RMI_NV; i++)
+            if (rmi.v[i].held == 1u)
+                rmi.v[i].held = rmi.sustain ? 2u : 0u;
+        return;
+    }
     if (note < RMI_LO || k >= RMI_NK)
         return;
     if (!vel) {

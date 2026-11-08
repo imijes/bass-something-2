@@ -1823,7 +1823,8 @@ static void octave_step(int32_t d)
     char t[4];
     if (o == set.octave)
         return;
-    fifo_put(&keyq, NOTE_ALL_OFF);           /* a key held across the change would not find its note off */
+    fifo_put(&keyq, NOTE_ALL_OFF | (ui.rmi ? KEYQ_RMI : 0u));   /* a key held across the change would not find its
+                                              * note off: the keys' instrument's (the RMI's leaves the bass's arp alone) */
     set.octave = (int8_t)o;
     set_dirty = 1;
     octave_text(t);
