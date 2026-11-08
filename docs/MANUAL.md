@@ -4,8 +4,8 @@ Bass Something 2 turns the M-VAVE FM-1 into a monosynth inspired by the Novation
 and a sub, a ring modulator and noise. The filter is Classic (low, band or high pass at 24 or 12 dB) or Acid (a
 diode ladder), with drive and distortion. It has a mod envelope, an amp envelope, two LFOs, the Bass Station II's 32
 arp rhythms with its 32-step sequencer (four sequences) and 128 named patches, as many as a Bass Station II holds. Patches go to and from a Bass Station II editor as SysEx. Everything
-shows on the FM-1's screen as a small Bass Station II front panel, and MIDI goes in and out over USB, Bluetooth and
-TRS.
+shows on the FM-1's screen as a small Bass Station II front panel. MIDI comes in over USB, Bluetooth and TRS, and
+goes out over USB and Bluetooth.
 
 It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of its patches as seeds with their locks
 (type, key, tracks), sends them back, and mixes its four tracks (see [RND Synth](#s9)).
@@ -964,10 +964,11 @@ every two beats; dashes until then) with the clock's state beside it, GLOBAL DUM
 firmware's version (VERSION v0.7). The on/off settings are slide switches.
 
 On every GLO page, the right of the page's own bar shows the audio's load (for a moment after a change, what changed
-instead), for example **CPU 34/41**. The first number is the
+instead), for example **CPU0 34/41**. The first number is the
 load now, as a percentage of the time the FM-1 has to make each block of sound. The second is the highest it reached
-in the last five seconds. If the sound ever misses its deadline (a dropout, heard as a click), a count follows in
-cyan, for example **CPU 97/100 !2**, and stays until the FM-1 is switched off. A click without the count going up came
+in the last five seconds. **CPU1** under it is the FM-1's second core, which makes the Electra-Something's sound
+beside the first (**CPU1 OFF**: one core is doing it all). If the sound ever misses its deadline (a dropout, heard as
+a click), a count follows in cyan, for example **CPU0 97/100 !2**, and stays until the FM-1 is switched off. A click without the count going up came
 from something else. A write to memory (SAVE, a patch change, and the sequence and GLO settings keeping themselves) holds
 up the sound for a moment. In silence nothing is heard and it isn't counted; while something is sounding, it counts.
 
@@ -1128,8 +1129,12 @@ receive and as its MIDI output to send.
 the FM-1's MIDI port. If it still isn't found, the installer lists the computer's other MIDI ports to try: a Mac can
 show the FM-1 under another name.
 
-**The FM-1 doesn't start after an install:** after two failed starts it waits in the chip's update mode. Put the stock
-firmware back, then install again. For details, see felucca-bsp's `tools/fm1_rescue.sh`.
+**The FM-1 doesn't start after an install:** after two failed starts it starts in SAFE MODE, with no sound. Press
+PLAY to try the firmware again. If safe mode also fails twice, the FM-1 drops into the chip's own update mode: put the
+stock firmware back, then install again. For details, see felucca-bsp's `tools/fm1_rescue.sh`.
+
+**Update mode by hand:** hold REC while you switch the FM-1 on. With m-bootloader installed, that shows its menu.
+Without it, REC starts the chip's own update mode, which only the rescue tool can reach.
 
 ---
 

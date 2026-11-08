@@ -1044,6 +1044,7 @@ static inline float out_soft(float s)
         return s < 0.0f ? -y : y;
     }
 }
+static uint32_t cpu2_q12;                    /* the second core's load, in 1/4096 of a block (cpu_meter) */
 static float mix_pre[APP_BLOCK] PLAT_POOL, mix_send[APP_BLOCK] PLAT_POOL;   /* a block's samples and room sends before
                                               * the RMI's */
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
@@ -1246,7 +1247,10 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         }
     }
     if (c2 && plat_cpu2_wait() != 0)         /* (given up: the job dropped, so here) */
-        rmi_job(n);
+        rmi_job(n), c2 = 0;
+    cpu2_q12 = c2 ? (cpu2_q12 * 15u + (uint32_t)((float)rmi_ticks * 4096.0f * BS2_RATE
+                                             / ((float)n * (float)PLAT_TICKS_PER_US * 1e6f)) + 8u) / 16u
+                  : 0u;                      /* (the second core's load, smoothed as the platform's: about 16 blocks) */
     {                                        /* the RMI: as the drums, after the bass's chain, under its own volume (MASTER
                                               * across the block as it went); then the FX bus's returns, on the master */
         const float rv = RMI_MIX * 0.3f * (float)(127u - set.rvol_off) * (1.0f / 127.0f), dg = (gain_now - g0) / (float)n;
@@ -5686,6 +5690,7 @@ static void seg_display(int32_t x, int32_t y, const char *t, uint32_t n)
         seg7(x + 9 + 22 * (int32_t)i, y + 11, t[i]);
 }
 static void cpu_text(char *t);
+static void cpu2_text(char *t);
 /* GLOBAL: the Bass Station II's Function settings, on the FM-1 a section of their own. Its bar, the page's own bar
  * under it at the left; at the right the audio's load (cpu_text: for testing), or what was just done while it's said */
 static void section_frame(const char *bar, const char *name, const char *right, uint16_t rc)
@@ -5707,6 +5712,10 @@ static void glo_frame(const char *name)
     char t[24];
     cpu_text(t);
     section_frame("GLOBAL", name, t, xruns_shown() ? P_CYAN : P_DIM);
+    if (plat_ms() >= ui.msg_until) {         /* (the second core's under it) */
+        cpu2_text(t);
+        cv_text(232 - text_w(&FONT_XS, t), 33, &FONT_XS, t, P_DIM);
+    }
 }
 /* the RND pages' (bs2_rnd.c): the RND SYNTH COMPANION bar; at the right the synth's firmware once it has answered */
 static void rnd_frame_draw(const char *name)   /* at the right: the seed playing on the synth, once it has said */
@@ -6321,31 +6330,37 @@ static void scope_frame(void)                /* the scope alone, over HOME as it
  * the most of the last 5 s, then "!n" after any dropout since boot (the audio missed its deadline: a click) */
 #define CPU_NOW_MS 250u
 #define CPU_PEAK_MS 5000u
-static uint32_t cpu_now, cpu_peak;
-static int cpu_meter(uint32_t now)           /* a frame: 1 when the numbers shown changed */
+static uint32_t cpu_now, cpu_peak, cpu2_now, cpu2_peak;   /* the first core's, the second's (the RMI's block) */
+static void cpu_win(uint32_t c, uint32_t now, uint32_t *win, uint32_t *at, uint32_t *peak_at, uint32_t *n, uint32_t *pk)
 {
-    static uint32_t win, win_at, peak_at, shown;
-    uint32_t c = plat_cpu_pct(), was = cpu_now | cpu_peak << 8 | (xruns_shown() & 0xFFFFu) << 16;
-    win = c > win ? c : win;
-    if (now - win_at >= CPU_NOW_MS) {
-        cpu_now = win;
-        win = 0;
-        win_at = now;
-        if (cpu_now >= cpu_peak || now - peak_at >= CPU_PEAK_MS) {
-            cpu_peak = cpu_now;
-            peak_at = now;
+    *win = c > *win ? c : *win;
+    if (now - *at >= CPU_NOW_MS) {
+        *n = *win;
+        *win = 0;
+        *at = now;
+        if (*n >= *pk || now - *peak_at >= CPU_PEAK_MS) {
+            *pk = *n;
+            *peak_at = now;
         }
     }
-    if (was == shown)
+}
+static int cpu_meter(uint32_t now)           /* a frame: 1 when the numbers shown changed */
+{
+    static uint32_t win, win_at, peak_at, win2, win2_at, peak2_at, shown, shown2;
+    uint32_t was = cpu_now | cpu_peak << 8 | (xruns_shown() & 0xFFFFu) << 16, was2 = cpu2_now | cpu2_peak << 8;
+    cpu_win(plat_cpu_pct(), now, &win, &win_at, &peak_at, &cpu_now, &cpu_peak);
+    cpu_win((cpu2_q12 * 100u + 2048u) >> 12, now, &win2, &win2_at, &peak2_at, &cpu2_now, &cpu2_peak);
+    if (was == shown && was2 == shown2)
         return 0;
     shown = was;
+    shown2 = was2;
     return 1;
 }
-static void cpu_text(char *t)                /* "CPU 34/41", "CPU 34/41 !2" */
+static void cpu_text(char *t)                /* "CPU0 34/41", "CPU0 34/41 !2": the first core */
 {
     char n[12];
     t[0] = 0;
-    text_cat(t, "CPU ");
+    text_cat(t, "CPU0 ");
     int_text((int32_t)cpu_now, n);
     text_cat(t, n);
     text_cat(t, "/");
@@ -6356,6 +6371,21 @@ static void cpu_text(char *t)                /* "CPU 34/41", "CPU 34/41 !2" */
         int_text((int32_t)(xruns_shown() > 999u ? 999u : xruns_shown()), n);
         text_cat(t, n);
     }
+}
+static void cpu2_text(char *t)               /* "CPU1 30/32", "CPU1 OFF" (one core): the second core */
+{
+    char n[12];
+    t[0] = 0;
+    text_cat(t, "CPU1 ");
+    if (!plat_cpu2_on()) {
+        text_cat(t, "OFF");
+        return;
+    }
+    int_text((int32_t)cpu2_now, n);
+    text_cat(t, n);
+    text_cat(t, "/");
+    int_text((int32_t)cpu2_peak, n);
+    text_cat(t, n);
 }
 
 /* HOME: the Bass Station II's whole front panel to the footer keys' scale: they are its keys and its wheels (from the
