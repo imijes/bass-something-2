@@ -166,8 +166,9 @@ static void rmi_block(void)
     }
 }
 
-/* the instrument's next sample at level g (audio interrupt), its room send at g too into the FX bus */
-static inline float rmi_next(float g)
+/* the instrument's next sample at level 1 (rmi_job's: on the second core when there is one, so it touches nothing
+ * the first core's render does: its room send and the FX bus's wake are the render's, from its sample and *woke) */
+static inline float rmi_next(uint32_t *woke)
 {
     float s = 0.0f, lute = 0.0f;
     uint32_t i;
@@ -177,7 +178,7 @@ static inline float rmi_next(float g)
         float o = 0.0f;
         if (v->key == RMI_NK)
             continue;
-        fx_wake();
+        *woke = 1;
         if (v->g[0] > 0.0f || v->dg[0] > 0.0f) {   /* the piano: its band's cycle */
             const uint32_t n = RMI_PIANO[b].n;
             const float p = (float)(v->ph >> 8) * ((float)n * (1.0f / 16777216.0f));
@@ -223,12 +224,23 @@ static inline float rmi_next(float g)
     }
     rmi.l1 += (lute - rmi.l1) * RMI_LUTE_K;   /* LUTE: its low pass, every voice's lute layer at once */
     rmi.l2 += (rmi.l1 - rmi.l2) * RMI_LUTE_K;
-    s = (s + rmi.l2) * g * (1.0f / 127.0f);
+    s = (s + rmi.l2) * (1.0f / 127.0f);
     {                                        /* BASS: its boost */
         const float y = rmi.b0 * s + rmi.b1 * rmi.x1 + rmi.b2 * rmi.x2 - rmi.a1 * rmi.y1 - rmi.a2 * rmi.y2;
         rmi.x2 = rmi.x1, rmi.x1 = s, rmi.y2 = rmi.y1, rmi.y1 = y;
         s = y;
     }
-    fx_room_send(s * RMI_SEND);
     return s;
+}
+
+/* a block of the instrument (the render's job, from after rmi_block: on the second core while the first renders the
+ * bass and the drums, else on the first before them), into rmi_buf at level 1 */
+static float rmi_buf[APP_BLOCK];
+static volatile uint32_t rmi_woke;           /* a voice sounded in it (the FX bus woken for it) */
+static void rmi_job(uint32_t n)
+{
+    uint32_t i, w = 0;
+    for (i = 0; i < n; i++)
+        rmi_buf[i] = rmi_next(&w);
+    rmi_woke = w;
 }

@@ -1044,8 +1044,12 @@ static inline float out_soft(float s)
         return s < 0.0f ? -y : y;
     }
 }
+static float mix_pre[APP_BLOCK] PLAT_POOL, mix_send[APP_BLOCK] PLAT_POOL;   /* a block's samples and room sends before
+                                              * the RMI's */
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
+    int c2 = 1;                              /* the RMI's block on the second core */
+    float g0;                                /* MASTER at the block's start */
     static uint32_t rng = 1u;                /* the noise's */
     static uint32_t scope_ph;                /* (the scope's every 4th) */
     static afx_t ax;                         /* AFX: the last key's (read at a block's start), or none */
@@ -1072,9 +1076,18 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     float dsum = 0.0f, dabs = 0.0f;
 #endif
     plat_usb_audio_route(patch.lvl_ext != 0u);   /* (from the next render) */
+    if (n > APP_BLOCK) {                     /* (rmi_buf's block at most: the rest as another) */
+        app_render(lr, APP_BLOCK, master_q12);
+        app_render(lr + 2u * APP_BLOCK, n - APP_BLOCK, master_q12);
+        return;
+    }
     midi_in();
     dt_block();
     rmi_block();
+    if (!(plat_cpu2_on() && plat_cpu2_run(rmi_job, n)))   /* the RMI's block: the second core's while the bass and
+                                              * the drums are made here, else first, here */
+        rmi_job(n), c2 = 0;
+    g0 = gain_now;
     dq_block();
     if (!afx_on)
         ax = (afx_t){-1, 0, 0, 0};
@@ -1164,7 +1177,6 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 #endif
         for (j = 0; j < m; j++) {
             float s, o1, o2;
-            int32_t *o = lr + 2u * (i + j);
             uint32_t wrap = (voice.phase += inc) >= 1.0f;
             gain_now += (gain - gain_now) * 0.004f;                  /* ~5 ms: turning MASTER does not click */
             vel_now += (voice.vel - vel_now) * 0.004f;
@@ -1227,13 +1239,26 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                 float g = DT_MIX * 0.3f * gain_now * ((float)dt.master / 127.0f);   /* the drums: after the bass's chain, over
                                                   * its level (hits, it sustains), under their own MASTER VOLUME (K2) */
                 s += dt_next(g) + dq_click_next() * g;
-                s += rmi_next(RMI_MIX * 0.3f * gain_now * (float)(127u - set.rvol_off) * (1.0f / 127.0f));   /* the RMI: as
-                                                  * the drums, after the bass's chain, under its own volume */
             }
-            s += fx_next();                  /* the FX bus's returns, on the master */
-            s = out_soft(s);
-            o[0] = (int32_t)s;
-            o[1] = (int32_t)s;
+            mix_pre[i + j] = s;              /* (the RMI's yet to come: the sample and its room sends kept till then) */
+            mix_send[i + j] = fx.room;
+            fx.room = 0.0f;
+        }
+    }
+    if (c2 && plat_cpu2_wait() != 0)         /* (given up: the job dropped, so here) */
+        rmi_job(n);
+    {                                        /* the RMI: as the drums, after the bass's chain, under its own volume (MASTER
+                                              * across the block as it went); then the FX bus's returns, on the master */
+        const float rv = RMI_MIX * 0.3f * (float)(127u - set.rvol_off) * (1.0f / 127.0f), dg = (gain_now - g0) / (float)n;
+        const uint32_t woke = rmi_woke;
+        for (i = 0; i < n; i++) {
+            const float r = rmi_buf[i] * rv * (g0 + dg * (float)i);
+            float s;
+            if (woke)
+                fx_wake();
+            fx_room_send(mix_send[i] + r * RMI_SEND);
+            s = out_soft(mix_pre[i] + r + fx_next());
+            lr[2u * i] = lr[2u * i + 1u] = (int32_t)s;
         }
     }
 #ifdef PLAT_HOST
@@ -1614,6 +1639,8 @@ void app_init(void)
     rmi_init();
     dt_init();
     dq_init();
+    (void)plat_cpu2_set(1);                  /* the second core, for the RMI's block (rmi_job): at power-on, before the
+                                              * audio; one core if it can't */
     if (n < (int)SET_V1_SIZE || set.magic != SET_MAGIC || set.octave < -2 || set.octave > 2 || set.slot >= NSLOTS
         || set.ble_off > 1u)
         set = d;
