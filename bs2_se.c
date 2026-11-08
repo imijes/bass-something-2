@@ -7,7 +7,8 @@
  * the RE-201's are). REPEAT RATE is the motor: head 1 from 175 ms (slow) to 60 ms (fast), followed as a first-order
  * lag (0.33 s, measured), so turning it bends the pitch; WOW wobbles the same speed (slow wow and faster flutter, as
  * filtered noise). INPUT drives the tape (a transistor's even harmonic, -31 dB, then the tape's tanh).
- * Levels in the app's units (a 16-bit sample's); the tape is 16-bit, so silence rounds to nothing. The spring: phase 3. */
+ * The spring (modes 5..12) beside it: se_spring_next. Levels in the app's units (a 16-bit sample's); the tape is
+ * 16-bit, so silence rounds to nothing. */
 #define SE_HEAD2 1.91f                       /* heads 2 and 3, in head 1's times */
 #define SE_HEAD3 2.88f
 #define SE_SLOW_MS 175.0f                    /* head 1 at REPEAT RATE 0 and 10 */
@@ -26,7 +27,17 @@
 #define SE_PEAK (0.5f * SE_SAT)              /* the PEAK lamp: the tape's input this near saturating */
 #define SE_LEN 23120u                        /* the tape: head 3 at its slowest (504 ms), WOW's 4 %, the Hermite's 3 */
 #define SE_STEP 32u                          /* the motor, the wobble and the filters, worked out every this many samples */
-#define SE_TRY 0.0f                          /* phase 1's trial: the room's sends into the echo too (0: off; the
+#define SE_SPRINGS 3u                        /* the spring tank's */
+#define SE_SP_LEN 1760u                      /* a spring's loop, at most */
+#define SE_SP_AP 12u                         /* the stretched allpasses before the springs */
+#define SE_SP_A 0.6f                         /* their coefficient (and the loops') */
+#define SE_SP_G 1.059f                       /* a round trip's gain: with the loop's filters, 0.912 at 1 kHz (2.9 s
+                                              * to -60 dB at 38.5 ms, measured), and under it everywhere */
+#define SE_SP_DAMP 0.35f                     /* the loops' damping, a one-pole's step (3 kHz) */
+#define SE_SP_LOW_HZ 400.0f                  /* and their low cut, a one-pole */
+#define SE_SP_GAIN 1.9f                      /* REVERB VOLUME 10's level (Outer Space 2's) */
+#define SE_SP_IDLE (uint32_t)(4.0f * BS2_RATE)   /* the spring asleep this long after its input stops (its tail out) */
+#define SE_TRY 0.0f                          /* a trial: the room's sends into the echo too, in mode 11 (0: off; the
                                               * instruments' own sends come in phase 4) */
 
 /* the modes, 1..12: the heads playing (bit 0: head 1) and the spring's (5..12; the spring comes in phase 3) */
@@ -36,9 +47,19 @@ typedef struct {
     float b0, b1, b2, a1, a2, s1, s2;        /* a biquad, transposed direct form II */
 } se_bq_t;
 
+static const uint16_t SE_SP_D[SE_SPRINGS] = {1663, 1698, 1741};   /* the springs' round trips, samples (37.7..39.5 ms) */
+static const uint16_t SE_SP_T[SE_SPRINGS] = {300, 520, 700};      /* where each is first heard (7, 12, 16 ms) */
+static struct {
+    float line[SE_SPRINGS][SE_SP_LEN];
+    float ap[SE_SP_AP][2], lap[SE_SPRINGS][2][2], damp[SE_SPRINGS], low[SE_SPRINGS], lowx[SE_SPRINGS];
+    se_bq_t hp, lp, ohp, olp;                /* the band passes in and out */
+    uint32_t w, idle;                        /* the springs' write; samples since the spring last had input */
+    uint32_t ph;                             /* the allpasses' phase (z^-2: two states each) */
+} se_sp PLAT_POOL;
+
 static int16_t se_tape[SE_LEN] PLAT_POOL;
 static struct {
-    float rate, intensity, echo, input, bass, treble, wow;   /* the knobs, 0..1 */
+    float rate, intensity, echo, input, bass, treble, wow, reverb;   /* the knobs, 0..1 */
     uint8_t mode;                            /* 0..11: modes 1..12 */
     float m, d, dv;                          /* the motor (head 1's time, samples); with the wobble, now and a sample's step */
     float lp_m, bass_at, treble_at;          /* the motor and knobs the filters were last worked out for */
@@ -60,12 +81,17 @@ static inline float se_bq(se_bq_t *q, float x)
     return y;
 }
 
-/* RBJ's cookbook: kind 0 a low pass, 1 a band pass (0 dB peak), 2 a low shelf, 3 a high shelf (g dB, slope 1) */
+/* RBJ's cookbook: kind 0 a low pass, 1 a band pass (0 dB peak), 2 a low shelf, 3 a high shelf (g dB, slope 1), 4 a high
+ * pass */
 static void se_bq_set(se_bq_t *q, int kind, float hz, float qf, float g, float rate)
 {
     const float w0 = 6.2831853f * hz / rate, cs = fm_cosf(w0), sn = fm_sinf(w0);
     float a0, al = sn / (2.0f * qf);
-    if (kind < 2) {
+    if (kind == 4) {
+        a0 = 1.0f + al;
+        q->b0 = 0.5f * (1.0f + cs), q->b1 = -(1.0f + cs), q->b2 = q->b0;
+        q->a1 = -2.0f * cs, q->a2 = 1.0f - al;
+    } else if (kind < 2) {
         a0 = 1.0f + al;
         q->b0 = kind ? al : 0.5f * (1.0f - cs), q->b1 = kind ? 0.0f : 1.0f - cs, q->b2 = kind ? -al : q->b0;
         q->a1 = -2.0f * cs, q->a2 = 1.0f - al;
@@ -96,7 +122,20 @@ static void se_init(void)
     for (i = 0; i < SE_LEN; i++)
         se_tape[i] = 0;
     se.rate = 0.5f, se.intensity = 0.5f, se.echo = 0.5f, se.input = 0.5f, se.bass = 0.5f, se.treble = 0.5f;
-    se.wow = 0.1f, se.mode = 0;
+    se.wow = 0.1f, se.reverb = 0.5f, se.mode = SE_TRY ? 10 : 0;   /* (the trial: mode 11, the most work) */
+    for (i = 0; i < SE_SPRINGS * SE_SP_LEN; i++)
+        se_sp.line[0][i] = 0.0f;
+    for (i = 0; i < SE_SP_AP; i++)
+        se_sp.ap[i][0] = se_sp.ap[i][1] = 0.0f;
+    for (i = 0; i < SE_SPRINGS; i++)
+        se_sp.lap[i][0][0] = se_sp.lap[i][0][1] = se_sp.lap[i][1][0] = se_sp.lap[i][1][1] = se_sp.damp[i] = 0.0f,
+        se_sp.low[i] = se_sp.lowx[i] = 0.0f;
+    se_sp.hp = se_sp.lp = se_sp.ohp = se_sp.olp = (se_bq_t){0};
+    se_bq_set(&se_sp.hp, 4, 500.0f, 0.7f, 0.0f, BS2_RATE);
+    se_bq_set(&se_sp.lp, 0, 1600.0f, 0.7f, 0.0f, BS2_RATE);
+    se_bq_set(&se_sp.ohp, 4, 500.0f, 0.7f, 0.0f, BS2_RATE);
+    se_bq_set(&se_sp.olp, 0, 1600.0f, 0.7f, 0.0f, BS2_RATE);
+    se_sp.w = 0, se_sp.idle = SE_SP_IDLE, se_sp.ph = 0;
     se.m = se.d = se_target(), se.dv = 0.0f;
     se.h1 = se.h2 = se.hx = se.hx2 = 0.0f;
     se.lp = se.lo = se.hi = se.nw = se.nf = se.nw2 = se.nf2 = (se_bq_t){0};
@@ -152,17 +191,66 @@ static void se_tick(void)
     se.h1 = fm_flush(se.h1), se.h2 = fm_flush(se.h2);
 }
 
-/* the echo's next sample, from x (audio interrupt) */
-static inline float se_next(float x)
+/* the spring's states flushed (no denormals as its tail dies): every SE_STEP samples while it plays */
+static void se_sp_flush(void)
 {
-    const uint32_t heads = SE_HEADS[se.mode];
+    uint32_t k;
+    for (k = 0; k < SE_SP_AP; k++)
+        se_sp.ap[k][0] = fm_flush(se_sp.ap[k][0]), se_sp.ap[k][1] = fm_flush(se_sp.ap[k][1]);
+    for (k = 0; k < SE_SPRINGS; k++) {
+        se_sp.damp[k] = fm_flush(se_sp.damp[k]), se_sp.low[k] = fm_flush(se_sp.low[k]);
+        se_sp.lap[k][0][0] = fm_flush(se_sp.lap[k][0][0]), se_sp.lap[k][0][1] = fm_flush(se_sp.lap[k][0][1]);
+        se_sp.lap[k][1][0] = fm_flush(se_sp.lap[k][1][0]), se_sp.lap[k][1][1] = fm_flush(se_sp.lap[k][1][1]);
+    }
+    se_sp.hp.s1 = fm_flush(se_sp.hp.s1), se_sp.hp.s2 = fm_flush(se_sp.hp.s2);
+    se_sp.lp.s1 = fm_flush(se_sp.lp.s1), se_sp.lp.s2 = fm_flush(se_sp.lp.s2);
+    se_sp.ohp.s1 = fm_flush(se_sp.ohp.s1), se_sp.ohp.s2 = fm_flush(se_sp.ohp.s2);
+    se_sp.olp.s1 = fm_flush(se_sp.olp.s1), se_sp.olp.s2 = fm_flush(se_sp.olp.s2);
+}
+
+/* the spring's next sample, from the input x (audio interrupt): the RE-201's three-spring tank, fed with the dry
+ * input only (the echoes never reach it, as on the unit). Each spring a loop of SE_SP_D samples (38.5 ms round, as
+ * measured, detuned a little), heard first at SE_SP_T (its transducer partway along) and then each time round; two
+ * stretched allpasses in each loop and a chain of them before smear every pass into the spring's chirp (Valimaki, Parker
+ * and Abel, "Parametric spring reverberation effect", 2010: an allpass in z^-2, many in a row), a one-pole in each loop
+ * the springs' damping, and band passes in and out its narrow band (500 Hz..2 kHz, measured). */
+static inline float se_ap2(float *r, float x)  /* (a + z^-2) / (1 + a z^-2): its two states, the sample's phase */
+{
+    const float o = r[se_sp.ph], v = x - SE_SP_A * o;
+    r[se_sp.ph] = v;
+    return SE_SP_A * v + o;
+}
+
+static inline float se_spring_next(float x)
+{
+    const float la = 1.0f / (1.0f + 6.2831853f * SE_SP_LOW_HZ / BS2_RATE);
+    uint32_t k;
+    float out = 0.0f;
+    x = se_bq(&se_sp.lp, se_bq(&se_sp.hp, x));
+    for (k = 0; k < SE_SP_AP; k++)
+        x = se_ap2(se_sp.ap[k], x);
+    for (k = 0; k < SE_SPRINGS; k++) {
+        float *l = se_sp.line[k];
+        const uint32_t w = se_sp.w, rd = w >= SE_SP_D[k] ? w - SE_SP_D[k] : w + SE_SP_LEN - SE_SP_D[k];
+        const uint32_t t = w >= SE_SP_T[k] ? w - SE_SP_T[k] : w + SE_SP_LEN - SE_SP_T[k];
+        const float fb = se_ap2(se_sp.lap[k][1], se_ap2(se_sp.lap[k][0], l[rd]));
+        se_sp.damp[k] += (fb - se_sp.damp[k]) * SE_SP_DAMP;
+        se_sp.low[k] = la * (se_sp.low[k] + se_sp.damp[k] - se_sp.lowx[k]), se_sp.lowx[k] = se_sp.damp[k];
+        l[w] = x + SE_SP_G * se_sp.low[k];
+        out += l[t];
+    }
+    se_sp.w = se_sp.w + 1u >= SE_SP_LEN ? 0u : se_sp.w + 1u;
+    se_sp.ph ^= 1u;
+    if (!(se_sp.w & (SE_STEP - 1u)))
+        se_sp_flush();
+    return se_bq(&se_sp.olp, se_bq(&se_sp.ohp, out));
+}
+
+/* the tape's next sample, from the input x (INPUT's gain on it) (audio interrupt) */
+static inline float se_tape_next(float x, uint32_t heads)
+{
     const float a = 1.0f / (1.0f + 6.2831853f * SE_LOW_HZ / BS2_RATE);
     float sum = 0.0f, rec;
-    if (fm_fabsf(x) < 0.5f && se.quiet >= SE_LEN) {
-        se.m = se.d = se_target(), se.dv = 0.0f;   /* asleep: the tape silent all round; the motor where it's set */
-        se.peak = 0;
-        return 0.0f;
-    }
     if (!se.step--)
         se_tick(), se.step = SE_STEP - 1u;
     se.d += se.dv;
@@ -175,7 +263,6 @@ static inline float se_next(float x)
     se.h1 = a * (se.h1 + sum - se.hx), se.hx = sum;          /* the tape's low cut, */
     se.h2 = a * (se.h2 + se.h1 - se.hx2), se.hx2 = se.h1;
     sum = se_bq(&se.lp, se.h2);                              /* and its high cut */
-    x *= fm_exp2f(4.0f * se.input - 2.0f);                   /* INPUT: -12..+12 dB */
     x += SE_ASYM * fm_fabsf(x);
     if (fm_fabsf(x) > SE_PEAK)
         se.peak = (uint16_t)(0.15f * BS2_RATE);
@@ -187,4 +274,25 @@ static inline float se_next(float x)
     se.w = se.w + 1u >= SE_LEN ? 0u : se.w + 1u;
     sum *= 3.5f * se.echo * se.echo;         /* ECHO VOLUME: 5 puts a head 2.4 dB under the dry (a tone's, measured) */
     return se_bq(&se.hi, se_bq(&se.lo, sum));
+}
+
+/* the Space Echo's next sample, from its send x (audio interrupt): the tape if the mode has heads, the spring if it has
+ * the spring (5..12); each asleep on its own once silent (the tape a whole loop, the spring its tail) */
+static inline float se_next(float x)
+{
+    const uint32_t heads = SE_HEADS[se.mode];
+    const int on = fm_fabsf(x) >= 0.5f;
+    float out = 0.0f;
+    if (on || se.quiet < SE_LEN || se_sp.idle < SE_SP_IDLE)
+        x *= fm_exp2f(4.0f * se.input - 2.0f);               /* INPUT: -12..+12 dB */
+    if (heads && (on || se.quiet < SE_LEN))
+        out = se_tape_next(x, heads);
+    else
+        se.m = se.d = se_target(), se.dv = 0.0f, se.peak = 0;   /* the tape asleep (or stopped): the motor where it's set */
+    if (se.mode >= 4u) {
+        se_sp.idle = on ? 0u : se_sp.idle + (se_sp.idle < SE_SP_IDLE);
+        if (se_sp.idle < SE_SP_IDLE)
+            out += se_spring_next(x) * (SE_SP_GAIN * se.reverb * se.reverb);
+    }
+    return out;
 }

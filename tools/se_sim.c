@@ -39,7 +39,7 @@ static void wav(const char *dir, const char *name, const float *x, uint32_t n)
 
 typedef struct {
     uint8_t mode;
-    float rate, inten, input, bass, treble, wow;
+    float rate, inten, input, bass, treble, wow, reverb;
 } knobs_t;
 
 /* the knobs (the rest at 5, WOW off unless asked), then x through it; glide: REPEAT RATE 0 -> 10 at 5 s, back at 15 s */
@@ -49,6 +49,7 @@ static void run(const char *dir, const char *name, knobs_t k, int dry, uint32_t 
     se_init();
     se.mode = (uint8_t)(k.mode - 1u), se.intensity = k.inten, se.echo = 0.5f, se.wow = k.wow;
     se.input = k.input ? k.input : 0.5f, se.bass = k.bass ? k.bass : 0.5f, se.treble = k.treble ? k.treble : 0.5f;
+    se.reverb = k.reverb ? k.reverb : 0.5f;
     se.rate = glide ? 0.0f : k.rate, se.m = se.d = se_target();
     se_lp_set(se.m);
     for (i = 0; i < n; i++) {
@@ -100,6 +101,7 @@ int main(int argc, char **argv)
     run(d, "SE 14 Runaway", K(1, 0.5f, 0.85f, .wow = 0.1f), 0, SR * 18, impulse, 0);
     run(d, "SE 16 EQ max", K(1, 0.5f, 0.0f, .bass = 1.0f, .treble = 1.0f), 0, SR * 15, sweep, 0);
     run(d, "SE 17 EQ min", K(1, 0.5f, 0.0f, .bass = 1e-6f, .treble = 1e-6f), 0, SR * 15, sweep, 0);
+    run(d, "SE 18 Spring", K(12, 0.5f, 0.0f, .reverb = 1.0f), 0, SR * 18, impulse, 0);
     run(d, "SE 19 Motor glide", K(1, 0.0f, 0.0f), 0, SR * 27, sine1k, 1);
     printf("wrote the SE tests to %s\n", d);
     return 0;

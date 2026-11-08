@@ -190,3 +190,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-08 | ac3bc9a+ | rmi_buf to the pool | 507,084 | +0 | 74,480 | 82,484 | -1,024 | 15,820 | 178,464 |
 | 2026-11-08 | 720ef69+ | Space Echo phase 1: tape core (bs2_se.c), 44.8 KB tape in the pool; CPU0 45/49 (was 41/44) | 508,092 | +1,008 | 73,472 | 82,484 | +0 | 15,820 | 223,296 |
 | 2026-11-08 | 5ac216b+ | Space Echo phase 2: tape filters by speed, input drive, wow/flutter, Bass/Treble; CPU0 48/52 | 510,876 | +2,784 | 70,688 | 82,484 | +0 | 15,820 | 224,992 |
+| 2026-11-08 | 6a1da35+ | Space Echo phase 3: the three-spring tank (21 KB pool); CPU0 65/69 in mode 11 (heads + spring) | 512,412 | +1,536 | 69,152 | 82,484 | +0 | 15,820 | 246,416 |
