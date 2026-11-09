@@ -177,7 +177,9 @@ pattern it began on in time for its top. Its cues wait while a song runs, or in 
   The first pass sets the loop's length, rounded up to whole bars (up to 16). Recording again overdubs: what you turn
   replaces what was there, the rest plays on.
 - **REC + OCT+**: clears the moves of the instrument on screen (the bass's on its pages, the drums' on theirs) and
-  puts its knobs back where your hand left them. The other's moves play on.
+  puts its knobs back where your hand left them; the other's play on. The screen says BASS MOTION CLEARED, or EMPTY
+  if it had none (the piano and the echo never have any).
+- Both work on every page: the bass's, the drums', the piano's and the echo's.
 - The loop runs on the clock the bass follows: MIDI clock if it's followed, else the drums while they run, else the
   arp or the sequencer. With nothing playing, it waits. Each time that clock starts, the loop starts from its top.
 - Touching the knob while it plays takes it over until you let go.

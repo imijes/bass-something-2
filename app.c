@@ -802,7 +802,7 @@ static void seq_beat(void)                   /* a 16th of the arp's rhythm, the 
         eng_quiet();
     eng.tie = r[(at + 1u) % RHY_STEPS] == '-' || eng.leg;
 }
-/* the motion recorder (REC + OCT-: recording on or off; REC + OCT+: the instrument's cleared; mo_step): the knobs'
+/* the motion recorder (REC + OCT-: recording on or off; REC + OCT+: the instrument on screen's cleared; any page; mo_step): the knobs'
  * moves, a loop of whole bars on the clock the bass follows (MIDI's, else the drums' while they run, else its arp's or
  * sequencer's), from its top each time that starts; nothing playing, it waits. Live only (a reboot clears it). The
  * bass's filter frequency; each drum's volume and tuning, and the roll key */
@@ -4335,22 +4335,24 @@ static void mo_step(void)                    /* each look at the buttons: the mo
 static void mo_cmd(int clear)                /* REC + OCT-: recording on or off; REC + OCT+: the loop cleared */
 {
     char t[12];
-    if (ui.rmi && !ui.drum) {                /* (the piano's knobs: not recorded) */
-        app_say("MOTION", "NOT THE PIANO");
-        return;
-    }
-    if (clear) {                             /* the instrument on screen's moves, its values as the hand left them */
-        uint32_t i, g;
-        for (i = mo.n; i-- > 0u;)
-            if ((mo_ev[i].tgt != MO_CUTOFF) == (ui.drum != 0u))
-                mo_del(i);
-        for (g = ui.drum ? MO_DVOL : MO_CUTOFF; g < (ui.drum ? MO_ROLL : MO_DVOL); g++)
-            *mo_ref(g) = mo.lv[g] = mo.hv[g];
-        if (ui.drum && dq.roll)
-            dq_cmd(DQC_ROLLOFF, 0, 0);
+    if (clear) {                             /* the instrument on screen's moves (the piano and the echo have none), its
+                                              * knobs as the hand left them; said cleared, or empty */
+        const int dr = ui.drum != 0u, own = !ui.rmi && !ui.se;
+        uint32_t i, g, n = mo.n;
+        if (own || dr)
+            for (i = mo.n; i-- > 0u;)
+                if ((mo_ev[i].tgt != MO_CUTOFF) == dr)
+                    mo_del(i);
+        if (mo.n != n) {
+            for (g = dr ? MO_DVOL : MO_CUTOFF; g < (dr ? MO_ROLL : MO_DVOL); g++)
+                *mo_ref(g) = mo.lv[g] = mo.hv[g];
+            if (dr && dq.roll_mo)
+                dq_cmd(DQC_ROLLOFF, 0, 0);
+        }
         if (!mo.n)
             mo.len = mo.rec = mo.go = 0;
-        app_say(ui.drum ? "DRUM MOTION" : "BASS MOTION", "CLEARED");
+        app_say(dr ? "DRUM MOTION" : ui.rmi ? "PIANO MOTION" : ui.se ? "ECHO MOTION" : "BASS MOTION",
+                mo.n != n ? "CLEARED" : "EMPTY");
         return;
     }
     if (!mo.rec) {

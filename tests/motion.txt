@@ -44,6 +44,6 @@ tap OCT+
 wait 50
 release REC
 wait 50
-said MOTION CLEARED
+said BASS MOTION CLEARED
 expect mo_n 0
 midi 80 3C 00

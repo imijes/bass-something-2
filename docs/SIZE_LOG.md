@@ -203,3 +203,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-09 | ef18d8d+ | Motion recorder: REC's own light, MOTION REC / n/m on the footer, the combo without the octave's hint | 536,316 | +640 | 45,248 | 82,884 | +0 | 15,420 | 262,608 |
 | 2026-11-09 | 04ca6a4+ | Motion recorder: drums' VOLUME, TUNING and the roll key (replayed rolls not recorded); clear per instrument | 537,228 | +912 | 44,336 | 83,044 | +160 | 15,260 | 262,616 |
 | 2026-11-09 | aa22a32+ | Motion recorder: drum pattern changes, cued again by the loop, back to its first at its top | 537,596 | +368 | 43,968 | 83,044 | +0 | 15,260 | 262,616 |
+| 2026-11-09 | dd9d25b+ | Motion recorder: both combos on every page; REC + OCT+ clears the instrument on screen's, saying CLEARED or EMPTY | 537,724 | +128 | 43,840 | 83,044 | +0 | 15,260 | 262,616 |
