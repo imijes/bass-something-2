@@ -104,10 +104,12 @@ static inline float fx_room_next(float x)
 static inline void fx_se_send(float x) { fx.se += x; }
 
 /* the effects' returns, a sample (audio interrupt): the sends taken, the room left alone while the bus sleeps (the
- * echo sleeps on its own: its tail can outlast the bus's) */
-static inline float fx_next(void)
+ * echo sleeps on its own: its tail can outlast the bus's). g: MASTER's gain now. The echo works before MASTER, in a
+ * 16-bit sample's units as at full MASTER: its sends (after MASTER) undone into them, its return under MASTER again,
+ * so the tape saturates the same at any MASTER and MASTER turns down a runaway too */
+static inline float fx_next(float g)
 {
-    const float x = fx.room, e = se_next(fx.se + SE_TRY * x);
+    const float x = fx.room, k = fm_maxf(g, 1.0f) * (1.0f / 32767.0f), e = se_next((fx.se + SE_TRY * x) / k) * k;
     fx.room = 0.0f, fx.se = 0.0f;
     if (fx.idle >= FX_IDLE)
         return e;

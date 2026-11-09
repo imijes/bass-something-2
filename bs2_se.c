@@ -7,7 +7,7 @@
  * the RE-201's are). REPEAT RATE is the motor: head 1 from 175 ms (slow) to 60 ms (fast), followed as a first-order
  * lag (0.33 s, measured), so turning it bends the pitch; WOW wobbles the same speed (slow wow and faster flutter, as
  * filtered noise). INPUT drives the tape (a transistor's even harmonic, -31 dB, then the tape's tanh).
- * The spring (modes 5..12) beside it: se_spring_next. Levels in the app's units (a 16-bit sample's); the tape is
+ * The spring (modes 5..12) beside it: se_spring_next. Levels in a 16-bit sample's, as at full MASTER (fx_next); the tape is
  * 16-bit, so silence rounds to nothing. */
 #define SE_HEAD2 1.91f                       /* heads 2 and 3, in head 1's times */
 #define SE_HEAD3 2.88f
@@ -295,6 +295,7 @@ static inline float se_tape_next(float x, uint32_t heads)
     rec = SE_SAT * se_v.sat * fm_tanhf((x + sum * SE_FB * se_v.fb * (heads & (heads - 1u) ? se_v.multi : 1.0f) * se.intensity)
                                        * (1.0f / (SE_SAT * se_v.sat)));
     se.quiet = fm_fabsf(rec) < 0.5f ? se.quiet + 1u : 0u;
+    rec = fm_clampf(rec, -32767.0f, 32767.0f);   /* (SATURATION over x1.6 takes the knee past the tape's 16 bits) */
     se_tape[se.w] = (int16_t)(rec + (rec < 0.0f ? -0.5f : 0.5f));
     se.w = se.w + 1u >= SE_LEN ? 0u : se.w + 1u;
     sum *= 3.5f * se.echo * se.echo;         /* ECHO VOLUME: 5 puts a head 2.4 dB under the dry (a tone's, measured) */
@@ -308,12 +309,19 @@ static int se_ringing(void)                  /* its tape or its spring still awa
 }
 /* the Space Echo's next sample, from its send x (audio interrupt): the tape if the mode has heads, the spring if it has
  * the spring (5..12); each asleep on its own once silent (the tape a whole loop, the spring its tail) */
+#ifdef PLAT_HOST
+static float se_in_max, se_out_max;         /* the tape's input and the echo's output at their loudest (expect) */
+#endif
 static inline float se_next(float x)
 {
     const uint32_t heads = SE_HEADS[se.mode];
-    const int on = fm_fabsf(x) >= 0.5f;
     float out = 0.0f;
+    int on;
     x *= se.ig;                              /* INPUT: -12..+12 dB (se.ig); the VU meter and PEAK lamp on it */
+    on = fm_fabsf(x) >= 0.5f;
+#ifdef PLAT_HOST
+    se_in_max = fm_maxf(se_in_max, fm_fabsf(x));
+#endif
     se.vu += (fm_fabsf(x) - se.vu) * (1.0f / (0.3f * BS2_RATE));
     if (fm_fabsf(x) > SE_PEAK)
         se.peak = (uint16_t)(0.15f * BS2_RATE);
@@ -328,5 +336,8 @@ static inline float se_next(float x)
         if (se_sp.idle < SE_SP_IDLE)
             out += se_spring_next(x) * (SE_SP_GAIN * se.reverb * se.reverb);
     }
+#ifdef PLAT_HOST
+    se_out_max = fm_maxf(se_out_max, fm_fabsf(out));
+#endif
     return out;
 }

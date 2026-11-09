@@ -204,3 +204,5 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-09 | 04ca6a4+ | Motion recorder: drums' VOLUME, TUNING and the roll key (replayed rolls not recorded); clear per instrument | 537,228 | +912 | 44,336 | 83,044 | +160 | 15,260 | 262,616 |
 | 2026-11-09 | aa22a32+ | Motion recorder: drum pattern changes, cued again by the loop, back to its first at its top | 537,596 | +368 | 43,968 | 83,044 | +0 | 15,260 | 262,616 |
 | 2026-11-09 | dd9d25b+ | Motion recorder: both combos on every page; REC + OCT+ clears the instrument on screen's, saying CLEARED or EMPTY | 537,724 | +128 | 43,840 | 83,044 | +0 | 15,260 | 262,616 |
+| 2026-11-09 | 649d6c9+ | Space Echo: sends in the tape's units (SE_UNIT), tape store clamped | 537,596 | -128 | 43,968 | 83,044 | +0 | 15,260 | 262,616 |
+| 2026-11-09 | 649d6c9+ | Space Echo before MASTER: sends undone into a 16-bit sample's units, return under MASTER | 537,772 | +176 | 43,792 | 83,044 | +0 | 15,260 | 262,616 |

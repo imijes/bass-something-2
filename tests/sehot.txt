@@ -1,0 +1,48 @@
+# The Space Echo's sends in the tape's units (SE_UNIT): the drums at DRUM SEND 50 well under the tape's knee (SE_SAT,
+# 20000), so a send of 40..60 is clean and only near full sends or INPUT does the tape saturate; ECHO MODS reached
+# from ECHO HOME by SEL
+wait 600
+listen
+tap HOME
+wait 2500
+tap REC
+wait 30
+tap PLAY
+wait 300
+tapkey 0 127
+wait 200
+tapkey 2 127
+wait 200
+tapkey 0 127
+wait 200
+tapkey 4 127
+wait 1500
+tap REC
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+tap SEL
+wait 300
+tap SEL
+wait 300
+tap SEL
+wait 300
+said ECHO MODS
+expect se_in_max 0
+wait 2000
+expect se_in_max 0
+spin K2 50
+wait 30
+said DRUM SEND 50
+expect se_in_max <5000
+wait 3000
+expect se_in_max <5000
+wait 4000
+expect se_in_max >300
+# MASTER over the echo too: turned right down, the tail as quiet as the rest (the echo works before MASTER, fx_next)
+master 0
+wait 30
+peakreset
+wait 600
+expect peak_db_max -80

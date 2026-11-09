@@ -1476,7 +1476,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                 fx_wake();
             fx_room_send(mix_send[i] + r * RMI_SEND);
             fx_se_send(mix_se[i] + r * se_send_g[2]);
-            s = out_soft(mix_pre[i] + r + fx_next());
+            s = out_soft(mix_pre[i] + r + fx_next(g0 + dg * (float)i));
             lr[2u * i] = lr[2u * i + 1u] = (int32_t)s;
         }
     }
@@ -9514,6 +9514,10 @@ int app_expect(const char *what, int *got)
         *got = pitch_now;
     else if (!strcmp(what, "se_mode"))       /* the Space Echo's knobs, as stored (0..11; 0..127) */
         *got = set.se_mode;
+    else if (!strcmp(what, "se_in_max"))     /* the tape's input at its loudest since the last read */
+        *got = (int32_t)se_in_max, se_in_max = 0.0f;   /* (a 16-bit sample's units, as at full MASTER) */
+    else if (!strcmp(what, "se_out_max"))
+        *got = (int32_t)se_out_max, se_out_max = 0.0f;
     else if (!strcmp(what, "se_rate"))
         *got = set.se_rate;
     else if (!strcmp(what, "se_rev"))
@@ -9989,7 +9993,7 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
                     long e;
                     t0 = dt_prof_ns();
                     for (i = 0; i < APP_BLOCK; i++)
-                        (void)dt_next(1.0f), (void)fx_next();   /* (the room too, as it was in dt_next) */
+                        (void)dt_next(1.0f), (void)fx_next(gain_now);   /* (the room too, as it was in dt_next) */
                     e = dt_prof_ns() - t0;
                     sum += e;
                     if (e > pk)
