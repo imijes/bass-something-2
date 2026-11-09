@@ -3291,7 +3291,9 @@ static void save(void)                       /* the settings, and the sound into
 static uint8_t hushed;                       /* quiet_step's: 1 when silent QUIET_MS */
 static int sounding(void)                    /* anything playing or ringing out */
 {
-    uint32_t i, drums = dq.run;              /* (the drums too: a write under them is a dropout; the RMI's notes) */
+    uint32_t i, drums = dq.run || fx.idle < FX_IDLE || se_ringing();   /* (the drums too: a write under them is a
+                                              * dropout; the RMI's notes; the room's tail and the Space Echo's, its
+                                              * runaway as long as it rings) */
     for (i = 0; i < NDTCH; i++)
         drums |= dt.ch[i].drum != DT_NONE;
     for (i = 0; i < RMI_NV; i++)

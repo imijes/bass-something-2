@@ -294,6 +294,11 @@ static inline float se_tape_next(float x, uint32_t heads)
     return se_bq(&se.hi, se_bq(&se.lo, sum));
 }
 
+static int se_ringing(void)                  /* its tape or its spring still awake: a tail, a runaway (the main loop's:
+                                              * a flash write waits for it, sounding) */
+{
+    return (SE_HEADS[se.mode] && se.quiet < SE_LEN) || (se.mode >= 4u && se_sp.idle < SE_SP_IDLE);
+}
 /* the Space Echo's next sample, from its send x (audio interrupt): the tape if the mode has heads, the spring if it has
  * the spring (5..12); each asleep on its own once silent (the tape a whole loop, the spring its tail) */
 static inline float se_next(float x)
