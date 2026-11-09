@@ -121,7 +121,7 @@ static struct {
     uint8_t on_new[128];
 } pq PLAT_POOL;
 static fifo_t pqq;                           /* main loop -> audio, the part's (pq_block, before the piano's block) */
-enum { PQC_REC, PQC_MUTE, PQC_UNDO };
+enum { PQC_REC, PQC_MUTE, PQC_UNDO, PQC_CLEAR };
 static void pq_cmd(uint32_t op, uint32_t a) { fifo_put(&pqq, op | a << 8); }
 static fifo_t dqq;                           /* main loop -> audio: op | a << 8 | b << 16 */
 enum { DQC_RUN, DQC_STOP, DQC_CUE, DQC_HIT, DQC_EKEY, DQC_ERASE, DQC_COPY, DQC_SONG, DQC_SCUE, DQC_ROLL, DQC_ROLLOFF };
@@ -630,6 +630,16 @@ static void pq_block(void)
             break;
         case PQC_UNDO:
             pq_undo();
+            break;
+        case PQC_CLEAR:                      /* (a pattern's part, whole: SEQ held) */
+            if ((c >> 8) < DQ_NPAT) {
+                uint32_t k;
+                if ((c >> 8) == pq.pat)
+                    pq_hush();
+                pq_clear(c >> 8);
+                for (k = 0; k < 128u; k++)
+                    pq.on_t[k] = pq.skip[k] = -1;
+            }
             break;
         default:
             break;

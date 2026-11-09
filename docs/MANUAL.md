@@ -684,6 +684,7 @@ Each drum pattern (00 to 98) has a piano part beside its drums, played with it a
 | REC | Records the piano into the pattern playing. With the drums stopped, the pattern shown on the drums' pages starts. Again: recording off | Erase: hold a key as the loop passes its notes, and they're gone. The keys stay silent while erasing; tap REC to record again |
 | PLAY | The piano's part on or off, the drums playing on. With the drums stopped, they start with it | Undo: the last pass you recorded notes in is taken back |
 | SAVE | Saves the drums' patterns and songs with the piano's parts (stopped only) | |
+| SEQ | | Clears the pattern's piano part, whole (the pattern playing, or the one shown) |
 
 Recording adds to what's there (overdub), on the pattern's Error Correct grid, its swing and length. The metronome
 clicks while it records. In a song, recording follows the patterns as they change: a pattern that comes back in the

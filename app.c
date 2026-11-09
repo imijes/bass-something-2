@@ -3860,7 +3860,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         return k == B_SEL ? (ui.page == PG_RSEL ? "SEL tap: Next toggle" : ui.page == PG_RVIEW ? "SEL tap: Change Piano Presets"
                              : "SEL tap: Piano Presets")
                : k == B_HOME ? "Piano Home" : k == B_REC ? "REC tap: Record piano, hold: Erase"
-               : k == B_PLAY ? "PLAY tap: Piano part on/off, hold: Undo" : k == B_SAVE ? "SAVE tap: Save drums + piano" : 0;
+               : k == B_PLAY ? "PLAY tap: Piano part on/off, hold: Undo" : k == B_SEQ ? "SEQ hold: Clear the piano part" : k == B_SAVE ? "SAVE tap: Save drums + piano" : 0;
     if (ui.drum && !RND_PAGE(ui.page)) {     /* (every button the drums', as dt_button: the bass's form) */
         const uint32_t f = ui.dt_fn;
         const char *to = 0, *more = 0;
@@ -4079,6 +4079,8 @@ static void hold_tap(uint32_t k)
         pq_rec_tap();
     else if (k == B_PLAY && ui.rmi)
         pq_play_tap();
+    else if (k == B_SEQ && ui.rmi)            /* (its tap: what its hold does) */
+        app_say("SEQ HOLD", "CLEARS THE PART");
     else if (k == B_REC && ui.page != PG_GMIDI)   /* recording, on any page (GLO MIDI's: a Bluetooth device) */
         rec_toggle();
     else if (k == B_REC && FM1B_BLE_CENTRAL && !set.ble_off)
@@ -4490,7 +4492,12 @@ static void hold_step(uint32_t btn)
             randomize();
         else if (ui.hold_k == B_REC && ui.rmi)
             pq_erase_hold();
-        else if (ui.hold_k == B_PLAY) {      /* (the piano's: its last pass taken back) */
+        else if (ui.hold_k == B_SEQ && ui.rmi) {   /* (the piano's: the pattern's part, whole) */
+            if (pq_target() < DQ_NPAT) {
+                pq_cmd(PQC_CLEAR, pq_target());
+                app_say("PIANO PART", "CLEARED");
+            }
+        } else if (ui.hold_k == B_PLAY) {      /* (the piano's: its last pass taken back) */
             pq_cmd(PQC_UNDO, 0);
             app_say("PIANO", "LAST PASS UNDONE");
         }
@@ -4580,7 +4587,7 @@ static void input(void)
                  && ui.page != PG_GDUMP)
             se_button(k);
         else if (ui.rmi && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && k != B_PLAY
-                 && !RND_PAGE(ui.page) && ui.page != PG_GDUMP)
+                 && k != B_SEQ && !RND_PAGE(ui.page) && ui.page != PG_GDUMP)
             rmi_button(k);
         else if (k == B_ARP || k == B_SEQ || k == B_GLO || k == B_REC || k == B_HOME || k == B_EDIT || (ui.rmi && k == B_PLAY)) {   /* on release, or once held
                                               * HOLD_MS (hold_step) */
@@ -5774,7 +5781,7 @@ static void rview_draw(void)
 #define RFX(x) (6 + (int32_t)(((x) - 258) * 41 / 100))
 #define RFY(y) (TALL_H - (int32_t)((299 - (y)) * 41 / 100))
 static void seg_display(int32_t x, int32_t y, const char *t, uint32_t n);
-enum { RB_X = 6, RB_Y = 76, RB_W = 228, RB_H = 36 };   /* the bars' place, over the front panel (the voice's line
+enum { RB_X = 6, RB_Y = 82, RB_W = 228, RB_H = 32 };   /* the bars' place, over the front panel (the voice's line
                                                   * above them) */
 static float rb_pk[RMI_NK];                  /* each key's mark: the most its level reached, falling */
 static uint32_t rb_at;                       /* (when the marks last fell) */

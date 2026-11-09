@@ -101,3 +101,15 @@ said DRUMS SAVED
 reboot
 wait 600
 expect pq_n 2
+# SEQ held on a piano page: the pattern's part cleared, whole
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+said PIANO HOME
+press SEQ
+wait 1100
+release SEQ
+wait 50
+said PIANO PART CLEARED
+expect pq_n 0
