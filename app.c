@@ -63,6 +63,9 @@ typedef struct {
     uint8_t se_voice[7];                 /* ECHO VOICE: the Space Echo's voicing, each 0..127 (64: as modelled), by
                                           * encoder: feedback, multi-head, saturation, wow, flutter, drip, decay */
     uint8_t spare8;
+    uint8_t droom[4];                    /* DRUM ROOM: the room's DECAY, TONE, INPUT TONE, LEVEL, each 0..127 (64: as
+                                          * modelled), by K1..K4 */
+    uint8_t spare9[4];
 } settings_t;
 /* GLO RMI's ROUTE: the RMI's notes (its keys, its channel's) into the bass, as its keys; what the bass plays (its
  * keys, its arp, its sequencer) on the RMI too. One hop: a note routed is never routed again, nor sent out, so BOTH
@@ -89,6 +92,7 @@ static uint32_t ms_stamp(void) { return (plat_ms() - 1u) | 1u; }
 #define SET_V6_SIZE offsetof(settings_t, se_mode)    /* the record before the Space Echo */
 #define SET_V7_SIZE offsetof(settings_t, rmi_chan)   /* the record before the RMI's MIDI */
 #define SET_V8_SIZE offsetof(settings_t, se_voice)   /* the record before ECHO VOICE */
+#define SET_V9_SIZE offsetof(settings_t, droom)      /* the record before DRUM ROOM */
 enum { CH_OFF = 0, CH_ALL = 17 };
 enum { CLK_AUTO, CLK_INT, CLK_EXT, NCLK };   /* MIDI clock followed when it comes; never; always (none: stopped) */
 enum { VC_SOFT, VC_NORMAL, VC_HARD, NVC };
@@ -1142,6 +1146,16 @@ static float sv_val(uint32_t k)              /* encoder k's: the scale (drip: th
         return 1.0f + (v - 64.0f) / 64.0f * 0.05f;
     }
 }
+/* DRUM ROOM: the room (bs2_fx.c) to taste, K1..K4 its time, walls, input and level, 64 as modelled; kept with the GLO
+ * settings (set.droom) */
+static const char *const DR_NAME[4] = {"DECAY", "TONE", "INPUT TONE", "LEVEL"};
+static float dr_val(uint32_t i)              /* knob K1 + i's: the time in s, the steps, the level */
+{
+    const float v = (float)set.droom[i];
+    return i == 3u ? FX_ROOM_WET * v / 64.0f
+                   : fm_exp2f((v - 64.0f) / 32.0f) * (i == 0u ? FX_ROOM_RT : i == 1u ? 1.0f - FX_ROOM_DAMP : FX_ROOM_IN);
+}
+static void dr_apply(void) { fx_room_set(dr_val(0), fm_minf(dr_val(1), 1.0f), dr_val(2), dr_val(3)); }
 static void se_apply(void)
 {
     static const float BEATS[5] = {0.5f, 1.0f / 3.0f, 0.25f, 1.0f / 6.0f, 0.125f};
@@ -1200,6 +1214,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 #endif
     plat_usb_audio_route(patch.lvl_ext != 0u);   /* (from the next render) */
     se_apply();                              /* (the Space Echo's knobs, this block's) */
+    dr_apply();                              /* (DRUM ROOM's) */
     if (n > APP_BLOCK) {                     /* (rmi_buf's block at most: the rest as another) */
         app_render(lr, APP_BLOCK, master_q12);
         app_render(lr + 2u * APP_BLOCK, n - APP_BLOCK, master_q12);
@@ -1499,6 +1514,7 @@ static void settings_defaults(settings_t *s)
                                               * Echo: mode 1, every knob at 5, as its manual's standard settings) */
     s->se_wow = 13;
     memset(s->se_voice, 64, sizeof s->se_voice);   /* (ECHO VOICE: as modelled) */
+    memset(s->droom, 64, sizeof s->droom);   /* (DRUM ROOM: as modelled) */
     s->rmi_chan = s->rmi_cc_chan = 3;        /* (the RMI: channel 3, as before its page; ROUTE off) */                          /* (WOW: Outer Space 2's own default, a tenth) */
     {
         static const seqmem_t E = {.len = 0, .step = {SEQ_REST}};
@@ -1566,8 +1582,8 @@ _Static_assert(offsetof(patch_t, env_trig) == BANK_V10_PSIZE, "version 10's: 11'
 _Static_assert(offsetof(patch_t, lfo_delay) == BANK_V11_PSIZE, "version 11's: 12's without the LFOs' delay on");
 _Static_assert(offsetof(patch_t, ofm) == BANK_V12_PSIZE, "version 12's: 13's without Osc Filter Mod on");
 _Static_assert(sizeof(settings_t) <= PLAT_STORE_MAX, "the settings fit a store object");
-_Static_assert(sizeof(settings_t) == SET_V8_SIZE + 8u, "the settings end with no padding");
-_Static_assert(offsetof(settings_t, spare8) < 256u, "every setting a param_t's offset (a byte) reaches");
+_Static_assert(sizeof(settings_t) == SET_V9_SIZE + 8u, "the settings end with no padding");
+_Static_assert(offsetof(settings_t, spare9) < 256u, "every setting a param_t's offset (a byte) reaches");
 static bank_t bank[NBANKP] PLAT_POOL;
 #define BANK_P(s) (bank[(s) / NPSLOT].p[(s) % NPSLOT])   /* slot s's patch */
 static uint32_t bank_obj(uint32_t pg) { return pg ? OBJ_PATCHES1 + pg - 1u : OBJ_PATCHES; }   /* page pg's object */
@@ -2034,7 +2050,7 @@ static void ble_device_button(void)
 enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GCLK, PG_GDISP, PG_GDUMP,
        PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
        PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, PG_GAUD, PG_GCTL, PG_NAME, PG_RHOME, PG_RSEL,
-       PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD, PG_GRMI, PG_RVIEW, PG_SVOICE,
+       PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD, PG_GRMI, PG_RVIEW, PG_SVOICE, PG_DROOM,
        NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI", "GLOBAL CLOCK",
@@ -2043,7 +2059,7 @@ static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRI
                                               "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL CONTROLS",
                                               "PATCH NAME", "PIANO HOME", "PIANO PANEL",
                                               "ECHO HOME", "ECHO INPUT", "ECHO PANEL", "ECHO MODS",
-                                              "GLOBAL PIANO", "PIANO PRESETS", "ECHO VOICE"};
+                                              "GLOBAL PIANO", "PIANO PRESETS", "ECHO VOICE", "DRUM ROOM"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME && (g) < PG_GAUD)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
@@ -2831,8 +2847,20 @@ static void rt_set(uint32_t c, int on)
         set.rmi_accent = (uint8_t)(on != 0);
 }
 static void sv_text(uint32_t k, char *t);
+static void dr_text(uint32_t k, char *t);
 static int knob_turn(uint32_t k, int32_t e)
 {
+    if (ui.page == PG_DROOM) {               /* (DRUM ROOM's: K1..K4 the room, droom_draw) */
+        char t[12];
+        if (k < EN_K1)
+            return 0;
+        set.droom[k - EN_K1] = (uint8_t)clamp((int32_t)set.droom[k - EN_K1] + e, 0, 127);   /* (kept as the GLO
+                                              * settings are: glo_keep) */
+        dr_text(k, t);
+        app_say(DR_NAME[k - EN_K1], t);
+        ui.redraw = 1;
+        return 0;
+    }
     if (ui.page == PG_SVOICE) {              /* (ECHO VOICE's: the voicing's scales, svoice_draw) */
         char t[12];
         set.se_voice[k] = (uint8_t)clamp((int32_t)set.se_voice[k] + e, 0, 127);   /* (kept as the GLO settings
@@ -3778,6 +3806,7 @@ static const char *const HINT[NPAGES][NE] = {
                   "Echo level", "Spring level"},
     [PG_SVOICE] = {"Loop gain: runaway point", "Feedback with 2-3 heads", "Tape compression", "Slow pitch drift",
                    "Fast pitch warble", "Spring chirp", "Spring tail length"},
+    [PG_DROOM] = {[EN_K1] = "Room's tail length", "Tail's brightness", "Hits' brightness in", "Room's level"},
     [PG_SMOD] = {[EN_PRESET] = "Delay on the tempo", [EN_K1] = "Bass into the echo", "Drums into the echo",
                  "Piano into the echo", "Tape wobble"},
     [PG_GDISP] = {[EN_PRESET] = "Zoom on what turns", [EN_K1] = "These hints", "Pop-up time"},
@@ -3922,7 +3951,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
             more = ui.page == PG_DSONG && !dq.run ? FN_DO[f] : 0;
             break;
         case B_FX:
-            to = ui.page == PG_DMOD ? "Pattern Info" : ui.page == PG_DPINFO ? "Song Info" : "Drum Mods";
+            to = ui.page == PG_DMOD ? "Drum Room" : ui.page == PG_DROOM ? "Pattern Info" : ui.page == PG_DPINFO ? "Song Info" : "Drum Mods";
             break;
         case B_ENV:
             to = f == DTF_MEAS ? "Time Signature" : "Measures";
@@ -4477,7 +4506,7 @@ static void dt_button(uint32_t k)
         dt_tempo_step(k == B_OCTUP ? 1 : -1);
         break;
     case B_FX:                               /* the mods, then the plates with more to read */
-        page_go(ui.page == PG_DMOD ? PG_DPINFO : ui.page == PG_DPINFO ? PG_DSINFO : PG_DMOD);
+        page_go(ui.page == PG_DMOD ? PG_DROOM : ui.page == PG_DROOM ? PG_DPINFO : ui.page == PG_DPINFO ? PG_DSINFO : PG_DMOD);
         break;
     case B_ENV:                              /* the pattern's length, straight there: its bars, again its time signature */
         if (dq.run)
@@ -4841,7 +4870,8 @@ static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDI
                                          [PG_GRND] = SEC_GLO, [PG_RPAT] = SEC_GLO,
                                          [PG_RTRK] = SEC_GLO, [PG_GDRUM] = SEC_GLO, [PG_DHOME] = NSEC,
                                          [PG_DCH1] = SEC_EDIT, [PG_DCH2] = SEC_EDIT, [PG_DCH3] = SEC_EDIT,
-                                         [PG_DCH4] = SEC_EDIT, [PG_DCH5] = SEC_EDIT, [PG_DCH6] = SEC_EDIT, [PG_DMOD] = SEC_FX, [PG_DPAT] = SEC_SEQ, [PG_DSONG] = SEC_ARP, [PG_DPINFO] = SEC_FX, [PG_DSINFO] = SEC_FX};
+                                         [PG_DCH4] = SEC_EDIT, [PG_DCH5] = SEC_EDIT, [PG_DCH6] = SEC_EDIT, [PG_DMOD] = SEC_FX, [PG_DPAT] = SEC_SEQ, [PG_DSONG] = SEC_ARP, [PG_DPINFO] = SEC_FX, [PG_DSINFO] = SEC_FX,
+                                         [PG_DROOM] = SEC_FX};
 /* the tabs span the panel's bar (x 2..235), a pixel between each; they end 3 rows over it, as its gaps are wide */
 #define TAB_X(i) (2 + (int32_t)(i) * 235 / NSEC)
 static uint8_t ycol[232] PLAT_POOL;          /* a picture's curve: each column's row */
@@ -6150,6 +6180,38 @@ static void sv_text(uint32_t k, char *t)     /* "x1.25", "0.60" */
     t[strlen(t) + 2] = 0;
     t[strlen(t) + 1] = (char)('0' + c % 10);
     t[strlen(t)] = (char)('0' + c / 10 % 10);
+}
+static void dr_text(uint32_t k, char *t)     /* DECAY "0.45s", the rest "x1.00" */
+{
+    const uint32_t i = k - EN_K1;
+    const float base = i == 0u ? 1.0f : i == 1u ? 1.0f - FX_ROOM_DAMP : i == 2u ? FX_ROOM_IN : FX_ROOM_WET;
+    const int32_t c = (int32_t)(dr_val(i) / base * 100.0f + 0.5f);
+    t[0] = 0;
+    if (i)
+        text_cat(t, "x");
+    int_text(c / 100, t + strlen(t));
+    text_cat(t, ".");
+    t[strlen(t) + 2] = 0;
+    t[strlen(t) + 1] = (char)('0' + c % 10);
+    t[strlen(t)] = (char)('0' + c / 10 % 10);
+    if (!i)
+        text_cat(t, "s");
+}
+/* DRUM ROOM: the room the drums ring in, on a plate as DRUM MODS (FX again on it) */
+static void droom_draw(void)
+{
+    uint32_t i;
+    char t[12];
+    plate("DRUM SOMETHING 400");
+    dymo(120, 30, "DRUM ROOM", RGB(235, 235, 235));
+    for (i = 0; i < 4u; i++) {
+        const int32_t cx = 10 + 220 * (2 * (int32_t)i + 1) / 8;
+        bs2_knob(cx, 76, 16, set.droom[i], 127, KF_PLATE | (knob_lit(EN_K1 + i) ? KF_LIT : 0u));
+        tag(cx, 76, EN_K1 + i);
+        dymo(cx, 101, DR_NAME[i], RGB(235, 235, 235));
+        dr_text(EN_K1 + i, t);
+        print_c(cx, 117, t, grey(36));
+    }
 }
 static void svoice_draw(void)
 {
@@ -8530,6 +8592,8 @@ static void panel_draw(void)                 /* the page's section panel, from u
             dpinfo_draw();
         else if (ui.page == PG_DSINFO)
             dsinfo_draw();
+        else if (ui.page == PG_DROOM)
+            droom_draw();
         else if (ui.page == PG_LFO1)
             lfos_draw();
         else if (ui.page == PG_GMIDI)
@@ -8705,6 +8769,7 @@ static uint32_t live(void)
     case PG_DSONG:
     case PG_DPINFO:
     case PG_DSINFO:
+    case PG_DROOM:
         return dt_lit() | (ui.keys >> 1 & 1u) << 31 | (uint32_t)dt_blink() << 30 | (uint32_t)(dq.run != 0u) << 29
                | (uint32_t)(dq.full && plat_ms() / 300u % 2u) << 28;
     case PG_GMIDI:
@@ -9251,6 +9316,8 @@ int app_expect(const char *what, int *got)
         *got = set.route;
     else if (!strncmp(what, "se_voice", 8) && what[8] >= '0' && what[8] <= '6' && !what[9])   /* ECHO VOICE's, by encoder */
         *got = set.se_voice[what[8] - '0'];
+    else if (!strncmp(what, "droom", 5) && what[5] >= '0' && what[5] <= '3' && !what[6])   /* DRUM ROOM's, K1.. */
+        *got = set.droom[what[5] - '0'];
     else if (!strcmp(what, "pq_n"))          /* the piano's part: the pattern's events, recording, off */
         *got = pqm.n[pq_target() < DQ_NPAT ? pq_target() : 0u];
     else if (!strcmp(what, "pq_rec"))

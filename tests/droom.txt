@@ -1,0 +1,39 @@
+# DRUM ROOM (FX on the drums: DRUM MODS, then DRUM ROOM, then PATTERN INFO): K1..K4 the room's DECAY, TONE, INPUT
+# TONE, LEVEL, each 64 as modelled; kept through a reboot
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/droom.txt bs2/build/host
+wait 600
+listen
+tap HOME
+wait 1000
+said DRUM HOME
+tap FX
+wait 500
+said DRUM MODS
+tap FX
+wait 500
+said DRUM ROOM
+expect droom0 64
+turn K1 32
+wait 30
+said DECAY 0.90s
+turn K2 -32
+wait 30
+said TONE x0.50
+turn K4 -64
+wait 30
+said LEVEL x0.00
+turn K4 64
+wait 30
+said LEVEL x1.00
+turn K3 1
+wait 30
+expect droom2 65
+wait 3000
+shot droom.png
+reboot
+wait 1000
+expect droom0 96
+expect droom1 32
+expect droom2 65
+expect droom3 64

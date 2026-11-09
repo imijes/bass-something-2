@@ -535,7 +535,7 @@ Tapping a drum selects it for K3 and K4. On HOME, those two knobs zoom in to the
 | SEQ | The PATTERN page | The next pattern function |
 | ARP | The SONG page | The next song function |
 | ENV | The pattern's bars | Its time signature |
-| FX | DRUM MODS | PATTERN INFO, then SONG INFO |
+| FX | DRUM MODS | DRUM ROOM, then PATTERN INFO, then SONG INFO |
 | GLO | GLOBAL DRUMS | The other global pages. Held a second: the RND pages |
 | SEL | ENTER: does what the lit function asks | |
 | PLAY | Run or stop, on any page | |
@@ -580,7 +580,7 @@ SEQ steps through the page's list:
 | COPY / APPEND TO | ALGO: where to, starting on this pattern | On an empty pattern, a copy with its settings. On one with hits, added after them, in its own settings. There's no undo. The hint says what happened: `Copied to 05`, `Added to 05`, or why not, `Nothing to copy`, `Memory full` or `Pattern too long` |
 | ROLL | ALGO: the rate of the ROLL key: 1/2, 1/4, 1/4T, 1/8, 1/8T, 1/16 (the default), 1/16T, 1/32, 1/32T. Also while running. Stopped, like ERROR CORRECT, it arms recording: PLAY records | |
 
-While a pattern runs, SEQ only moves between the number, the swing and Roll. While it records, SEQ goes round Record, Erase, Error Correct, Swing and Roll. PATTERN INFO (FX, twice) shows the pattern's settings, its hits and the memory left, shared by all the patterns: about 4,000 hits.
+While a pattern runs, SEQ only moves between the number, the swing and Roll. While it records, SEQ goes round Record, Erase, Error Correct, Swing and Roll. PATTERN INFO (FX, three times) shows the pattern's settings, its hits and the memory left, shared by all the patterns: about 4,000 hits.
 
 ### Songs
 
@@ -618,6 +618,17 @@ There is one clock. While a pattern runs, the synth's arp and sequencer follow t
 | K4 · TRANSPORT | ON (the default): the drums' run and stop also start and stop the synth's arp or sequence. OFF: each runs on its own |
 
 ![DRUM MODS: the Swing Lock and Transport knobs on their plate](img/screen-drum-mods.png "DRUM MODS (FX)")
+
+FX again opens DRUM ROOM, the small room the drums ring in. Each knob starts at 64, the room as modelled. The settings are kept through a restart.
+
+| Control | What it does |
+| --- | --- |
+| K1 · DECAY | The tail's length, 0.11 to 1.74 seconds (0.45 by default). |
+| K2 · TONE | The tail's brightness: lower is a softer, more damped room. |
+| K3 · INPUT TONE | How bright the hits are going into the room. |
+| K4 · LEVEL | The room's level, from off to about twice the default. Each drum's own send into the room stays as voiced. |
+
+![DRUM ROOM: the Decay, Tone, Input Tone and Level knobs on their plate](img/screen-drum-room.png "DRUM ROOM (FX, twice)")
 
 ### MIDI
 

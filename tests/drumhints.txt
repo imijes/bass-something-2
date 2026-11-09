@@ -20,6 +20,9 @@ hint HOME tap: Piano Something 368X
 wait 2000
 tap FX
 wait 30
+hint FX tap: Drum Room
+tap FX
+wait 30
 hint FX tap: Pattern Info
 tap FX
 wait 30

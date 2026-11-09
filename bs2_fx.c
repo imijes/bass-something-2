@@ -21,15 +21,31 @@ typedef struct {
 static struct {
     float buf[1031 + 1327 + 1523 + 1801 + 142 + 107 + 379 + 277];
     fx_ring_t ring[FX_NRL + FX_NAP];
-    float in, lp[FX_NRL], g[FX_NRL];         /* the input's filter, the walls', each line's feedback for FX_ROOM_RT */
+    float in, lp[FX_NRL], g[FX_NRL];         /* the input's filter, the walls', each line's feedback for its time */
+    float rt, damp, in_k, wet;               /* DRUM ROOM's (fx_room_set): its time, walls' step, input's step, level */
+    uint32_t idle;                           /* the bus asleep after this long unwoken (its tails out): twice its time */
 } fx_room PLAT_POOL;
 
-#define FX_IDLE ((uint32_t)(2.0f * FX_ROOM_RT * BS2_RATE))   /* the bus asleep after this long unwoken (its tails out) */
+#define FX_IDLE (fx_room.idle)
 static struct {
     float room;                              /* this sample's sends into the room, summed */
     float se;                                /* and into the Space Echo (bs2_se.c) */
     uint32_t idle;                           /* samples since an instrument last woke the bus (it stops once quiet) */
 } fx PLAT_POOL;
+
+/* DRUM ROOM: its time (s), its walls' and input's low passes' steps, its level out (the main loop's: a float each, read
+ * whole by the audio interrupt) */
+static void fx_room_set(float rt, float damp, float in_k, float wet)
+{
+    uint32_t i;
+    if (rt != fx_room.rt) {
+        for (i = 0; i < FX_NRL; i++)         /* -60 dB in rt: 10^(-3 len / (rt rate)) a pass */
+            fx_room.g[i] = fm_exp2f(-3.0f * 3.321928f * (float)FX_RL[i] / (rt * BS2_RATE));
+        fx_room.rt = rt;
+        fx_room.idle = (uint32_t)(2.0f * rt * BS2_RATE);
+    }
+    fx_room.damp = damp, fx_room.in_k = in_k, fx_room.wet = wet;
+}
 
 static void fx_init(void)
 {
@@ -39,8 +55,8 @@ static void fx_init(void)
         fx_room.ring[i] = (fx_ring_t){at, FX_RL[i], 0};
         at = (uint16_t)(at + FX_RL[i]);
     }
-    for (i = 0; i < FX_NRL; i++)             /* -60 dB in FX_ROOM_RT: 10^(-3 len / (RT rate)) a pass */
-        fx_room.g[i] = fm_exp2f(-3.0f * 3.321928f * (float)FX_RL[i] / (FX_ROOM_RT * BS2_RATE));
+    fx_room.rt = 0.0f;
+    fx_room_set(FX_ROOM_RT, 1.0f - FX_ROOM_DAMP, FX_ROOM_IN, FX_ROOM_WET);
     fx.room = 0.0f, fx.se = 0.0f;
     fx.idle = 0xFFFFFFFFu;
     se_init();
@@ -60,7 +76,7 @@ static inline float fx_room_next(float x)
 {
     float y[FX_NRL], h0, h1, h2, h3, out = 0.0f;
     uint32_t k;
-    x = fx_room.in += (x - fx_room.in) * FX_ROOM_IN;
+    x = fx_room.in += (x - fx_room.in) * fx_room.in_k;
     for (k = FX_NRL; k < FX_NRL + FX_NAP; k++) {    /* the allpasses (0.6) */
         float *p = fx_ring_at(&fx_room.ring[k]), t = *p;
         *p = x + 0.6f * t;
@@ -70,7 +86,7 @@ static inline float fx_room_next(float x)
     for (k = 0; k < FX_NRL; k++) {           /* the lines' outputs, through the walls */
         y[k] = *fx_ring_at(&fx_room.ring[k]);
         out += y[k];
-        fx_room.lp[k] += (y[k] - fx_room.lp[k]) * (1.0f - FX_ROOM_DAMP);
+        fx_room.lp[k] += (y[k] - fx_room.lp[k]) * fx_room.damp;
     }
     h0 = fx_room.lp[0] + fx_room.lp[1];      /* the Hadamard mix (a half: it keeps the energy) */
     h1 = fx_room.lp[0] - fx_room.lp[1];
@@ -81,7 +97,7 @@ static inline float fx_room_next(float x)
         *fx_ring_at(&fx_room.ring[k]) = x + 0.5f * y[k] * fx_room.g[k];
         fx_ring_on(&fx_room.ring[k]);
     }
-    return out * (0.25f * FX_ROOM_WET);
+    return out * (0.25f * fx_room.wet);
 }
 
 /* an instrument's send into the Space Echo, after its level (audio interrupt) */

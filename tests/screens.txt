@@ -254,6 +254,13 @@ shot screen-drum-song.png
 tap FX
 wait 3000
 shot screen-drum-mods.png
+tap FX
+wait 3000
+shot screen-drum-room.png
+tap FX
+tap FX
+tap FX
+wait 3000
 tap GLO
 wait 3000
 shot screen-glo-drums.png
