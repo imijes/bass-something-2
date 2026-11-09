@@ -6094,15 +6094,13 @@ static void se_front(int whole)
         cv_rect(SPX(90), SPY(180), SPX(714) - SPX(90), SPY(402) - SPY(180), RGB(30, 30, 30));
         cv_rect(SPX(92), SPY(182), SPX(712) - SPX(92), 1, RGB(64, 64, 64));
     }
-    for (y = SPY(190); y < SPY(220); y++)    /* the brushed aluminium strip, the name, the badge */
+    for (y = SPY(190); y < SPY(220); y++)    /* the brushed aluminium strip, the name */
         cv_rect(SPX(122), y, SPX(678) - SPX(122), 1, grey(y & 1 ? 198 : 186));
     if (big) {
         y = cv_text(SPX(150), SPY(197), &FONT_B, "SPACE SOMETHING", RGB(18, 18, 18));
         cv_text(y + 6, SPY(199), &FONT_XS, "201", RGB(18, 18, 18));
     } else
         se_lbl(SPX(150) + 43, SPY(203) - 2, "SPACE SOMETHING 201", RGB(18, 18, 18));
-    cv_rect(SPX(610), SPY(195), SPX(646) - SPX(610), SPY(218) - SPY(195), grey(150));
-    cv_rect(SPX(612), SPY(197), SPX(644) - SPX(612), SPY(216) - SPY(197), grey(176));
     cv_rect(SPX(122), SPY(221), SPX(678) - SPX(122), SPY(224) - SPY(221) > 0 ? SPY(224) - SPY(221) : 1, grey(172));
     cv_rect(SPX(122), SPY(224), SPX(678) - SPX(122), SPY(343) - SPY(224), SE_BLACK);
     cv_rect(SPX(195), SPY(282), 1, SPY(343) - SPY(282), grey(84));   /* the volumes' dividers */
