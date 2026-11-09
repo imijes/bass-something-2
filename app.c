@@ -5689,6 +5689,7 @@ static void rhome_draw(void)
             cv_rect(RFX(1157 + 25 * (int32_t)i), RFY(466), 4, RFY(514) - RFY(466), dn >> i & 1u ? P_CYAN : RGB(229, 228, 211));
         cv_rect(RFX(1529), RFY(548), RFX(1788) - RFX(1529), RFY(568) - RFY(548), RGB(175, 178, 171));   /* the badge */
         tag(RFX(1243), RFY(490), EN_PRESET);
+        tag_note("Turn: this toggle on or off");
     }
 }
 /* RMI HOME's knob k (K1-K4) turned: RMI PANEL's, the camera in on it from the strip, as HOME's on the bass's pages */
@@ -5901,6 +5902,7 @@ static void shome_draw(void)
     if (set.se_sync)
         cv_text(232 - text_w(&FONT_T, "TEMPO SYNC"), 38, &FONT_T, "TEMPO SYNC", P_SILK);
     tag(232 - text_w(&FONT_XS, t) / 2, 10, EN_PRESET);
+    tag_note("Turn: echo mode");
     se_view(PG_SHOME);
     se_front(1);
     tag(SPX(437), SPY(320), EN_K1), tag(SPX(489), SPY(320), EN_K2), tag(SPX(546), SPY(320), EN_K3);
@@ -6957,6 +6959,7 @@ static void home_draw(void)
     if (set_dirty)
         disc(240 - HOME_L - 10, 43, 2, RGB(252, 78, 112));
     tag(240 - HOME_L - 42, 31, EN_PRESET);
+    tag_note("Turn: pick a patch");
     scope_paint();                           /* (what plays and its tempo: the footer's) */
     /* the panel: its face, round its ends, the blue bars (their gaps, the lines down from them), the
      * keys' strip */
@@ -8093,6 +8096,7 @@ static void dhome_draw(void)
     tag(dt_px(180), dt_py(453), EN_K3);
     tag(dt_px(309), dt_py(453), EN_K4);
     tag(dt_px(242), dt_py(278), EN_SELECT);       /* TEMPO's box */
+    tag_note("Turn: tempo");
     dt_tag_preset();
 }
 
