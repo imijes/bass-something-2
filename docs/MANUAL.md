@@ -748,8 +748,16 @@ the knob as it turns.
 | ECHO MODS | PRESET · TEMPO SYNC | REPEAT RATE picks a note at the tempo instead (an 8th, an 8th triplet, a 16th, a 16th triplet or a 32nd, slow to fast), halved or doubled to stay in the RE-201's range |
 | ECHO MODS | K1 to K3 · BASS, DRUM, PIANO SEND | How much of each instrument goes into it, after its own volume. All three are off at first |
 | ECHO MODS | K4 · WOW | The tape's wobble, from none to a worn machine's; 13, the default, a well-kept one's |
+| ECHO VOICE | SELECT · FEEDBACK | INTENSITY's loop gain, x0.5 to x1.5: where the repeats run away |
+| ECHO VOICE | ALGO · MULTI-HEAD | The feedback again when two or three heads play (modes 4, 8 to 11), x0.5 to x1.5: below x1, a mode with more heads runs away no sooner than one head |
+| ECHO VOICE | PRESET · SATURATION | Where the tape compresses, x0.25 (early, thick) to x4 (late, clean) |
+| ECHO VOICE | K1 · WOW DEPTH, K2 · FLUTTER | The WOW mod's slow drift and its fast warble, each x0 to x2 |
+| ECHO VOICE | K3 · SPRING DRIP | The spring's chirp, its dispersion: 0.30 (soft) to 0.90 (a sharp boing) |
+| ECHO VOICE | K4 · SPRING DECAY | The spring's tail, 5 % shorter to 5 % longer a round trip (it can't run away) |
 
 ![ECHO PANEL: the right of the RE-201's panel up close, BASS, TREBLE and REVERB VOLUME over REPEAT RATE, INTENSITY and ECHO VOLUME](img/screen-echo-panel.png "ECHO PANEL")
+
+**ECHO VOICE** (SEL after ECHO MODS) voices the model to taste; every value at 64 (x1.00) is the sound as modelled.
 
 Its knobs keep themselves with the GLO settings, so SAVE has nothing to do here, and MIDI CCs set them too (see
 [Control changes](#cc)). Its sound is modelled on measurements of a software RE-201, AudioThing's Outer Space 2, and

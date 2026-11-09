@@ -60,6 +60,9 @@ typedef struct {
     uint8_t rmi_chan, rmi_cc_chan;       /* the RMI's MIDI channel in and out, its CCs' in (GLO RMI): as dchan, its own */
     uint8_t route;                       /* ROUTE (GLO RMI): ROUTE_*, notes from one instrument to the other, inside */
     uint8_t spare7;
+    uint8_t se_voice[7];                 /* ECHO VOICE: the Space Echo's voicing, each 0..127 (64: as modelled), by
+                                          * encoder: feedback, multi-head, saturation, wow, flutter, drip, decay */
+    uint8_t spare8;
 } settings_t;
 /* GLO RMI's ROUTE: the RMI's notes (its keys, its channel's) into the bass, as its keys; what the bass plays (its
  * keys, its arp, its sequencer) on the RMI too. One hop: a note routed is never routed again, nor sent out, so BOTH
@@ -85,6 +88,7 @@ static uint32_t ms_stamp(void) { return (plat_ms() - 1u) | 1u; }
 #define SET_V5_SIZE offsetof(settings_t, rmi_tabs)   /* the record before the RMI's panel */
 #define SET_V6_SIZE offsetof(settings_t, se_mode)    /* the record before the Space Echo */
 #define SET_V7_SIZE offsetof(settings_t, rmi_chan)   /* the record before the RMI's MIDI */
+#define SET_V8_SIZE offsetof(settings_t, se_voice)   /* the record before ECHO VOICE */
 enum { CH_OFF = 0, CH_ALL = 17 };
 enum { CLK_AUTO, CLK_INT, CLK_EXT, NCLK };   /* MIDI clock followed when it comes; never; always (none: stopped) */
 enum { VC_SOFT, VC_NORMAL, VC_HARD, NVC };
@@ -1116,6 +1120,28 @@ static float mix_pre[APP_BLOCK] PLAT_POOL, mix_send[APP_BLOCK] PLAT_POOL;   /* a
  * fader's); TEMPO SYNC: REPEAT RATE picks a note, an 8th to a 32nd (slow to fast), head 1 its time at the tempo,
  * halved or doubled into the RE-201's 60..175 ms */
 static float se_send_g[3];
+/* ECHO VOICE: the engine's voicing to taste, each encoder a constant's scale, 64 as modelled; kept with the GLO
+ * settings (set.se_voice) */
+static const char *const SV_NAME[NE] = {"FEEDBACK", "MULTI-HEAD", "SATURATION", "WOW DEPTH", "FLUTTER", "SPRING DRIP",
+                                        "SPRING DECAY"};
+static float sv_val(uint32_t k)              /* encoder k's: the scale (drip: the coefficient itself) */
+{
+    const float v = (float)set.se_voice[k];
+    switch (k) {
+    case EN_SELECT:
+    case EN_ALGO:
+        return 0.5f + v / 128.0f;
+    case EN_PRESET:
+        return fm_exp2f((v - 64.0f) / 32.0f);
+    case EN_K1:
+    case EN_K2:
+        return v / 64.0f;
+    case EN_K3:
+        return SE_SP_A + (v - 64.0f) / 64.0f * 0.3f;
+    default:
+        return 1.0f + (v - 64.0f) / 64.0f * 0.05f;
+    }
+}
 static void se_apply(void)
 {
     static const float BEATS[5] = {0.5f, 1.0f / 3.0f, 0.25f, 1.0f / 6.0f, 0.125f};
@@ -1126,6 +1152,8 @@ static void se_apply(void)
     se.bass = (float)set.se_bass * (1.0f / 127.0f), se.treble = (float)set.se_treb * (1.0f / 127.0f);
     se.input = (float)set.se_input * (1.0f / 127.0f), se.wow = (float)set.se_wow * (1.0f / 127.0f);
     se.ig = fm_exp2f(4.0f * se.input - 2.0f);
+    se_v.fb = sv_val(EN_SELECT), se_v.multi = sv_val(EN_ALGO), se_v.sat = sv_val(EN_PRESET);   /* (ECHO VOICE's) */
+    se_v.wow = sv_val(EN_K1), se_v.flut = sv_val(EN_K2), se_v.spa = sv_val(EN_K3), se_v.spg = SE_SP_G * sv_val(EN_K4);
     for (i = 0; i < 3u; i++) {
         const float v = (float)set.se_send[i] * (1.0f / 127.0f);
         se_send_g[i] = v * v;
@@ -1470,6 +1498,7 @@ static void settings_defaults(settings_t *s)
     s->se_rate = s->se_int = s->se_echo = s->se_rev = s->se_bass = s->se_treb = s->se_input = 64;   /* (the Space
                                               * Echo: mode 1, every knob at 5, as its manual's standard settings) */
     s->se_wow = 13;
+    memset(s->se_voice, 64, sizeof s->se_voice);   /* (ECHO VOICE: as modelled) */
     s->rmi_chan = s->rmi_cc_chan = 3;        /* (the RMI: channel 3, as before its page; ROUTE off) */                          /* (WOW: Outer Space 2's own default, a tenth) */
     {
         static const seqmem_t E = {.len = 0, .step = {SEQ_REST}};
@@ -1537,8 +1566,8 @@ _Static_assert(offsetof(patch_t, env_trig) == BANK_V10_PSIZE, "version 10's: 11'
 _Static_assert(offsetof(patch_t, lfo_delay) == BANK_V11_PSIZE, "version 11's: 12's without the LFOs' delay on");
 _Static_assert(offsetof(patch_t, ofm) == BANK_V12_PSIZE, "version 12's: 13's without Osc Filter Mod on");
 _Static_assert(sizeof(settings_t) <= PLAT_STORE_MAX, "the settings fit a store object");
-_Static_assert(sizeof(settings_t) == SET_V7_SIZE + 4u, "the settings end with no padding");
-_Static_assert(offsetof(settings_t, route) < 256u, "every setting a param_t's offset (a byte) reaches");
+_Static_assert(sizeof(settings_t) == SET_V8_SIZE + 8u, "the settings end with no padding");
+_Static_assert(offsetof(settings_t, spare8) < 256u, "every setting a param_t's offset (a byte) reaches");
 static bank_t bank[NBANKP] PLAT_POOL;
 #define BANK_P(s) (bank[(s) / NPSLOT].p[(s) % NPSLOT])   /* slot s's patch */
 static uint32_t bank_obj(uint32_t pg) { return pg ? OBJ_PATCHES1 + pg - 1u : OBJ_PATCHES; }   /* page pg's object */
@@ -2005,7 +2034,7 @@ static void ble_device_button(void)
 enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GCLK, PG_GDISP, PG_GDUMP,
        PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
        PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, PG_GAUD, PG_GCTL, PG_NAME, PG_RHOME, PG_RSEL,
-       PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD, PG_GRMI, PG_RVIEW,
+       PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD, PG_GRMI, PG_RVIEW, PG_SVOICE,
        NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI", "GLOBAL CLOCK",
@@ -2014,13 +2043,13 @@ static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRI
                                               "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL CONTROLS",
                                               "PATCH NAME", "PIANO HOME", "PIANO PANEL",
                                               "ECHO HOME", "ECHO INPUT", "ECHO PANEL", "ECHO MODS",
-                                              "GLOBAL PIANO", "PIANO PRESETS"};
+                                              "GLOBAL PIANO", "PIANO PRESETS", "ECHO VOICE"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME && (g) < PG_GAUD)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
 #define DCH_PAGE(g) ((g) >= PG_DCH1 && (g) <= PG_DCH6)   /* its Channel pages */
 #define RMI_PAGE(g) (((g) >= PG_RHOME && (g) <= PG_RSEL) || (g) == PG_RVIEW)   /* the RMI's pages (HOME on the drums' HOME: its mode, ui.rmi) */
-#define SE_PAGE(g) ((g) >= PG_SHOME && (g) <= PG_SMOD)    /* the Space Echo's (HOME on the RMI's HOME: its mode, ui.se) */
+#define SE_PAGE(g) (((g) >= PG_SHOME && (g) <= PG_SMOD) || (g) == PG_SVOICE)    /* the Space Echo's (HOME on the RMI's HOME: its mode, ui.se) */
 static uint32_t mode_home(void);             /* the mode's HOME */
 static void zoom_rmi(uint32_t k);            /* RMI HOME's knob: in on RMI PANEL's */
 /* the 400's two LED lists, one number each: PATTERN's, then SONG's, BUILD MODE's own under it */
@@ -2801,8 +2830,18 @@ static void rt_set(uint32_t c, int on)
     else
         set.rmi_accent = (uint8_t)(on != 0);
 }
+static void sv_text(uint32_t k, char *t);
 static int knob_turn(uint32_t k, int32_t e)
 {
+    if (ui.page == PG_SVOICE) {              /* (ECHO VOICE's: the voicing's scales, svoice_draw) */
+        char t[12];
+        set.se_voice[k] = (uint8_t)clamp((int32_t)set.se_voice[k] + e, 0, 127);   /* (kept as the GLO settings
+                                              * are: glo_keep) */
+        sv_text(k, t);
+        app_say(SV_NAME[k], t);
+        ui.redraw = 1;
+        return 0;
+    }
     if (ui.page == PG_NAME)
         return name_turn(k, e);
     if (ui.page == PG_RSEL && k == EN_PRESET) {   /* PIANO PANEL's PRESET: the cursor's tone tablet, right down, left
@@ -3737,6 +3776,8 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_SIN] = {[EN_PRESET] = "Heads and spring", [EN_K1] = "Drive into the tape"},
     [PG_SECHO] = {[EN_ALGO] = "Echo's highs", "Echo's lows", "Tape speed: delay", "Repeats, feedback",
                   "Echo level", "Spring level"},
+    [PG_SVOICE] = {"Loop gain: runaway point", "Feedback with 2-3 heads", "Tape compression", "Slow pitch drift",
+                   "Fast pitch warble", "Spring chirp", "Spring tail length"},
     [PG_SMOD] = {[EN_PRESET] = "Delay on the tempo", [EN_K1] = "Bass into the echo", "Drums into the echo",
                  "Piano into the echo", "Tape wobble"},
     [PG_GDISP] = {[EN_PRESET] = "Zoom on what turns", [EN_K1] = "These hints", "Pop-up time"},
@@ -4011,7 +4052,7 @@ static void rmi_button(uint32_t k)
 static void se_button(uint32_t k)
 {
     if (k == B_SEL)
-        sect_open(ui.page == PG_SIN ? PG_SECHO : ui.page == PG_SECHO ? PG_SMOD : PG_SIN, k);
+        sect_open(ui.page == PG_SIN ? PG_SECHO : ui.page == PG_SECHO ? PG_SMOD : ui.page == PG_SMOD ? PG_SVOICE : PG_SIN, k);
     else if (k == B_SAVE)
         app_say("SPACE SOMETHING", "KEEPS ITSELF");
     else
@@ -4790,7 +4831,7 @@ static void ui_start(void) { ui.page = PG_HOME; }   /* the first page, after the
 enum { SEC_FX, SEC_SEL, SEC_ENV, SEC_LFO, SEC_ARP, SEC_SEQ, SEC_EDIT, SEC_GLO, NSEC };
 static const char *const SEC_NAME[NSEC] = {"FX", "SEL", "ENV", "LFO", "ARP", "SEQ", "EDIT", "GLO"};
 static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDIT, [PG_MENV] = SEC_ENV,
-                                         [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL, [PG_NAME] = SEC_SEL, [PG_RHOME] = NSEC, [PG_RSEL] = SEC_SEL, [PG_RVIEW] = SEC_SEL,
+                                         [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL, [PG_NAME] = SEC_SEL, [PG_RHOME] = NSEC, [PG_RSEL] = SEC_SEL, [PG_RVIEW] = SEC_SEL, [PG_SVOICE] = SEC_SEL,
                                          [PG_SHOME] = NSEC, [PG_SIN] = SEC_SEL, [PG_SECHO] = SEC_SEL, [PG_SMOD] = SEC_SEL,
                                          [PG_GRMI] = SEC_GLO,
                                          [PG_ARP] = SEC_ARP, [PG_SEQ] = SEC_SEQ, [PG_AENV] = SEC_ENV, [PG_FX] = SEC_EDIT,
@@ -6098,6 +6139,33 @@ static void se_front(int whole)
 }
 /* ECHO HOME: its name and what it does now (the mode: the heads, the spring); the whole front panel on the keys, its
  * meter live (se_vu_frame) */
+static void sv_text(uint32_t k, char *t)     /* "x1.25", "0.60" */
+{
+    const int32_t c = (int32_t)(sv_val(k) * 100.0f + 0.5f);
+    t[0] = 0;
+    if (k != EN_K3)
+        text_cat(t, "x");
+    int_text(c / 100, t + strlen(t));
+    text_cat(t, ".");
+    t[strlen(t) + 2] = 0;
+    t[strlen(t) + 1] = (char)('0' + c % 10);
+    t[strlen(t)] = (char)('0' + c / 10 % 10);
+}
+static void svoice_draw(void)
+{
+    uint32_t k;
+    char t[12], n[4];
+    panel_head("ECHO VOICE");
+    for (k = 0; k < NE; k++) {
+        const uint16_t c = knob_lit(k) ? P_CYAN : P_SILK;
+        cv_text(10, 20 + (int32_t)k * 19, &FONT_XS, ENC_NAME[k], grey(150));
+        cv_text(70, 20 + (int32_t)k * 19, &FONT_XS, SV_NAME[k], c);
+        sv_text(k, t);
+        int_text(set.se_voice[k], n);
+        cv_text(170, 20 + (int32_t)k * 19, &FONT_XS, t, c);
+        cv_text(214, 20 + (int32_t)k * 19, &FONT_XS, n, grey(150));
+    }
+}
 static void shome_draw(void)
 {
     static const char *const HEADS[8] = {"", "HEAD 1", "HEAD 2", "HEADS 1+2", "HEAD 3", "HEADS 1+3", "HEADS 2+3", "HEADS 1+2+3"};
@@ -8434,6 +8502,8 @@ static void panel_draw(void)                 /* the page's section panel, from u
             shome_draw();
         else if (ui.page == PG_SIN || ui.page == PG_SECHO)
             se_close_draw();
+        else if (ui.page == PG_SVOICE)
+            svoice_draw();
         else if (ui.page == PG_SMOD)
             mod_draw();
         else if (ui.page == PG_ARP)
@@ -9179,6 +9249,8 @@ int app_expect(const char *what, int *got)
         *got = set.rmi_cc_chan;
     else if (!strcmp(what, "route"))
         *got = set.route;
+    else if (!strncmp(what, "se_voice", 8) && what[8] >= '0' && what[8] <= '6' && !what[9])   /* ECHO VOICE's, by encoder */
+        *got = set.se_voice[what[8] - '0'];
     else if (!strcmp(what, "pq_n"))          /* the piano's part: the pattern's events, recording, off */
         *got = pqm.n[pq_target() < DQ_NPAT ? pq_target() : 0u];
     else if (!strcmp(what, "pq_rec"))

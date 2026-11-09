@@ -178,6 +178,11 @@ static inline float se_head(float d)
     }
 }
 
+/* the voicing to taste (ECHO VOICE, app.c's se_apply): the constants above scaled, 1 as modelled */
+static struct {
+    float fb, multi, sat, wow, flut, spa, spg;   /* the loop's gain, two or three heads' too, the knee, WOW's depths, the
+                                              * spring's dispersion and round-trip gain */
+} se_v = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, SE_SP_A, SE_SP_G};
 /* every SE_STEP samples: the motor, the wobble, and the filters the motor and knobs move */
 static void se_tick(void)
 {
@@ -185,7 +190,8 @@ static void se_tick(void)
     se.m += (se_target() - se.m) * (1.0f - fm_expf(-(float)SE_STEP / (SE_MOTOR_S * BS2_RATE)));
     se.rng = se.rng * 1664525u + 1013904223u;
     n = (float)(int32_t)se.rng * (1.0f / 2147483648.0f);
-    u = se.wow * se.wow * (SE_WOW_U * se_bq(&se.nw2, se_bq(&se.nw, n)) + SE_FLUT_U * se_bq(&se.nf2, se_bq(&se.nf, n)));
+    u = se.wow * se.wow * (SE_WOW_U * se_v.wow * se_bq(&se.nw2, se_bq(&se.nw, n))
+                           + SE_FLUT_U * se_v.flut * se_bq(&se.nf2, se_bq(&se.nf, n)));
     se.dv = (se.m * (1.0f + fm_clampf(u, -SE_WOW_MAX, SE_WOW_MAX)) - se.d) * (1.0f / (float)SE_STEP);
     if (fm_fabsf(se.m - se.lp_m) > 0.0002f * BS2_RATE)       /* (a fifth of a millisecond's move) */
         se_lp_set(se.m);
@@ -223,9 +229,9 @@ static void se_sp_flush(void)
  * the springs' damping, and band passes in and out its narrow band (500 Hz..2 kHz, measured). */
 static inline float se_ap(float *r, float x)   /* (a + z^-1) / (1 + a z^-1) at the spring's rate: z^-2 at the app's */
 {
-    const float o = *r, v = x - SE_SP_A * o;
+    const float o = *r, v = x - se_v.spa * o;
     *r = v;
-    return SE_SP_A * v + o;
+    return se_v.spa * v + o;
 }
 
 /* a sample at the spring's rate */
@@ -244,7 +250,7 @@ static inline float se_spring_run(float x)
         const float fb = se_ap(&se_sp.lap[k][1], se_ap(&se_sp.lap[k][0], l[rd]));
         se_sp.damp[k] += (fb - se_sp.damp[k]) * SE_SP_DAMP;
         se_sp.low[k] = la * (se_sp.low[k] + se_sp.damp[k] - se_sp.lowx[k]), se_sp.lowx[k] = se_sp.damp[k];
-        l[w] = x + SE_SP_G * se_sp.low[k];
+        l[w] = x + se_v.spg * se_sp.low[k];
         out += l[t];
     }
     se_sp.w = se_sp.w + 1u >= SE_SP_LEN ? 0u : se_sp.w + 1u;
@@ -286,7 +292,8 @@ static inline float se_tape_next(float x, uint32_t heads)
     se.h2 = a * (se.h2 + se.h1 - se.hx2), se.hx2 = se.h1;
     sum = se_bq(&se.lp, se.h2);                              /* and its high cut */
     x += SE_ASYM * fm_fabsf(x);
-    rec = SE_SAT * fm_tanhf((x + sum * SE_FB * se.intensity) * (1.0f / SE_SAT));
+    rec = SE_SAT * se_v.sat * fm_tanhf((x + sum * SE_FB * se_v.fb * (heads & (heads - 1u) ? se_v.multi : 1.0f) * se.intensity)
+                                       * (1.0f / (SE_SAT * se_v.sat)));
     se.quiet = fm_fabsf(rec) < 0.5f ? se.quiet + 1u : 0u;
     se_tape[se.w] = (int16_t)(rec + (rec < 0.0f ? -0.5f : 0.5f));
     se.w = se.w + 1u >= SE_LEN ? 0u : se.w + 1u;

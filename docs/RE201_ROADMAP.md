@@ -184,3 +184,6 @@ Each phase ends with a host build, the tests, a device build, an install, a CPU 
 ### Phase 5: voicing
 - A/B against the reference recordings, the JE-201 plugin and the AudioThing Springs RE-201 preset.
 - Tune the head ratios, the wow and flutter, the loop filters and the self-oscillation by ear.
+- Done another way (2026-11-08): no A/B pass. ECHO VOICE, a page of its own, puts the voicing in the player's hands
+  (feedback, multi-head feedback, saturation, wow, flutter, the spring's drip and decay), kept with the settings; 64
+  on each is the model as measured.
