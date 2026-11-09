@@ -1,0 +1,50 @@
+# The motion recorder on the drums (mo_step): REC + OCT- records the selected drum's VOLUME (K3) and the roll key over
+# the drums' clock; the loop plays them back, its rolls not recorded into the pattern (RECORD MODE on: the hand's are);
+# REC + OCT+ on a drum page clears the drums' moves, VOLUME back as the hand left it.
+wait 600
+listen
+tap HOME
+wait 2500
+expect drum 1
+tap REC
+wait 30
+tap PLAY
+wait 500
+expect dt_run 1
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+wait 50
+said MOTION RECORDING
+expect dt_rec 1
+expect dt_tempo 100
+turn K3 -6
+wait 300
+key 0 down 100
+wait 600
+key 0 up
+wait 1500
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+wait 50
+said MOTION 2 BARS
+expect mo_n >2
+expect dt_n >2
+# the loop's roll again a pass on: no more hits in the pattern than the hand's pass and its own replays of them
+turn K3 6
+wait 6000
+expect dvol0 <15
+expect dt_n 4
+press REC
+wait 50
+tap OCT+
+wait 50
+release REC
+wait 50
+said DRUM MOTION CLEARED
+expect mo_n 0

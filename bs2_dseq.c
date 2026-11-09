@@ -88,7 +88,8 @@ static struct {
     uint32_t idx, click_t;                   /* the next hit; the next metronome beat */
     int32_t skip[NDT];                       /* a hit recorded ahead of the playhead: not this pass (heard on the next) */
     float click, click_ph, click_inc, click_g;   /* the metronome's envelope, phase, pitch, level */
-    uint8_t roll, roll_d, roll_v, roll_a;    /* the roll key held: its drum, velocity, accent */
+    uint8_t roll, roll_d, roll_v, roll_a, roll_mo;   /* the roll key held: its drum, velocity, accent; the motion
+                                              * loop's (its hits not recorded) */
     volatile uint32_t pass;                  /* a pattern's pass begun (its loop, the next): the piano's part follows it */
     float roll_t, roll_g, roll_inc;          /* ticks since its last hit, between hits, a sample's */
 } dq PLAT_POOL;
@@ -788,12 +789,14 @@ static void dq_roll_hit(void)
         return;
     dt_hit(d, dt.tune[d], l);
     dq_out(d, l);
-    dq_hit_in(d, dq.roll_a);
+    if (!dq.roll_mo)
+        dq_hit_in(d, dq.roll_a);
 }
 static void dq_roll_on(uint32_t d, uint32_t b)
 {
     const int was = dq.roll;
-    dq.roll = 1, dq.roll_d = (uint8_t)d, dq.roll_v = (uint8_t)(b & 0x7Fu), dq.roll_a = (uint8_t)(b >> 7);
+    dq.roll = 1, dq.roll_d = (uint8_t)d, dq.roll_v = (uint8_t)(b & 0x7Fu), dq.roll_a = (uint8_t)(b >> 7 & 1u);
+    dq.roll_mo = (uint8_t)(b >> 8 & 1u);
     if (was)                                 /* (another drum tapped as it rolls: that one's, in time) */
         return;
     dq.roll_g = dq_roll_grid();
@@ -1084,8 +1087,8 @@ static int dq_save(void)                     /* 0: done (stopped: the main loop'
 {
     uint32_t i;
     for (i = 0; i < NDT; i++) {
-        dqm.vol[i] = dt.vol[i];
-        dqm.tune[i] = dt.tune[i];
+        dqm.vol[i] = mo.hv[MO_DVOL + i];     /* (the knobs' own, under the motion loop's sweep) */
+        dqm.tune[i] = mo.hv[MO_DTUNE + i];
     }
     dqm.metro = dt.metro;
     dqm.master = dt.master;

@@ -168,16 +168,18 @@ it.
 ### Motion recorder
 
 Records your knob moves as a loop and plays them back, apart from the notes. So far it records the bass's filter
-Frequency.
+Frequency, and on the drums each drum's VOLUME and TUNING and the roll key (which drum, how hard, when it starts and
+stops). A roll the loop plays isn't recorded into the pattern, even in RECORD MODE; one you play is, as always.
 
 - **REC + OCT−** (hold REC, tap OCT− within a second): recording on. Turn the knob, then **REC + OCT−** again to stop.
   The first pass sets the loop's length, rounded up to whole bars (up to 16). Recording again overdubs: what you turn
   replaces what was there, the rest plays on.
-- **REC + OCT+**: clears the loop and puts the knob back where your hand left it.
+- **REC + OCT+**: clears the moves of the instrument on screen (the bass's on its pages, the drums' on theirs) and
+  puts its knobs back where your hand left them. The other's moves play on.
 - The loop runs on the clock the bass follows: MIDI clock if it's followed, else the drums while they run, else the
   arp or the sequencer. With nothing playing, it waits. Each time that clock starts, the loop starts from its top.
 - Touching the knob while it plays takes it over until you let go.
-- SAVE keeps the knob's own setting, not the loop's sweep. The loop is live only: switching off clears it.
+- SAVE (the bass's or the drums') keeps the knobs' own settings, not the loop's sweep. The loop is live only: switching off clears it.
 - The combo leaves REC's own tap and hold, and the octave, alone.
 - REC shows it in its own way: recording, it stays lit with a dark blink on each beat (a slow blink while it waits for
   a clock); a loop playing, a short flash at each bar and a double one at the loop's top. The bottom right of the

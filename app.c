@@ -802,15 +802,17 @@ static void seq_beat(void)                   /* a 16th of the arp's rhythm, the 
         eng_quiet();
     eng.tie = r[(at + 1u) % RHY_STEPS] == '-' || eng.leg;
 }
-/* the motion recorder (REC + OCT-: recording on or off; REC + OCT+: cleared; mo_step): the knobs' moves, a loop of
- * whole bars on the clock the bass follows (MIDI's, else the drums' while they run, else its arp's or sequencer's),
- * from its top each time that starts; nothing playing, it waits. Live only (a reboot clears it). The filter's
- * frequency, so far */
+/* the motion recorder (REC + OCT-: recording on or off; REC + OCT+: the instrument's cleared; mo_step): the knobs'
+ * moves, a loop of whole bars on the clock the bass follows (MIDI's, else the drums' while they run, else its arp's or
+ * sequencer's), from its top each time that starts; nothing playing, it waits. Live only (a reboot clears it). The
+ * bass's filter frequency; each drum's volume and tuning, and the roll key */
 #define MO_N 2048u                           /* its moves */
 #define MO_BAR 96u                           /* a bar's ticks (24 a quarter note) */
 #define MO_MAXBARS 16u
 #define MO_TOUCH_MS 300u                     /* a hand on it holds the loop's moves off so long after its last */
-enum { MO_CUTOFF };
+enum { MO_CUTOFF, MO_DVOL, MO_DTUNE = MO_DVOL + NDT, MO_ROLL = MO_DTUNE + NDT };   /* its values (mo_ref), then the
+                                              * roll: MO_ROLL off, MO_ROLL + 1 + the drum on (its velocity, the accent's bit 7) */
+#define MO_NT (MO_ROLL + 1)                  /* what a hand holds: the values and the roll */
 typedef struct { uint16_t t; uint8_t tgt, v; } mo_ev_t;
 static mo_ev_t mo_ev[MO_N] PLAT_POOL;
 static volatile float mo_pos;                /* ticks since the clock started (the audio's, mo_clock) */
@@ -818,8 +820,11 @@ static volatile uint8_t mo_run;              /* the clock running */
 static struct {
     uint32_t n, len, rec, go, hand_at;       /* moves; the loop's ticks (0: none yet); recording; the first pass begun */
     float org, last;                         /* the loop's top, in mo_pos's ticks; where it was the last step */
-    uint8_t val, hand;                       /* the cutoff as last seen; as the hand last set it (SAVE's) */
+    uint8_t lv[MO_ROLL], hv[MO_ROLL];        /* each value as last seen; as the hand last set it (SAVE's) */
+    uint32_t at[MO_NT];                      /* when the hand last moved each (the roll: while its key is held) */
     uint8_t bar_shown;                       /* the footer's bar */
+    uint8_t roll_held;                       /* the roll key down */
+    uint8_t rq_n, rq[4][2];                  /* the roll key's presses and releases since the last step, to record */
 } mo;
 static void mo_clock(uint32_t m)             /* eng_run's: the clock's ticks in m samples */
 {
@@ -3410,7 +3415,7 @@ static void save(void)                       /* the settings, and the sound into
 {
     uint32_t i;
     BANK_P(set.slot) = patch;
-    BANK_P(set.slot).cutoff = mo.hand;       /* (the knob's own, under the motion loop's sweep) */
+    BANK_P(set.slot).cutoff = mo.hv[MO_CUTOFF];   /* (the knob's own, under the motion loop's sweep) */
     for (i = PNAME_N; i && cur_name[i - 1u] <= ' '; i--)   /* (its spaces at the end left off) */
         cur_name[i - 1u] = 0;
     if (memcmp(names.n[set.slot], cur_name, PNAME_N)) {
@@ -4222,18 +4227,46 @@ static void mo_del(uint32_t i)               /* the motion's move i out */
     mo.n--;
 }
 static uint32_t mo_bar(void);
+static uint8_t *mo_ref(uint32_t g)           /* value g's */
+{
+    return g == MO_CUTOFF ? &patch.cutoff : g < MO_DTUNE ? &dt.vol[g - MO_DVOL] : &dt.tune[g - MO_DTUNE];
+}
+static int mo_in(uint32_t t, float a, float p) { return p >= a ? t > a && t <= p : t > a || t <= p; }   /* in (a, p] */
+static void mo_put(float p, uint32_t g, uint32_t v)   /* a move in, in time's order */
+{
+    uint32_t i;
+    if (mo.n >= MO_N)
+        return;
+    for (i = mo.n; i > 0u && mo_ev[i - 1u].t > (uint16_t)p; i--)
+        mo_ev[i] = mo_ev[i - 1u];
+    mo_ev[i].t = (uint16_t)p, mo_ev[i].tgt = (uint8_t)g, mo_ev[i].v = (uint8_t)v;
+    mo.n++;
+}
+static void mo_roll(uint32_t g, uint32_t v)  /* the roll key's (dt_roll; let go: MO_ROLL), to record */
+{
+    mo.at[MO_ROLL] = plat_ms();
+    mo.roll_held = g != MO_ROLL;
+    if (mo.rec && mo.rq_n < 4u)
+        mo.rq[mo.rq_n][0] = (uint8_t)g, mo.rq[mo.rq_n++][1] = (uint8_t)v;
+}
 static void mo_step(void)                    /* each look at the buttons: the motion loop recorded and played */
 {
-    const uint32_t now = plat_ms(), touch = now - mo.hand_at < MO_TOUCH_MS;
+    const uint32_t now = plat_ms();
     const float pos = mo_pos;
-    uint32_t i, hand = patch.cutoff != mo.val;
+    uint32_t i, g, moved = 0, rq = mo.rq_n;
     float p, a;
-    if (hand) {                              /* a hand on it (a knob, a CC, a patch): recorded, if on; kept for SAVE */
-        mo.val = mo.hand = patch.cutoff;
-        mo.hand_at = now;
+    mo.rq_n = 0;
+    if (mo.roll_held)                        /* (the roll key held: the hand's) */
+        mo.at[MO_ROLL] = now;
+    for (g = 0; g < MO_ROLL; g++) {          /* a hand on one (a knob, a CC, a patch): recorded, if on; kept for SAVE */
+        const uint8_t v = *mo_ref(g);
+        if (v != mo.lv[g]) {
+            mo.lv[g] = mo.hv[g] = v;
+            mo.at[g] = now;
+            moved |= 1u << g;
+        } else if (!mo.n && !mo.rec)
+            mo.hv[g] = v;
     }
-    if (!mo.n && !mo.rec)
-        mo.hand = patch.cutoff;
     if (!mo_run || (!mo.len && !mo.rec))
         return;
     if (pos < mo.last)                       /* (the clock started again: the loop from its top) */
@@ -4254,36 +4287,52 @@ static void mo_step(void)                    /* each look at the buttons: the mo
         mo.bar_shown = (uint8_t)mo_bar();
         ui.redraw = 1;
     }
-    if (mo.rec && (hand || touch)) {         /* recording, the hand on it: what it passes over replaced, its move in */
-        for (i = mo.n; i-- > 0u;)
-            if (mo_ev[i].tgt == MO_CUTOFF && (p >= a ? mo_ev[i].t > a && mo_ev[i].t <= p
-                                                     : mo_ev[i].t > a || mo_ev[i].t <= p))
+    if (mo.rec) {                            /* recording: what a hand holds, what it passes over replaced; its moves in */
+        for (i = mo.n; i-- > 0u;) {
+            g = mo_ev[i].tgt < MO_ROLL ? mo_ev[i].tgt : MO_ROLL;
+            if (now - mo.at[g] < MO_TOUCH_MS && mo_in(mo_ev[i].t, a, p))
                 mo_del(i);
-        if (hand && mo.n < MO_N) {           /* (a move: the value changed) */
-            for (i = mo.n; i > 0u && mo_ev[i - 1u].t > (uint16_t)p; i--)
-                mo_ev[i] = mo_ev[i - 1u];
-            mo_ev[i].t = (uint16_t)p, mo_ev[i].tgt = MO_CUTOFF, mo_ev[i].v = patch.cutoff;
-            mo.n++;
         }
-    } else if (mo.len && !touch)             /* playing: the last move it passed */
-        for (i = 0; i < mo.n; i++)
-            if (p >= a ? mo_ev[i].t > a && mo_ev[i].t <= p : mo_ev[i].t > a || mo_ev[i].t <= p) {
-                patch.cutoff = mo.val = mo_ev[i].v;
-                ui.redraw = 1;
-            }
+        for (g = 0; g < MO_ROLL; g++)
+            if (moved >> g & 1u)
+                mo_put(p, g, *mo_ref(g));
+        for (i = 0; i < rq; i++)
+            mo_put(p, mo.rq[i][0], mo.rq[i][1]);
+    }
+    if (mo.len)                              /* playing: the moves it passed, of what no hand holds */
+        for (i = 0; i < mo.n; i++) {
+            const mo_ev_t e = mo_ev[i];
+            g = e.tgt < MO_ROLL ? e.tgt : MO_ROLL;
+            if (!mo_in(e.t, a, p) || now - mo.at[g] < MO_TOUCH_MS)
+                continue;
+            if (e.tgt < MO_ROLL)
+                *mo_ref(e.tgt) = mo.lv[e.tgt] = e.v;
+            else if (e.tgt > MO_ROLL)        /* (its hits not recorded into the pattern: the loop's) */
+                dq_cmd(DQC_ROLL, e.tgt - MO_ROLL - 1u, e.v | 1u << 8);
+            else
+                dq_cmd(DQC_ROLLOFF, 0, 0);
+            ui.redraw = 1;
+        }
 }
 static void mo_cmd(int clear)                /* REC + OCT-: recording on or off; REC + OCT+: the loop cleared */
 {
     char t[12];
-    if (clear || ui.drum || ui.rmi) {
-        if (ui.drum || ui.rmi) {             /* (the bass's alone, so far) */
-            app_say("MOTION", "BASS ONLY");
-            return;
-        }
-        if (mo.n)
-            patch.cutoff = mo.val = mo.hand; /* (the knob as the hand left it) */
-        mo.n = mo.len = mo.rec = mo.go = 0;
-        app_say("MOTION", "CLEARED");
+    if (ui.rmi && !ui.drum) {                /* (the piano's knobs: not recorded) */
+        app_say("MOTION", "NOT THE PIANO");
+        return;
+    }
+    if (clear) {                             /* the instrument on screen's moves, its values as the hand left them */
+        uint32_t i, g;
+        for (i = mo.n; i-- > 0u;)
+            if ((mo_ev[i].tgt != MO_CUTOFF) == (ui.drum != 0u))
+                mo_del(i);
+        for (g = ui.drum ? MO_DVOL : MO_CUTOFF; g < (ui.drum ? MO_ROLL : MO_DVOL); g++)
+            *mo_ref(g) = mo.lv[g] = mo.hv[g];
+        if (ui.drum && dq.roll)
+            dq_cmd(DQC_ROLLOFF, 0, 0);
+        if (!mo.n)
+            mo.len = mo.rec = mo.go = 0;
+        app_say(ui.drum ? "DRUM MOTION" : "BASS MOTION", "CLEARED");
         return;
     }
     if (!mo.rec) {
@@ -4384,7 +4433,9 @@ static const uint8_t DT_PAD[NDT] = {7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 25
 static void dt_roll(uint32_t d, uint32_t v, uint32_t keys)
 {
     static const uint8_t BK[11] = PLAT_BLACK_KEYS;
-    dq_cmd(DQC_ROLL, d, v | (keys >> BK[0] & 1u) << 7);
+    const uint32_t b = v | (keys >> BK[0] & 1u) << 7;
+    dq_cmd(DQC_ROLL, d, b);
+    mo_roll(MO_ROLL + 1u + d, b);            /* (the motion recorder's too) */
 }
 static void dt_key(uint32_t k, uint32_t v, uint32_t keys)
 {
@@ -4809,8 +4860,10 @@ static void input(void)
             key_send(0x90u, (uint32_t)note, v, ui.och[k]);
         } else if (!(keys & bit) && (ui.keys & bit)) {
             ui.prs[k] = 0;
-            if (k == DT_ROLL_KEY)            /* (in either mode: HOME may have left the drums while it rolled) */
+            if (k == DT_ROLL_KEY) {          /* (in either mode: HOME may have left the drums while it rolled) */
                 dq_cmd(DQC_ROLLOFF, 0, 0);
+                mo_roll(MO_ROLL, 0);
+            }
             fifo_put(&keyq, (uint32_t)note | (ui.rkeys & bit ? KEYQ_RMI : 0u));   /* (LOCAL turned off while it was
                                               * held: still let go; the RMI's, its: the mode may have changed) */
             ui.rkeys &= ~bit;
