@@ -168,7 +168,7 @@ it.
 ### Motion recorder
 
 Records your knob moves as a loop and plays them back, apart from the notes. It records the bass's filter
-Frequency, Resonance and arp Rhythm; on the Space Echo its INTENSITY, REPEAT RATE, INSTRUMENT VOLUME, MODE SELECTOR,
+Frequency, Resonance, arp Rhythm and arp Octaves; on the Space Echo its INTENSITY, REPEAT RATE, INSTRUMENT VOLUME, MODE SELECTOR,
 REVERB VOLUME, ECHO VOLUME, the three sends and WOW; and on the drums each drum's VOLUME and TUNING and the roll key (which drum, how hard, when it starts and
 stops). A roll the loop plays isn't recorded into the pattern, even in RECORD MODE; one you play is, as always. It records the
 patterns you cue as the drums run, too, an improvised song: the loop cues them again at the same places, and cues the

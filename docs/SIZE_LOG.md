@@ -207,3 +207,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-09 | 649d6c9+ | Space Echo: sends in the tape's units (SE_UNIT), tape store clamped | 537,596 | -128 | 43,968 | 83,044 | +0 | 15,260 | 262,616 |
 | 2026-11-09 | 649d6c9+ | Space Echo before MASTER: sends undone into a 16-bit sample's units, return under MASTER | 537,772 | +176 | 43,792 | 83,044 | +0 | 15,260 | 262,616 |
 | 2026-11-09 | 9b88010+ | motion: bass reso/rhythm, Space Echo knobs and sends | 537,756 | -16 | 43,808 | 83,140 | +96 | 15,164 | 262,616 |
+| 2026-11-09 | 7f85f02+ | motion: arp octaves | 537,772 | +16 | 43,792 | 83,140 | +0 | 15,164 | 262,616 |

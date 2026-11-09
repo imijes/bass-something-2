@@ -805,21 +805,22 @@ static void seq_beat(void)                   /* a 16th of the arp's rhythm, the 
 /* the motion recorder (REC + OCT-: recording on or off; REC + OCT+: the instrument on screen's cleared; any page; mo_step): the knobs'
  * moves, a loop of whole bars on the clock the bass follows (MIDI's, else the drums' while they run, else its arp's or
  * sequencer's), from its top each time that starts; nothing playing, it waits. Live only (a reboot clears it). The
- * bass's filter frequency, resonance and arp rhythm; each drum's volume and tuning, and the roll key; the Space Echo's
+ * bass's filter frequency, resonance, arp rhythm and octaves; each drum's volume and tuning, and the roll key; the Space Echo's
  * knobs and sends (its own clear: on an echo page) */
 #define MO_N 2048u                           /* its moves */
 #define MO_BAR 96u                           /* a bar's ticks (24 a quarter note) */
 #define MO_MAXBARS 16u
 #define MO_TOUCH_MS 300u                     /* a hand on it holds the loop's moves off so long after its last */
 #define MO_NSE 10u                           /* the Space Echo's (MO_SE_AT) */
-enum { MO_CUTOFF, MO_RESO, MO_RHY, MO_DVOL, MO_DTUNE = MO_DVOL + NDT, MO_SE = MO_DTUNE + NDT, MO_ROLL = MO_SE + MO_NSE,
+enum { MO_CUTOFF, MO_RESO, MO_RHY, MO_AOCT, MO_DVOL, MO_DTUNE = MO_DVOL + NDT, MO_SE = MO_DTUNE + NDT, MO_ROLL = MO_SE + MO_NSE,
        MO_PAT = MO_ROLL + 1 + NDT };         /* its
                                               * values (mo_ref), then the roll: MO_ROLL off, MO_ROLL + 1 + the drum on (its
                                               * velocity, the accent's bit 7); a drum pattern cued (its number) */
 #define MO_NT (MO_ROLL + 2)                  /* what a hand holds: the values, the roll, the patterns */
 #define MO_HELD(g) ((g) < MO_ROLL ? (g) : (g) == MO_PAT ? MO_ROLL + 1u : MO_ROLL)   /* a move's in mo.at */
 #define MO_INST(g) ((g) < MO_DVOL ? 0u : (g) < MO_SE || (g) >= MO_ROLL ? 1u : 2u)   /* the bass's, the drums', the echo's */
-static const uint8_t MO_BASS_AT[MO_DVOL] = {offsetof(patch_t, cutoff), offsetof(patch_t, reso), offsetof(patch_t, rhythm)};
+static const uint8_t MO_BASS_AT[MO_DVOL] = {offsetof(patch_t, cutoff), offsetof(patch_t, reso), offsetof(patch_t, rhythm),
+                                           offsetof(patch_t, arp_oct)};
 static const uint8_t MO_SE_AT[MO_NSE] = {offsetof(settings_t, se_int), offsetof(settings_t, se_rate),
                                          offsetof(settings_t, se_input), offsetof(settings_t, se_mode),
                                          offsetof(settings_t, se_rev), offsetof(settings_t, se_echo),
