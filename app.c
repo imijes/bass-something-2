@@ -910,11 +910,11 @@ static const char *midi_in_text(char *h)     /* the last message in as hex, "90 
     }
     return midi_last_port < NPORTS ? PORT[midi_last_port] : "";
 }
-#include "bs2_dseq.c"                     /* Drum Something: its sequencer (dq_block, dq_sample, dq_click_next) */
 static uint32_t route_in[4];                 /* the bass's notes held from the RMI (ROUTE), a bit each: let go as its are */
 static int32_t route_note = -1;              /* the bass's note sounding on the RMI (ROUTE), -1 none */
 static uint32_t route_trig;
-static void rmi_play(uint32_t note, uint32_t vel)   /* an RMI note, its keys' or its channel's: into the bass too (ROUTE) */
+static void rmi_route(uint32_t note, uint32_t vel)   /* an RMI note, its keys', its channel's or its part's: into the
+                                              * bass too (ROUTE) */
 {
     uint32_t i, bit = 1u << (note & 31u);
     rmi_note(note, vel);
@@ -933,6 +933,13 @@ static void rmi_play(uint32_t note, uint32_t vel)   /* an RMI note, its keys' or
         note_in(note, 0);
     }
 }
+static int pq_key(uint32_t note, uint32_t vel);   /* (bs2_dseq.c: the piano's part recording it; 0: not sounded) */
+static void rmi_play(uint32_t note, uint32_t vel)   /* its keys' or its channel's: recorded into the part as it's on */
+{
+    if (pq_key(note, vel))
+        rmi_route(note, vel);
+}
+#include "bs2_dseq.c"                     /* Drum Something: its sequencer (dq_block, dq_sample, dq_click_next) */
 static void route_follow(void)               /* what the bass plays (its keys, arp, sequencer) on the RMI too (ROUTE):
                                               * not while the RMI plays the bass, so a note goes one way, once */
 {
@@ -969,7 +976,10 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
             if ((set.rmi_chan == CH_ALL || set.rmi_chan == ch) && ((st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u))
                 rmi_play(d1, (st & 0xF0u) == 0x90u ? d2 : 0u);   /* the RMI (GLO RMI), a device of its own too */
             else if ((set.rmi_cc_chan == CH_ALL || set.rmi_cc_chan == ch) && (st & 0xF0u) == 0xB0u)
+            {
                 rmi_cc(d1, d2);
+                pq_cc(d1, d2);                   /* (the sustain pedal into the piano's part, recording) */
+            }
         }
         if (st != 0xF8u && st != 0xFEu) {    /* (clock and active sensing would flood the screen) */
             midi_last = pkt;
@@ -1169,6 +1179,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     }
     midi_in();
     route_follow();
+    pq_block();                              /* (the piano's part: its notes before the piano's block) */
     dt_block();
     rmi_block();
     if (!(plat_cpu2_on() && plat_cpu2_run(rmi_job, n)))   /* the RMI's block: the second core's while the bass and
@@ -3848,7 +3859,8 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
     if (ui.rmi && (RMI_PAGE(ui.page) || ui.page < PG_HOME))   /* (the RMI's: its panel and mods, rmi_button) */
         return k == B_SEL ? (ui.page == PG_RSEL ? "SEL tap: Next toggle" : ui.page == PG_RVIEW ? "SEL tap: Change Piano Presets"
                              : "SEL tap: Piano Presets")
-               : k == B_HOME ? "Piano Home" : 0;
+               : k == B_HOME ? "Piano Home" : k == B_REC ? "REC tap: Record piano, hold: Erase"
+               : k == B_PLAY ? "PLAY tap: Piano part on/off, hold: Undo" : k == B_SAVE ? "SAVE tap: Save drums + piano" : 0;
     if (ui.drum && !RND_PAGE(ui.page)) {     /* (every button the drums', as dt_button: the bass's form) */
         const uint32_t f = ui.dt_fn;
         const char *to = 0, *more = 0;
@@ -3982,8 +3994,13 @@ static void rmi_button(uint32_t k)
         app_say(rt_name(ui.rmi_cur), rt_on(ui.rmi_cur) ? "ON" : "OFF");
     } else if (k == B_SEL)                   /* (the toggles whole first, PIANO PRESETS; again, up close) */
         sect_open(ui.page == PG_RVIEW ? PG_RSEL : PG_RVIEW, k);
-    else if (k == B_SAVE)
-        app_say("PIANO", "KEEPS ITSELF");
+    else if (k == B_SAVE && dq.run)          /* (its parts, with the drums' patterns: a flash write stops the audio a
+                                              * moment) */
+        app_say("PIANO", "STOP FIRST");
+    else if (k == B_SAVE) {
+        const int bad = dq_save();
+        app_say(bad ? "SAVE" : "DRUMS + PIANO", bad ? "FAILED" : "SAVED");
+    }
     else
         app_say("PIANO", "SEL: ITS PANELS");
 }
@@ -3998,6 +4015,55 @@ static void se_button(uint32_t k)
     else
         app_say("SPACE SOMETHING", "SEL: ITS PANELS");
 }
+/* the piano's part (bs2_dseq.c's pq): REC records into the pattern playing (stopped: the drums' pattern shown, started),
+ * held erases; PLAY the part on or off (stopped: the drums started), held takes the last pass back */
+static uint32_t pq_target(void) { return dq.run ? dq.cur : ui.dt_pat; }
+static int pq_go(void)                       /* the drums running, for recording: 0 refused */
+{
+    if (pq_target() >= DQ_NPAT) {
+        app_say("PIANO", "99 CAN'T RECORD");
+        return 0;
+    }
+    if (!dq.run)
+        dq_cmd(DQC_RUN, ui.dt_pat, 0);
+    return 1;
+}
+static void pq_rec_tap(void)
+{
+    char t[16] = "PATTERN ";
+    if (pq.rec == PQR_REC) {
+        pq_cmd(PQC_REC, PQR_OFF);
+        app_say("PIANO REC", "OFF");
+        return;
+    }
+    if (!pq_go())
+        return;
+    pq_cmd(PQC_MUTE, 0);
+    pq_cmd(PQC_REC, PQR_REC);
+    t[8] = (char)('0' + pq_target() / 10u), t[9] = (char)('0' + pq_target() % 10u), t[10] = 0;
+    app_say("PIANO REC", t);
+}
+static void pq_erase_hold(void)
+{
+    if (!pq_go())
+        return;
+    pq_cmd(PQC_REC, PQR_ERASE);
+    app_say("PIANO ERASE", "HOLD KEYS");
+}
+static void pq_play_tap(void)
+{
+    if (!dq.run) {
+        if (ui.dt_pat < DQ_NPAT && (pqm.n[ui.dt_pat] || dqm.pat[ui.dt_pat].n)) {
+            pq_cmd(PQC_MUTE, 0);
+            dq_cmd(DQC_RUN, ui.dt_pat, 0);
+            app_say("PIANO PART", "PLAYING");
+        } else
+            app_say("PIANO PART", "EMPTY");
+        return;
+    }
+    pq_cmd(PQC_MUTE, !pq.mute);
+    app_say("PIANO PART", pq.mute ? "ON" : "OFF");
+}
 static void hold_tap(uint32_t k)
 {
     const char *const said = ui.hint;        /* (what the tap refuses, said over this) */
@@ -4009,6 +4075,10 @@ static void hold_tap(uint32_t k)
         mode_switch();
     else if (k == B_HOME)                         /* HOME: the whole panel (the first page), the mode's */
         home_back();
+    else if (k == B_REC && ui.rmi && ui.page != PG_GMIDI)   /* the piano's: its part */
+        pq_rec_tap();
+    else if (k == B_PLAY && ui.rmi)
+        pq_play_tap();
     else if (k == B_REC && ui.page != PG_GMIDI)   /* recording, on any page (GLO MIDI's: a Bluetooth device) */
         rec_toggle();
     else if (k == B_REC && FM1B_BLE_CENTRAL && !set.ble_off)
@@ -4328,7 +4398,7 @@ static void dt_button(uint32_t k)
                 ui.dt_fn = DTF_SONG;
                 dq_cmd(DQC_SONG, ui.dt_song, 0);
             }
-        } else if (ui.dt_pat < DQ_NPAT && (dq.rec || dqm.pat[ui.dt_pat].n)) {
+        } else if (ui.dt_pat < DQ_NPAT && (dq.rec || dqm.pat[ui.dt_pat].n || pqm.n[ui.dt_pat])) {
             if (f > DTF_SWING && f < DTF_ROLL)
                 ui.dt_fn = DTF_PAT;
             dq_cmd(DQC_RUN, ui.dt_pat, 0);
@@ -4418,6 +4488,12 @@ static void hold_step(uint32_t btn)
         }
         else if (ui.hold_k == B_EDIT)
             randomize();
+        else if (ui.hold_k == B_REC && ui.rmi)
+            pq_erase_hold();
+        else if (ui.hold_k == B_PLAY) {      /* (the piano's: its last pass taken back) */
+            pq_cmd(PQC_UNDO, 0);
+            app_say("PIANO", "LAST PASS UNDONE");
+        }
         else if (ui.hold_k == B_REC)         /* (the drums' alone: the synth's REC acts on release) */
             ;
         else if (ui.hold_k != B_GLO) {
@@ -4503,10 +4579,10 @@ static void input(void)
         else if (ui.se && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && !RND_PAGE(ui.page)
                  && ui.page != PG_GDUMP)
             se_button(k);
-        else if (ui.rmi && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && !RND_PAGE(ui.page)
-                 && ui.page != PG_GDUMP)
+        else if (ui.rmi && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && k != B_PLAY
+                 && !RND_PAGE(ui.page) && ui.page != PG_GDUMP)
             rmi_button(k);
-        else if (k == B_ARP || k == B_SEQ || k == B_GLO || k == B_REC || k == B_HOME || k == B_EDIT) {   /* on release, or once held
+        else if (k == B_ARP || k == B_SEQ || k == B_GLO || k == B_REC || k == B_HOME || k == B_EDIT || (ui.rmi && k == B_PLAY)) {   /* on release, or once held
                                               * HOLD_MS (hold_step) */
             ui.hold_k = (uint8_t)k;
             ui.hold_live = 1;
@@ -4660,8 +4736,11 @@ static void input(void)
         ui.redraw = 1;
     ui.lit = lit;
     plat_glow(1);                            /* the unlit buttons glow, readable in the dark */
-    plat_play_red(ui.drum && dq.rec);        /* (PLAY: red while it records) */
-    if (ui.drum)
+    plat_play_red((ui.drum && dq.rec) || (ui.rmi && pq.rec));   /* (PLAY: red while it records) */
+    if (ui.rmi && !ui.drum)                  /* (the piano's part: PLAY lit as it plays, REC as it records) */
+        plat_leds(btn | (dq.dirty ? 1u << B_SAVE : 0u) | (uint32_t)(dq.run && !pq.mute) << B_PLAY
+                  | (uint32_t)(pq.rec != 0u) << B_REC, keys | lit);
+    else if (ui.drum)
         plat_leds(btn | (dq.dirty ? 1u << B_SAVE : 0u) | (uint32_t)dt_play_light() << B_PLAY
                   | (uint32_t)dt_rec_light() << B_REC, keys | lit);
     else
@@ -9091,6 +9170,12 @@ int app_expect(const char *what, int *got)
         *got = set.rmi_cc_chan;
     else if (!strcmp(what, "route"))
         *got = set.route;
+    else if (!strcmp(what, "pq_n"))          /* the piano's part: the pattern's events, recording, off */
+        *got = pqm.n[pq_target() < DQ_NPAT ? pq_target() : 0u];
+    else if (!strcmp(what, "pq_rec"))
+        *got = pq.rec;
+    else if (!strcmp(what, "pq_mute"))
+        *got = pq.mute;
     else if (!strcmp(what, "rmi_held")) {    /* the RMI's keys held, its voices' */
         uint32_t i;
         for (*got = 0, i = 0; i < RMI_NV; i++)

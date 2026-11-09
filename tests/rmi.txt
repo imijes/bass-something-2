@@ -89,7 +89,7 @@ wait 30
 said PIANO SEL: ITS PANELS
 tap SAVE
 wait 30
-said PIANO KEEPS ITSELF
+said DRUMS + PIANO SAVED
 tap HOME
 wait 600
 expect page 40

@@ -1,0 +1,103 @@
+# The piano's part of the drums' patterns (bs2_dseq.c's pq): REC on a piano page records into the pattern (the drums
+# started); the next pass plays it; PLAY the part off and on; PLAY held takes the last pass back; REC held erases the
+# keys held as the loop passes them; SAVE only stopped.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/pianoseq.txt bs2/build/host
+wait 600
+listen
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+said PIANO HOME
+expect dt_run 0
+tap REC
+wait 100
+said PIANO REC PATTERN 00
+expect dt_run 1
+expect pq_rec 1
+# a note, 0.2 s held: its Note On and Off (the pattern's one measure, 2.4 s at the drums' 100)
+key 7 down 100
+wait 200
+key 7 up
+wait 50
+expect pq_n 2
+expect rmi_held 0
+# the next pass: it plays (held as it was), then let go
+wait 2200
+expect rmi_held 1
+wait 300
+expect rmi_held 0
+# SAVE while it runs: refused
+tap SAVE
+wait 30
+said PIANO STOP FIRST
+# PLAY: the part off; the pass after, silent
+tap PLAY
+wait 30
+said PIANO PART OFF
+expect pq_mute 1
+wait 1550
+expect rmi_held 0
+tap PLAY
+wait 30
+said PIANO PART ON
+expect pq_mute 0
+# another note, then PLAY held: that pass taken back, the first kept
+key 9 down 100
+wait 100
+key 9 up
+wait 50
+expect pq_n 4
+press PLAY
+wait 1100
+release PLAY
+wait 50
+said PIANO LAST PASS UNDONE
+expect pq_n 2
+# REC held: erasing; the key held a whole pass, its note gone (the keys silent)
+press REC
+wait 1100
+release REC
+wait 30
+said PIANO ERASE HOLD KEYS
+expect pq_rec 2
+key 7 down 100
+wait 2600
+expect rmi_held 0
+key 7 up
+wait 50
+expect pq_n 0
+tap REC
+wait 50
+said PIANO REC PATTERN 00
+tap REC
+wait 50
+said PIANO REC OFF
+expect pq_rec 0
+# a note again; the drums stopped (their PLAY), saved with them (their SAVE), kept across a reboot
+tap REC
+wait 50
+key 7 down 100
+wait 200
+key 7 up
+wait 50
+tap REC
+wait 50
+expect pq_n 2
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+said DRUM HOME
+tap PLAY
+wait 100
+expect dt_run 0
+tap SAVE
+wait 100
+said DRUMS SAVED
+reboot
+wait 600
+expect pq_n 2

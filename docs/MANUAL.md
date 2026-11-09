@@ -675,6 +675,23 @@ chord. BASS>PIANO plays what the bass plays on the piano too: its keys, its MIDI
 does both, and can't loop: a routed note is never routed again or sent out over MIDI, and while the piano is playing
 the bass, the bass sends nothing back.
 
+#### The piano's part
+
+Each drum pattern (00 to 98) has a piano part beside its drums, played with it and saved with it.
+
+| Button (piano pages) | Tap | Held a second |
+| --- | --- | --- |
+| REC | Records the piano into the pattern playing. With the drums stopped, the pattern shown on the drums' pages starts. Again: recording off | Erase: hold a key as the loop passes its notes, and they're gone. The keys stay silent while erasing; tap REC to record again |
+| PLAY | The piano's part on or off, the drums playing on. With the drums stopped, they start with it | Undo: the last pass you recorded notes in is taken back |
+| SAVE | Saves the drums' patterns and songs with the piano's parts (stopped only) | |
+
+Recording adds to what's there (overdub), on the pattern's Error Correct grid, its swing and length. The metronome
+clicks while it records. In a song, recording follows the patterns as they change: a pattern that comes back in the
+song takes both passes. A note still held as the pattern changes ends at its end. The sustain pedal (CC 64 on the
+piano's CC channel) is recorded too. The part plays on the piano, out on its MIDI channel (GLOBAL PIANO), and through
+ROUTE: with PIANO>BASS on, the part plays the bass as well. ERASE PATTERN and COPY PATTERN on the drums take the
+piano's part with the drums'. The parts hold about 1,850 notes in all.
+
 Its sound is synthesised, each key's tone and decay modelled on recordings of a real 368X; its tail is the room
 Drum Something 400 uses. LUTE is the harpsichord's tone through the 368X's lute filter (a low pass about 1.3 kHz),
 its level set by ear, as is how much softer a PP toggle is: the recordings can't measure those.

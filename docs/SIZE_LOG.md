@@ -194,3 +194,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-08 | 9222b25+ | Space Echo: the spring at half rate (10.6 KB pool back); CPU0 59/62 in mode 11 (was 65/69) | 512,364 | -48 | 69,200 | 82,484 | +0 | 15,820 | 235,792 |
 | 2026-11-08 | a171529+ | GLOBAL RMI: the RMI's channels, ROUTE between it and the bass | 524,268 | +11,904 | 57,296 | 82,580 | +96 | 15,724 | 236,896 |
 | 2026-11-08 | 95b9106+ | Piano art: FRONT1 HOME panel, PIANO PANEL at 0.5, PIANO PRESETS; Randomize on EDIT held | 525,868 | +1,600 | 55,696 | 82,580 | +0 | 15,724 | 236,896 |
+| 2026-11-08 | 9ec5750+ | Piano part per drum pattern: REC/PLAY/undo/erase, saved with the drums | 530,220 | +4,352 | 51,344 | 82,772 | +192 | 15,532 | 254,328 |
