@@ -206,3 +206,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-09 | dd9d25b+ | Motion recorder: both combos on every page; REC + OCT+ clears the instrument on screen's, saying CLEARED or EMPTY | 537,724 | +128 | 43,840 | 83,044 | +0 | 15,260 | 262,616 |
 | 2026-11-09 | 649d6c9+ | Space Echo: sends in the tape's units (SE_UNIT), tape store clamped | 537,596 | -128 | 43,968 | 83,044 | +0 | 15,260 | 262,616 |
 | 2026-11-09 | 649d6c9+ | Space Echo before MASTER: sends undone into a 16-bit sample's units, return under MASTER | 537,772 | +176 | 43,792 | 83,044 | +0 | 15,260 | 262,616 |
+| 2026-11-09 | 9b88010+ | motion: bass reso/rhythm, Space Echo knobs and sends | 537,756 | -16 | 43,808 | 83,140 | +96 | 15,164 | 262,616 |

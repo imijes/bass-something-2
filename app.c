@@ -805,16 +805,26 @@ static void seq_beat(void)                   /* a 16th of the arp's rhythm, the 
 /* the motion recorder (REC + OCT-: recording on or off; REC + OCT+: the instrument on screen's cleared; any page; mo_step): the knobs'
  * moves, a loop of whole bars on the clock the bass follows (MIDI's, else the drums' while they run, else its arp's or
  * sequencer's), from its top each time that starts; nothing playing, it waits. Live only (a reboot clears it). The
- * bass's filter frequency; each drum's volume and tuning, and the roll key */
+ * bass's filter frequency, resonance and arp rhythm; each drum's volume and tuning, and the roll key; the Space Echo's
+ * knobs and sends (its own clear: on an echo page) */
 #define MO_N 2048u                           /* its moves */
 #define MO_BAR 96u                           /* a bar's ticks (24 a quarter note) */
 #define MO_MAXBARS 16u
 #define MO_TOUCH_MS 300u                     /* a hand on it holds the loop's moves off so long after its last */
-enum { MO_CUTOFF, MO_DVOL, MO_DTUNE = MO_DVOL + NDT, MO_ROLL = MO_DTUNE + NDT, MO_PAT = MO_ROLL + 1 + NDT };   /* its
+#define MO_NSE 10u                           /* the Space Echo's (MO_SE_AT) */
+enum { MO_CUTOFF, MO_RESO, MO_RHY, MO_DVOL, MO_DTUNE = MO_DVOL + NDT, MO_SE = MO_DTUNE + NDT, MO_ROLL = MO_SE + MO_NSE,
+       MO_PAT = MO_ROLL + 1 + NDT };         /* its
                                               * values (mo_ref), then the roll: MO_ROLL off, MO_ROLL + 1 + the drum on (its
                                               * velocity, the accent's bit 7); a drum pattern cued (its number) */
 #define MO_NT (MO_ROLL + 2)                  /* what a hand holds: the values, the roll, the patterns */
 #define MO_HELD(g) ((g) < MO_ROLL ? (g) : (g) == MO_PAT ? MO_ROLL + 1u : MO_ROLL)   /* a move's in mo.at */
+#define MO_INST(g) ((g) < MO_DVOL ? 0u : (g) < MO_SE || (g) >= MO_ROLL ? 1u : 2u)   /* the bass's, the drums', the echo's */
+static const uint8_t MO_BASS_AT[MO_DVOL] = {offsetof(patch_t, cutoff), offsetof(patch_t, reso), offsetof(patch_t, rhythm)};
+static const uint8_t MO_SE_AT[MO_NSE] = {offsetof(settings_t, se_int), offsetof(settings_t, se_rate),
+                                         offsetof(settings_t, se_input), offsetof(settings_t, se_mode),
+                                         offsetof(settings_t, se_rev), offsetof(settings_t, se_echo),
+                                         offsetof(settings_t, se_send[0]), offsetof(settings_t, se_send[1]),
+                                         offsetof(settings_t, se_send[2]), offsetof(settings_t, se_wow)};
 typedef struct { uint16_t t; uint8_t tgt, v; } mo_ev_t;
 static mo_ev_t mo_ev[MO_N] PLAT_POOL;
 static volatile float mo_pos;                /* ticks since the clock started (the audio's, mo_clock) */
@@ -1552,11 +1562,21 @@ static void patch_fill(patch_t *p, uint32_t from)   /* the bytes from FROM on: 0
 }
 
 /* --------------------------------------------------------------- settings --- */
+static void mo_hand_set(settings_t *s)       /* the Space Echo's knobs in s as the hand left them, under the motion loop's */
+{
+    uint32_t i;
+    if (mo.n)
+        for (i = 0; i < MO_NSE; i++)
+            ((uint8_t *)s)[MO_SE_AT[i]] = mo.hv[MO_SE + i];
+}
 static int set_store(void)                   /* the settings into the store: 0 done */
 {
-    int r = store_save(OBJ_SETTINGS, &set, sizeof set);
+    settings_t s = set;
+    int r;
+    mo_hand_set(&s);
+    r = store_save(OBJ_SETTINGS, &s, sizeof s);
     if (r == 0)
-        set_kept = set;
+        set_kept = s;
     return r;
 }
 static void settings_defaults(settings_t *s)
@@ -3421,7 +3441,8 @@ static void save(void)                       /* the settings, and the sound into
 {
     uint32_t i;
     BANK_P(set.slot) = patch;
-    BANK_P(set.slot).cutoff = mo.hv[MO_CUTOFF];   /* (the knob's own, under the motion loop's sweep) */
+    for (i = 0; i < MO_DVOL; i++)            /* (the knobs' own, under the motion loop's sweeps) */
+        ((uint8_t *)&BANK_P(set.slot))[MO_BASS_AT[i]] = mo.hv[i];
     for (i = PNAME_N; i && cur_name[i - 1u] <= ' '; i--)   /* (its spaces at the end left off) */
         cur_name[i - 1u] = 0;
     if (memcmp(names.n[set.slot], cur_name, PNAME_N)) {
@@ -3564,6 +3585,7 @@ static void glo_keep(void)                   /* the main loop's (input) */
     uint32_t i;
     for (i = GLO_FROM; i < sizeof set; i++)
         ((uint8_t *)&rec)[i] = ((const uint8_t *)&set)[i];
+    mo_hand_set(&rec);
     if (same(&rec, &set_kept, sizeof rec)) {
         pend_at = 0;
         return;
@@ -3668,6 +3690,7 @@ void app_backup_flush(void)
     seq_keep(1);
     for (i = GLO_FROM; i < sizeof set; i++)
         ((uint8_t *)&rec)[i] = ((const uint8_t *)&set)[i];
+    mo_hand_set(&rec);
     if (!same(&rec, &set_kept, sizeof rec) && store_save(OBJ_SETTINGS, &rec, sizeof rec) == 0)
         set_kept = rec;
 }
@@ -4235,7 +4258,8 @@ static void mo_del(uint32_t i)               /* the motion's move i out */
 static uint32_t mo_bar(void);
 static uint8_t *mo_ref(uint32_t g)           /* value g's */
 {
-    return g == MO_CUTOFF ? &patch.cutoff : g < MO_DTUNE ? &dt.vol[g - MO_DVOL] : &dt.tune[g - MO_DTUNE];
+    return g < MO_DVOL ? (uint8_t *)&patch + MO_BASS_AT[g] : g < MO_DTUNE ? &dt.vol[g - MO_DVOL]
+         : g < MO_SE   ? &dt.tune[g - MO_DTUNE] : (uint8_t *)&set + MO_SE_AT[g - MO_SE];
 }
 static int mo_in(uint32_t t, float a, float p) { return p >= a ? t > a && t <= p : t > a || t <= p; }   /* in (a, p] */
 static void mo_put(float p, uint32_t g, uint32_t v)   /* a move in, in time's order */
@@ -4265,7 +4289,8 @@ static void mo_step(void)                    /* each look at the buttons: the mo
 {
     const uint32_t now = plat_ms();
     const float pos = mo_pos;
-    uint32_t i, g, moved = 0, rq = mo.rq_n;
+    uint32_t i, g, rq = mo.rq_n;
+    uint64_t moved = 0;
     float p, a;
     mo.rq_n = 0;
     if (mo.roll_held)                        /* (the roll key held: the hand's) */
@@ -4275,7 +4300,7 @@ static void mo_step(void)                    /* each look at the buttons: the mo
         if (v != mo.lv[g]) {
             mo.lv[g] = mo.hv[g] = v;
             mo.at[g] = now;
-            moved |= 1u << g;
+            moved |= 1ull << g;
         } else if (!mo.n && !mo.rec)
             mo.hv[g] = v;
     }
@@ -4335,23 +4360,24 @@ static void mo_step(void)                    /* each look at the buttons: the mo
 static void mo_cmd(int clear)                /* REC + OCT-: recording on or off; REC + OCT+: the loop cleared */
 {
     char t[12];
-    if (clear) {                             /* the instrument on screen's moves (the piano and the echo have none), its
-                                              * knobs as the hand left them; said cleared, or empty */
-        const int dr = ui.drum != 0u, own = !ui.rmi && !ui.se;
+    if (clear) {                             /* the instrument on screen's moves (the piano has none), its knobs as the
+                                              * hand left them; said cleared, or empty */
+        const int dr = ui.drum != 0u;
+        const uint32_t w = dr ? 1u : ui.se ? 2u : ui.rmi ? 3u : 0u;
         uint32_t i, g, n = mo.n;
-        if (own || dr)
-            for (i = mo.n; i-- > 0u;)
-                if ((mo_ev[i].tgt != MO_CUTOFF) == dr)
-                    mo_del(i);
+        for (i = mo.n; i-- > 0u;)
+            if (MO_INST(mo_ev[i].tgt) == w)
+                mo_del(i);
         if (mo.n != n) {
-            for (g = dr ? MO_DVOL : MO_CUTOFF; g < (dr ? MO_ROLL : MO_DVOL); g++)
-                *mo_ref(g) = mo.lv[g] = mo.hv[g];
+            for (g = 0; g < MO_ROLL; g++)
+                if (MO_INST(g) == w)
+                    *mo_ref(g) = mo.lv[g] = mo.hv[g];
             if (dr && dq.roll_mo)
                 dq_cmd(DQC_ROLLOFF, 0, 0);
         }
         if (!mo.n)
             mo.len = mo.rec = mo.go = 0;
-        app_say(dr ? "DRUM MOTION" : ui.rmi ? "PIANO MOTION" : ui.se ? "ECHO MOTION" : "BASS MOTION",
+        app_say(dr ? "DRUM MOTION" : ui.se ? "ECHO MOTION" : ui.rmi ? "PIANO MOTION" : "BASS MOTION",
                 mo.n != n ? "CLEARED" : "EMPTY");
         return;
     }

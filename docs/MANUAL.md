@@ -167,8 +167,9 @@ it.
 
 ### Motion recorder
 
-Records your knob moves as a loop and plays them back, apart from the notes. So far it records the bass's filter
-Frequency, and on the drums each drum's VOLUME and TUNING and the roll key (which drum, how hard, when it starts and
+Records your knob moves as a loop and plays them back, apart from the notes. It records the bass's filter
+Frequency, Resonance and arp Rhythm; on the Space Echo its INTENSITY, REPEAT RATE, INSTRUMENT VOLUME, MODE SELECTOR,
+REVERB VOLUME, ECHO VOLUME, the three sends and WOW; and on the drums each drum's VOLUME and TUNING and the roll key (which drum, how hard, when it starts and
 stops). A roll the loop plays isn't recorded into the pattern, even in RECORD MODE; one you play is, as always. It records the
 patterns you cue as the drums run, too, an improvised song: the loop cues them again at the same places, and cues the
 pattern it began on in time for its top. Its cues wait while a song runs, or in RECORD MODE.
@@ -176,14 +177,14 @@ pattern it began on in time for its top. Its cues wait while a song runs, or in 
 - **REC + OCT−** (hold REC, tap OCT− within a second): recording on. Turn the knob, then **REC + OCT−** again to stop.
   The first pass sets the loop's length, rounded up to whole bars (up to 16). Recording again overdubs: what you turn
   replaces what was there, the rest plays on.
-- **REC + OCT+**: clears the moves of the instrument on screen (the bass's on its pages, the drums' on theirs) and
-  puts its knobs back where your hand left them; the other's play on. The screen says BASS MOTION CLEARED, or EMPTY
-  if it had none (the piano and the echo never have any).
+- **REC + OCT+**: clears the moves of the instrument on screen (the bass's on its pages, the drums' on theirs, the
+  echo's on its) and puts its knobs back where your hand left them; the others play on. The screen says BASS MOTION
+  CLEARED, or EMPTY if it had none (the piano never has any).
 - Both work on every page: the bass's, the drums', the piano's and the echo's.
 - The loop runs on the clock the bass follows: MIDI clock if it's followed, else the drums while they run, else the
   arp or the sequencer. With nothing playing, it waits. Each time that clock starts, the loop starts from its top.
 - Touching the knob while it plays takes it over until you let go.
-- SAVE (the bass's or the drums') keeps the knobs' own settings, not the loop's sweep. The loop is live only: switching off clears it.
+- SAVE (the bass's or the drums'), and the echo's settings as they keep themselves, keep the knobs' own settings, not the loop's sweep. The loop is live only: switching off clears it.
 - The combo leaves REC's own tap and hold, and the octave, alone.
 - REC shows it in its own way: recording, it stays lit with a dark blink on each beat (a slow blink while it waits for
   a clock); a loop playing, a short flash at each bar and a double one at the loop's top. The bottom right of the
