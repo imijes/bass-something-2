@@ -10,10 +10,9 @@ tap GLO
 tap GLO
 tap GLO
 tap GLO
-tap GLO
 wait 30
 expect page 38
-spin K4 2
+spin K2 2
 tap HOME
 wait 1500
 expect page 25

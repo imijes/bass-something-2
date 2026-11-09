@@ -11,8 +11,8 @@ wait 1000
 said PIANO HOME
 tap GLO
 wait 30
-expect page 46
-said GLOBAL PIANO
+expect page 17
+said GLOBAL CHANNELS
 # the defaults: channel 3 (as before its page), its CCs too, ROUTE off
 expect rmi_chan 3
 expect rmi_cc_chan 3
@@ -24,8 +24,8 @@ expect note -1
 midi 82 3C 00
 wait 50
 expect rmi_held 0
-# channel 4 (K3): 3 plays it no more
-spin K3 1
+# channel 4 (CHANNELS' K4): 3 plays it no more
+spin K4 1
 wait 30
 expect rmi_chan 4
 midi 92 3C 64
@@ -37,7 +37,14 @@ wait 50
 expect rmi_held 1
 midi 83 3C 00
 wait 50
-# ROUTE RMI>BASS (K4): its notes play the bass too
+# ROUTE RMI>BASS (KEYS' K4): its notes play the bass too
+tap GLO
+wait 30
+tap GLO
+wait 30
+tap GLO
+wait 30
+expect page 38
 spin K4 1
 wait 30
 expect route 1
@@ -81,7 +88,7 @@ expect rmi_held 1
 midi 80 3C 00
 wait 50
 expect rmi_held 0
-# GLO again: MIDI, the rest; from DUMP back to the RMI's
+# GLO again: on to AUDIO
 tap GLO
 wait 30
-said GLOBAL MIDI
+said GLOBAL AUDIO

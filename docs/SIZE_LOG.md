@@ -209,3 +209,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-09 | 9b88010+ | motion: bass reso/rhythm, Space Echo knobs and sends | 537,756 | -16 | 43,808 | 83,140 | +96 | 15,164 | 262,616 |
 | 2026-11-09 | 7f85f02+ | motion: arp octaves | 537,772 | +16 | 43,792 | 83,140 | +0 | 15,164 | 262,616 |
 | 2026-11-09 | 1e0d757+ | USB audio: 6 channels (master, bass, drums, piano, echo) | 538,604 | +832 | 42,960 | 87,620 | +4,480 | 10,684 | 263,640 |
+| 2026-11-09 | 085206a+ | GLO regrouped: CHANNELS (all six), CONNECT, KEYS (Local, Route); GLOBAL DRUMS and PIANO gone | 537,692 | -912 | 43,872 | 87,620 | +0 | 10,684 | 263,640 |

@@ -32,7 +32,7 @@ wait 30
 hint FX tap: Drum Mods
 tap GLO
 wait 30
-hint GLO tap: MIDI, hold: RND Synth Companion
+hint GLO tap: Connect, hold: RND Synth Companion
 tap GLO
 wait 30
 hint GLO tap: Clock, hold: RND Synth Companion

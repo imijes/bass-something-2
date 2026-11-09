@@ -7,10 +7,8 @@ listen
 # GLO: MIDI, again DRUMS
 tap GLO
 wait 30
-tap GLO
-wait 30
-expect page 24
-said GLOBAL DRUMS
+expect page 17
+said GLOBAL CHANNELS
 # the defaults: the drums on channel 10 (GM's), their CCs too; the synth on 1
 expect dchan 10
 expect dcc_chan 10
@@ -28,7 +26,7 @@ expect dt_hits 1
 midi 80 3C 00
 wait 50
 # the drums on channel 1 too: one note on it plays both, as two devices on one channel
-spin K4 -9
+spin K3 -9
 wait 30
 expect dchan 1
 said DRUMS CHANNEL 1
@@ -41,7 +39,7 @@ wait 50
 # a note off: nothing for the drums (the 400 ignored them)
 expect dt_hits 2
 # OFF: the drums hear no notes
-spin K4 -1
+spin K3 -1
 wait 30
 expect dchan 0
 said DRUMS CHANNEL OFF
@@ -49,10 +47,10 @@ midi 99 26 7F
 wait 50
 expect dt_hits 2
 # ALL: the drums hear every channel
-spin K4 -1
+spin K3 -1
 wait 30
 expect dchan 0
-spin K4 17
+spin K3 17
 wait 30
 expect dchan 17
 said DRUMS CHANNEL ALL
@@ -60,7 +58,7 @@ midi 95 26 7F
 wait 50
 expect dt_hits 3
 # back to 10
-spin K4 -7
+spin K3 -7
 wait 30
 expect dchan 10
 # their CCs on channel 10: CC 34 the snare's tuning (64: step 8 of 0-15), CC 47 its volume (0)
@@ -77,8 +75,8 @@ expect dvol1 15
 midi B0 22 00
 wait 30
 expect dtune1 8
-# CC CHAN 9 (SELECT, on PRESET as GLO MIDI's): CCs on 10 no longer reach the drums
-spin PRESET -1
+# DRUMS CC 9 (ALGO on GLO CHANNELS): CCs on 10 no longer reach the drums
+spin ALGO -1
 wait 30
 expect dcc_chan 9
 said DRUMS CC CHANNEL 9
@@ -177,7 +175,7 @@ release HOME
 wait 30
 tap SEL
 wait 30
-expect page 47
+expect page 46
 tap SEL
 wait 30
 expect page 41

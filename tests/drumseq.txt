@@ -789,7 +789,7 @@ press GLO
 wait 1100
 release GLO
 wait 30
-expect page 24
+expect page 17
 tap HOME
 wait 30
 expect page 25

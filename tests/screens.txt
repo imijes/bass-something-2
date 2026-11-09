@@ -162,9 +162,11 @@ shot screen-patch.png
 tap GLO
 wait 1500
 wait 400
-shot screen-glo-midi.png
+shot screen-glo-channels.png
 tap GLO
-wait 30
+wait 1500
+wait 400
+shot screen-glo-connect.png
 tap GLO
 wait 1500
 wait 400
@@ -172,11 +174,11 @@ shot screen-glo-clock.png
 tap GLO
 wait 1500
 wait 400
-shot screen-glo-audio.png
+shot screen-glo-keys.png
 tap GLO
 wait 1500
 wait 400
-shot screen-glo-controls.png
+shot screen-glo-audio.png
 tap GLO
 turn PRESET -1
 wait 1500
@@ -261,9 +263,6 @@ tap FX
 tap FX
 tap FX
 wait 3000
-tap GLO
-wait 3000
-shot screen-glo-drums.png
 tap HOME
 wait 2500
 tap HOME

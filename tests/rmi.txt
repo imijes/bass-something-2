@@ -28,7 +28,7 @@ wait 3000
 expect page 40
 tap SEL
 wait 500
-expect page 47
+expect page 46
 said PIANO PRESETS
 tap SEL
 wait 500

@@ -156,7 +156,7 @@ expect dt_mid 0
 # PLAY and REC here too; GLO from the drums' own, no DUMP
 tap GLO
 wait 30
-expect page 24
+expect page 17
 tap REC
 tap PLAY
 wait 30
@@ -173,7 +173,7 @@ wait 30
 expect page 19
 tap GLO
 wait 30
-expect page 24
+expect page 17
 tap HOME
 wait 1200
 # HOME's K3 and K4: the selected drum's Volume and Tuning, the dive to its Channel page, kept as they turn, back out

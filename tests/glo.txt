@@ -1,30 +1,30 @@
-# The global settings: GLO's pages (MIDI, SYS, DUMP), what each setting does, and their keeping across a reboot.
+# The global settings: GLO's pages (CHANNELS, CONNECT, CLOCK, KEYS, AUDIO, DISPLAY, DUMP), what each setting does, and their keeping across a reboot.
 # tools/build.py bs2 --host, then from the repository's root
 #   bs2/build/host/bass-something-2_host bs2/tests/glo.txt bs2/build/host
 wait 600
 listen
-# GLO: MIDI, again DRUMS, again CLOCK, again AUDIO, again CONTROLS, again DISPLAY, again DUMP (the last), again MIDI (RND: GLO held, tests/rnd.txt;
-# DRUMS: tests/drums.txt)
+# GLO: CHANNELS, again CONNECT, again CLOCK, again KEYS, again AUDIO, again DISPLAY, again DUMP (the last), again
+# CHANNELS (RND: GLO held, tests/rnd.txt)
 tap GLO
 wait 30
 expect page 17
-said GLOBAL MIDI
+said GLOBAL CHANNELS
 tap GLO
 wait 30
 expect page 24
-said GLOBAL DRUMS
+said GLOBAL CONNECT
 tap GLO
 wait 30
 expect page 18
 said GLOBAL CLOCK
 tap GLO
 wait 30
-expect page 37
-said GLOBAL AUDIO
+expect page 38
+said GLOBAL KEYS
 tap GLO
 wait 30
-expect page 38
-said GLOBAL CONTROLS
+expect page 37
+said GLOBAL AUDIO
 tap GLO
 wait 30
 expect page 19
@@ -52,10 +52,10 @@ wait 50
 expect_out USB 90 3C 64
 expect_out USB 80 3C 00
 # channel 5: the keys out on it, MIDI in on another not played
-spin K1 4
+spin K2 4
 wait 30
 expect chan 5
-said CHANNEL 5
+said BASS CHANNEL 5
 out
 key 7 down
 wait 50
@@ -78,15 +78,22 @@ expect note -1
 out
 key 7 down
 wait 30
-spin K1 1
+spin K2 1
 wait 30
 key 7 up
 wait 50
 expect_out USB 84 3C 00
 expect_no_out USB 85 3C 00
-spin K1 -1
-# LOCAL off: the keys out alone, not played; MIDI in still plays
 spin K2 -1
+# KEYS' LOCAL (K3) off: the keys out alone, not played; MIDI in still plays
+tap GLO
+wait 30
+tap GLO
+wait 30
+tap GLO
+wait 30
+expect page 38
+spin K3 -1
 wait 30
 expect local 0
 said LOCAL CONTROL OFF
@@ -102,11 +109,20 @@ wait 30
 expect note 64
 midi 84 40 00
 wait 30
-spin K2 1
+spin K3 1
 wait 30
 expect local 1
+tap GLO
+wait 30
+tap GLO
+wait 30
+tap GLO
+wait 30
+tap GLO
+wait 30
+expect page 17
 # channel OFF: nothing out, nothing in
-spin K1 -10
+spin K2 -10
 wait 30
 expect chan 0
 out
@@ -119,10 +135,10 @@ midi 90 40 64
 wait 30
 expect note -1
 midi 80 40 00
-spin K1 40
+spin K2 40
 wait 30
 expect chan 17
-# CC CHAN (SELECT): the sound's knobs by the BS2's CC numbers, on their own channel (1 by default), the notes apart;
+# BASS CC (PRESET): the sound's knobs by the BS2's CC numbers, on their own channel (1 by default), the notes apart;
 # at OFF none
 spin PRESET -1
 wait 30
@@ -133,7 +149,7 @@ expect cutoff >0
 spin PRESET 3
 wait 30
 expect cc_chan 3
-said CC CHANNEL 3
+said BASS CC CHANNEL 3
 midi B0 10 00
 wait 30
 expect cutoff >0
@@ -186,20 +202,21 @@ expect note -1
 spin PRESET 20
 wait 30
 expect cc_chan 17
-said CC CHANNEL ALL
+said BASS CC CHANNEL ALL
 midi B9 10 7F
 wait 30
 expect cutoff 127
 spin PRESET -14
 wait 30
 expect cc_chan 3
-spin K3 -1
+tap GLO
+wait 30
+expect page 24
+spin K4 -1
 wait 30
 expect at_out 0
 said AFTER TOUCH OUT OFF
 # CLOCK's SEND CLK (on by default): the tempo out as MIDI clock, PLAY a start and a stop; off, then on again
-tap GLO
-wait 30
 tap GLO
 wait 30
 expect page 18
@@ -233,6 +250,41 @@ wait 30
 out
 wait 500
 expect_no_out USB F8 00 00
+# KEYS' VELOCITY (K1) and KNOBS (K2)
+tap GLO
+wait 30
+expect page 38
+expect vcurve 1
+key 7 down 100
+wait 50
+expect vel 100
+key 7 up
+wait 30
+spin K1 -1
+wait 30
+said VELOCITY SOFT
+key 7 down 100
+wait 50
+expect vel >100
+key 7 up
+wait 30
+spin K1 2
+wait 30
+said VELOCITY HARD
+key 7 down 100
+wait 50
+expect vel <100
+key 7 up
+wait 30
+spin K1 -1
+wait 30
+expect vcurve 1
+# KNOBS: how far a fast turn goes. FAST: the first click one, then 30 ms apart eight; FINE: one each however
+# fast; back to NORMAL
+expect knobs 1
+spin K2 1
+wait 30
+expect knobs 2
 # AUDIO's TUNE (K4)
 tap GLO
 wait 30
@@ -246,64 +298,20 @@ spin K4 -75
 wait 30
 expect tune -25
 expect clock 0
-# CONTROLS' VELOCITY (K3) and KNOBS (K4)
-tap GLO
-wait 30
-expect page 38
-expect vcurve 1
-key 7 down 100
-wait 50
-expect vel 100
-key 7 up
-wait 30
-spin K3 -1
-wait 30
-said VELOCITY SOFT
-key 7 down 100
-wait 50
-expect vel >100
-key 7 up
-wait 30
-spin K3 2
-wait 30
-said VELOCITY HARD
-key 7 down 100
-wait 50
-expect vel <100
-key 7 up
-wait 30
-spin K3 -1
-wait 30
-expect vcurve 1
-# KNOBS: how far a fast turn goes. FAST: the first click one, then 30 ms apart eight; FINE: one each however
-# fast; back to NORMAL
-expect knobs 1
-spin K4 1
-wait 30
-expect knobs 2
-said KNOB RESPONSE FAST
-tap GLO
-tap GLO
-tap GLO
-tap GLO
-tap GLO
-tap GLO
-wait 30
-expect page 37
 turn K4 2 30
 wait 30
 expect tune -16
 tap GLO
+tap GLO
+tap GLO
+tap GLO
+tap GLO
+tap GLO
 wait 30
 expect page 38
-spin K4 -2
+spin K2 -2
 wait 30
 expect knobs 0
-tap GLO
-tap GLO
-tap GLO
-tap GLO
-tap GLO
 tap GLO
 wait 30
 expect page 37
@@ -311,13 +319,20 @@ turn K4 3 15
 wait 30
 expect tune -13
 tap GLO
+tap GLO
+tap GLO
+tap GLO
+tap GLO
+tap GLO
 wait 30
 expect page 38
-spin K4 1
+spin K2 1
 wait 30
 expect knobs 1
-# DISPLAY (GLO after CONTROLS): K4 the pop-ups' time, 1.5 S by default, OFF to ALWAYS; K3 HINTS, off by default (a few
+# DISPLAY (GLO after AUDIO): K4 the pop-ups' time, 1.5 S by default, OFF to ALWAYS; K3 HINTS, off by default (a few
 # words on each control as it's used); then on to AUDIO
+tap GLO
+wait 30
 tap GLO
 wait 30
 expect page 19
@@ -349,6 +364,8 @@ wait 30
 tap GLO
 wait 30
 expect page 18
+tap GLO
+wait 30
 tap GLO
 wait 30
 expect page 37
@@ -432,20 +449,20 @@ wait 30
 turn PRESET -1
 wait 30
 expect arp 0
-# MIDI's Bluetooth off and on again
+# CONNECT's Bluetooth off and on again
 tap GLO
 wait 30
-expect page 17
-spin K4 1
+tap GLO
+wait 30
+expect page 24
+spin K3 1
 wait 30
 expect ble_off 1
 said BLUETOOTH MIDI OFF
-spin K4 -1
+spin K3 -1
 wait 30
 expect ble_off 0
-# DUMP: FX sends every slot (from MIDI: DRUMS, SYS, DISPLAY, DUMP)
-tap GLO
-wait 30
+# DUMP: FX sends every slot (from CONNECT: CLOCK, KEYS, AUDIO, DISPLAY, DUMP)
 tap GLO
 wait 30
 tap GLO
@@ -510,7 +527,7 @@ spin PRESET 2
 wait 30
 expect cc_chan 5
 expect dirty 0
-spin K1 -10
+spin K2 -10
 wait 2500
 reboot
 wait 600

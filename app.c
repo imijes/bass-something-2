@@ -2164,18 +2164,18 @@ static void ble_device_button(void)
  * settings_t field on the GLO pages, from PG_GMIDI on), its range, and its names when it is a choice; a page's
  * empty places set nothing */
 enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GCLK, PG_GDISP, PG_GDUMP,
-       PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
+       PG_GRND, PG_RPAT, PG_RTRK, PG_GCONN, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
        PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, PG_GAUD, PG_GCTL, PG_NAME, PG_RHOME, PG_RSEL,
-       PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD, PG_GRMI, PG_RVIEW, PG_SVOICE, PG_DROOM, PG_ATOUCH, PG_WHEELS,
+       PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD, PG_RVIEW, PG_SVOICE, PG_DROOM, PG_ATOUCH, PG_WHEELS,
        NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
-                                              "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI", "GLOBAL CLOCK",
+                                              "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL CHANNELS", "GLOBAL CLOCK",
                                               "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
-                                              "GLOBAL DRUMS", "DRUM HOME", "CHANNEL 1", "CHANNEL 2", "CHANNEL 3",
-                                              "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL CONTROLS",
+                                              "GLOBAL CONNECT", "DRUM HOME", "CHANNEL 1", "CHANNEL 2", "CHANNEL 3",
+                                              "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL KEYS",
                                               "PATCH NAME", "PIANO HOME", "PIANO PANEL",
                                               "ECHO HOME", "ECHO INPUT", "ECHO PANEL", "ECHO MODS",
-                                              "GLOBAL PIANO", "PIANO PRESETS", "ECHO VOICE", "DRUM ROOM", "AFTERTOUCH", "WHEELS"};
+                                              "PIANO PRESETS", "ECHO VOICE", "DRUM ROOM", "AFTERTOUCH", "WHEELS"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME && (g) < PG_GAUD)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
@@ -2283,19 +2283,22 @@ static const param_t PARAMS[NPAGES][NE] = {
     [PG_EMOD] = {[EN_K1] = {"VELOCITY", PF(vel_amp), -63, 63, 0}, [EN_K2] = {"RETRIG", PF(env_loop[0]), 0, 1, OFF_ON},
                  [EN_K3] = {"COUNT", PF(env_count[0]), 0, 16, COUNT_NAME},
                  [EN_K4] = {"FIXED", PF(env_fixed[0]), 0, 1, OFF_ON}},
-    [PG_GMIDI] = {[EN_SELECT] = {"CC CHAN", SF(cc_chan), CH_OFF, CH_ALL, CHAN_NAME},
-                  [EN_K1] = {"CHANNEL", SF(chan), CH_OFF, CH_ALL, CHAN_NAME},
-                  [EN_K2] = {"LOCAL", SF(local), 0, 1, OFF_ON},
-                  [EN_K3] = {"AT OUT", SF(at_out), 0, 1, OFF_ON},
-                  [EN_K4] = {"BLE", SF(ble_off), 0, 1, ON_OFF}},
+    /* the instruments' channels, each a device of its own: their CCs' on SELECT, ALGO and PRESET, their notes' on K1-K3
+     * (on K2-K4) */
+    [PG_GMIDI] = {[EN_SELECT] = {"BASS CC", SF(cc_chan), CH_OFF, CH_ALL, CHAN_NAME},
+                  [EN_ALGO] = {"DRUMS CC", SF(dcc_chan), CH_OFF, CH_ALL, CHAN_NAME},
+                  [EN_PRESET] = {"PIANO CC", SF(rmi_cc_chan), CH_OFF, CH_ALL, CHAN_NAME},
+                  [EN_K1] = {"BASS", SF(chan), CH_OFF, CH_ALL, CHAN_NAME},
+                  [EN_K2] = {"DRUMS", SF(dchan), CH_OFF, CH_ALL, CHAN_NAME},
+                  [EN_K3] = {"PIANO", SF(rmi_chan), CH_OFF, CH_ALL, CHAN_NAME}},
+    [PG_GCONN] = {[EN_K2] = {"BLE", SF(ble_off), 0, 1, ON_OFF}, [EN_K3] = {"AT OUT", SF(at_out), 0, 1, OFF_ON}},   /* (K1: the USB host) */
     /* the global settings by what they are about: the clock (the tempo on the display), the sound coming out, how the
      * controls answer; the settings on K3 and K4 (ENC_MAP) */
     [PG_GCLK] = {[EN_K3] = {"SEND CLK", SF(clk_out), 0, 1, OFF_ON}, [EN_K4] = {"SYNC", SF(clock), 0, NCLK - 1, CLK_NAME}},   /* (K1, the tempo: the patch's, knob_param) */
     [PG_GAUD] = {[EN_K1] = {"SPEAKER", SF(spk), 0, NSPK - 1, SPK_NAME}, [EN_K2] = {"TUNE", SF(tune), -50, 50, 0}},
-    [PG_GCTL] = {[EN_K1] = {"VELOCITY", SF(vcurve), 0, NVC - 1, VC_NAME}, [EN_K2] = {"KNOBS", SF(knobs), 0, NKN - 1, KN_NAME}},
+    [PG_GCTL] = {[EN_K1] = {"VELOCITY", SF(vcurve), 0, NVC - 1, VC_NAME}, [EN_K2] = {"KNOBS", SF(knobs), 0, NKN - 1, KN_NAME},
+                 [EN_K3] = {"LOCAL", SF(local), 0, 1, OFF_ON}, [EN_K4] = {"ROUTE", SF(route), 0, NROUTE - 1, ROUTE_NAME}},
     /* (K1 turned and shown as pop_d's: knob_turn, knob_text) */
-    [PG_GDRUM] = {[EN_SELECT] = {"CC CHAN", SF(dcc_chan), CH_OFF, CH_ALL, CHAN_NAME},
-                  [EN_K1] = {"CHANNEL", SF(dchan), CH_OFF, CH_ALL, CHAN_NAME}},
     [PG_DMOD] = {[EN_K3] = {"SWING LOCK", SF(dswing_lock), 0, 1, OFF_ON},
                  [EN_K4] = {"TRANSPORT", SF(dtrans_off), 0, 1, ON_OFF}},
     [PG_RSEL] = {[EN_PRESET] = {"TOGGLE", SF(rmi_tabs), 0, (1 << NRT) - 1, 0},   /* (its turn: the cursor's on or off) */ [EN_K1] = {"BASS", SF(rmi_bass), 0, 127, 0},
@@ -2325,9 +2328,6 @@ static const param_t PARAMS[NPAGES][NE] = {
     [PG_SMOD] = {[EN_PRESET] = {"TEMPO SYNC", SF(se_sync), 0, 1, OFF_ON}, [EN_K1] = {"BASS SEND", SF(se_send[0]), 0, 127, 0},
                  [EN_K2] = {"DRUM SEND", SF(se_send[1]), 0, 127, 0}, [EN_K3] = {"PIANO SEND", SF(se_send[2]), 0, 127, 0},
                  [EN_K4] = {"WOW", SF(se_wow), 0, 127, 0}},
-    [PG_GRMI] = {[EN_SELECT] = {"CC CHAN", SF(rmi_cc_chan), CH_OFF, CH_ALL, CHAN_NAME},
-                 [EN_K1] = {"CHANNEL", SF(rmi_chan), CH_OFF, CH_ALL, CHAN_NAME},
-                 [EN_K2] = {"ROUTE", SF(route), 0, NROUTE - 1, ROUTE_NAME}},
 };
 /* SUB OSC + MIXER's switch, as the Bass Station II's: what its K4 sets, from the switch's bottom (NOISE, the start) up; EXT, the
  * external input's level: the computer's USB audio (plat_usb_audio_route) */
@@ -2398,12 +2398,12 @@ static const char *const TITLE[NPAGES][NE] = {
                    [EN_K3] = "MOD WHEEL LFO 2 FILTER", [EN_K4] = "MOD WHEEL OSC 2 PITCH"},
     [PG_LFO1] = {[EN_SELECT] = "GLIDE TIME", [EN_K1] = "LFO 1 WAVE", [EN_K4] = "LFO 2 WAVE"},
 
-    [PG_GMIDI] = {[EN_SELECT] = "CC CHANNEL", [EN_K2] = "LOCAL CONTROL", [EN_K3] = "AFTER TOUCH OUT", [EN_K4] = "BLUETOOTH MIDI"},
+    [PG_GMIDI] = {[EN_SELECT] = "BASS CC CHANNEL", [EN_ALGO] = "DRUMS CC CHANNEL", [EN_PRESET] = "PIANO CC CHANNEL",
+                  [EN_K1] = "BASS CHANNEL", [EN_K2] = "DRUMS CHANNEL", [EN_K3] = "PIANO CHANNEL"},
+    [PG_GCONN] = {[EN_K2] = "BLUETOOTH MIDI", [EN_K3] = "AFTER TOUCH OUT"},
     [PG_GCLK] = {[EN_K3] = "SEND MIDI CLOCK", [EN_K4] = "CLOCK SYNC"},
-    [PG_GCTL] = {[EN_K2] = "KNOB RESPONSE"},
+    [PG_GCTL] = {[EN_K2] = "KNOB RESPONSE", [EN_K3] = "LOCAL CONTROL", [EN_K4] = "NOTE ROUTE"},
     [PG_GDISP] = {[EN_PRESET] = "KNOB ZOOM", [EN_K1] = "HINTS", [EN_K2] = "POP-UP TIME"},
-    [PG_GDRUM] = {[EN_SELECT] = "DRUMS CC CHANNEL", [EN_K1] = "DRUMS CHANNEL"},
-    [PG_GRMI] = {[EN_SELECT] = "PIANO CC CHANNEL", [EN_K1] = "PIANO CHANNEL", [EN_K2] = "NOTE ROUTE"},
 };
 static void *page_rec(uint32_t g)            /* what a page's encoders set: the sound, or the settings */
 {
@@ -2737,10 +2737,9 @@ static const uint8_t ENC_MAP[NPAGES] = {
     [PG_FX] = EMAP(EP_AP, 0),                                  /* Octave over Wave, the Sub knob beside */
     [PG_AENV] = EMAP(EP_SP, 0), [PG_MENV] = EMAP(EP_SP, 0), [PG_EMOD] = EMAP(EP_SP, 0),   /* Env Select (Triggering beside) */
     [PG_LFO1] = EMAP(EP_SP, 0), [PG_LFO2] = EMAP(EP_SP, 1),   /* Glide, Delay/Speed beside; the mods' LFO, 3 knobs */
-    [PG_GMIDI] = EMAP(EP_SP, 0),                               /* CC Chan */
-    [PG_GCLK] = EMAP(EP_SAME, 0), [PG_GAUD] = EMAP(EP_SAME, 2), [PG_GCTL] = EMAP(EP_SAME, 2), [PG_NAME] = EMAP(EP_SAME, 1),
-    [PG_GDRUM] = EMAP(EP_SP, 3),                               /* the drums' CC Chan; Channel on K4 */
-    [PG_GRMI] = EMAP(EP_SP, 2),                                /* the RMI's CC Chan; Channel on K3, Route on K4 */
+    [PG_GMIDI] = EMAP(EP_SP, 1),                               /* the bass's CC Chan on PRESET as it was; notes on K2-K4 */
+    [PG_GCONN] = EMAP(EP_SAME, 1),
+    [PG_GCLK] = EMAP(EP_SAME, 0), [PG_GAUD] = EMAP(EP_SAME, 2), [PG_GCTL] = EMAP(EP_SAME, 0), [PG_NAME] = EMAP(EP_SAME, 1),
     [PG_SEQ] = EMAP(EP_ROW, 0),                                /* SEQ, LENGTH, STEP */
     [PG_FMOD] = EMAP(EP_SAME, 3), [PG_EFX] = EMAP(EP_SAME, 2), [PG_XMOD] = EMAP(EP_SAME, 2), [PG_ATOUCH] = EMAP(EP_SAME, 1),
     [PG_AMOD] = EMAP(EP_SAME, 2), [PG_GDISP] = EMAP(EP_SAME, 2), [PG_RPAT] = EMAP(EP_SAME, 1),
@@ -3194,7 +3193,7 @@ static int knob_turn(uint32_t k, int32_t e)
     }
     if (ui.page == PG_SEQ && k == EN_ALGO)   /* (the length: into the one picked too) */
         seq_changed();
-    if (ui.page == PG_GMIDI && k == EN_K4)   /* Bluetooth: at once */
+    if (ui.page == PG_GCONN && k == EN_K2)   /* Bluetooth: at once */
         plat_ble_enable(!set.ble_off);
     return 1;
 }
@@ -3923,11 +3922,12 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_ATOUCH] = {[EN_K1] = "Pressure to cutoff", "Pressure: LFO 1 vibrato", "Pressure: LFO 2 faster"},
     [PG_WHEELS] = {[EN_PRESET] = "Bend range, semitones", [EN_K1] = "Mod wheel to cutoff", "Mod wheel: LFO 1 vibrato",
                    "Mod wheel: LFO 2 to cutoff", "Mod wheel to osc 2 pitch"},
-    [PG_GMIDI] = {"CC input channel", [EN_K1] = "Note channel", "Keys play the synth", "Pressure out as MIDI",
-                  "Bluetooth MIDI"},
+    [PG_GMIDI] = {"Bass CC channel", "Drums' CC channel", "Piano's CC channel", "Bass note channel",
+                  "Drums' note channel", "Piano's note channel"},
+    [PG_GCONN] = {[EN_K2] = "Bluetooth MIDI", "Pressure out as MIDI"},
     [PG_GCLK] = {[EN_K1] = "Speed, BPM", [EN_K3] = "Send MIDI clock", "Clock to follow"},
     [PG_GAUD] = {[EN_K1] = "The speaker's sound, or off", "Master tune"},
-    [PG_GCTL] = {[EN_K1] = "Touch curve", "Knob speed-up"},
+    [PG_GCTL] = {[EN_K1] = "Touch curve", "Knob speed-up", "Keys play the synth", "Notes piano to bass, or back"},
     [PG_NAME] = {[EN_K1] = "Which letter", "Change it", "Clear to the end"},
     [PG_RVIEW] = {[EN_PRESET] = "This toggle on or off", [EN_K1] = "Bass boost", "No decay, as an organ", "A sharper attack",
                   "Its own volume"},
@@ -3944,8 +3944,6 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_SMOD] = {[EN_PRESET] = "Delay on the tempo", [EN_K1] = "Bass into the echo", "Drums into the echo",
                  "Piano into the echo", "Tape wobble"},
     [PG_GDISP] = {[EN_PRESET] = "Zoom on what turns", [EN_K1] = "These hints", "Pop-up time"},
-    [PG_GDRUM] = {"Drums' CC channel", [EN_K1] = "Drums' note channel"},
-    [PG_GRMI] = {"Piano's CC channel", [EN_K1] = "Piano's note channel", "Notes piano to bass, or back"},
     [PG_GRND] = {[EN_PRESET] = "Pick a seed slot"},
     [PG_RPAT] = {"Lock patch type", "Lock track count", [EN_K1] = "Lock root note", "Lock root octave", "Lock scale"},
     [PG_RTRK] = {[EN_PRESET] = "Pick the knobs' row"},
@@ -3998,9 +3996,8 @@ static uint32_t tap_page(uint32_t k)
     case B_GLO:                              /* on the RND pages their next; else the global settings' */
         if (RND_PAGE(g))
             return g == PG_GRND ? PG_RPAT : g == PG_RPAT ? PG_RTRK : PG_GRND;
-        return g == PG_GMIDI ? PG_GDRUM : g == PG_GDRUM ? PG_GCLK : g == PG_GCLK ? PG_GAUD : g == PG_GAUD ? PG_GCTL
-               : g == PG_GCTL ? PG_GDISP : g == PG_GDISP ? PG_GDUMP : g == PG_GRMI || !ui.rmi ? PG_GMIDI : PG_GRMI;
-               /* (the RMI's mode: its own first, as the drums' GLO DRUMS) */
+        return g == PG_GMIDI ? PG_GCONN : g == PG_GCONN ? PG_GCLK : g == PG_GCLK ? PG_GCTL : g == PG_GCTL ? PG_GAUD
+               : g == PG_GAUD ? PG_GDISP : g == PG_GDISP ? PG_GDUMP : PG_GMIDI;
     }
     return NPAGES;
 }
@@ -4024,8 +4021,8 @@ static uint32_t dt_arp_next(uint32_t f)
 }
 static uint32_t dt_glo_next(uint32_t g)      /* the settings the two share, from the drums' own */
 {
-    return g == PG_GDRUM ? PG_GMIDI : g == PG_GMIDI ? PG_GCLK : g == PG_GCLK ? PG_GAUD
-           : g == PG_GAUD ? PG_GCTL : g == PG_GCTL ? PG_GDISP : PG_GDRUM;
+    return g == PG_GMIDI ? PG_GCONN : g == PG_GCONN ? PG_GCLK : g == PG_GCLK ? PG_GCTL
+           : g == PG_GCTL ? PG_GAUD : g == PG_GAUD ? PG_GDISP : PG_GMIDI;
 }
 static const char *const DT_SHORT[NDT] = {"BASS", "SNARE", "RIM", "TOM 1", "TOM 2", "CRASH", "RIDE", "CLOSE", "OPEN",
                                           "CLAPS", "TAMB", "COW", "CABA"};   /* (a key's width) */
@@ -4035,9 +4032,9 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [PG_OSC] = "Oscillators", [PG_MIX] = "Pulse Width", [PG_FX] = "Sub + Mixer", [PG_AENV] = "Envelopes",
         [PG_MENV] = "Triggering", [PG_EMOD] = "Env Mods", [PG_LFO1] = "LFOs", [PG_LFO2] = "LFO Mods",
         [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods", [PG_ATOUCH] = "Aftertouch", [PG_WHEELS] = "Wheels",
-        [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Controls", [PG_NAME] = "Patch Name", [PG_RSEL] = "Piano Panel", [PG_RVIEW] = "Piano Presets",
+        [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "Channels", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Keys", [PG_NAME] = "Patch Name", [PG_RSEL] = "Piano Panel", [PG_RVIEW] = "Piano Presets",
         [PG_GDISP] = "Display", [PG_GDUMP] = "Dump", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
-        [PG_RTRK] = "RND Tracks", [PG_GDRUM] = "Drums", [PG_GRMI] = "Piano"};
+        [PG_RTRK] = "RND Tracks", [PG_GCONN] = "Connect"};
     static char tap[48];                     /* "GLO tap: System, hold: RND Synth Companion" */
     uint32_t g;
     static const char *const H[NB] = {[B_HOME] = "The whole panel", "Save the patch", [B_PLAY] = "Play or stop", [B_OCTDN] = "Octave down",
@@ -4096,7 +4093,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
             more = ", hold: RND Synth Companion";
             break;
         case B_REC:
-            to = ui.page == PG_GMIDI && FM1B_BLE_CENTRAL && !set.ble_off ? "Find BLE" : dq.rec == DQR_REC ? "Rec off" : "Rec on";
+            to = ui.page == PG_GCONN && FM1B_BLE_CENTRAL && !set.ble_off ? "Find BLE" : dq.rec == DQR_REC ? "Rec off" : "Rec on";
             more = dq.rec == DQR_ERASE ? ", hold a drum: erase" : dq.rec == DQR_REC && !dq.run ? ", PLAY: record" : ", hold: Erase";
             break;
         default:
@@ -4122,7 +4119,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         tap[0] = 0;
         text_cat(tap, BTN_NAME[k]);
         text_cat(tap, " tap: ");
-        text_cat(tap, g < NPAGES ? TAP_NAME[g] : k == B_REC && ui.page == PG_GMIDI ? "Find BLE" : seq_rec ? "Rec off"
+        text_cat(tap, g < NPAGES ? TAP_NAME[g] : k == B_REC && ui.page == PG_GCONN ? "Find BLE" : seq_rec ? "Rec off"
                       : "Rec on");
         if (k == B_EDIT && !ui.drum)
             text_cat(tap, ", hold: Randomize");
@@ -4464,19 +4461,19 @@ static void hold_tap(uint32_t k)
     const char *const said = ui.hint;        /* (what the tap refuses, said over this) */
     if (k == B_GLO && ui.drum && !RND_PAGE(ui.page))
         dt_button(k);
-    else if (k == B_REC && ui.drum && (ui.page != PG_GMIDI || !FM1B_BLE_CENTRAL || set.ble_off))
+    else if (k == B_REC && ui.drum && (ui.page != PG_GCONN || !FM1B_BLE_CENTRAL || set.ble_off))
         dt_rec_tap();
     else if (k == B_HOME && ui.page == mode_home())   /* HOME on it: the next mode's */
         mode_switch();
     else if (k == B_HOME)                         /* HOME: the whole panel (the first page), the mode's */
         home_back();
-    else if (k == B_REC && ui.rmi && ui.page != PG_GMIDI)   /* the piano's: its part */
+    else if (k == B_REC && ui.rmi && ui.page != PG_GCONN)   /* the piano's: its part */
         pq_rec_tap();
     else if (k == B_PLAY && ui.rmi)
         pq_play_tap();
     else if (k == B_SEQ && ui.rmi)            /* (its tap: what its hold does) */
         app_say("SEQ HOLD", "CLEARS THE PART");
-    else if (k == B_REC && ui.page != PG_GMIDI)   /* recording, on any page (GLO MIDI's: a Bluetooth device) */
+    else if (k == B_REC && ui.page != PG_GCONN)   /* recording, on any page (GLO CONNECT's: a Bluetooth device) */
         rec_toggle();
     else if (k == B_REC && FM1B_BLE_CENTRAL && !set.ble_off)
         ble_device_button();
@@ -4904,7 +4901,7 @@ static void hold_step(uint32_t btn)
             afx_on = (uint8_t)!afx_on;
             app_say("AFX", OFF_ON[afx_on]);
         } else if (RND_PAGE(ui.page))
-            page_go(ui.drum ? PG_GDRUM : PG_GMIDI);
+            page_go(PG_GMIDI);
         else {                               /* the RND pages (bs2_rnd.c), the synth asked how it is as they open;
                                               * their splash first (rsplash_draw) */
             rnd_ask();
@@ -5117,7 +5114,7 @@ static void input(void)
         ui.last_enc = (uint8_t)l;
         ui.val_until = pop_until();
         ui.redraw = 1;
-        if (l == EN_ALGO && FM1B_BLE_CENTRAL && ui.looking && ui.page == PG_GMIDI) {
+        if (l == EN_ALGO && FM1B_BLE_CENTRAL && ui.looking && ui.page == PG_GCONN) {
             btdev_choose(btdev_pick() + e);
             ble_device_say();
         } else if (knob_turn(l, e)) {
@@ -5204,13 +5201,12 @@ static const char *const SEC_NAME[NSEC] = {"FX", "SEL", "ENV", "LFO", "ARP", "SE
 static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDIT, [PG_MENV] = SEC_ENV,
                                          [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL, [PG_NAME] = SEC_SEL, [PG_RHOME] = NSEC, [PG_RSEL] = SEC_SEL, [PG_RVIEW] = SEC_SEL, [PG_SVOICE] = SEC_SEL,
                                          [PG_SHOME] = NSEC, [PG_SIN] = SEC_SEL, [PG_SECHO] = SEC_SEL, [PG_SMOD] = SEC_SEL,
-                                         [PG_GRMI] = SEC_GLO,
                                          [PG_ARP] = SEC_ARP, [PG_SEQ] = SEC_SEQ, [PG_AENV] = SEC_ENV, [PG_FX] = SEC_EDIT,
                                          [PG_TUNE] = SEC_FX, [PG_FMOD] = SEC_FX,
                                          [PG_EMOD] = SEC_ENV, [PG_EFX] = SEC_FX, [PG_XMOD] = SEC_FX, [PG_AMOD] = SEC_ARP, [PG_HOME] = NSEC,
                                          [PG_GMIDI] = SEC_GLO, [PG_GCLK] = SEC_GLO, [PG_GAUD] = SEC_GLO, [PG_GCTL] = SEC_GLO, [PG_GDUMP] = SEC_GLO, [PG_GDISP] = SEC_GLO,
                                          [PG_GRND] = SEC_GLO, [PG_RPAT] = SEC_GLO,
-                                         [PG_RTRK] = SEC_GLO, [PG_GDRUM] = SEC_GLO, [PG_DHOME] = NSEC,
+                                         [PG_RTRK] = SEC_GLO, [PG_GCONN] = SEC_GLO, [PG_DHOME] = NSEC,
                                          [PG_DCH1] = SEC_EDIT, [PG_DCH2] = SEC_EDIT, [PG_DCH3] = SEC_EDIT,
                                          [PG_DCH4] = SEC_EDIT, [PG_DCH5] = SEC_EDIT, [PG_DCH6] = SEC_EDIT, [PG_DMOD] = SEC_FX, [PG_DPAT] = SEC_SEQ, [PG_DSONG] = SEC_ARP, [PG_DPINFO] = SEC_FX, [PG_DSINFO] = SEC_FX,
                                          [PG_DROOM] = SEC_FX, [PG_ATOUCH] = SEC_FX, [PG_WHEELS] = SEC_FX};
@@ -6881,65 +6877,34 @@ static void info(int32_t x, int32_t w, int32_t y, const char *name, const char *
     cv_text(x + w, y, &FONT_T, v, c);
 }
 #define GLO_ROW 124                          /* the knobs' and switches' row */
-/* GLOBAL MIDI: the channel on the display, its knob (K1); what goes out and Bluetooth; CC Chan (SELECT), Local, AT Out
- * (K2, K3: switches) and Bluetooth (K4) along the bottom */
-static void glo_midi_draw(void)
+/* GLOBAL CHANNELS: each instrument's channels in its column, Bass, Drums and Piano: its CCs' along the top (SELECT,
+ * ALGO, PRESET: on PRESET, ALGO, SELECT) and its notes' along the bottom (K1-K3, on K2-K4), each knob's channel under it */
+static void glo_chan_draw(void)
 {
-    char t[4], o[8] = "Ch ";
-    glo_frame("MIDI");
-    text_cat(o, CHAN_NAME[set.chan == CH_ALL || set.chan == CH_OFF ? 1u : set.chan]);
-    if (set.chan == CH_OFF || set.chan == CH_ALL)
-        memcpy(t, set.chan ? "ALL" : "OFF", 3);
-    else
-        seg_num(set.chan, t);
-    seg_display(8, 40, t, 3);
-    print_knob(118, 60, 15, knob_param(EN_K1), EN_K1, 1, "Channel", 0);
-    info(146, 42, 46, "Out", o, P_CYAN);
-    info(146, 42, 58, "CC", set.cc_chan == CH_ALL ? "Any" : set.cc_chan ? CHAN_NAME[set.cc_chan] : "Off", P_CYAN);
-    info(146, 42, 70, "BLE", set.ble_off ? "Off" : plat_ble_connected() ? "Connected" : "On",
+    static const char *const NAME[3] = {"Bass", "Drums", "Piano"};
+    uint32_t i;
+    glo_frame("Channels");
+    print_c(34, 68, "CC", P_SILK);
+    print_c(34, GLO_ROW - 4, "Notes", P_SILK);
+    for (i = 0; i < 3u; i++) {
+        const int32_t x = 92 + 58 * (int32_t)i;
+        const param_t *cc = knob_param(EN_SELECT + i), *n = knob_param(EN_K1 + i);
+        print_c(x, 46, NAME[i], P_CYAN);
+        print_knob(x, 72, 12, cc, EN_SELECT + i, 1, CHAN_NAME[param_get(cc, &set)], 0);
+        print_knob(x, GLO_ROW, 14, n, EN_K1 + i, 1, CHAN_NAME[param_get(n, &set)], 0);
+    }
+}
+/* GLOBAL CONNECT: what the FM-1 is joined to and what goes out to it: Bluetooth (K2, on K3; REC: a device to join) and
+ * AT Out (K3, on K4), with how each stands */
+static void glo_conn_draw(void)
+{
+    glo_frame("Connect");
+    info(10, 64, 46, "Bluetooth", set.ble_off ? "Off" : plat_ble_connected() ? "Connected" : "On",
          !set.ble_off && plat_ble_connected() ? P_CYAN : P_SILK);
-    print_knob(34, GLO_ROW, 14, knob_param(EN_SELECT), EN_SELECT, 1, "CC Chan", 0);
-    print_switch(92, GLO_ROW, EN_K2, "Off", "On", "Local");
-    print_switch(150, GLO_ROW, EN_K3, "Off", "On", "AT Out");
-    print_switch(208, GLO_ROW, EN_K4, "On", "Off", "Bluetooth");
-}
-/* GLOBAL DRUMS: Drum Something's MIDI, a device of its own beside the synth's (GLOBAL MIDI): its channel on the
- * display, its knob (K1, on K4); its CC Chan (SELECT), and what its CCs do */
-static void glo_drum_draw(void)
-{
-    char t[4], o[8] = "Ch ";
-    glo_frame("Drums");
-    text_cat(o, CHAN_NAME[set.dchan == CH_ALL || set.dchan == CH_OFF ? 1u : set.dchan]);
-    if (set.dchan == CH_OFF || set.dchan == CH_ALL)
-        memcpy(t, set.dchan ? "ALL" : "OFF", 3);
-    else
-        seg_num(set.dchan, t);
-    seg_display(8, 40, t, 3);
-    info(146, 42, 46, "Out", o, P_CYAN);
-    info(146, 42, 58, "CC", set.dcc_chan == CH_ALL ? "Any" : set.dcc_chan ? CHAN_NAME[set.dcc_chan] : "Off", P_CYAN);
-    print_knob(34, GLO_ROW, 14, knob_param(EN_SELECT), EN_SELECT, 1, "CC Chan", 0);
-    cv_text(74, GLO_ROW - 12, &FONT_XS, "CC 33-45: drum tuning", P_SILK);
-    cv_text(74, GLO_ROW + 3, &FONT_XS, "CC 46-58: drum volume", P_SILK);
-    print_knob(208, GLO_ROW, 14, knob_param(EN_K1), EN_K1, 1, "Channel", 0);
-}
-/* GLOBAL RMI: the RMI's MIDI, a device of its own as the drums': its channel on the display, its knob (K1, on K3);
- * its CC Chan (SELECT); ROUTE (K2, on K4), its notes into the bass or the bass's onto it */
-static void glo_rmi_draw(void)
-{
-    char t[4], o[8] = "Ch ";
-    glo_frame("Piano");
-    text_cat(o, CHAN_NAME[set.rmi_chan == CH_ALL || set.rmi_chan == CH_OFF ? 1u : set.rmi_chan]);
-    if (set.rmi_chan == CH_OFF || set.rmi_chan == CH_ALL)
-        memcpy(t, set.rmi_chan ? "ALL" : "OFF", 3);
-    else
-        seg_num(set.rmi_chan, t);
-    seg_display(8, 40, t, 3);
-    info(146, 42, 46, "Out", set.rmi_chan == CH_OFF ? "Off" : o, P_CYAN);
-    info(146, 42, 58, "CC", set.rmi_cc_chan == CH_ALL ? "Any" : set.rmi_cc_chan ? CHAN_NAME[set.rmi_cc_chan] : "Off", P_CYAN);
-    info(146, 42, 70, "Route", ROUTE_NAME[set.route < NROUTE ? set.route : 0], set.route ? P_CYAN : P_SILK);
-    print_knob(34, GLO_ROW, 14, knob_param(EN_SELECT), EN_SELECT, 1, "CC Chan", 0);
-    print_knob(150, GLO_ROW, 14, knob_param(EN_K1), EN_K1, 1, "Channel", 0);
-    print_knob(208, GLO_ROW, 14, knob_param(EN_K2), EN_K2, 1, "Route", 0);
+    if (FM1B_BLE_CENTRAL && !set.ble_off)
+        cv_text(10, 72, &FONT_XS, "REC: find a Bluetooth MIDI device.", P_SILK);
+    print_switch(150, GLO_ROW, EN_K2, "On", "Off", "Bluetooth");
+    print_switch(208, GLO_ROW, EN_K3, "Off", "On", "AT Out");
 }
 /* GLOBAL CLOCK: the tempo on the display (MIDI clock's, measured, while it leads; dashes while it is awaited), what the
  * clock is doing; the Tempo under it (K1), Send Clk (K3) and Sync (K4) */
@@ -6979,15 +6944,18 @@ static void glo_audio_draw(void)
     print_c(x, GLO_ROW + 18, "Speaker", P_SILK);
     print_knob(208, GLO_ROW, 14, knob_param(EN_K2), EN_K2, 1, "Tune", 0);
 }
-/* GLOBAL CONTROLS: how the keys and the knobs answer: Velocity (K1, on K3) and Knobs (K2, on K4) */
-static void glo_controls_draw(void)
+/* GLOBAL KEYS: what the keys play and how the keys and knobs answer: Velocity (K1), Knobs (K2), Local (K3) and Route
+ * (K4) */
+static void glo_keys_draw(void)
 {
-    glo_frame("Controls");
-    cv_text(10, 42, &FONT_XS, "Velocity: how hard a key must be played", P_SILK);
-    cv_text(10, 57, &FONT_XS, "for its notes to sound loud.", P_SILK);
-    cv_text(10, 72, &FONT_XS, "Knobs: how far they go as they turn faster.", P_SILK);
-    print_knob(150, GLO_ROW, 14, knob_param(EN_K1), EN_K1, 1, "Velocity", 0);
-    print_knob(208, GLO_ROW, 14, knob_param(EN_K2), EN_K2, 1, "Knobs", 0);
+    glo_frame("Keys");
+    cv_text(10, 42, &FONT_XS, "Velocity: how hard for a loud note. Knobs:", P_SILK);
+    cv_text(10, 57, &FONT_XS, "how far they go turned fast. Local: the", P_SILK);
+    cv_text(10, 72, &FONT_XS, "keys play the synth. Route: piano to bass.", P_SILK);
+    print_knob(34, GLO_ROW, 14, knob_param(EN_K1), EN_K1, 1, "Velocity", 0);
+    print_knob(92, GLO_ROW, 14, knob_param(EN_K2), EN_K2, 1, "Knobs", 0);
+    print_switch(150, GLO_ROW, EN_K3, "Off", "On", "Local");
+    print_knob(208, GLO_ROW, 14, knob_param(EN_K4), EN_K4, 1, "Route", 0);
 }
 /* GLOBAL DISPLAY: Knob Zoom (PRESET), Hints (K1, on K3) and the pop-ups' time (K2, on K4: the controls' labels as a
  * page opens, a button's hint, a knob's value and hint after it turns), with what each does */
@@ -8945,17 +8913,15 @@ static void panel_draw(void)                 /* the page's section panel, from u
         else if (ui.page == PG_LFO1)
             lfos_draw();
         else if (ui.page == PG_GMIDI)
-            glo_midi_draw();
-        else if (ui.page == PG_GDRUM)
-            glo_drum_draw();
-        else if (ui.page == PG_GRMI)
-            glo_rmi_draw();
+            glo_chan_draw();
+        else if (ui.page == PG_GCONN)
+            glo_conn_draw();
         else if (ui.page == PG_GCLK)
             glo_clock_draw();
         else if (ui.page == PG_GAUD)
             glo_audio_draw();
         else if (ui.page == PG_GCTL)
-            glo_controls_draw();
+            glo_keys_draw();
         else if (ui.page == PG_GDISP)
             glo_disp_draw();
         else if (ui.page == PG_GDUMP)
@@ -9132,7 +9098,7 @@ static uint32_t live(void)
     case PG_DROOM:
         return dt_lit() | (ui.keys >> 1 & 1u) << 31 | (uint32_t)dt_blink() << 30 | (uint32_t)(dq.run != 0u) << 29
                | (uint32_t)(dq.full && plat_ms() / 300u % 2u) << 28;
-    case PG_GMIDI:
+    case PG_GCONN:
     case PG_GCLK:
         return (uint32_t)ext_clock() | (uint32_t)(eng.ext_age < EXT_HOLD) << 1 | (uint32_t)plat_ble_connected() << 2
                | (uint32_t)eng.ext_shown << 3;

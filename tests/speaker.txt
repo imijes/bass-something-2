@@ -13,6 +13,8 @@ tap GLO
 wait 30
 tap GLO
 wait 30
+tap GLO
+wait 30
 expect page 37
 turn K3 1
 wait 30
@@ -44,6 +46,8 @@ expect peak_db_min -40
 midi 80 3C 40
 wait 1500
 # back to FLAT: the speaker plays it
+tap GLO
+wait 30
 tap GLO
 wait 30
 tap GLO
