@@ -8,6 +8,7 @@
  * played with velocity and pressure (lib/touch.h), shown on them. One of each thing the platform offers, kept short. Part of the unity build (device/unity.c, host/plat_host.c), after the platform:
  * gfx.c and announce.c are in scope. */
 #include <stddef.h>
+#include <string.h>
 #include "fastmath.h"
 
 #define SET_MAGIC 0x54504C31u            /* "TPL1": the settings record; another magic loads defaults */
