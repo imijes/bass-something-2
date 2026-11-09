@@ -1800,7 +1800,7 @@ static struct {
     uint8_t se;                          /* the Space Echo's (HOME on the RMI's): HOME its page, the keys the RMI's still
                                           * (rmi stays set: an effect has no keys of its own) */
     uint32_t rkeys;                      /* the keys sounding the RMI (their release its too) */
-    uint8_t rmi_cur;                     /* PIANO PANEL's cursor: the tone tablet PRESET switches, RT_* (SEL moves it) */
+    uint8_t rmi_cur;                     /* PIANO PANEL's cursor: the toggle PRESET switches, RT_* then ORGAN MODE, ACCENTER (rt_cur) */
     uint32_t dt_at[NDT];                 /* when each drum was last hit (dt_flash_take): its key lit a moment */
     uint8_t dt_sel;                      /* the drum last tapped: what VOLUME and TUNING (K3, K4) set */
     uint8_t dt_fn;                       /* the function lit in the 400's LED lists (DTF_*): SEQ and ARP step them */
@@ -2776,15 +2776,29 @@ static int dt_turn(uint32_t k, int32_t e)
     return 1;
 }
 static int name_turn(uint32_t k, int32_t e);
+/* the piano's toggles, as SEL's cursor goes along them: the five voices, ORGAN MODE, ACCENTER (K2 and K3 too) */
+#define RT_NCUR (NRT + 2u)
+static uint32_t rt_cur(void) { return ui.rmi_cur < RT_NCUR ? ui.rmi_cur : 0u; }
+static uint32_t rt_on(uint32_t c) { return c < NRT ? set.rmi_tabs >> c & 1u : c == NRT ? set.rmi_organ : set.rmi_accent; }
+static const char *rt_name(uint32_t c) { return c < NRT ? RT_NAME[c] : c == NRT ? "ORGAN MODE" : "ACCENTER"; }
+static void rt_set(uint32_t c, int on)
+{
+    if (c < NRT)
+        set.rmi_tabs = (uint8_t)(on ? set.rmi_tabs | 1u << c : set.rmi_tabs & ~(1u << c));
+    else if (c == NRT)
+        set.rmi_organ = (uint8_t)(on != 0);
+    else
+        set.rmi_accent = (uint8_t)(on != 0);
+}
 static int knob_turn(uint32_t k, int32_t e)
 {
     if (ui.page == PG_NAME)
         return name_turn(k, e);
     if (ui.page == PG_RSEL && k == EN_PRESET) {   /* PIANO PANEL's PRESET: the cursor's tone tablet, right down, left
                                               * up (SEL moves the cursor) */
-        const uint32_t c = ui.rmi_cur < NRT ? ui.rmi_cur : 0u;
-        set.rmi_tabs = (uint8_t)(e > 0 ? set.rmi_tabs | 1u << c : set.rmi_tabs & ~(1u << c));
-        app_say(RT_NAME[c], set.rmi_tabs >> c & 1u ? "ON" : "OFF");
+        const uint32_t c = rt_cur();
+        rt_set(c, e > 0);
+        app_say(rt_name(c), rt_on(c) ? "ON" : "OFF");
         return 0;
     }
     if (((ui.page == PG_PATCH || ui.page == PG_HOME) && k == EN_K1) || (ui.page == PG_RSEL && k == EN_K4)) {   /* the
@@ -3078,7 +3092,7 @@ static void knob_text(uint32_t k, char *t)
     }
     if ((ui.page == PG_RSEL || ui.page == PG_RVIEW) && k == EN_PRESET) {   /* (the cursor's toggle: on or off) */
         t[0] = 0;
-        text_cat(t, set.rmi_tabs >> (ui.rmi_cur < NRT ? ui.rmi_cur : 0u) & 1u ? "ON" : "OFF");
+        text_cat(t, rt_on(rt_cur()) ? "ON" : "OFF");
         return;
     }
     if ((ui.page == PG_RSEL || ui.page == PG_RVIEW) && k == EN_K4) {   /* (VOL: the RMI's volume, rvol_off upside down) */
@@ -3962,10 +3976,10 @@ static uint32_t mode_home(void) { return ui.se ? PG_SHOME : ui.drum ? PG_DHOME :
 static void rmi_button(uint32_t k)
 {
     if (k == B_SEL && ui.page == PG_RSEL) {  /* (there: the cursor to the next tone tablet, the panel sliding to it) */
-        ui.rmi_cur = (uint8_t)((ui.rmi_cur + 1u) % NRT);
+        ui.rmi_cur = (uint8_t)((rt_cur() + 1u) % RT_NCUR);
         ui.last_enc = EN_PRESET;
         ui.redraw = 1;
-        app_say(RT_NAME[ui.rmi_cur], set.rmi_tabs >> ui.rmi_cur & 1u ? "ON" : "OFF");
+        app_say(rt_name(ui.rmi_cur), rt_on(ui.rmi_cur) ? "ON" : "OFF");
     } else if (k == B_SEL)                   /* (the toggles whole first, PIANO PRESETS; again, up close) */
         sect_open(ui.page == PG_RVIEW ? PG_RSEL : PG_RVIEW, k);
     else if (k == B_SAVE)
@@ -5569,7 +5583,7 @@ static void rmi_slider(int32_t sx, int32_t v, const char *name, uint32_t k)   /*
 }
 static void rsel_draw(void)
 {
-    const uint32_t dn = rmi_down(), k = ui.last_enc, c = ui.rmi_cur < NRT ? ui.rmi_cur : 0u;
+    const uint32_t dn = rmi_down(), k = ui.last_enc, c = rt_cur();
     int32_t i, f;
     float to;
     f = k == EN_K1 ? 507 : k == EN_K4 ? 2028 : k == EN_K2 ? (RT_X[5][0] + RT_X[5][1]) / 2
@@ -5644,7 +5658,7 @@ static void rv_slider(int32_t x, int32_t v, const char *name, uint32_t k)
 }
 static void rview_draw(void)
 {
-    const uint32_t dn = rmi_down(), c = ui.rmi_cur < NRT ? ui.rmi_cur : 0u;
+    const uint32_t dn = rmi_down(), c = rt_cur();
     int32_t i;
     cv_rect(0, 0, 240, TALL_H, RGB(14, 14, 14));   /* the case's black, the silver strip, its grooves */
     cv_rect(0, 18, 240, 1, grey(70));
@@ -5803,7 +5817,7 @@ static void rhome_draw(void)
 static void zoom_rmi(uint32_t k)             /* (its box: the toggles on the front panel; on PIANO PRESETS, the control's) */
 {
     if (ui.page == PG_RVIEW || (zoom.home && zoom.hp == PG_RVIEW)) {
-        const uint32_t c = ui.rmi_cur < NRT ? ui.rmi_cur : 0u;
+        const uint32_t c = rt_cur();
         const int32_t x = k == EN_K1 ? 12 : k == EN_K4 ? 228 : rv_tx(k == EN_K2 ? 5u : k == EN_K3 ? 6u : c);
         zoom_dive(PG_RVIEW, PG_RSEL, k, 0, (int16_t)clamp(x, 52, 188), RV_Y + RV_H / 2, fm_log2f(240.0f / 104.0f));
         return;

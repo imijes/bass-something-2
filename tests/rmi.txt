@@ -58,6 +58,32 @@ said HARPSI ON
 turn PRESET -1
 wait 30
 said HARPSI OFF
+# SEL on along the voices to ORGAN MODE and ACCENTER, PRESET switching them as it does the voices; then round
+tap SEL
+wait 30
+tap SEL
+wait 30
+tap SEL
+wait 30
+said ORGAN MODE OFF
+turn PRESET 1
+wait 30
+said ORGAN MODE ON
+turn PRESET -1
+wait 30
+said ORGAN MODE OFF
+tap SEL
+wait 30
+said ACCENTER OFF
+turn PRESET 1
+wait 30
+said ACCENTER ON
+turn PRESET -1
+wait 30
+said ACCENTER OFF
+tap SEL
+wait 30
+said PIANO ON
 tap FX
 wait 30
 said PIANO SEL: ITS PANELS

@@ -650,7 +650,7 @@ it, as on HOME. **PIANO PANEL** (SEL again; SEL there moves along the toggles) i
 
 | Control | What it does |
 | --- | --- |
-| SEL, PRESET | The tone toggles, as the 368X's: SEL moves the cursor (a cyan outline) along PIANO, PIANO PP, HARPSI, HARPSI PP and LUTE, the panel sliding to it; PRESET turns that toggle on (right) or off (left). Any of them can be down at once, their sounds layered as the 368X layers them: PIANO with HARPSI is its "honky-tonk". PP is pianissimo, very soft: the same tone, about 14 dB down. |
+| SEL, PRESET | The tone toggles, as the 368X's: SEL moves the cursor (a cyan outline) along PIANO, PIANO PP, HARPSI, HARPSI PP, LUTE, ORGAN MODE and ACCENTER, the panel sliding to it; PRESET turns that toggle on (right) or off (left). K2 and K3 also switch ORGAN MODE and ACCENTER. Any of them can be down at once, their sounds layered as the 368X layers them: PIANO with HARPSI is its "honky-tonk". PP is pianissimo, very soft: the same tone, about 14 dB down. |
 | K1 · BASS | The bass boost, around 98 Hz: the middle is none, up boosts, down cuts. |
 | K2 · ORGAN MODE | Notes hold while their keys do, with a slow fade, instead of a piano's decay. |
 | K3 · ACCENTER | A thump at the start of each note, as the 368X's keying made it, under the harpsichord and lute voices (the low keys, to A#2, have their own). |
