@@ -93,7 +93,7 @@ GLOBAL CONTROLS' KNOBS sets how much they speed up, from FINE to COARSE.
 
 | Button | Page | Again |
 | --- | --- | --- |
-| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash). On HOME, a tap goes round the instruments and the Space Echo, the camera panning down to the next one's panel: Bass Something 2, Drum Something 400, Electra-Something 368X, Space-Something RE-201, and back. From any other page, a hold switches at once | |
+| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash). On HOME, a tap goes round the instruments and Space Something, the camera panning down to the next one's panel: Bass Something 2, Drum Something 400, Electra-Something 368X, Space-Something RE-201, and back. From any other page, a hold switches at once | |
 | SEL | MASTER: the patch, picked, saved and sent | |
 | ENV | ENVELOPES: Env Select (PRESET) and the four faders | TRIGGERING; then the group's mods (velocity, retriggering, fixed sustain) |
 | LFO | PORTA and LFOS: the glide, both LFOs' waves and knobs, the Delay/Speed switch | the group's mods (keysync, Speed/Sync, slew) |
@@ -640,16 +640,16 @@ CCs 33 to 45 set each drum's tuning and 46 to 58 its volume, in the order Bass, 
 ### Electra-Something 368X
 
 The third instrument, Electra-Something 368X, is after the RMI Electra-piano 368X, the 1970s electronic piano with
-its seven stop tablets: a piano, a harpsichord and a lute, each from its own tone generator per key, polyphonic (eight
-notes at once here). Tap HOME on Drum Something 400's HOME to reach it. Its HOME has its name, the tone tablets down (with ORGAN MODE and
+its seven stop toggles: a piano, a harpsichord and a lute, each from its own tone generator per key, polyphonic (eight
+notes at once here). Tap HOME on Drum Something 400's HOME to reach it. Its HOME has its name, the tone toggles down (with ORGAN MODE and
 ACCENTER when down) and its stop strip down on the keys (the FM-1's keys are its keyboard); between them its notes as they
 ring, each a bar over its key's place as tall as its level, a mark falling slowly from the most it reached.
 
-**ELECTRA PANEL** (SEL; SEL again there moves along the tablets) is the stop strip up close, BASS slider at the left, the tablets, VOL at the right:
+**ELECTRA PANEL** (SEL; SEL again there moves along the toggles) is the stop strip up close, BASS slider at the left, the toggles, VOL at the right:
 
 | Control | What it does |
 | --- | --- |
-| SEL, PRESET | The tone tablets, as the 368X's: SEL moves the cursor (a cyan outline) along PIANO, PIANO PP, HARPSI, HARPSI PP and LUTE, the panel sliding to it; PRESET turns that tablet on (right) or off (left). Any of them can be down at once, their sounds layered as the 368X layers them: PIANO with HARPSI is its "honky-tonk". PP is pianissimo, very soft: the same tone, about 14 dB down. |
+| SEL, PRESET | The tone toggles, as the 368X's: SEL moves the cursor (a cyan outline) along PIANO, PIANO PP, HARPSI, HARPSI PP and LUTE, the panel sliding to it; PRESET turns that toggle on (right) or off (left). Any of them can be down at once, their sounds layered as the 368X layers them: PIANO with HARPSI is its "honky-tonk". PP is pianissimo, very soft: the same tone, about 14 dB down. |
 | K1 · BASS | The bass boost, around 98 Hz: the middle is none, up boosts, down cuts. |
 | K2 · ORGAN MODE | Notes hold while their keys do, with a slow fade, instead of a piano's decay. |
 | K3 · ACCENTER | A thump at the start of each note, as the 368X's keying made it, under the harpsichord and lute voices (the low keys, to A#2, have their own). |
@@ -659,24 +659,24 @@ On its HOME, PRESET and K1 to K4 do the same, the camera zooming in on the panel
 keys' touch (the 368X didn't): the softest note at about a third of the hardest, through GLO CONTROLS' Velocity
 curve. The panel keeps itself with the GLO settings, so SAVE has nothing to do here.
 
-It is a MIDI device of its own, as the drums are. In its mode, GLO opens GLOBAL RMI first, then the other global
+It is a MIDI device of its own, as the drums are. In its mode, GLO opens GLOBAL PIANO first, then the other global
 pages:
 
 | Control | What it does |
 | --- | --- |
 | SELECT · CC CHAN | The channel its CCs come in on (CC 7 its volume, CC 64 the sustain pedal): OFF, 1 to 16 or ALL. 3 by default. |
 | K3 · CHANNEL | The channel its notes come in on and its keys' notes go out on. 3 by default. |
-| K4 · ROUTE | Notes from one instrument to the other, inside the FM-1: OFF, RMI>BASS, BASS>RMI or BOTH. |
+| K4 · ROUTE | Notes from one instrument to the other, inside the FM-1: OFF, PIANO>BASS, BASS>PIANO or BOTH. |
 
-RMI>BASS sends its notes, from its keys and its channel, into the bass as if played on the bass's keys. With the
-bass's ARP on, a chord on the RMI becomes a bass arpeggio; without it the bass, being mono, plays one note of the
-chord. BASS>RMI plays what the bass plays on the RMI too: its keys, its MIDI channel, its arp and its sequencer. BOTH
-does both, and can't loop: a routed note is never routed again or sent out over MIDI, and while the RMI is playing
+PIANO>BASS sends its notes, from its keys and its channel, into the bass as if played on the bass's keys. With the
+bass's ARP on, a chord on the piano becomes a bass arpeggio; without it the bass, being mono, plays one note of the
+chord. BASS>PIANO plays what the bass plays on the piano too: its keys, its MIDI channel, its arp and its sequencer. BOTH
+does both, and can't loop: a routed note is never routed again or sent out over MIDI, and while the piano is playing
 the bass, the bass sends nothing back.
 
 Its sound is synthesised, each key's tone and decay modelled on recordings of a real 368X; its tail is the room
 Drum Something 400 uses. LUTE is the harpsichord's tone through the 368X's lute filter (a low pass about 1.3 kHz),
-its level set by ear, as is how much softer a PP tablet is: the recordings can't measure those.
+its level set by ear, as is how much softer a PP toggle is: the recordings can't measure those.
 
 <a id="echo"></a>
 ### Space-Something RE-201
@@ -727,7 +727,7 @@ the knob as it turns.
 | ECHO PANEL | PRESET · BASS, ALGO · TREBLE | The echo's lows and highs, about 10 dB either way |
 | ECHO PANEL | K1 to K4 | As on HOME |
 | ECHO MODS | PRESET · TEMPO SYNC | REPEAT RATE picks a note at the tempo instead (an 8th, an 8th triplet, a 16th, a 16th triplet or a 32nd, slow to fast), halved or doubled to stay in the RE-201's range |
-| ECHO MODS | K1 to K3 · BASS, DRUM, RMI SEND | How much of each instrument goes into it, after its own volume. All three are off at first |
+| ECHO MODS | K1 to K3 · BASS, DRUM, PIANO SEND | How much of each instrument goes into it, after its own volume. All three are off at first |
 | ECHO MODS | K4 · WOW | The tape's wobble, from none to a worn machine's; 13, the default, a well-kept one's |
 
 ![ECHO PANEL: the right of the RE-201's panel up close, BASS, TREBLE and REVERB VOLUME over REPEAT RATE, INTENSITY and ECHO VOLUME](img/screen-echo-panel.png "ECHO PANEL")
@@ -1029,8 +1029,8 @@ The keys go out over USB and Bluetooth: their notes with velocity, and their pre
 GLO opens the global settings; press it again for the next page. They belong to the FM-1, not to a patch, and they
 save themselves: two seconds after you change one, once the FM-1 is quiet (see SEQ), it's kept through power-off,
 without SAVE (so a GLO change never
-writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar, one subject to a page: MIDI, Drums, Clock, Audio, Controls, Display and
-SysEx Dump. A red display shows the main value where a page has one: GLOBAL MIDI's the MIDI channel (ALL, OFF or the
+writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar, one subject to a page: MIDI, Drums, Piano, Clock, Audio, Controls, Display and
+BS2 SysEx Dump. A red display shows the main value where a page has one: GLOBAL MIDI's the MIDI channel (ALL, OFF or the
 number), GLOBAL DRUMS' the drums' channel, GLOBAL CLOCK's the tempo (while MIDI clock leads, its tempo as measured over
 every two beats; dashes until then) with the clock's state beside it, GLOBAL DUMP's the patch. GLOBAL DISPLAY shows the
 firmware's version (VERSION v0.7). The on/off settings are slide switches.
@@ -1144,7 +1144,7 @@ settings, not the patch, so SAVE doesn't light. MODE takes 0 to 11 (11 is REVERB
 | 14 | INTENSITY | 106 | TEMPO SYNC |
 | 15 | ECHO VOLUME | 12 | BASS SEND |
 | 25 | REVERB VOLUME | 13 | DRUM SEND |
-| 28 | BASS | 107 | RMI SEND |
+| 28 | BASS | 107 | PIANO SEND |
 | 31 | TREBLE | | |
 
 **The RND Synth:** its notes come in on channels 1 to 4. Keep CC CHAN on another channel, or OFF, and its messages

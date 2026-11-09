@@ -65,7 +65,7 @@ typedef struct {
  * keys, its arp, its sequencer) on the RMI too. One hop: a note routed is never routed again, nor sent out, so BOTH
  * can't loop (route_follow: the bass driven by the RMI drives nothing back) */
 enum { ROUTE_OFF, ROUTE_R2B, ROUTE_B2R, ROUTE_BOTH, NROUTE };
-static const char *const ROUTE_NAME[NROUTE] = {"OFF", "RMI>BASS", "BASS>RMI", "BOTH"};
+static const char *const ROUTE_NAME[NROUTE] = {"OFF", "PIANO>BASS", "BASS>PIANO", "BOTH"};
 /* the RMI's tone tablets, as its panel's (any of them down at once: their stops layered, as the 368X's) */
 enum { RT_PIANO, RT_PIANO_PP, RT_HARPSI, RT_HARPSI_PP, RT_LUTE, NRT };
 static const char *const RT_NAME[NRT] = {"PIANO", "PIANO PP", "HARPSI", "HARPSI PP", "LUTE"};
@@ -2003,7 +2003,7 @@ static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRI
                                               "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL CONTROLS",
                                               "PATCH NAME", "ELECTRA HOME", "ELECTRA PANEL",
                                               "ECHO HOME", "ECHO INPUT", "ECHO PANEL", "ECHO MODS",
-                                              "GLOBAL RMI"};
+                                              "GLOBAL PIANO"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME && (g) < PG_GAUD)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
@@ -2126,7 +2126,7 @@ static const param_t PARAMS[NPAGES][NE] = {
                   [EN_K1] = {"CHANNEL", SF(dchan), CH_OFF, CH_ALL, CHAN_NAME}},
     [PG_DMOD] = {[EN_K3] = {"SWING LOCK", SF(dswing_lock), 0, 1, OFF_ON},
                  [EN_K4] = {"TRANSPORT", SF(dtrans_off), 0, 1, ON_OFF}},
-    [PG_RSEL] = {[EN_PRESET] = {"TABLET", SF(rmi_tabs), 0, (1 << NRT) - 1, 0},   /* (its turn: the cursor's on or off) */ [EN_K1] = {"BASS", SF(rmi_bass), 0, 127, 0},
+    [PG_RSEL] = {[EN_PRESET] = {"TOGGLE", SF(rmi_tabs), 0, (1 << NRT) - 1, 0},   /* (its turn: the cursor's on or off) */ [EN_K1] = {"BASS", SF(rmi_bass), 0, 127, 0},
                  [EN_K2] = {"ORGAN MODE", SF(rmi_organ), 0, 1, OFF_ON}, [EN_K3] = {"ACCENTER", SF(rmi_accent), 0, 1, OFF_ON},
                  [EN_K4] = {"VOL", SF(rvol_off), 0, 127, 0}},   /* (VOL: rvol_off turned and shown upside down, knob_turn) */
     [PG_GDISP] = {[EN_PRESET] = {"KNOB ZOOM", SF(zoom_off), 0, 1, AUTO_OFF},
@@ -2142,7 +2142,7 @@ static const param_t PARAMS[NPAGES][NE] = {
                   [EN_K1] = {"REPEAT RATE", SF(se_rate), 0, 127, 0}, [EN_K2] = {"INTENSITY", SF(se_int), 0, 127, 0},
                   [EN_K3] = {"ECHO VOLUME", SF(se_echo), 0, 127, 0}, [EN_K4] = {"REVERB VOLUME", SF(se_rev), 0, 127, 0}},
     [PG_SMOD] = {[EN_PRESET] = {"TEMPO SYNC", SF(se_sync), 0, 1, OFF_ON}, [EN_K1] = {"BASS SEND", SF(se_send[0]), 0, 127, 0},
-                 [EN_K2] = {"DRUM SEND", SF(se_send[1]), 0, 127, 0}, [EN_K3] = {"RMI SEND", SF(se_send[2]), 0, 127, 0},
+                 [EN_K2] = {"DRUM SEND", SF(se_send[1]), 0, 127, 0}, [EN_K3] = {"PIANO SEND", SF(se_send[2]), 0, 127, 0},
                  [EN_K4] = {"WOW", SF(se_wow), 0, 127, 0}},
     [PG_GRMI] = {[EN_SELECT] = {"CC CHAN", SF(rmi_cc_chan), CH_OFF, CH_ALL, CHAN_NAME},
                  [EN_K1] = {"CHANNEL", SF(rmi_chan), CH_OFF, CH_ALL, CHAN_NAME},
@@ -2219,7 +2219,7 @@ static const char *const TITLE[NPAGES][NE] = {
     [PG_GCTL] = {[EN_K2] = "KNOB RESPONSE"},
     [PG_GDISP] = {[EN_PRESET] = "KNOB ZOOM", [EN_K1] = "HINTS", [EN_K2] = "POP-UP TIME"},
     [PG_GDRUM] = {[EN_SELECT] = "DRUMS CC CHANNEL", [EN_K1] = "DRUMS CHANNEL"},
-    [PG_GRMI] = {[EN_SELECT] = "RMI CC CHANNEL", [EN_K1] = "RMI CHANNEL", [EN_K2] = "NOTE ROUTE"},
+    [PG_GRMI] = {[EN_SELECT] = "PIANO CC CHANNEL", [EN_K1] = "PIANO CHANNEL", [EN_K2] = "NOTE ROUTE"},
 };
 static void *page_rec(uint32_t g)            /* what a page's encoders set: the sound, or the settings */
 {
@@ -3697,7 +3697,7 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_GAUD] = {[EN_K1] = "The speaker's sound, or off", "Master tune"},
     [PG_GCTL] = {[EN_K1] = "Touch curve", "Knob speed-up"},
     [PG_NAME] = {[EN_K1] = "Which letter", "Change it", "Clear to the end"},
-    [PG_RSEL] = {[EN_PRESET] = "This tablet on or off", [EN_K1] = "Bass boost", "No decay, as an organ", "A sharper attack",
+    [PG_RSEL] = {[EN_PRESET] = "This toggle on or off", [EN_K1] = "Bass boost", "No decay, as an organ", "A sharper attack",
                  "Its own volume"},
     [PG_SHOME] = {[EN_PRESET] = "Heads and spring", [EN_K1] = "Tape speed: delay", "Repeats, feedback", "Echo level",
                   "Spring level"},
@@ -3705,10 +3705,10 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_SECHO] = {[EN_ALGO] = "Echo's highs", "Echo's lows", "Tape speed: delay", "Repeats, feedback",
                   "Echo level", "Spring level"},
     [PG_SMOD] = {[EN_PRESET] = "Delay on the tempo", [EN_K1] = "Bass into the echo", "Drums into the echo",
-                 "RMI into the echo", "Tape wobble"},
+                 "Piano into the echo", "Tape wobble"},
     [PG_GDISP] = {[EN_PRESET] = "Zoom on what turns", [EN_K1] = "These hints", "Pop-up time"},
     [PG_GDRUM] = {"Drums' CC channel", [EN_K1] = "Drums' note channel"},
-    [PG_GRMI] = {"RMI's CC channel", [EN_K1] = "RMI's note channel", "Notes RMI to bass, or back"},
+    [PG_GRMI] = {"Piano's CC channel", [EN_K1] = "Piano's note channel", "Notes piano to bass, or back"},
     [PG_GRND] = {[EN_PRESET] = "Pick a seed slot"},
     [PG_RPAT] = {"Lock patch type", "Lock track count", [EN_K1] = "Lock root note", "Lock root octave", "Lock scale"},
     [PG_RTRK] = {[EN_PRESET] = "Pick the knobs' row"},
@@ -3799,7 +3799,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods",
         [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Controls", [PG_NAME] = "Patch Name", [PG_RSEL] = "Electra Panel",
         [PG_GDISP] = "Display", [PG_GDUMP] = "Dump", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
-        [PG_RTRK] = "RND Tracks", [PG_GDRUM] = "Drums", [PG_GRMI] = "RMI"};
+        [PG_RTRK] = "RND Tracks", [PG_GDRUM] = "Drums", [PG_GRMI] = "Piano"};
     static char tap[48];                     /* "GLO tap: System, hold: RND Synth Companion" */
     uint32_t g;
     static const char *const H[NB] = {[B_HOME] = "The whole panel", "Save the patch", [B_PLAY] = "Play or stop", [B_OCTDN] = "Octave down",
@@ -3826,7 +3826,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
     if (ui.se && (SE_PAGE(ui.page) || ui.page < PG_HOME))   /* (the Space Echo's: its panels, se_button) */
         return k == B_SEL ? "Next panel" : k == B_HOME ? "Echo Home" : 0;
     if (ui.rmi && (RMI_PAGE(ui.page) || ui.page < PG_HOME))   /* (the RMI's: its panel and mods, rmi_button) */
-        return k == B_SEL ? (ui.page == PG_RSEL ? "Next tablet" : "Electra Panel") : k == B_HOME ? "Electra Home" : 0;
+        return k == B_SEL ? (ui.page == PG_RSEL ? "Next toggle" : "Electra Panel") : k == B_HOME ? "Electra Home" : 0;
     if (ui.drum && !RND_PAGE(ui.page)) {     /* (every button the drums', as dt_button: the bass's form) */
         const uint32_t f = ui.dt_fn;
         const char *to = 0, *more = 0;
@@ -3972,9 +3972,9 @@ static void se_button(uint32_t k)
     if (k == B_SEL)
         sect_open(ui.page == PG_SIN ? PG_SECHO : ui.page == PG_SECHO ? PG_SMOD : PG_SIN, k);
     else if (k == B_SAVE)
-        app_say("SPACE ECHO", "KEEPS ITSELF");
+        app_say("SPACE SOMETHING", "KEEPS ITSELF");
     else
-        app_say("SPACE ECHO", "SEL: ITS PANELS");
+        app_say("SPACE SOMETHING", "SEL: ITS PANELS");
 }
 static void hold_tap(uint32_t k)
 {
@@ -5108,6 +5108,11 @@ static void tag_v(int32_t cx, int32_t cy, uint32_t k, const char *v)   /* encode
     tags[ntags++].s = ENC_NAME[enc_physical(k)];
 }
 static void tag(int32_t cx, int32_t cy, uint32_t k) { tag_v(cx, cy, k, 0); }   /* encoder k */
+static void tag_note(const char *h)          /* the last tag's hint under it while the map shows (Hints on) */
+{
+    if (ui.map_until && ntags && set.hints)
+        tags[ntags - 1u].h = h;
+}
 static void tag_sv(int32_t x, int32_t y, int32_t n, uint32_t k) { tag(x + 9, y + (9 * n + 15) / 2, k); }   /* a slide_v's */
 static void tag_sh(int32_t x, int32_t y, int32_t n, uint32_t k) { tag(x + (9 * n + 15) / 2, y + 9, k); }   /* a slide_h's */
 static void hint_pill(int32_t cx, int32_t y, const char *s)   /* a hint: white on dark, its edge cyan */
@@ -5133,7 +5138,7 @@ static void tags_draw(void)
         cv_rect(x - 1, y - 1, w + 2, 17, RGB(0, 0, 0));
         cv_rect(x, y, w, 15, tags[i].btn ? P_SILK : P_CYAN);
         cv_text(x + 3, y, &FONT_XS, s, RGB(0, 0, 0));
-        if (!ui.map_until && tags[i].h)      /* its hint under it (over it, near the foot) */
+        if (tags[i].h)                       /* its hint under it (over it, near the foot): the map's, tag_note's */
             hint_pill(tags[i].x, y + 17 + 15 < pan_h - 6 ? y + 18 : y - 18, tags[i].h);
     }
 }
@@ -5399,10 +5404,10 @@ static void mod_draw(void)
 {
     static const char *const LBL[5][4] = {{"KEY TRACK", "LIMITER"}, {"VELOCITY", "RETRIGGER", "COUNT", "FIXED SUS"},
                                           {"KEYSYNC", "SPEED/SYNC", "SLEW"}, {"SEQ RETRIG", "SWING"},
-                                          {"BASS SEND", "DRUM SEND", "RMI SEND", "WOW"}};
+                                          {"BASS SEND", "DRUM SEND", "PIANO SEND", "WOW"}};
     static const char *const ENV_T[3] = {"ENV MOD: AMP ENV", "ENV MOD: MOD ENV", "ENV MOD: AMP+MOD"};
     const int env = ui.page == PG_EMOD ? 1 : ui.page == PG_LFO2 ? 2 : ui.page == PG_AMOD ? 3 : ui.page == PG_SMOD ? 4 : 0;
-    const char *grp = env == 4 ? "SPACE ECHO" : env == 1 ? "ENVELOPES" : env == 2 ? "LFOS" : env ? "ARPEGGIATOR"
+    const char *grp = env == 4 ? "SPACE SOMETHING" : env == 1 ? "ENVELOPES" : env == 2 ? "LFOS" : env ? "ARPEGGIATOR"
                       : "FILTERS + EFFECTS";   /* (0: PG_XMOD) */
     uint32_t i, n = 0;
     char t[12];
@@ -5581,6 +5586,7 @@ static void rsel_draw(void)
         cv_rect(x - 2, y, 2, h, P_CYAN);
         cv_rect(x + w, y, 2, h, P_CYAN);
         tag(x + w / 2, RPY(640), EN_PRESET);
+        tag_note("Turn: this toggle on or off");
     }
     tag((RPX(RT_X[5][0]) + RPX(RT_X[5][1])) / 2, RPY(660), EN_K2);
     tag((RPX(RT_X[6][0]) + RPX(RT_X[6][1])) / 2, RPY(660), EN_K3);
@@ -5658,7 +5664,8 @@ static void rhome_draw(void)
         cv_text(232 - text_w(&FONT_T, "ORGAN MODE"), 20, &FONT_T, "ORGAN MODE", P_SILK);
     if (set.rmi_accent)
         cv_text(232 - text_w(&FONT_T, "ACCENTER"), set.rmi_organ ? 29 : 20, &FONT_T, "ACCENTER", P_SILK);
-    tag(232 - text_w(&FONT_XS, vc) / 2, 10, EN_PRESET);
+    tag_at(232 - text_w(&FONT_XS, "SEL: PIANO PRESETS") / 2, 10, "SEL: PIANO PRESETS", 1);   /* (the toggles
+                                              * up close; PRESET's own tag on the panel) */
     rbar_paint();
     {                                        /* the front panel: the case's top edge, its black, the strip's bands,
                                               * BASS and VOL, the blocks, the tablets (lit as they're down), the badge,
@@ -6226,7 +6233,7 @@ static void glo_drum_draw(void)
 static void glo_rmi_draw(void)
 {
     char t[4], o[8] = "Ch ";
-    glo_frame("RMI");
+    glo_frame("Piano");
     text_cat(o, CHAN_NAME[set.rmi_chan == CH_ALL || set.rmi_chan == CH_OFF ? 1u : set.rmi_chan]);
     if (set.rmi_chan == CH_OFF || set.rmi_chan == CH_ALL)
         memcpy(t, set.rmi_chan ? "ALL" : "OFF", 3);
@@ -6313,7 +6320,7 @@ static void glo_dump_draw(void)
 {
     char t[4];
     slot_disp(t);
-    glo_frame("SysEx Dump");
+    glo_frame("BS2 SysEx Dump");
     seg_display(8, 40, t, 3);
     print_c(50, 90, "Patch", P_SILK);
     cv_text(118, 44, &FONT_T, "Bass Station II", P_SILK);
