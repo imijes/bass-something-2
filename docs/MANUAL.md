@@ -10,7 +10,7 @@ goes out over USB and Bluetooth.
 It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of its patches as seeds with their locks
 (type, key, tracks), sends them back, and mixes its four tracks (see [RND Synth](#s9)).
 
-A second instrument plays beside the synth: [Drum Something 400](#s6), 13 drums with their own sequencer and songs.
+A second instrument plays beside the synth: [Drum Something 400](#s6), 13 drums with their own sequencer and songs. A third, [Electra-Something 368X](#rmi), is an electric piano, and [Space-Something RE-201](#echo) is a tape echo and spring reverb that all three can send into.
 
 ![The Bass Something 2 screen with a note playing: the section tabs, the HOME page (the name, the red P01 display, the scope drawing the note's wave, the whole Bass Station II panel), the keys with the held one in cyan, then OCT +0, P01, 120 BPM, VOL 50% and ARP OFF](img/screen-home.png "Bass Something 2 playing")
 ![Drum Something 400's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "Drum Something 400")
@@ -93,7 +93,7 @@ GLOBAL CONTROLS' KNOBS sets how much they speed up, from FINE to COARSE.
 
 | Button | Page | Again |
 | --- | --- | --- |
-| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash). On HOME, a tap goes round the three instruments, the camera panning down to the next one's panel: Bass Something 2, Drum Something 400, Electra-Something 368X, and back. From any other page, a hold switches at once | |
+| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash). On HOME, a tap goes round the instruments and the Space Echo, the camera panning down to the next one's panel: Bass Something 2, Drum Something 400, Electra-Something 368X, Space-Something RE-201, and back. From any other page, a hold switches at once | |
 | SEL | MASTER: the patch, picked, saved and sent | |
 | ENV | ENVELOPES: Env Select (PRESET) and the four faders | TRIGGERING; then the group's mods (velocity, retriggering, fixed sustain) |
 | LFO | PORTA and LFOS: the glide, both LFOs' waves and knobs, the Delay/Speed switch | the group's mods (keysync, Speed/Sync, slew) |
@@ -491,7 +491,7 @@ contains no samples of the original.
 
 ![Drum Something 400's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "HOME, tapped on HOME")
 
-Tap HOME on HOME to go round the instruments: Bass Something 2, Drum Something 400, Electra-Something 368X (see [Electra-Something 368X](#rmi)), and back. From any other page, hold it for a second. In Drum Something 400, every button
+Tap HOME on HOME to go round the instruments: Bass Something 2, Drum Something 400, Electra-Something 368X (see [Electra-Something 368X](#rmi)), Space-Something RE-201 (see [Space-Something RE-201](#echo)), and back. From any other page, hold it for a second. In Drum Something 400, every button
 does a drum job, listed below, and the keys play the drums.
 
 ### Its keys and channels
@@ -663,6 +663,64 @@ curve. The panel keeps itself with the GLO settings, so SAVE has nothing to do h
 Its sound is synthesised, each key's tone and decay modelled on recordings of a real 368X; its tail is the room
 Drum Something 400 uses. LUTE is the harpsichord's tone through the 368X's lute filter (a low pass about 1.3 kHz),
 its level set by ear, as is how much softer a PP tablet is: the recordings can't measure those.
+
+<a id="echo"></a>
+### Space-Something RE-201
+
+Space-Something RE-201 is a tape echo and spring reverb after the Roland RE-201 Space Echo, the 1974 tape loop with
+three playback heads and a three-spring reverb tank. It isn't an instrument: the synth, the drums and the electric piano
+each send into it, and it plays back on the master. Tap HOME on Electra-Something 368X's HOME to reach it; the keys go
+on playing the electric piano there. Its HOME has its name, the mode (which heads, and the spring) and the whole front
+panel, its knobs as they're set, its VU meter and PEAK lamp live.
+
+![Space-Something RE-201's HOME page: its name and mode above the whole RE-201 front panel, the keys under it](img/screen-echo-home.png "Space-Something RE-201")
+
+How it works, as the RE-201 does:
+
+- **The tape.** One loop, one record head, three playback heads. REPEAT RATE is the motor's speed: head 1 is 175 ms
+  at its slowest and 60 ms at its fastest, heads 2 and 3 at 1.91 and 2.88 times that (up to about half a second). The
+  motor takes a moment to reach a new speed, so turning REPEAT RATE while it repeats bends the pitch, as the tape does.
+- **The repeats** come round through INTENSITY, saturated as tape is and a little darker each time (darker still at
+  slow speeds). Past about 7 they build on themselves into a runaway that holds at the tape's limit. With more than
+  one head playing (modes 4 and 8 to 11) the heads add up, so it runs away sooner.
+- **BASS and TREBLE** shape the echo as you hear it, not the repeats in the loop, as on the RE-201.
+- **The spring** (modes 5 to 12) is fed by the dry sends only: the echoes don't go into it. Mode 12, REVERB ONLY, is
+  the spring alone, the tape stopped.
+
+| Mode | Heads | Spring |
+| --- | --- | --- |
+| 1, 2, 3 | 1, 2, 3 | |
+| 4 | 2 and 3 | |
+| 5, 6, 7 | 1, 2, 3 | yes |
+| 8 | 1 and 2 | yes |
+| 9 | 2 and 3 | yes |
+| 10 | 1 and 3 | yes |
+| 11 | 1, 2 and 3 | yes |
+| REVERB ONLY | none | yes |
+
+SEL goes round its three panels. On HOME, PRESET and K1 to K4 set the same as on its panels, the camera diving in on
+the knob as it turns.
+
+| Page | Control | What it does |
+| --- | --- | --- |
+| HOME | PRESET · MODE | The MODE SELECTOR: 1 to 11 and REVERB ONLY |
+| HOME | K1 · REPEAT RATE | The tape's speed: the time between repeats |
+| HOME | K2 · INTENSITY | How much of the echo goes round again |
+| HOME | K3 · ECHO VOLUME | The echo's level |
+| HOME | K4 · REVERB VOLUME | The spring's level |
+| ECHO INPUT | PRESET · MODE | As on HOME |
+| ECHO INPUT | K4 · INPUT | How hard the sends drive the tape (INSTRUMENT VOLUME on the RE-201). The VU meter shows it; PEAK lights near the tape's limit |
+| ECHO PANEL | PRESET · BASS, ALGO · TREBLE | The echo's lows and highs, about 10 dB either way |
+| ECHO PANEL | K1 to K4 | As on HOME |
+| ECHO MODS | PRESET · TEMPO SYNC | REPEAT RATE picks a note at the tempo instead (an 8th, an 8th triplet, a 16th, a 16th triplet or a 32nd, slow to fast), halved or doubled to stay in the RE-201's range |
+| ECHO MODS | K1 to K3 · BASS, DRUM, RMI SEND | How much of each instrument goes into it, after its own volume. All three are off at first |
+| ECHO MODS | K4 · WOW | The tape's wobble, from none to a worn machine's; 13, the default, a well-kept one's |
+
+![ECHO PANEL: the right of the RE-201's panel up close, BASS, TREBLE and REVERB VOLUME over REPEAT RATE, INTENSITY and ECHO VOLUME](img/screen-echo-panel.png "ECHO PANEL")
+
+Its knobs keep themselves with the GLO settings, so SAVE has nothing to do here, and MIDI CCs set them too (see
+[Control changes](#cc)). Its sound is modelled on measurements of a software RE-201, AudioThing's Outer Space 2, and
+on Roland's own service notes and owner's manual.
 
 ## 7. Patches and saving
 
@@ -1003,6 +1061,7 @@ Holding GLO for a second opens the RND pages, for the RND Synth: see RND Synth.
 | DUMP | FX (All 32) | Sends all 32 patches as a Bass Station II bank (SysEx), which loads back into the same patches. See SysEx. |
 | RND (GLO held) | | The RND Synth's patches, locks and tracks. See RND Synth. |
 
+<a id="cc"></a>
 ### Control changes
 
 With CC CHAN set, a controller or a Bass Station II editor can turn the sound's knobs over MIDI. The FM-1 uses the
@@ -1060,6 +1119,19 @@ Station II uses two CCs for one knob (cutoff 16 and 48, for example), the FM-1 r
 | 116 | ARP MODS | SWING |
 | 118 | ARP | MODE, K3 (6 PLAY, 7 REC, as the Bass Station II sends them) |
 | 119 | ARP | RHYTHM, K2 |
+
+**Space-Something RE-201:** its knobs on the same channel, on numbers the Bass Station II doesn't use. They set its
+settings, not the patch, so SAVE doesn't light. MODE takes 0 to 11 (11 is REVERB ONLY); TEMPO SYNC is on above 0.
+
+| CC | Knob | CC | Knob |
+| --- | --- | --- | --- |
+| 3 | MODE | 81 | INPUT |
+| 9 | REPEAT RATE | 83 | WOW |
+| 14 | INTENSITY | 106 | TEMPO SYNC |
+| 15 | ECHO VOLUME | 12 | BASS SEND |
+| 25 | REVERB VOLUME | 13 | DRUM SEND |
+| 28 | BASS | 107 | RMI SEND |
+| 31 | TREBLE | | |
 
 **The RND Synth:** its notes come in on channels 1 to 4. Keep CC CHAN on another channel, or OFF, and its messages
 can't change the sound.

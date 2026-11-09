@@ -1,0 +1,37 @@
+# the Space Echo's CCs (on CC CHAN, 1): its settings, not the patch's; ECHO HOME's dive on a CC as on a turn.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/secc.txt bs2/build/host
+wait 600
+expect se_mode 0
+expect se_rate 64
+midi B0 03 04
+midi B0 09 7F
+midi B0 19 00
+wait 50
+expect se_mode 4
+expect se_rate 127
+expect se_rev 0
+expect cutoff 58
+midi B0 03 7F
+wait 50
+expect se_mode 11
+# on ECHO HOME: REVERB VOLUME's CC dives to ECHO PANEL, back out after
+press HOME
+wait 1100
+release HOME
+wait 600
+press HOME
+wait 1100
+release HOME
+wait 600
+press HOME
+wait 1100
+release HOME
+wait 2500
+expect page 42
+midi B0 19 40
+wait 700
+expect page 44
+expect se_rev 64
+wait 3000
+expect page 42

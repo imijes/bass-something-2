@@ -2247,7 +2247,15 @@ static const cc_map_t CC_MAP[] = {
     {94, CCP(PG_EFX, EN_K1)},                  {27, CCP(PG_OSC, EN_K1)},      {26, CCP(PG_OSC, EN_K2)},
     {72, &PW_P[0][PW_MENV]},        {77, &PW_P[1][PW_MENV]},       {112, CCP(PG_EMOD, EN_K1)},
     {113, &EMODM_P[EN_K1]},        {115, CCP(PG_EFX, EN_K2)},
+    /* the Space Echo (its settings, not the patch; numbers MIDI leaves undefined or spare, none the Bass Station II's): its
+     * HOME's five where HOME has them (a CC there dives as a turn does), the rest on their close-ups and its mods */
+    {3, CCP(PG_SHOME, EN_PRESET)},  {9, CCP(PG_SHOME, EN_K1)},     {14, CCP(PG_SHOME, EN_K2)},
+    {15, CCP(PG_SHOME, EN_K3)},     {25, CCP(PG_SHOME, EN_K4)},    {28, CCP(PG_SECHO, EN_PRESET)},
+    {31, CCP(PG_SECHO, EN_ALGO)},   {81, CCP(PG_SIN, EN_K1)},      {83, CCP(PG_SMOD, EN_K4)},
+    {106, CCP(PG_SMOD, EN_PRESET)}, {12, CCP(PG_SMOD, EN_K1)},     {13, CCP(PG_SMOD, EN_K2)},
+    {107, CCP(PG_SMOD, EN_K3)},
 };
+static void zoom_se(uint32_t p);             /* ECHO HOME's knob: in on its close-up */
 static void zoom_cc_in(const param_t *q);
 static void zoom_dt_cc(uint32_t cc);
 static void zoom_views(const uint8_t *v);
@@ -2265,6 +2273,8 @@ static void cc_apply(uint32_t cc, uint32_t v)   /* the main loop's: a CC on CC C
         ;
     if (i < sizeof CC_MAP / sizeof CC_MAP[0]) {
         const param_t *q = CC_MAP[i].q;
+        const int glo = q >= &PARAMS[PG_GMIDI][0] && q <= &PARAMS[NPAGES - 1][NE - 1];   /* (a setting's: the Space
+                                              * Echo's; OSC2_P and the like, the patch's, outside PARAMS) */
         int32_t x = (int32_t)v, span = q->hi - q->lo;
         if (q->names == RANGE_NAME)
             x -= 63;
@@ -2274,7 +2284,14 @@ static void cc_apply(uint32_t cc, uint32_t v)   /* the main loop's: a CC on CC C
             x = x < 64 ? q->lo * (64 - x) / 64 : q->hi * (x - 64) / 63;
         else if (!q->names)
             x = q->lo + (x * span + 63) / 127;
-        param_put(q, &patch, q->names ? q->lo + x : x);
+        param_put(q, glo ? (void *)&set : (void *)&patch, q->names ? q->lo + x : x);
+        if (glo) {                           /* (ECHO HOME's knob: in on it, as turned there) */
+            if (!set.zoom_off && q < &PARAMS[PG_SHOME + 1][0] && q >= &PARAMS[PG_SHOME][0]
+                && (ui.page == PG_SHOME || (zoom.home && zoom.hp == PG_SHOME)))
+                zoom_se((uint32_t)(q - &PARAMS[PG_SHOME][0]));
+            ui.redraw = 1;
+            return;
+        }
         org_set(q);
         if (!set.zoom_off && (ui.page == PG_HOME || zoom.home))   /* (Knob Zoom: from HOME, into its section page:
                                               * zoom_cc_in) */
@@ -3534,7 +3551,6 @@ static uint32_t notes_lit(uint32_t *below, uint32_t *above)
  * on their other pages */
 #define HOME_KNOB_PAGE(p) ((p) == EN_K1 ? PG_PATCH : (p) == EN_K2 ? PG_ARP : PG_TUNE)
 #define SE_DIVE_PG(p) ((p) == EN_PRESET ? PG_SIN : PG_SECHO)   /* ECHO HOME's knob p: the close-up it's on */
-static void zoom_se(uint32_t p);             /* ECHO HOME's knob: in on its close-up */
 static int home_knob(uint32_t p)
 {
     if (ui.se)                               /* ECHO HOME: PRESET INPUT's MODE, K1-K4 PANEL's (the same encoders there) */
@@ -3631,6 +3647,13 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_NAME] = {[EN_K1] = "Which letter", "Change it", "Clear to the end"},
     [PG_RSEL] = {[EN_PRESET] = "This tablet on or off", [EN_K1] = "Bass boost", "No decay, as an organ", "A sharper attack",
                  "Its own volume"},
+    [PG_SHOME] = {[EN_PRESET] = "Heads and spring", [EN_K1] = "Tape speed: delay", "Repeats, feedback", "Echo level",
+                  "Spring level"},
+    [PG_SIN] = {[EN_PRESET] = "Heads and spring", [EN_K1] = "Drive into the tape"},
+    [PG_SECHO] = {[EN_ALGO] = "Echo's highs", "Echo's lows", "Tape speed: delay", "Repeats, feedback",
+                  "Echo level", "Spring level"},
+    [PG_SMOD] = {[EN_PRESET] = "Delay on the tempo", [EN_K1] = "Bass into the echo", "Drums into the echo",
+                 "RMI into the echo", "Tape wobble"},
     [PG_GDISP] = {[EN_PRESET] = "Zoom on what turns", [EN_K1] = "These hints", "Pop-up time"},
     [PG_GDRUM] = {"Drums' CC channel", [EN_K1] = "Drums' note channel"},
     [PG_GRND] = {[EN_PRESET] = "Pick a seed slot"},
@@ -8737,6 +8760,12 @@ int app_expect(const char *what, int *got)
         *got = patch.dist;
     else if (!strcmp(what, "pitch_now"))
         *got = pitch_now;
+    else if (!strcmp(what, "se_mode"))       /* the Space Echo's knobs, as stored (0..11; 0..127) */
+        *got = set.se_mode;
+    else if (!strcmp(what, "se_rate"))
+        *got = set.se_rate;
+    else if (!strcmp(what, "se_rev"))
+        *got = set.se_rev;
     else if (!strcmp(what, "drum"))          /* Drum Something's mode (HOME held) */
         *got = ui.drum;
     else if (!strcmp(what, "dlit"))          /* the drum HOME's instruments lit (dt_lit), a bit each */
