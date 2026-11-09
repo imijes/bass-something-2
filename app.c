@@ -961,6 +961,12 @@ static void route_follow(void)               /* what the bass plays (its keys, a
     route_note = n;
     route_trig = voice_trig;
 }
+/* the wheels, from MIDI on GLO's channel: pitch bend -8192..8191 (BEND_SEMIS at full, both oscillators) and the mod
+ * wheel (CC 1) 0..127, LFO 1 on the pitches by up to MW_SEMIS over the patch's own depth (a vibrato, at LFO 1's rate) */
+#define BEND_SEMIS 2.0f
+#define MW_SEMIS 0.5f
+static int32_t bend_in;
+static uint32_t mw_in;
 static void midi_in(void)                    /* audio interrupt: the keys' notes, and the packets that came in */
 {
     uint32_t pkt, e;
@@ -1013,6 +1019,11 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
         } else if (st == 0xFCu) {            /* stop: the drums */
             if (set.clock != CLK_INT)
                 dq_stop();
+        } else if ((st & 0xF0u) == 0xE0u) {  /* pitch bend */
+            if (ours)
+                bend_in = (int32_t)(d1 | (d2 & 0x7Fu) << 7) - 8192;
+        } else if ((st & 0xF0u) == 0xB0u && d1 == 1u && ours) {   /* the mod wheel (no knob's: CC_MAP leaves 1 out) */
+            mw_in = d2 & 0x7Fu;
         } else if ((st & 0xF0u) == 0xB0u) {  /* a CC: a knob of the sound's on CC CHAN alone (cc_apply) */
             if (cc)
                 fifo_put(&ccq, d1 | d2 << 8);
@@ -1045,6 +1056,11 @@ static float mod_step(const adsr_t *menv, uint32_t n, float *mod, float *lv)
                          patch.lfo_syncv[j]);
     mod[DEST_PITCH] = lv[0] * (float)patch.lfo[0].depth[0] * (1.0f / 63.0f);   /* LFO 1 the pitches, 2 the cutoff */
     mod[DEST_OSC2] = lv[0] * (float)patch.lfo[0].depth[1] * (1.0f / 63.0f);
+    {                                        /* the wheels (midi_in), on both pitches; an octave a 1 */
+        const float w = ((float)bend_in * (BEND_SEMIS / 8192.0f) + lv[0] * (float)mw_in * (MW_SEMIS / 127.0f)) / 12.0f;
+        mod[DEST_PITCH] += w;
+        mod[DEST_OSC2] += w;
+    }
     mod[DEST_CUTOFF] = lv[1] * (float)patch.lfo[1].depth[0] * (1.0f / 63.0f);
     return adsr_step(&voice.menv, menv) * (1.0f / 63.0f);
 }
@@ -2420,7 +2436,7 @@ static void rsplash_draw(void);
 /* the randomizer's moment on screen (rfx_draw): when it began (0: not showing), and what its knobs land on */
 static uint32_t rfx_at, rfx_seed;
 
-/* REC held HOLD_MS: every knob of the oscillators, their mix, the filter, both envelopes and both LFOs at random,
+/* EDIT held HOLD_MS: every knob of the oscillators, their mix, the filter, both envelopes and both LFOs at random,
  * a new sound to start from (unsaved: SAVE keeps it); the filter left a little open and the attack under a second, so
  * it is heard */
 static void randomize(void)
@@ -3691,7 +3707,7 @@ static uint32_t notes_lit(uint32_t *below, uint32_t *above)
 }
 
 /* ARP, SEQ, GLO and REC: tapped, their page (REC: recording on or off, on GLO MIDI a Bluetooth device); held HOLD_MS,
- * a mode (ARP or SEQ: AFX on or off; GLO: the RND pages, held again the GLOBAL ones; REC: a random sound). The hold
+ * a mode (ARP or SEQ: AFX on or off; GLO: the RND pages, held again the GLOBAL ones; EDIT: a random sound). The hold
  * acts while still held, its release then nothing */
 #define HOLD_MS 1000u
 /* HOME's K2: the ARP's Rhythm; K3 and K4: the FILTERS' Resonance and Frequency; from HOME and on its way to that page

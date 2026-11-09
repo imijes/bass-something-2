@@ -1,0 +1,20 @@
+# The wheels from MIDI on GLO's channel (midi_in): pitch bend, 2 semitones at full, both ways; back to the middle,
+# none. The mod wheel (CC 1) touches no knob.
+wait 600
+midi 90 3C 64
+wait 100
+expect cents 0
+midi E0 7F 7F
+wait 100
+expect cents 199
+midi E0 00 00
+wait 100
+expect cents -200
+midi E0 00 40
+wait 100
+expect cents 0
+midi B0 01 7F
+wait 100
+midi B0 01 00
+midi 80 3C 00
+wait 100

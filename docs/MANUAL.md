@@ -145,7 +145,7 @@ the keys' reach lights OCT-, one above lights OCT+.
 | SEL | MASTER, the patch page. On GLOBAL DUMP, the sound out as a SysEx dump instead; on the RND pages, their own (see RND Synth); on the SEQ page while the sequencer records, the step's legato (see SEQ). |
 | MASTER | The volume. |
 | REC | Recording on or off, from any page (see SEQ). On GLOBAL MIDI it finds a Bluetooth MIDI device instead. |
-| Hold REC | Held for a second: a random sound (see below), on every page. |
+| Hold EDIT | Held for a second: a random sound (see below), on every page. |
 | Hold ARP or SEQ | Held for a second: AFX mode on or off. A shorter press opens the page as usual. |
 | Hold GLO | Held for a second: the RND pages, for Cyma Forma's RND Synth; held again, back to GLOBAL. See RND Synth. |
 | PLAY | Plays the sequence at its own key (the arp on, in PLAY), or stops it. |
@@ -162,7 +162,7 @@ modulation, the widths, the filter (its type, frequency, resonance, overdrive an
 random. The filter is kept a little open and the attack under a second, so the result is heard at once. The screen
 says SOUND RANDOMIZED, and for a second a card over the panel shows the randomizer at work: four knobs whirl
 and stop one by one, and the letters on its label tumble until they spell RANDOMIZE. Oscillator 1's tuning and the ranges, the mixer's other levels, the arp and the sequencer are
-left as they were. Hold REC again for another, or press SAVE to keep
+left as they were. Hold EDIT again for another, or press SAVE to keep
 it.
 
 ### AFX mode
@@ -1059,8 +1059,9 @@ A computer can send it the same way, or have the FM-1 send the RND SEED slot's p
 
 MIDI comes in over USB, Bluetooth and the TRS jack. A note on GLO's channel plays the voice (or the arp, or
 transposes the sequencer). MIDI clock and start drive the arp and the sequencer (see SYNC). Control changes on GLO's
-CC CHAN turn the sound's knobs (see Control changes below). Other messages, such as pitch bend, are shown on the bottom
-line but change nothing.
+CC CHAN turn the sound's knobs (see Control changes below). Pitch bend on GLO's channel bends both oscillators up to 2 semitones either way, and
+the mod wheel (CC 1) adds a vibrato of up to half a semitone from LFO 1, at its rate, on top of the patch's own LFO 1
+depth. The piano and the drums ignore both. Other messages are shown on the bottom line but change nothing.
 
 The keys go out over USB and Bluetooth: their notes with velocity, and their pressure as poly aftertouch.
 
@@ -1100,7 +1101,7 @@ Holding GLO for a second opens the RND pages, for the RND Synth: see RND Synth.
 | MIDI | K2 LOCAL (LOCAL CONTROL) | ON (the default): the keys play the voice. OFF: they only send MIDI, for a computer that plays it back. The sequencer, the arp from MIDI notes, and MIDI in still play. |
 | MIDI | K3 AT OUT (AFTER TOUCH OUT) | The keys' pressure out as poly aftertouch: ON (the default) or OFF. |
 | MIDI | K4 BLUETOOTH (BLUETOOTH MIDI) | Bluetooth on (the default) or off, at once. |
-| MIDI | REC | Finds and connects a Bluetooth MIDI device (below). Held a second, a random sound, as on every page. |
+| MIDI | REC | Finds and connects a Bluetooth MIDI device (below). |
 | CLOCK | K1 TEMPO | The tempo, the same setting as ARP's K1, kept with the patch. While MIDI clock is followed, the knob shows the clock's tempo and turning it changes nothing. |
 | CLOCK | K3 SEND CLK (SEND MIDI CLOCK) | ON (the default): MIDI clock goes out at the tempo, and PLAY sends start and stop. Not while following MIDI clock. |
 | CLOCK | K4 SYNC (CLOCK SYNC) | What the arp and the sequencer follow. AUTO (the default): MIDI clock while it comes in, else the tempo. INT: the tempo only. EXT: MIDI clock only (without it they wait). While following, a MIDI start begins again from the first step. |
