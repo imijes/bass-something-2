@@ -984,36 +984,6 @@ static void ds_copy(uint32_t a, uint32_t b)  /* song a onto b: empty, a copy, it
         d->step[de + i] = t->step[i];
     dq.dirty = 1;
 }
-/* the demo at first power-on, "i've used up 94% of my usage tokens": pattern 00 and the drums' levels, tunings, master
- * and tempo as saved on the author's FM-1, with its P01 (app.c), from presets/demo.h (make_demo.py) */
-#include "presets/demo.h"
-#if defined(PLAT_HOST) && !defined(PLAT_WEB) && !defined(PLAT_RFM1)
-#include <stdlib.h>                          /* (getenv) */
-#endif
-static int dq_demo_on(void)                  /* the host simulator's tests start from empty drums: BS2_DEMO=1 for the demo
-                                              * there (the device, the emulator and RemoteFM1 always have it) */
-{
-#if defined(PLAT_HOST) && !defined(PLAT_WEB) && !defined(PLAT_RFM1)
-    const char *e = getenv("BS2_DEMO");
-    return e && e[0] == '1';
-#else
-    return 1;
-#endif
-}
-static void dq_demo(void)                    /* (the pool empty, the patterns their defaults) */
-{
-    uint32_t i;
-    for (i = 0; i < NDT; i++) {
-        dt.vol[i] = DEMO_DT_VOL[i];
-        dt.tune[i] = DEMO_DT_TUNE[i];
-    }
-    dt.master = DEMO_DT_MASTER;
-    dt.tempo = DEMO_DT_TEMPO;
-    dqm.pat[0] = DEMO_PAT;
-    for (i = 0; i < DEMO_PAT.n; i++)
-        dqm.ev[i] = DEMO_HITS[i];
-    dqm.used = DEMO_PAT.n;
-}
 static void dq_init(void)
 {
     uint32_t i;
@@ -1051,9 +1021,6 @@ static void dq_init(void)
         for (i = 0; i < DQ_NPAT; i++) {
             dqm.pat[i].start = 0;
             dq_defaults(&dqm.pat[i]);
-        }
-        if (dq_demo_on()) {
-            dq_demo();
         }
     }
     if (!dq_load(&dsm, (uint32_t)sizeof dsm, OBJ_DS0, ds_sum, DS_NOBJ) || dsm.magic != DSONG_MAGIC) {

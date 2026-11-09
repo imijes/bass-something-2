@@ -1547,26 +1547,16 @@ void app_panic(void)
     voice.amp.stage = voice.menv.stage = ENV_IDLE;
 }
 
-/* the first sequence: the demo's (presets/demo.h: P01's, as saved on the author's FM-1), or, in the host simulator
- * without BS2_DEMO=1 (dq_demo_on), the tests' line: v0.7's, C3, D#3 tied over two steps */
-_Static_assert(DEMO_PSIZE == sizeof(patch_t), "presets/demo.h's P01 is this patch_t's (make_demo.py again)");
-#if defined(PLAT_HOST) && !defined(PLAT_WEB) && !defined(PLAT_RFM1)
-#define SEQ_TEST_LINE {.len = 8, .step = {48, 48, 60, 48, 51, 51, 55, 58, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST,        \
+/* the first sequence: v0.7's line, C3, D#3 tied over two steps */
+#define SEQ_LINE {.len = 8, .step = {48, 48, 60, 48, 51, 51, 55, 58, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST,        \
                                           SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST,        \
                                           SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST,        \
                                           SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST, SEQ_REST},                 \
                        .leg = {1u << 4}}
-#endif
 static void seq_line(seqmem_t *q)
 {
-#if defined(PLAT_HOST) && !defined(PLAT_WEB) && !defined(PLAT_RFM1)
-    static const seqmem_t T = SEQ_TEST_LINE;
-    if (!dq_demo_on()) {
-        *q = T;
-        return;
-    }
-#endif
-    memcpy(q, DEMO_PATCH + offsetof(patch_t, sq), sizeof *q);
+    static const seqmem_t T = SEQ_LINE;
+    *q = T;
 }
 static void patch_defaults(patch_t *p)       /* the sound at first power-on: no modulation (the amounts at 0) */
 {
@@ -1703,7 +1693,6 @@ typedef struct {
     patch_t p[NPSLOT];
 } bank_t;
 _Static_assert(sizeof(bank_t) <= PLAT_STORE_MAX, "a bank page fits a store object");
-_Static_assert(DEMO_BANK_VERSION == BANK_VERSION, "presets/demo.h's P01 is this version's (make_demo.py again)");
 _Static_assert(offsetof(patch_t, ring) == BANK_V1_PSIZE, "version 1's patches are version 2's without the ring");
 _Static_assert(offsetof(patch_t, arp_on) == BANK_V2_PSIZE, "version 2's patches are version 3's without the arp");
 _Static_assert(SEQ_GAP > BANK_V2_PSIZE && SEQ_GAP <= BANK_V3_PSIZE, "the gap: in version 3's patches on, not 2's");
@@ -2610,11 +2599,6 @@ static void bank_factory(void)
         bsx_import(PRESETS[i], sizeof PRESETS[i], &bank[0].p[i], name);
         patch_sane(&bank[0].p[i]);
         name_set(i, name);
-    }
-    if (dq_demo_on()) {                      /* (P01: the demo's, as saved on the author's FM-1) */
-        memcpy(&bank[0].p[0], DEMO_PATCH, sizeof bank[0].p[0]);
-        patch_sane(&bank[0].p[0]);
-        name_set(0, "DEMO");
     }
 }
 

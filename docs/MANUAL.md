@@ -57,15 +57,9 @@ doesn't start can be recovered too. For details, see felucca-bsp's `tools/fm1_re
 At power-on the screen shows BASS SOMETHING 2 in cyan, "Inspired by the Bass Station 2" under it, and an oscilloscope whose
 wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.7) is in the bottom
 right corner. v0.7 brings Drum Something 400 (section 6) and the 2026-11-05 platform update: a faster install, FM-1s with
-the UC25HQ80 flash chip, and USB audio on macOS 15. v0.7.1 adds the demo below, and v0.7.2 makes it the author's own groove. It uses 516,496 B of the FM-1's flash, with
+the UC25HQ80 flash chip, and USB audio on macOS 15. It uses 516,496 B of the FM-1's flash, with
 about 65 KB free. Then the panel opens on the patch you last saved. The emulator shows the same splash when you
 switch it on.
-
-**The demo:** a new Bass Something 2 (and the emulator) starts with something to play along with: "i've used up 94% of
-my usage tokens", the author's own groove, saved on their FM-1: the bass in P01 with its line in sequence 1, and the
-drums' pattern 00, four bars at 120 BPM. Hold HOME to switch to the drums and press PLAY: the bass sequence starts with them (DRUM
-MODS' TRANSPORT). Turn the bass's knobs while it plays, or press HOME to go back to the synth's pages; a key
-transposes the line. It's only there until you save over it.
 
 ---
 
@@ -822,7 +816,7 @@ basses, P11 to P20 leads, and P21 to P32 show off the rest of the voice:
 
 | Patch | Name | What it shows |
 |---|---|---|
-| P01 | DUB PLATE | two saws and a loud sine sub under the 24 dB filter, swept slowly by LFO 2 (a new FM-1 has the demo's bass here instead) |
+| P01 | DUB PLATE | two saws and a loud sine sub under the 24 dB filter, swept slowly by LFO 2 |
 | P02 | STATION BASS | the classic: two saws at 16', the square sub, a short filter envelope |
 | P03 | ACID SLIDE | the Acid filter with high resonance; overlap the notes to slide |
 | P04 | RUBBER PLUCK | a narrow pulse through the 12 dB filter, short and round |
