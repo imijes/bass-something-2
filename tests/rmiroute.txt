@@ -8,7 +8,7 @@ tap HOME
 wait 1000
 tap HOME
 wait 1000
-said ELECTRA HOME
+said PIANO HOME
 tap GLO
 wait 30
 expect page 46

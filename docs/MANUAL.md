@@ -10,7 +10,7 @@ goes out over USB and Bluetooth.
 It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of its patches as seeds with their locks
 (type, key, tracks), sends them back, and mixes its four tracks (see [RND Synth](#s9)).
 
-A second instrument plays beside the synth: [Drum Something 400](#s6), 13 drums with their own sequencer and songs. A third, [Electra-Something 368X](#rmi), is an electric piano, and [Space-Something RE-201](#echo) is a tape echo and spring reverb that all three can send into.
+A second instrument plays beside the synth: [Drum Something 400](#s6), 13 drums with their own sequencer and songs. A third, [Piano Something 368X](#rmi), is an electric piano, and [Space Something 201](#echo) is a tape echo and spring reverb that all three can send into.
 
 ![The Bass Something 2 screen with a note playing: the section tabs, the HOME page (the name, the red P01 display, the scope drawing the note's wave, the whole Bass Station II panel), the keys with the held one in cyan, then OCT +0, P01, 120 BPM, VOL 50% and ARP OFF](img/screen-home.png "Bass Something 2 playing")
 ![Drum Something 400's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "Drum Something 400")
@@ -93,7 +93,7 @@ GLOBAL CONTROLS' KNOBS sets how much they speed up, from FINE to COARSE.
 
 | Button | Page | Again |
 | --- | --- | --- |
-| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash). On HOME, a tap goes round the instruments and Space Something, the camera panning down to the next one's panel: Bass Something 2, Drum Something 400, Electra-Something 368X, Space-Something RE-201, and back. From any other page, a hold switches at once | |
+| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash). On HOME, a tap goes round the instruments and Space Something, the camera panning down to the next one's panel: Bass Something 2, Drum Something 400, Piano Something 368X, Space Something 201, and back. From any other page, a hold switches at once | |
 | SEL | MASTER: the patch, picked, saved and sent | |
 | ENV | ENVELOPES: Env Select (PRESET) and the four faders | TRIGGERING; then the group's mods (velocity, retriggering, fixed sustain) |
 | LFO | PORTA and LFOS: the glide, both LFOs' waves and knobs, the Delay/Speed switch | the group's mods (keysync, Speed/Sync, slew) |
@@ -491,7 +491,7 @@ contains no samples of the original.
 
 ![Drum Something 400's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "HOME, tapped on HOME")
 
-Tap HOME on HOME to go round the instruments: Bass Something 2, Drum Something 400, Electra-Something 368X (see [Electra-Something 368X](#rmi)), Space-Something RE-201 (see [Space-Something RE-201](#echo)), and back. From any other page, hold it for a second. In Drum Something 400, every button
+Tap HOME on HOME to go round the instruments: Bass Something 2, Drum Something 400, Piano Something 368X (see [Piano Something 368X](#rmi)), Space Something 201 (see [Space Something 201](#echo)), and back. From any other page, hold it for a second. In Drum Something 400, every button
 does a drum job, listed below, and the keys play the drums.
 
 ### Its keys and channels
@@ -637,15 +637,15 @@ CCs 33 to 45 set each drum's tuning and 46 to 58 its volume, in the order Bass, 
 ---
 
 <a id="rmi"></a>
-### Electra-Something 368X
+### Piano Something 368X
 
-The third instrument, Electra-Something 368X, is after the RMI Electra-piano 368X, the 1970s electronic piano with
+The third instrument, Piano Something 368X, is after the RMI Electra-piano 368X, the 1970s electronic piano with
 its seven stop toggles: a piano, a harpsichord and a lute, each from its own tone generator per key, polyphonic (eight
 notes at once here). Tap HOME on Drum Something 400's HOME to reach it. Its HOME has its name, the tone toggles down (with ORGAN MODE and
 ACCENTER when down) and its stop strip down on the keys (the FM-1's keys are its keyboard); between them its notes as they
 ring, each a bar over its key's place as tall as its level, a mark falling slowly from the most it reached.
 
-**ELECTRA PANEL** (SEL; SEL again there moves along the toggles) is the stop strip up close, BASS slider at the left, the toggles, VOL at the right:
+**PIANO PANEL** (SEL; SEL again there moves along the toggles) is the stop strip up close, BASS slider at the left, the toggles, VOL at the right:
 
 | Control | What it does |
 | --- | --- |
@@ -679,15 +679,15 @@ Drum Something 400 uses. LUTE is the harpsichord's tone through the 368X's lute 
 its level set by ear, as is how much softer a PP toggle is: the recordings can't measure those.
 
 <a id="echo"></a>
-### Space-Something RE-201
+### Space Something 201
 
-Space-Something RE-201 is a tape echo and spring reverb after the Roland RE-201 Space Echo, the 1974 tape loop with
+Space Something 201 is a tape echo and spring reverb after the Roland RE-201 Space Echo, the 1974 tape loop with
 three playback heads and a three-spring reverb tank. It isn't an instrument: the synth, the drums and the electric piano
-each send into it, and it plays back on the master. Tap HOME on Electra-Something 368X's HOME to reach it; the keys go
+each send into it, and it plays back on the master. Tap HOME on Piano Something 368X's HOME to reach it; the keys go
 on playing the electric piano there. Its HOME has its name, the mode (which heads, and the spring) and the whole front
 panel, its knobs as they're set, its VU meter and PEAK lamp live.
 
-![Space-Something RE-201's HOME page: its name and mode above the whole RE-201 front panel, the keys under it](img/screen-echo-home.png "Space-Something RE-201")
+![Space Something 201's HOME page: its name and mode above the whole RE-201 front panel, the keys under it](img/screen-echo-home.png "Space Something 201")
 
 How it works, as the RE-201 does:
 
@@ -1038,7 +1038,7 @@ firmware's version (VERSION v0.7). The on/off settings are slide switches.
 On every GLO page, the right of the page's own bar shows the audio's load (for a moment after a change, what changed
 instead), for example **CPU0 34/41**. The first number is the
 load now, as a percentage of the time the FM-1 has to make each block of sound. The second is the highest it reached
-in the last five seconds. **CPU1** under it is the FM-1's second core, which makes the Electra-Something's sound
+in the last five seconds. **CPU1** under it is the FM-1's second core, which makes the Piano Something's sound
 beside the first (**CPU1 OFF**: one core is doing it all). If the sound ever misses its deadline (a dropout, heard as
 a click), a count follows in cyan, for example **CPU0 97/100 !2**, and stays until the FM-1 is switched off. A click without the count going up came
 from something else. A write to memory (SAVE, a patch change, and the sequence and GLO settings keeping themselves) holds
@@ -1134,7 +1134,7 @@ Station II uses two CCs for one knob (cutoff 16 and 48, for example), the FM-1 r
 | 118 | ARP | MODE, K3 (6 PLAY, 7 REC, as the Bass Station II sends them) |
 | 119 | ARP | RHYTHM, K2 |
 
-**Space-Something RE-201:** its knobs on the same channel, on numbers the Bass Station II doesn't use. They set its
+**Space Something 201:** its knobs on the same channel, on numbers the Bass Station II doesn't use. They set its
 settings, not the patch, so SAVE doesn't light. MODE takes 0 to 11 (11 is REVERB ONLY); TEMPO SYNC is on above 0.
 
 | CC | Knob | CC | Knob |

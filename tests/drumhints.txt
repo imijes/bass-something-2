@@ -16,7 +16,7 @@ wait 30
 hint The whole panel
 release HOME
 wait 700
-hint HOME tap: Electra-Something 368X
+hint HOME tap: Piano Something 368X
 wait 2000
 tap FX
 wait 30

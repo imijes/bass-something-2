@@ -46,7 +46,7 @@ typedef struct {
                                           * (stored so: older records' spare 0, full) */
     uint8_t rvol_off;                    /* the RMI's own volume, as bvol_off (its faceplate's fader) */
     uint8_t spare4[1];
-    uint8_t rmi_tabs;                    /* the RMI's tone tablets down, a bit each, RT_* (ELECTRA PANEL: SEL the
+    uint8_t rmi_tabs;                    /* the RMI's tone tablets down, a bit each, RT_* (PIANO PANEL: SEL the
                                           * tablet, PRESET it on or off; older records: settings_defaults', PIANO) */
     uint8_t rmi_organ, rmi_accent;       /* its ORGAN MODE and ACCENTER tablets: 0 up, 1 down */
     uint8_t rmi_bass;                    /* its BASS slider: the bass boost, 0..127 (64, the middle: none) */
@@ -1800,7 +1800,7 @@ static struct {
     uint8_t se;                          /* the Space Echo's (HOME on the RMI's): HOME its page, the keys the RMI's still
                                           * (rmi stays set: an effect has no keys of its own) */
     uint32_t rkeys;                      /* the keys sounding the RMI (their release its too) */
-    uint8_t rmi_cur;                     /* ELECTRA PANEL's cursor: the tone tablet PRESET switches, RT_* (SEL moves it) */
+    uint8_t rmi_cur;                     /* PIANO PANEL's cursor: the tone tablet PRESET switches, RT_* (SEL moves it) */
     uint32_t dt_at[NDT];                 /* when each drum was last hit (dt_flash_take): its key lit a moment */
     uint8_t dt_sel;                      /* the drum last tapped: what VOLUME and TUNING (K3, K4) set */
     uint8_t dt_fn;                       /* the function lit in the 400's LED lists (DTF_*): SEQ and ARP step them */
@@ -2001,7 +2001,7 @@ static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRI
                                               "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
                                               "GLOBAL DRUMS", "DRUM HOME", "CHANNEL 1", "CHANNEL 2", "CHANNEL 3",
                                               "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL CONTROLS",
-                                              "PATCH NAME", "ELECTRA HOME", "ELECTRA PANEL",
+                                              "PATCH NAME", "PIANO HOME", "PIANO PANEL",
                                               "ECHO HOME", "ECHO INPUT", "ECHO PANEL", "ECHO MODS",
                                               "GLOBAL PIANO"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
@@ -2777,7 +2777,7 @@ static int knob_turn(uint32_t k, int32_t e)
 {
     if (ui.page == PG_NAME)
         return name_turn(k, e);
-    if (ui.page == PG_RSEL && k == EN_PRESET) {   /* ELECTRA PANEL's PRESET: the cursor's tone tablet, right down, left
+    if (ui.page == PG_RSEL && k == EN_PRESET) {   /* PIANO PANEL's PRESET: the cursor's tone tablet, right down, left
                                               * up (SEL moves the cursor) */
         const uint32_t c = ui.rmi_cur < NRT ? ui.rmi_cur : 0u;
         set.rmi_tabs = (uint8_t)(e > 0 ? set.rmi_tabs | 1u << c : set.rmi_tabs & ~(1u << c));
@@ -3797,7 +3797,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [PG_OSC] = "Oscillators", [PG_MIX] = "Pulse Width", [PG_FX] = "Sub + Mixer", [PG_AENV] = "Envelopes",
         [PG_MENV] = "Triggering", [PG_EMOD] = "Env Mods", [PG_LFO1] = "LFOs", [PG_LFO2] = "LFO Mods",
         [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods",
-        [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Controls", [PG_NAME] = "Patch Name", [PG_RSEL] = "Electra Panel",
+        [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Controls", [PG_NAME] = "Patch Name", [PG_RSEL] = "Piano Panel",
         [PG_GDISP] = "Display", [PG_GDUMP] = "Dump", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
         [PG_RTRK] = "RND Tracks", [PG_GDRUM] = "Drums", [PG_GRMI] = "Piano"};
     static char tap[48];                     /* "GLO tap: System, hold: RND Synth Companion" */
@@ -3821,12 +3821,12 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [DTF_BINS] = "Insert a step", [DTF_BDEL] = "Delete the step"};
     const int rec = seq_rec && ui.page == PG_SEQ;
     if (k == B_HOME && ui.page == mode_home())   /* (on it: the next mode, mode_switch) */
-        return ui.se ? "HOME tap: Bass Something 2" : ui.drum ? "HOME tap: Electra-Something 368X"
-               : ui.rmi ? "HOME tap: Space-Something RE-201" : "HOME tap: Drum Something 400";
+        return ui.se ? "HOME tap: Bass Something 2" : ui.drum ? "HOME tap: Piano Something 368X"
+               : ui.rmi ? "HOME tap: Space Something 201" : "HOME tap: Drum Something 400";
     if (ui.se && (SE_PAGE(ui.page) || ui.page < PG_HOME))   /* (the Space Echo's: its panels, se_button) */
         return k == B_SEL ? "Next panel" : k == B_HOME ? "Echo Home" : 0;
     if (ui.rmi && (RMI_PAGE(ui.page) || ui.page < PG_HOME))   /* (the RMI's: its panel and mods, rmi_button) */
-        return k == B_SEL ? (ui.page == PG_RSEL ? "Next toggle" : "Electra Panel") : k == B_HOME ? "Electra Home" : 0;
+        return k == B_SEL ? (ui.page == PG_RSEL ? "Next toggle" : "Piano Panel") : k == B_HOME ? "Piano Home" : 0;
     if (ui.drum && !RND_PAGE(ui.page)) {     /* (every button the drums', as dt_button: the bass's form) */
         const uint32_t f = ui.dt_fn;
         const char *to = 0, *more = 0;
@@ -4968,7 +4968,7 @@ static int zoom_step(uint32_t now)           /* a frame: 1 when the camera moved
 {
     const uint32_t dt = zoom.at ? now - zoom.at : 0u, last = ui.turned_at[ui.last_enc];
     const int fn = zoom.fn_at && zoom.fn_ok && now - zoom.fn_at < DFN_ZOOM_MS;   /* (a function just picked: to read it) */
-    const int aim = !set.zoom_off && zoom.pg == ui.page && ui.page != PG_RSEL   /* (ELECTRA PANEL slides instead) */
+    const int aim = !set.zoom_off && zoom.pg == ui.page && ui.page != PG_RSEL   /* (PIANO PANEL slides instead) */
                     && (fn || (zoom.k == ui.last_enc + 1u && last && now - last < ZOOM_HOLD_MS));
     const int16_t z = zoom.z, x = zoom.x, y = zoom.y;
     zoom.at = now;
@@ -5514,7 +5514,7 @@ static uint32_t rmi_down(void)               /* the tablets down, a bit each (RT
 {
     return (set.rmi_tabs & 31u) | (set.rmi_organ ? 32u : 0u) | (set.rmi_accent ? 64u : 0u);
 }
-/* ELECTRA PANEL: the strip up close, as its photo has it (PANEL_CENTER, tools/rmi_local's measures), 0.4 a pixel
+/* PIANO PANEL: the strip up close, as its photo has it (PANEL_CENTER, tools/rmi_local's measures), 0.4 a pixel
  * from x 380, y 419: too wide for the screen, so it slides (rp_vx) to what's being set, as the drums' channels do:
  * PRESET the voice's tablets, K1 the BASS slider, K2 ORGAN MODE, K3 ACCENTER, K4 the VOL slider */
 #define RPX(x) ((int32_t)(((x) - 380) * 2 / 5) - rp_x)
@@ -5591,8 +5591,8 @@ static void rsel_draw(void)
     tag((RPX(RT_X[5][0]) + RPX(RT_X[5][1])) / 2, RPY(660), EN_K2);
     tag((RPX(RT_X[6][0]) + RPX(RT_X[6][1])) / 2, RPY(660), EN_K3);
 }
-/* RMI HOME (Electra-Something 368X): as the other two HOMEs, its name, what plays (no display: the 368X has none); the strip
- * (ELECTRA PANEL's) slid down to the keys (the footer's, its keyboard); between them its notes as they ring, each a bar at
+/* RMI HOME (Piano Something 368X): as the other two HOMEs, its name, what plays (no display: the 368X has none); the strip
+ * (PIANO PANEL's) slid down to the keys (the footer's, its keyboard); between them its notes as they ring, each a bar at
  * its key's place as tall as its level now, the most it reached falling slowly over it (rbar_paint) */
 /* the front panel, as FRONT2 has it (from x 600 at 0.186 a pixel; its foot, y 594, on the keys) */
 #define RFX(x) ((int32_t)(((x) - 600) * 186 / 1000))
@@ -5655,7 +5655,7 @@ static void rhome_draw(void)
     char vc[32];
     rmi_voice_text(vc);
     cv_rect(0, 0, 240, TALL_H, P_BG);
-    cv_text(10, 12, &FONT_B, "ELECTRA-", P_SILK);   /* the name; the voice and its tablets (no display: the 368X has
+    cv_text(10, 12, &FONT_B, "PIANO", P_SILK);   /* the name; the voice and its tablets (no display: the 368X has
                                               * none) */
     cv_text(cv_text(10, 30, &FONT_B, "SOMETHING", P_SILK) + 5, 30, &FONT_B, "368X", P_BAR);
     cv_rect(10, 49, 116, 2, P_BAR);
@@ -5811,10 +5811,10 @@ static void se_front(int whole)
     for (y = SPY(190); y < SPY(220); y++)    /* the brushed aluminium strip, the name, the badge */
         cv_rect(SPX(122), y, SPX(678) - SPX(122), 1, grey(y & 1 ? 198 : 186));
     if (big) {
-        y = cv_text(SPX(150), SPY(197), &FONT_B, "SPACE-SOMETHING", RGB(18, 18, 18));
-        cv_text(y + 6, SPY(199), &FONT_XS, "RE-201", RGB(18, 18, 18));
+        y = cv_text(SPX(150), SPY(197), &FONT_B, "SPACE SOMETHING", RGB(18, 18, 18));
+        cv_text(y + 6, SPY(199), &FONT_XS, "201", RGB(18, 18, 18));
     } else
-        se_lbl(SPX(150) + 43, SPY(203) - 2, "SPACE-SOMETHING RE-201", RGB(18, 18, 18));
+        se_lbl(SPX(150) + 43, SPY(203) - 2, "SPACE SOMETHING 201", RGB(18, 18, 18));
     cv_rect(SPX(610), SPY(195), SPX(646) - SPX(610), SPY(218) - SPY(195), grey(150));
     cv_rect(SPX(612), SPY(197), SPX(644) - SPX(612), SPY(216) - SPY(197), grey(176));
     cv_rect(SPX(122), SPY(221), SPX(678) - SPX(122), SPY(224) - SPY(221) > 0 ? SPY(224) - SPY(221) : 1, grey(172));
@@ -5889,8 +5889,8 @@ static void shome_draw(void)
     const uint32_t m = set.se_mode < 12u ? set.se_mode : 0u;
     char t[24];
     cv_rect(0, 0, 240, TALL_H, P_BG);
-    cv_text(10, 12, &FONT_B, "SPACE-", P_SILK);
-    cv_text(cv_text(10, 30, &FONT_B, "SOMETHING", P_SILK) + 5, 30, &FONT_B, "RE-201", P_BAR);
+    cv_text(10, 12, &FONT_B, "SPACE", P_SILK);
+    cv_text(cv_text(10, 30, &FONT_B, "SOMETHING", P_SILK) + 5, 30, &FONT_B, "201", P_BAR);
     cv_rect(10, 49, 116, 2, P_BAR);
     t[0] = 0;
     text_cat(t, "MODE ");
@@ -8693,7 +8693,7 @@ void app_frame(void)
         panel_draw();
     }
     last_live = i;
-    if (ui.page == PG_RSEL && rp_moving)      /* (ELECTRA PANEL sliding: its next frame) */
+    if (ui.page == PG_RSEL && rp_moving)      /* (PIANO PANEL sliding: its next frame) */
         ui.redraw = 1;
     if (ui.page == PG_RHOME && !zoom.z && !rfx_at && now - scope_at >= 33u && (rbar_live() || scope_was)) {
         scope_at = now;                      /* (RMI HOME's bars: as the scope, while they move, once more after) */

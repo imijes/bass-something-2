@@ -1,4 +1,4 @@
-# Electra-Something 368X, the RMI 368X's mode (bs2_rmi.c): HOME on the drums' HOME, its keys, ELECTRA PANEL (SEL: SEL
+# Piano Something 368X, the RMI 368X's mode (bs2_rmi.c): HOME on the drums' HOME, its keys, PIANO PANEL (SEL: SEL
 # again the next tone tablet, PRESET it on or off, K1 BASS, K2
 # ORGAN MODE, K3 ACCENTER, K4 VOL); its touch GLO CONTROLS' Velocity; its HOME's knobs the panel's, the camera in on
 # them; HOME on it back to the bass's.
@@ -11,7 +11,7 @@ wait 1000
 said DRUM HOME
 tap HOME
 wait 1000
-said ELECTRA HOME
+said PIANO HOME
 expect page 40
 key 7 down 100
 wait 300
