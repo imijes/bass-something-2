@@ -14,6 +14,8 @@ A second instrument plays beside the synth: [Drum Something 400](#s6), 13 drums 
 
 ![The Bass Something 2 screen with a note playing: the section tabs, the HOME page (the name, the red P01 display, the scope drawing the note's wave, the whole Bass Station II panel), the keys with the held one in cyan, then OCT +0, P01, 120 BPM, VOL 50% and ARP OFF](img/screen-home.png "Bass Something 2 playing")
 ![Drum Something 400's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "Drum Something 400")
+![Piano Something 368X's HOME page: its name, the tone toggle that's on, and the RMI Electra-piano's front panel above the keys](img/screen-piano-home.png "Piano Something 368X")
+![Space Something 201's HOME page: its name and mode above the whole RE-201 front panel, the keys under it](img/screen-echo-home.png "Space Something 201")
 
 ---
 

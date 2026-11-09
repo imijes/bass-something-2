@@ -6200,7 +6200,7 @@ static void droom_draw(void)
 {
     uint32_t i;
     char t[12];
-    plate("DRUM SOMETHING 400");
+    plate("DRUM SOMETHING");
     dymo(120, 30, "DRUM ROOM", RGB(235, 235, 235));
     for (i = 0; i < 4u; i++) {
         const int32_t cx = 10 + 220 * (2 * (int32_t)i + 1) / 8;
@@ -8227,7 +8227,7 @@ static void dpinfo_draw(void)
 {
     const dq_pat_t *p = &dqm.pat[ui.dt_pat < DQ_NPAT ? ui.dt_pat : 0];
     char t[14], n[6];
-    plate("DRUM SOMETHING 400");
+    plate("DRUM SOMETHING");
     dymo(120, 30, "PATTERN INFO", RGB(235, 235, 235));
     t[0] = 0;
     int_text(ui.dt_pat, t);
@@ -8261,7 +8261,7 @@ static void dsinfo_draw(void)
     const int32_t from = at > 2 ? at - 2 : 0;
     char w[8], n[6];
     int32_t i;
-    plate("DRUM SOMETHING 400");
+    plate("DRUM SOMETHING");
     dymo(120, 30, "SONG INFO", RGB(235, 235, 235));
     w[0] = 0;
     text_cat(w, "SONG ");
@@ -8347,7 +8347,7 @@ static void home_back(void)
 /* DRUM MODS: what the 400 hasn't, on a plate as the synth's mods (one so far) */
 static void dmod_draw(void)
 {
-    plate("DRUM SOMETHING 400");
+    plate("DRUM SOMETHING");
     dymo(120, 30, "DRUM MODS", RGB(235, 235, 235));
     bs2_knob(70, 76, 20, set.dswing_lock != 0u, 1, KF_PLATE | (knob_lit(EN_K3) ? KF_LIT : 0u));
     tag(70, 76, EN_K3);

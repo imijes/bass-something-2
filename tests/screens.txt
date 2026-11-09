@@ -264,3 +264,11 @@ wait 3000
 tap GLO
 wait 3000
 shot screen-glo-drums.png
+tap HOME
+wait 2500
+tap HOME
+wait 3000
+shot screen-piano-home.png
+tap HOME
+wait 3000
+shot screen-echo-home.png
