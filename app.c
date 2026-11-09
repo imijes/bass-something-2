@@ -5536,6 +5536,23 @@ static const int16_t RT_X[7][2] = {{887, 985}, {998, 1096}, {1109, 1207}, {1219,
                                    {1545, 1644}};
 static const char *const RT_LBL[7][2] = {{"PIANO", 0}, {"PIANO", "PP"}, {"HARPSI", 0}, {"HARPSI", "PP"}, {"LUTE", 0},
                                          {"ORGAN", "MODE"}, {"ACCENTER", 0}};   /* (as the tablets' own print) */
+/* a toggle: its face x..x+w from y to f, its front in shadow f to b (darker to the foot); down (d): greyer, lit */
+static void tog_draw(int32_t x, int32_t y, int32_t w, int32_t f, int32_t b, int32_t d)
+{
+    const uint16_t face = d ? RGB(214, 213, 196) : RGB(232, 231, 212), edge = d ? RGB(192, 191, 176) : RGB(210, 209, 192);
+    int32_t r;
+    cv_rect(x + 1, y, w - 2, 1, face);       /* (its top corners round) */
+    cv_rect(x, y + 1, w, f - y - 1, face);
+    cv_rect(x, y + 1, 1, f - y - 1, edge);
+    cv_rect(x + w - 1, y + 1, 1, f - y - 1, edge);
+    cv_rect(x, f - 1, w, 1, RGB(244, 243, 230));
+    for (r = f; r < b; r++) {
+        const int32_t g = 150 - 50 * (r - f) / (b - f > 1 ? b - f : 1);
+        cv_rect(x, r, w, 1, RGB(g, g, g - 6));
+    }
+    if (d)
+        cv_rect(x + 3, f + (b - f) / 2 - 1, w - 6, 2, P_CYAN);
+}
 static void rmi_slider(int32_t sx, int32_t v, const char *name, uint32_t k)   /* its slot at photo x sx, its cap at v */
 {
     const int32_t x = RPX(sx), y0 = RPY(484), y1 = RPY(734), h = RPY(622) - RPY(568), lit = knob_lit(k);
@@ -5579,16 +5596,14 @@ static void rsel_draw(void)
                                               * frame, its ends the black blocks */
     cv_rect(RPX(780), RPY(489), RPX(875) - RPX(780), 1, grey(60));   /* (their gloss) */
     cv_rect(RPX(1655), RPY(489), RPX(1750) - RPX(1655), 1, grey(60));
-    for (i = 0; i < 7; i++) {                /* the toggles: ivory, their print over the crease; down: lower, greyer, lit */
+    for (i = 0; i < 7; i++) {                /* the toggles: rockers, as the photo's: an ivory face (its top corners
+                                              * round, its edges a shade darker, a bright lip at its foot) over the
+                                              * front in shadow; down: the face lower, greyer, the front lit */
         const int32_t x = RPX(RT_X[i][0]), w = RPX(RT_X[i][1]) - x, d = (int32_t)(dn >> i & 1u), y = RPY(491) + 4 * d;
+        const int32_t f = RPY(688) + 2 * d, b = RPY(728);
         if (x > 240 || x + w < 0)
             continue;
-        cv_rect(x, y, w, RPY(728) - y, d ? RGB(206, 205, 188) : RGB(232, 231, 212));   /* (ivory, as the photo's) */
-        cv_rect(x, RPY(595) + 2 * d, w, 1, RGB(150, 150, 140));
-        if (d) {
-            cv_rect(x, RPY(491), w, 4, grey(70));
-            cv_rect(x + 4, RPY(728) - 6, w - 8, 3, P_CYAN);
-        }
+        tog_draw(x, y, w, f, b, d);
         if (RT_LBL[i][1]) {
             cv_text(x + w / 2 - text_w(&FONT_T, RT_LBL[i][0]) / 2, RPY(568) + 2 * d, &FONT_T, RT_LBL[i][0], RGB(10, 10, 10));
             cv_text(x + w / 2 - text_w(&FONT_T, RT_LBL[i][1]) / 2, RPY(568) + 9 + 2 * d, &FONT_T, RT_LBL[i][1], RGB(10, 10, 10));
@@ -5638,12 +5653,9 @@ static void rview_draw(void)
     cv_rect(RV_X - 8, RV_Y - 3, RV_W + 16, RV_H + 6, RGB(12, 12, 12));   /* the frame, its black ends */
     cv_rect(RV_X - 7, RV_Y - 1, 6, 1, grey(60));
     cv_rect(RV_X + RV_W + 1, RV_Y - 1, 6, 1, grey(60));
-    for (i = 0; i < 7; i++) {                /* the toggles: ivory, their names over the crease; down, lower and lit */
+    for (i = 0; i < 7; i++) {                /* the toggles: rockers, as PIANO PANEL's (tog_draw) */
         const int32_t x = RV_X + i * RV_W / 7 + 1, w = RV_W / 7 - 2, d = (int32_t)(dn >> i & 1u), y = RV_Y + 3 * d;
-        cv_rect(x, y, w, RV_Y + RV_H - y, d ? RGB(206, 205, 188) : RGB(232, 231, 212));
-        cv_rect(x, RV_Y + 44 + d, w, 1, RGB(150, 150, 140));
-        if (d)
-            cv_rect(x + 3, RV_Y + RV_H - 5, w - 6, 2, P_CYAN);
+        tog_draw(x, y, w, RV_Y + RV_H - 15 + d, RV_Y + RV_H, d);
         se_lbl(rv_tx((uint32_t)i), RV_Y + (RV_LBL[i][1] ? 30 : 35) + d, RV_LBL[i][0], RGB(10, 10, 10));
         if (RV_LBL[i][1])
             se_lbl(rv_tx((uint32_t)i), RV_Y + 37 + d, RV_LBL[i][1], RGB(10, 10, 10));
