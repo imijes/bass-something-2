@@ -657,8 +657,22 @@ ring, each a bar over its key's place as tall as its level, a mark falling slowl
 
 On its HOME, PRESET and K1 to K4 do the same, the camera zooming in on the panel as they turn. It answers the
 keys' touch (the 368X didn't): the softest note at about a third of the hardest, through GLO CONTROLS' Velocity
-curve. The panel keeps itself with the GLO settings, so SAVE has nothing to do here. MIDI channel
-3 plays it from outside too (CC 7 its volume, CC 64 the sustain pedal), and its keys' notes go out on channel 3.
+curve. The panel keeps itself with the GLO settings, so SAVE has nothing to do here.
+
+It is a MIDI device of its own, as the drums are. In its mode, GLO opens GLOBAL RMI first, then the other global
+pages:
+
+| Control | What it does |
+| --- | --- |
+| SELECT · CC CHAN | The channel its CCs come in on (CC 7 its volume, CC 64 the sustain pedal): OFF, 1 to 16 or ALL. 3 by default. |
+| K3 · CHANNEL | The channel its notes come in on and its keys' notes go out on. 3 by default. |
+| K4 · ROUTE | Notes from one instrument to the other, inside the FM-1: OFF, RMI>BASS, BASS>RMI or BOTH. |
+
+RMI>BASS sends its notes, from its keys and its channel, into the bass as if played on the bass's keys. With the
+bass's ARP on, a chord on the RMI becomes a bass arpeggio; without it the bass, being mono, plays one note of the
+chord. BASS>RMI plays what the bass plays on the RMI too: its keys, its MIDI channel, its arp and its sequencer. BOTH
+does both, and can't loop: a routed note is never routed again or sent out over MIDI, and while the RMI is playing
+the bass, the bass sends nothing back.
 
 Its sound is synthesised, each key's tone and decay modelled on recordings of a real 368X; its tail is the room
 Drum Something 400 uses. LUTE is the harpsichord's tone through the 368X's lute filter (a low pass about 1.3 kHz),

@@ -57,7 +57,15 @@ typedef struct {
     uint8_t se_wow, se_sync;             /* its mods: WOW 0..127; TEMPO SYNC, 0 off, 1 on */
     uint8_t se_send[3];                  /* the sends into it: the bass's, the drums', the RMI's, 0..127 */
     uint8_t spare6[3];
+    uint8_t rmi_chan, rmi_cc_chan;       /* the RMI's MIDI channel in and out, its CCs' in (GLO RMI): as dchan, its own */
+    uint8_t route;                       /* ROUTE (GLO RMI): ROUTE_*, notes from one instrument to the other, inside */
+    uint8_t spare7;
 } settings_t;
+/* GLO RMI's ROUTE: the RMI's notes (its keys, its channel's) into the bass, as its keys; what the bass plays (its
+ * keys, its arp, its sequencer) on the RMI too. One hop: a note routed is never routed again, nor sent out, so BOTH
+ * can't loop (route_follow: the bass driven by the RMI drives nothing back) */
+enum { ROUTE_OFF, ROUTE_R2B, ROUTE_B2R, ROUTE_BOTH, NROUTE };
+static const char *const ROUTE_NAME[NROUTE] = {"OFF", "RMI>BASS", "BASS>RMI", "BOTH"};
 /* the RMI's tone tablets, as its panel's (any of them down at once: their stops layered, as the 368X's) */
 enum { RT_PIANO, RT_PIANO_PP, RT_HARPSI, RT_HARPSI_PP, RT_LUTE, NRT };
 static const char *const RT_NAME[NRT] = {"PIANO", "PIANO PP", "HARPSI", "HARPSI PP", "LUTE"};
@@ -76,6 +84,7 @@ static uint32_t ms_stamp(void) { return (plat_ms() - 1u) | 1u; }
 #define SET_V4_SIZE offsetof(settings_t, dchan)  /* the record before the drums' MIDI */
 #define SET_V5_SIZE offsetof(settings_t, rmi_tabs)   /* the record before the RMI's panel */
 #define SET_V6_SIZE offsetof(settings_t, se_mode)    /* the record before the Space Echo */
+#define SET_V7_SIZE offsetof(settings_t, rmi_chan)   /* the record before the RMI's MIDI */
 enum { CH_OFF = 0, CH_ALL = 17 };
 enum { CLK_AUTO, CLK_INT, CLK_EXT, NCLK };   /* MIDI clock followed when it comes; never; always (none: stopped) */
 enum { VC_SOFT, VC_NORMAL, VC_HARD, NVC };
@@ -902,13 +911,48 @@ static const char *midi_in_text(char *h)     /* the last message in as hex, "90 
     return midi_last_port < NPORTS ? PORT[midi_last_port] : "";
 }
 #include "bs2_dseq.c"                     /* Drum Something: its sequencer (dq_block, dq_sample, dq_click_next) */
+static uint32_t route_in[4];                 /* the bass's notes held from the RMI (ROUTE), a bit each: let go as its are */
+static int32_t route_note = -1;              /* the bass's note sounding on the RMI (ROUTE), -1 none */
+static uint32_t route_trig;
+static void rmi_play(uint32_t note, uint32_t vel)   /* an RMI note, its keys' or its channel's: into the bass too (ROUTE) */
+{
+    uint32_t i, bit = 1u << (note & 31u);
+    rmi_note(note, vel);
+    if (note == NOTE_ALL_OFF) {
+        for (i = 0; i < 128u; i++)
+            if (route_in[i >> 5] & 1u << (i & 31u))
+                note_in(i, 0);
+        route_in[0] = route_in[1] = route_in[2] = route_in[3] = 0;
+    } else if (note > 127u)
+        ;
+    else if (vel && (set.route & ROUTE_R2B)) {
+        route_in[note >> 5] |= bit;
+        note_in(note, vel);
+    } else if (!vel && (route_in[note >> 5] & bit)) {   /* (ROUTE turned off while it was held: still let go) */
+        route_in[note >> 5] &= ~bit;
+        note_in(note, 0);
+    }
+}
+static void route_follow(void)               /* what the bass plays (its keys, arp, sequencer) on the RMI too (ROUTE):
+                                              * not while the RMI plays the bass, so a note goes one way, once */
+{
+    const int32_t n = (set.route & ROUTE_B2R) && !(route_in[0] | route_in[1] | route_in[2] | route_in[3]) ? voice_note : -1;
+    if (n == route_note && (n < 0 || voice_trig == route_trig))
+        return;
+    if (route_note >= 0)
+        rmi_note((uint32_t)route_note, 0);
+    if (n >= 0)
+        rmi_note((uint32_t)n, (uint32_t)clamp((int32_t)(voice_vel * 127.0f + 0.5f), 1, 127));
+    route_note = n;
+    route_trig = voice_trig;
+}
 static void midi_in(void)                    /* audio interrupt: the keys' notes, and the packets that came in */
 {
     uint32_t pkt, e;
     int port;
     while (fifo_get(&keyq, &e))
         if (e & KEYQ_RMI)
-            rmi_note(e & 0xFFu, (e >> 8) & 0xFFu);
+            rmi_play(e & 0xFFu, (e >> 8) & 0xFFu);
         else
             note_in(e & 0xFFu, e >> 8);
     while (plat_midi_in(&pkt, &port)) {
@@ -922,9 +966,9 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
                 dt_note(d1, d2);             /* (Note Off: nothing, as the 400) */
             else if ((st & 0xF0u) == 0xB0u && (set.dcc_chan == CH_ALL || set.dcc_chan == ch))
                 dt_cc(d1, d2);
-            if (ch == 3u && ((st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u))   /* the RMI (until its pages: channel 3) */
-                rmi_note(d1, (st & 0xF0u) == 0x90u ? d2 : 0u);
-            else if (ch == 3u && (st & 0xF0u) == 0xB0u)
+            if ((set.rmi_chan == CH_ALL || set.rmi_chan == ch) && ((st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u))
+                rmi_play(d1, (st & 0xF0u) == 0x90u ? d2 : 0u);   /* the RMI (GLO RMI), a device of its own too */
+            else if ((set.rmi_cc_chan == CH_ALL || set.rmi_cc_chan == ch) && (st & 0xF0u) == 0xB0u)
                 rmi_cc(d1, d2);
         }
         if (st != 0xF8u && st != 0xFEu) {    /* (clock and active sensing would flood the screen) */
@@ -1124,6 +1168,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         return;
     }
     midi_in();
+    route_follow();
     dt_block();
     rmi_block();
     if (!(plat_cpu2_on() && plat_cpu2_run(rmi_job, n)))   /* the RMI's block: the second core's while the bass and
@@ -1413,7 +1458,8 @@ static void settings_defaults(settings_t *s)
     s->rmi_bass = 64;
     s->se_rate = s->se_int = s->se_echo = s->se_rev = s->se_bass = s->se_treb = s->se_input = 64;   /* (the Space
                                               * Echo: mode 1, every knob at 5, as its manual's standard settings) */
-    s->se_wow = 13;                          /* (WOW: Outer Space 2's own default, a tenth) */
+    s->se_wow = 13;
+    s->rmi_chan = s->rmi_cc_chan = 3;        /* (the RMI: channel 3, as before its page; ROUTE off) */                          /* (WOW: Outer Space 2's own default, a tenth) */
     {
         static const seqmem_t E = {.len = 0, .step = {SEQ_REST}};
         uint32_t i, j;
@@ -1480,8 +1526,8 @@ _Static_assert(offsetof(patch_t, env_trig) == BANK_V10_PSIZE, "version 10's: 11'
 _Static_assert(offsetof(patch_t, lfo_delay) == BANK_V11_PSIZE, "version 11's: 12's without the LFOs' delay on");
 _Static_assert(offsetof(patch_t, ofm) == BANK_V12_PSIZE, "version 12's: 13's without Osc Filter Mod on");
 _Static_assert(sizeof(settings_t) <= PLAT_STORE_MAX, "the settings fit a store object");
-_Static_assert(sizeof(settings_t) == SET_V6_SIZE + 16u, "the settings end with no padding");
-_Static_assert(offsetof(settings_t, se_send) + 2u < 256u, "every setting a param_t's offset (a byte) reaches");
+_Static_assert(sizeof(settings_t) == SET_V7_SIZE + 4u, "the settings end with no padding");
+_Static_assert(offsetof(settings_t, route) < 256u, "every setting a param_t's offset (a byte) reaches");
 static bank_t bank[NBANKP] PLAT_POOL;
 #define BANK_P(s) (bank[(s) / NPSLOT].p[(s) % NPSLOT])   /* slot s's patch */
 static uint32_t bank_obj(uint32_t pg) { return pg ? OBJ_PATCHES1 + pg - 1u : OBJ_PATCHES; }   /* page pg's object */
@@ -1948,7 +1994,7 @@ static void ble_device_button(void)
 enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GCLK, PG_GDISP, PG_GDUMP,
        PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
        PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, PG_GAUD, PG_GCTL, PG_NAME, PG_RHOME, PG_RSEL,
-       PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD,
+       PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD, PG_GRMI,
        NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI", "GLOBAL CLOCK",
@@ -1956,7 +2002,8 @@ static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRI
                                               "GLOBAL DRUMS", "DRUM HOME", "CHANNEL 1", "CHANNEL 2", "CHANNEL 3",
                                               "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL CONTROLS",
                                               "PATCH NAME", "ELECTRA HOME", "ELECTRA PANEL",
-                                              "ECHO HOME", "ECHO INPUT", "ECHO PANEL", "ECHO MODS"};
+                                              "ECHO HOME", "ECHO INPUT", "ECHO PANEL", "ECHO MODS",
+                                              "GLOBAL RMI"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME && (g) < PG_GAUD)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
@@ -2097,6 +2144,9 @@ static const param_t PARAMS[NPAGES][NE] = {
     [PG_SMOD] = {[EN_PRESET] = {"TEMPO SYNC", SF(se_sync), 0, 1, OFF_ON}, [EN_K1] = {"BASS SEND", SF(se_send[0]), 0, 127, 0},
                  [EN_K2] = {"DRUM SEND", SF(se_send[1]), 0, 127, 0}, [EN_K3] = {"RMI SEND", SF(se_send[2]), 0, 127, 0},
                  [EN_K4] = {"WOW", SF(se_wow), 0, 127, 0}},
+    [PG_GRMI] = {[EN_SELECT] = {"CC CHAN", SF(rmi_cc_chan), CH_OFF, CH_ALL, CHAN_NAME},
+                 [EN_K1] = {"CHANNEL", SF(rmi_chan), CH_OFF, CH_ALL, CHAN_NAME},
+                 [EN_K2] = {"ROUTE", SF(route), 0, NROUTE - 1, ROUTE_NAME}},
 };
 /* SUB OSC + MIXER's switch, as the Bass Station II's: what its K4 sets, from the switch's bottom (NOISE, the start) up; EXT, the
  * external input's level: the computer's USB audio (plat_usb_audio_route) */
@@ -2169,6 +2219,7 @@ static const char *const TITLE[NPAGES][NE] = {
     [PG_GCTL] = {[EN_K2] = "KNOB RESPONSE"},
     [PG_GDISP] = {[EN_PRESET] = "KNOB ZOOM", [EN_K1] = "HINTS", [EN_K2] = "POP-UP TIME"},
     [PG_GDRUM] = {[EN_SELECT] = "DRUMS CC CHANNEL", [EN_K1] = "DRUMS CHANNEL"},
+    [PG_GRMI] = {[EN_SELECT] = "RMI CC CHANNEL", [EN_K1] = "RMI CHANNEL", [EN_K2] = "NOTE ROUTE"},
 };
 static void *page_rec(uint32_t g)            /* what a page's encoders set: the sound, or the settings */
 {
@@ -2505,6 +2556,7 @@ static const uint8_t ENC_MAP[NPAGES] = {
     [PG_GMIDI] = EMAP(EP_SP, 0),                               /* CC Chan */
     [PG_GCLK] = EMAP(EP_SAME, 0), [PG_GAUD] = EMAP(EP_SAME, 2), [PG_GCTL] = EMAP(EP_SAME, 2), [PG_NAME] = EMAP(EP_SAME, 1),
     [PG_GDRUM] = EMAP(EP_SP, 3),                               /* the drums' CC Chan; Channel on K4 */
+    [PG_GRMI] = EMAP(EP_SP, 2),                                /* the RMI's CC Chan; Channel on K3, Route on K4 */
     [PG_SEQ] = EMAP(EP_ROW, 0),                                /* SEQ, LENGTH, STEP */
     [PG_FMOD] = EMAP(EP_SAME, 3), [PG_EFX] = EMAP(EP_SAME, 2), [PG_XMOD] = EMAP(EP_SAME, 2),
     [PG_AMOD] = EMAP(EP_SAME, 2), [PG_GDISP] = EMAP(EP_SAME, 2), [PG_RPAT] = EMAP(EP_SAME, 1),
@@ -3656,6 +3708,7 @@ static const char *const HINT[NPAGES][NE] = {
                  "RMI into the echo", "Tape wobble"},
     [PG_GDISP] = {[EN_PRESET] = "Zoom on what turns", [EN_K1] = "These hints", "Pop-up time"},
     [PG_GDRUM] = {"Drums' CC channel", [EN_K1] = "Drums' note channel"},
+    [PG_GRMI] = {"RMI's CC channel", [EN_K1] = "RMI's note channel", "Notes RMI to bass, or back"},
     [PG_GRND] = {[EN_PRESET] = "Pick a seed slot"},
     [PG_RPAT] = {"Lock patch type", "Lock track count", [EN_K1] = "Lock root note", "Lock root octave", "Lock scale"},
     [PG_RTRK] = {[EN_PRESET] = "Pick the knobs' row"},
@@ -3708,7 +3761,8 @@ static uint32_t tap_page(uint32_t k)
         if (RND_PAGE(g))
             return g == PG_GRND ? PG_RPAT : g == PG_RPAT ? PG_RTRK : PG_GRND;
         return g == PG_GMIDI ? PG_GDRUM : g == PG_GDRUM ? PG_GCLK : g == PG_GCLK ? PG_GAUD : g == PG_GAUD ? PG_GCTL
-               : g == PG_GCTL ? PG_GDISP : g == PG_GDISP ? PG_GDUMP : PG_GMIDI;
+               : g == PG_GCTL ? PG_GDISP : g == PG_GDISP ? PG_GDUMP : g == PG_GRMI || !ui.rmi ? PG_GMIDI : PG_GRMI;
+               /* (the RMI's mode: its own first, as the drums' GLO DRUMS) */
     }
     return NPAGES;
 }
@@ -3745,7 +3799,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods",
         [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Controls", [PG_NAME] = "Patch Name", [PG_RSEL] = "Electra Panel",
         [PG_GDISP] = "Display", [PG_GDUMP] = "Dump", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
-        [PG_RTRK] = "RND Tracks", [PG_GDRUM] = "Drums"};
+        [PG_RTRK] = "RND Tracks", [PG_GDRUM] = "Drums", [PG_GRMI] = "RMI"};
     static char tap[48];                     /* "GLO tap: System, hold: RND Synth Companion" */
     uint32_t g;
     static const char *const H[NB] = {[B_HOME] = "The whole panel", "Save the patch", [B_PLAY] = "Play or stop", [B_OCTDN] = "Octave down",
@@ -4374,11 +4428,11 @@ static void input(void)
                 dt_key(k, v, keys);
                 continue;
             }
-            if (ui.rmi) {                    /* the RMI's: its notes (out on its channel, 3, until it has its own) */
+            if (ui.rmi) {                    /* the RMI's: its notes (out on its channel, GLO RMI's) */
                 ui.rkeys |= bit;
                 fifo_put(&keyq, (uint32_t)note | v << 8 | KEYQ_RMI);
-                ui.och[k] = 3;
-                key_send(0x90u, (uint32_t)note, v, 3u);
+                ui.och[k] = (uint8_t)(set.rmi_chan == CH_ALL ? 1u : set.rmi_chan);
+                key_send(0x90u, (uint32_t)note, v, ui.och[k]);
                 continue;
             }
             if (set.local)                   /* (LOCAL off: MIDI out alone) */
@@ -4626,6 +4680,7 @@ static const char *const SEC_NAME[NSEC] = {"FX", "SEL", "ENV", "LFO", "ARP", "SE
 static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDIT, [PG_MENV] = SEC_ENV,
                                          [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL, [PG_NAME] = SEC_SEL, [PG_RHOME] = NSEC, [PG_RSEL] = SEC_SEL,
                                          [PG_SHOME] = NSEC, [PG_SIN] = SEC_SEL, [PG_SECHO] = SEC_SEL, [PG_SMOD] = SEC_SEL,
+                                         [PG_GRMI] = SEC_GLO,
                                          [PG_ARP] = SEC_ARP, [PG_SEQ] = SEC_SEQ, [PG_AENV] = SEC_ENV, [PG_FX] = SEC_EDIT,
                                          [PG_TUNE] = SEC_FX, [PG_FMOD] = SEC_FX,
                                          [PG_EMOD] = SEC_ENV, [PG_EFX] = SEC_FX, [PG_XMOD] = SEC_FX, [PG_AMOD] = SEC_ARP, [PG_HOME] = NSEC,
@@ -6165,6 +6220,25 @@ static void glo_drum_draw(void)
     cv_text(74, GLO_ROW - 12, &FONT_XS, "CC 33-45: drum tuning", P_SILK);
     cv_text(74, GLO_ROW + 3, &FONT_XS, "CC 46-58: drum volume", P_SILK);
     print_knob(208, GLO_ROW, 14, knob_param(EN_K1), EN_K1, 1, "Channel", 0);
+}
+/* GLOBAL RMI: the RMI's MIDI, a device of its own as the drums': its channel on the display, its knob (K1, on K3);
+ * its CC Chan (SELECT); ROUTE (K2, on K4), its notes into the bass or the bass's onto it */
+static void glo_rmi_draw(void)
+{
+    char t[4], o[8] = "Ch ";
+    glo_frame("RMI");
+    text_cat(o, CHAN_NAME[set.rmi_chan == CH_ALL || set.rmi_chan == CH_OFF ? 1u : set.rmi_chan]);
+    if (set.rmi_chan == CH_OFF || set.rmi_chan == CH_ALL)
+        memcpy(t, set.rmi_chan ? "ALL" : "OFF", 3);
+    else
+        seg_num(set.rmi_chan, t);
+    seg_display(8, 40, t, 3);
+    info(146, 42, 46, "Out", set.rmi_chan == CH_OFF ? "Off" : o, P_CYAN);
+    info(146, 42, 58, "CC", set.rmi_cc_chan == CH_ALL ? "Any" : set.rmi_cc_chan ? CHAN_NAME[set.rmi_cc_chan] : "Off", P_CYAN);
+    info(146, 42, 70, "Route", ROUTE_NAME[set.route < NROUTE ? set.route : 0], set.route ? P_CYAN : P_SILK);
+    print_knob(34, GLO_ROW, 14, knob_param(EN_SELECT), EN_SELECT, 1, "CC Chan", 0);
+    print_knob(150, GLO_ROW, 14, knob_param(EN_K1), EN_K1, 1, "Channel", 0);
+    print_knob(208, GLO_ROW, 14, knob_param(EN_K2), EN_K2, 1, "Route", 0);
 }
 /* GLOBAL CLOCK: the tempo on the display (MIDI clock's, measured, while it leads; dashes while it is awaited), what the
  * clock is doing; the Tempo under it (K1), Send Clk (K3) and Sync (K4) */
@@ -8164,6 +8238,8 @@ static void panel_draw(void)                 /* the page's section panel, from u
             glo_midi_draw();
         else if (ui.page == PG_GDRUM)
             glo_drum_draw();
+        else if (ui.page == PG_GRMI)
+            glo_rmi_draw();
         else if (ui.page == PG_GCLK)
             glo_clock_draw();
         else if (ui.page == PG_GAUD)
@@ -8869,6 +8945,17 @@ int app_expect(const char *what, int *got)
         *got = set.dchan;
     else if (!strcmp(what, "dcc_chan"))
         *got = set.dcc_chan;
+    else if (!strcmp(what, "rmi_chan"))      /* GLO RMI: its channels, ROUTE */
+        *got = set.rmi_chan;
+    else if (!strcmp(what, "rmi_cc_chan"))
+        *got = set.rmi_cc_chan;
+    else if (!strcmp(what, "route"))
+        *got = set.route;
+    else if (!strcmp(what, "rmi_held")) {    /* the RMI's keys held, its voices' */
+        uint32_t i;
+        for (*got = 0, i = 0; i < RMI_NV; i++)
+            *got += rmi.v[i].held != 0u;
+    }
     else if (!strncmp(what, "dtune", 5) || !strncmp(what, "dvol", 4))   /* dtuneN, dvolN: drum N's (DT_*) */
         *got = what[1] == 't' ? dt.tune[atoi(what + 5) % NDT] : dt.vol[atoi(what + 4) % NDT];
     else if (!strcmp(what, "arp"))

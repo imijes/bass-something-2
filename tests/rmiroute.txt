@@ -1,0 +1,87 @@
+# The RMI's MIDI (GLO RMI, first on GLO in its mode): its note channel and its CC channel, a device of its own as the
+# drums are; ROUTE: its notes into the bass, what the bass plays onto it, or both, one hop (no note comes back).
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/rmiroute.txt bs2/build/host
+wait 600
+listen
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+said ELECTRA HOME
+tap GLO
+wait 30
+expect page 46
+said GLOBAL RMI
+# the defaults: channel 3 (as before its page), its CCs too, ROUTE off
+expect rmi_chan 3
+expect rmi_cc_chan 3
+expect route 0
+midi 92 3C 64
+wait 50
+expect rmi_held 1
+expect note -1
+midi 82 3C 00
+wait 50
+expect rmi_held 0
+# channel 4 (K3): 3 plays it no more
+spin K3 1
+wait 30
+expect rmi_chan 4
+midi 92 3C 64
+wait 50
+expect rmi_held 0
+midi 82 3C 00
+midi 93 3C 64
+wait 50
+expect rmi_held 1
+midi 83 3C 00
+wait 50
+# ROUTE RMI>BASS (K4): its notes play the bass too
+spin K4 1
+wait 30
+expect route 1
+said NOTE ROUTE RMI>BASS
+midi 93 40 64
+wait 50
+expect rmi_held 1
+expect note 64
+midi 83 40 00
+wait 50
+expect rmi_held 0
+expect note -1
+# BASS>RMI: the bass's notes (channel 1) play the RMI too, and let it go
+spin K4 1
+wait 30
+expect route 2
+midi 90 3C 64
+wait 50
+expect note 60
+expect rmi_held 1
+midi 80 3C 00
+wait 50
+expect note -1
+expect rmi_held 0
+# BOTH: an RMI note plays the bass, which sends nothing back (one voice held, not two); the bass's own not routed while
+# the RMI plays it
+spin K4 1
+wait 30
+expect route 3
+midi 93 40 64
+wait 50
+expect note 64
+expect rmi_held 1
+midi 83 40 00
+wait 50
+expect note -1
+expect rmi_held 0
+midi 90 3C 64
+wait 50
+expect rmi_held 1
+midi 80 3C 00
+wait 50
+expect rmi_held 0
+# GLO again: MIDI, the rest; from DUMP back to the RMI's
+tap GLO
+wait 30
+said GLOBAL MIDI
