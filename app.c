@@ -3832,7 +3832,8 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
     if (ui.se && (SE_PAGE(ui.page) || ui.page < PG_HOME))   /* (the Space Echo's: its panels, se_button) */
         return k == B_SEL ? "Next panel" : k == B_HOME ? "Echo Home" : 0;
     if (ui.rmi && (RMI_PAGE(ui.page) || ui.page < PG_HOME))   /* (the RMI's: its panel and mods, rmi_button) */
-        return k == B_SEL ? (ui.page == PG_RSEL ? "Next toggle" : ui.page == PG_RVIEW ? "Piano Panel" : "Piano Presets")
+        return k == B_SEL ? (ui.page == PG_RSEL ? "SEL tap: Next toggle" : ui.page == PG_RVIEW ? "SEL tap: Change Piano Presets"
+                             : "SEL tap: Piano Presets")
                : k == B_HOME ? "Piano Home" : 0;
     if (ui.drum && !RND_PAGE(ui.page)) {     /* (every button the drums', as dt_button: the bass's form) */
         const uint32_t f = ui.dt_fn;
