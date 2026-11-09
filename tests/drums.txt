@@ -177,6 +177,9 @@ release HOME
 wait 30
 tap SEL
 wait 30
+expect page 47
+tap SEL
+wait 30
 expect page 41
 press HOME
 wait 1100

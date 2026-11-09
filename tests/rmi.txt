@@ -28,6 +28,10 @@ wait 3000
 expect page 40
 tap SEL
 wait 500
+expect page 47
+said PIANO PRESETS
+tap SEL
+wait 500
 expect page 41
 turn K2 1
 wait 30
@@ -37,10 +41,10 @@ wait 30
 said ORGAN MODE OFF
 turn K4 -27
 wait 30
-said ELECTRA VOLUME 100
+said PIANO VOLUME 100
 turn K4 27
 wait 30
-said ELECTRA VOLUME 127
+said PIANO VOLUME 127
 # SEL there: the cursor on, the next tablet; PRESET switches it: PIANO and HARPSI layered
 tap SEL
 wait 30
@@ -56,10 +60,10 @@ wait 30
 said HARPSI OFF
 tap FX
 wait 30
-said ELECTRA SEL: ITS PANEL
+said PIANO SEL: ITS PANELS
 tap SAVE
 wait 30
-said ELECTRA KEEPS ITSELF
+said PIANO KEEPS ITSELF
 tap HOME
 wait 600
 expect page 40

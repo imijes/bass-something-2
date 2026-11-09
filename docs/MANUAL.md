@@ -100,7 +100,7 @@ GLOBAL CONTROLS' KNOBS sets how much they speed up, from FINE to COARSE.
 | FX | FILTERS | LFO 2 on the filters; then EFFECTS: distortion and Osc Filter Mod; then the group's mods (key tracking, the VCA limiter) |
 | ARP | ARPEGGIATOR: tempo, rhythm, mode, octaves, the On and Latch buttons (held a second: AFX mode) | the group's mods (Seq Retrig, swing), then back |
 | SEQ | SEQ: the sequencer (held a second: AFX mode) | recording on or off (the arp's REC) |
-| EDIT | OSCILLATORS: the pitch's view | the pulse width's view; then SUB OSC + MIXER, beside them on a Bass Station II |
+| EDIT | OSCILLATORS: the pitch's view | the pulse width's view; then SUB OSC + MIXER, beside them on a Bass Station II. Held a second: [a random sound](#a-random-sound) |
 | GLO | GLOBAL MIDI (held a second: the RND pages) | GLOBAL DRUMS, then GLOBAL CLOCK, GLOBAL AUDIO, GLOBAL CONTROLS, GLOBAL DISPLAY and GLOBAL DUMP |
 
 SEL opens MASTER on every page except where it has a job of its own, printed
@@ -155,7 +155,7 @@ touch), NORMAL or HARD.
 
 ### A random sound
 
-Hold REC for a second: the oscillators' waves, oscillator 2's tuning, the sync, the pitches' and pulse widths'
+Hold EDIT for a second: the oscillators' waves, oscillator 2's tuning, the sync, the pitches' and pulse widths'
 modulation, the widths, the filter (its type, frequency, resonance, overdrive and depths), the glide, the ring and the noise, both envelopes and both LFOs are set at
 random. The filter is kept a little open and the attack under a second, so the result is heard at once. The screen
 says SOUND RANDOMIZED, and for a second a card over the panel shows the randomizer at work: four knobs whirl
@@ -645,7 +645,8 @@ notes at once here). Tap HOME on Drum Something 400's HOME to reach it. Its HOME
 ACCENTER when down) and its stop strip down on the keys (the FM-1's keys are its keyboard); between them its notes as they
 ring, each a bar over its key's place as tall as its level, a mark falling slowly from the most it reached.
 
-**PIANO PANEL** (SEL; SEL again there moves along the toggles) is the stop strip up close, BASS slider at the left, the toggles, VOL at the right:
+**PIANO PRESETS** (SEL) shows the toggles' section whole, BASS and VOL beside it; turning a knob there dives in on
+it, as on HOME. **PIANO PANEL** (SEL again; SEL there moves along the toggles) is the stop strip up close, BASS slider at the left, the toggles, VOL at the right:
 
 | Control | What it does |
 | --- | --- |

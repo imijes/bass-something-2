@@ -264,13 +264,13 @@ sysex_in bs2/tests/syx/rnd_ask.syx
 wait 100
 said RND SEED SENT
 expect rnd_tx 33
-# the sound untouched all along; REC held still a random sound
+# the sound untouched all along; EDIT held still a random sound
 expect cutoff 100
 tap EDIT
 wait 30
-press REC
+press EDIT
 wait 1100
-release REC
+release EDIT
 wait 30
 said SOUND RANDOMIZED
 # its moment on screen (the card, its knobs, RANDOMIZE), then the page again

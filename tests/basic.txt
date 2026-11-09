@@ -819,30 +819,40 @@ midi 90 3E 64
 midi 80 3E 00
 wait 100
 expect note -1
-# REC held a second on any other page: a random sound (unsaved), while still held; no Bluetooth scanning, no
-# recording; the filter open enough and the attack short
+# EDIT held a second: a random sound (unsaved), while still held; the page kept (a hold isn't a tap), no recording;
+# the filter open enough and the attack short
 tap EDIT
 wait 30
 tap SAVE
 wait 30
 expect dirty 0
-press REC
+expect page 0
+press EDIT
 wait 1100
 said SOUND RANDOMIZED
 expect rfx 1
 expect dirty 1
+release EDIT
+wait 30
+expect page 0
+expect rec 0
+# REC held: nothing now (a random sound is EDIT's: no card)
+wait 1000
+expect rfx 0
+press REC
+wait 1100
+expect rfx 0
 release REC
 wait 30
-unsaid BLE SCANNING
 expect rec 0
-# on GLO MIDI too (where a tap looks for Bluetooth devices): a random sound, no scanning, no switch of BLE
+# on GLO MIDI too (where REC looks for Bluetooth devices): a random sound, no scanning, no switch of BLE
 tap GLO
 wait 30
 expect page 17
-press REC
+press EDIT
 wait 1100
 said SOUND RANDOMIZED
-release REC
+release EDIT
 wait 50
 unsaid BLE SCANNING
 unsaid BLUETOOTH
