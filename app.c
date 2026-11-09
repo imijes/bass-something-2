@@ -8,7 +8,6 @@
  * played with velocity and pressure (lib/touch.h), shown on them. One of each thing the platform offers, kept short. Part of the unity build (device/unity.c, host/plat_host.c), after the platform:
  * gfx.c and announce.c are in scope. */
 #include <stddef.h>
-#include <string.h>
 #include "fastmath.h"
 
 #define SET_MAGIC 0x54504C31u            /* "TPL1": the settings record; another magic loads defaults */
@@ -1202,6 +1201,7 @@ static inline float out_soft(float s)
 }
 static uint32_t cpu2_q12;                    /* the second core's load, in 1/4096 of a block (cpu_meter) */
 static float mix_se[APP_BLOCK] PLAT_POOL;   /* a block's sends into the Space Echo (the bass's, the drums') till the RMI's */
+static float mix_bass[APP_BLOCK] PLAT_POOL;  /* the bass's alone, of mix_pre (the USB audio's channels: the drums apart) */
 static float mix_pre[APP_BLOCK] PLAT_POOL, mix_send[APP_BLOCK] PLAT_POOL;   /* a block's samples and room sends before
                                               * the RMI's */
 /* the Space Echo's knobs (the settings' bytes) onto it, a block at a time, and its sends' gains (each squared, as a
@@ -1267,6 +1267,11 @@ static void se_apply(void)
         se.sync_ms = ms;
     }
 }
+static uint32_t usb_off;                     /* the frames already rendered of the platform's block (app_render's halves) */
+static inline int16_t usb_s16(float s)       /* a sample, the master's scale, as the USB audio's 16 bits (the master's >> 8) */
+{
+    return (int16_t)fm_clampf(s * (1.0f / 256.0f), -32768.0f, 32767.0f);
+}
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
     int c2 = 1;                              /* the RMI's block on the second core */
@@ -1301,7 +1306,9 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     dr_apply();                              /* (DRUM ROOM's) */
     if (n > APP_BLOCK) {                     /* (rmi_buf's block at most: the rest as another) */
         app_render(lr, APP_BLOCK, master_q12);
+        usb_off += APP_BLOCK;
         app_render(lr + 2u * APP_BLOCK, n - APP_BLOCK, master_q12);
+        usb_off -= APP_BLOCK;
         return;
     }
     midi_in();
@@ -1465,6 +1472,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                                                   * bass's chain, over its level (hits, it sustains), under their own
                                                   * MASTER VOLUME (K2) */
                 s += dt_next(g) + dq_click_next() * g;
+                mix_bass[i + j] = b;
                 mix_se[i + j] = b * se_send_g[0] + (s - b) * se_send_g[1];   /* (the Space Echo's sends, after their levels) */
             }
             mix_pre[i + j] = s;              /* (the RMI's yet to come: the sample and its room sends kept till then) */
@@ -1481,6 +1489,10 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                                               * across the block as it went); then the FX bus's returns, on the master */
         const float rv = RMI_MIX * 0.3f * (float)(127u - set.rvol_off) * (1.0f / 127.0f), dg = (gain_now - g0) / (float)n;
         const uint32_t woke = rmi_woke;
+        uint32_t ur = 0;                     /* the USB audio's own channels (fm1.toml usb_audio_channels): the bass, the
+                                              * drums, the piano, the echo's return, after MASTER as the master's; NULL
+                                              * while no computer records */
+        int16_t *u = PLAT_USB_CH >= 4 ? plat_usb_ch(usb_off, &ur) : 0;
         for (i = 0; i < n; i++) {
             const float r = rmi_buf[i] * rv * (g0 + dg * (float)i);
             float s;
@@ -1490,6 +1502,13 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             fx_se_send(mix_se[i] + r * se_send_g[2]);
             s = out_soft(mix_pre[i] + r + fx_next(g0 + dg * (float)i));
             lr[2u * i] = lr[2u * i + 1u] = (int32_t)s;
+            if (u && !ur)                    /* (the ring wrapped: from here) */
+                u = plat_usb_ch(usb_off + i, &ur);
+            if (u) {
+                u[0] = usb_s16(mix_bass[i]), u[1] = usb_s16(mix_pre[i] - mix_bass[i]);
+                u[2] = usb_s16(r), u[3] = usb_s16(fx.echo);
+                u += PLAT_USB_CH_STRIDE, ur--;
+            }
         }
     }
 #ifdef PLAT_HOST
@@ -4254,7 +4273,7 @@ static void pq_play_tap(void)
 }
 static void mo_del(uint32_t i)               /* the motion's move i out */
 {
-    memmove(&mo_ev[i], &mo_ev[i + 1u], (mo.n - i - 1u) * sizeof mo_ev[0]);
+    __builtin_memmove(&mo_ev[i], &mo_ev[i + 1u], (mo.n - i - 1u) * sizeof mo_ev[0]);
     mo.n--;
 }
 static uint32_t mo_bar(void);
@@ -6340,7 +6359,7 @@ static const uint16_t SE_MICRO[39] = {0x7B6F, 0x2C97, 0x62A7, 0x628E, 0x5BC9, 0x
                                       0x5B6F, 0x5B6A, 0x5BFD, 0x5AAD, 0x5A92, 0x72A7, 0x0002, 0x01C0, 0x05D0};
 static void se_lbl(int32_t cx, int32_t y, const char *s, uint16_t c)
 {
-    int32_t x = cx - ((int32_t)strlen(s) * 4 - 1) / 2, i;
+    int32_t x = cx - ((int32_t)__builtin_strlen(s) * 4 - 1) / 2, i;
     for (; *s; s++, x += 4) {
         const char ch = *s;
         const int g = ch >= '0' && ch <= '9' ? ch - '0' : ch >= 'A' && ch <= 'Z' ? ch - 'A' + 10 : ch == '.' ? 36
@@ -6503,11 +6522,11 @@ static void sv_text(uint32_t k, char *t)     /* "x1.25", "0.60" */
     t[0] = 0;
     if (k != EN_K3)
         text_cat(t, "x");
-    int_text(c / 100, t + strlen(t));
+    int_text(c / 100, t + __builtin_strlen(t));
     text_cat(t, ".");
-    t[strlen(t) + 2] = 0;
-    t[strlen(t) + 1] = (char)('0' + c % 10);
-    t[strlen(t)] = (char)('0' + c / 10 % 10);
+    t[__builtin_strlen(t) + 2] = 0;
+    t[__builtin_strlen(t) + 1] = (char)('0' + c % 10);
+    t[__builtin_strlen(t)] = (char)('0' + c / 10 % 10);
 }
 static void dr_text(uint32_t k, char *t)     /* DECAY "0.45s", the rest "x1.00" */
 {
@@ -6517,11 +6536,11 @@ static void dr_text(uint32_t k, char *t)     /* DECAY "0.45s", the rest "x1.00" 
     t[0] = 0;
     if (i)
         text_cat(t, "x");
-    int_text(c / 100, t + strlen(t));
+    int_text(c / 100, t + __builtin_strlen(t));
     text_cat(t, ".");
-    t[strlen(t) + 2] = 0;
-    t[strlen(t) + 1] = (char)('0' + c % 10);
-    t[strlen(t)] = (char)('0' + c / 10 % 10);
+    t[__builtin_strlen(t) + 2] = 0;
+    t[__builtin_strlen(t) + 1] = (char)('0' + c % 10);
+    t[__builtin_strlen(t)] = (char)('0' + c / 10 % 10);
     if (!i)
         text_cat(t, "s");
 }
@@ -9064,10 +9083,10 @@ static void keys_draw(void)                  /* the keys; the octave, the slot, 
         t[0] = 0;
         text_cat(t, mo.rec && !mo_run ? "MOTION WAIT" : mo.rec ? "MOTION REC " : "MOTION ");
         if (mo_run || !mo.rec) {
-            int_text((int32_t)mo_bar(), t + strlen(t));
+            int_text((int32_t)mo_bar(), t + __builtin_strlen(t));
             if (mo.len) {
                 text_cat(t, "/");
-                int_text((int32_t)(mo.len / MO_BAR), t + strlen(t));
+                int_text((int32_t)(mo.len / MO_BAR), t + __builtin_strlen(t));
             }
         }
         cv_text(236 - text_w(&FONT_XS, t), 45, &FONT_XS, t, mo.rec ? RGB(240, 70, 60) : P_CYAN);
@@ -9520,7 +9539,7 @@ int app_expect(const char *what, int *got)
         *got = what[5] == 'A' ? voice.amp.loops : voice.menv.loops;
     else if (!strncmp(what, "trig", 4) || !strncmp(what, "loop", 4) || !strncmp(what, "count", 5)
              || !strncmp(what, "fixed", 5)) {   /* trigA, trigM, loopA .. fixedM: the envelopes' modes */
-        uint32_t i = what[strlen(what) - 1] == 'M';
+        uint32_t i = what[__builtin_strlen(what) - 1] == 'M';
         *got = what[0] == 't' ? patch.env_trig[i] : what[0] == 'l' ? patch.env_loop[i] : what[0] == 'c'
                ? patch.env_count[i] : patch.env_fixed[i];
     }
@@ -9901,9 +9920,9 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     if (!strcmp(cmd, "song_is")) {           /* song_is TEMPO STEP..: the song shown's first tempo, its steps' raw values; a
                                               * step past its end not an end, "!" */
         const ds_song_t *t = &dsm.s[ui.dt_song < DS_NSONG ? ui.dt_song : 0];
-        const char *const want = plat_host_line + strlen("song_is ");
+        const char *const want = plat_host_line + __builtin_strlen("song_is ");
         static char have[512];
-        size_t n = strlen(want), at = (size_t)sprintf(have, "%u", t->tempo);
+        size_t n = __builtin_strlen(want), at = (size_t)sprintf(have, "%u", t->tempo);
         uint32_t i;
         for (i = 0; i < ds_end(t); i++)
             at += (size_t)sprintf(have + at, " %u", t->step[i]);
@@ -9914,18 +9933,18 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
             }
         while (n && (want[n - 1] == '\n' || want[n - 1] == '\r' || want[n - 1] == ' '))
             n--;                             /* (the line's end) */
-        if (strlen(have) != n || strncmp(have, want, n)) {
+        if (__builtin_strlen(have) != n || strncmp(have, want, n)) {
             printf("FAIL song_is: %s, not %.*s\n", have, (int)n, want);
             host_fails++;
         }
         return 1;
     }
     if (!strcmp(cmd, "hint")) {              /* hint TEXT: the button's hint up is TEXT */
-        const char *const want = plat_host_line + strlen("hint ");
-        size_t n = strlen(want);
+        const char *const want = plat_host_line + __builtin_strlen("hint ");
+        size_t n = __builtin_strlen(want);
         while (n && (want[n - 1] == '\n' || want[n - 1] == '\r' || want[n - 1] == ' '))
             n--;                             /* (the line's end) */
-        if (!ui.hint_until || !ui.hint || strlen(ui.hint) != n || strncmp(ui.hint, want, n)) {
+        if (!ui.hint_until || !ui.hint || __builtin_strlen(ui.hint) != n || strncmp(ui.hint, want, n)) {
             printf("FAIL hint: %s, not %.*s\n", ui.hint_until && ui.hint ? ui.hint : "(none)", (int)n, want);
             host_fails++;
         }
@@ -10053,12 +10072,12 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     if (!strcmp(cmd, "rnd_words")) {         /* rnd_words WORD..: the slot's names, as RND SEED shows them
                                               * (in capitals) */
         char w[64];
-        const char *want = plat_host_line + strlen("rnd_words ");
-        size_t n = strlen(want);
+        const char *want = plat_host_line + __builtin_strlen("rnd_words ");
+        size_t n = __builtin_strlen(want);
         while (n && (want[n - 1] == '\n' || want[n - 1] == '\r' || want[n - 1] == ' '))
             n--;                             /* (the line's end) */
         seed_words(seeds.seed[rnd_slot], seeds.code[rnd_slot], w);
-        if (strlen(w) != n || strncmp(w, want, n)) {
+        if (__builtin_strlen(w) != n || strncmp(w, want, n)) {
             printf("FAIL rnd_words: %s, not %.*s\n", w, (int)n, want);
             host_fails++;
         }

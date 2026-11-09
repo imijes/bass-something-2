@@ -30,6 +30,7 @@ static struct {
 static struct {
     float room;                              /* this sample's sends into the room, summed */
     float se;                                /* and into the Space Echo (bs2_se.c) */
+    float echo;                              /* the Space Echo's return, the last sample's (the USB audio's own channel) */
     uint32_t idle;                           /* samples since an instrument last woke the bus (it stops once quiet) */
 } fx PLAT_POOL;
 
@@ -110,7 +111,7 @@ static inline void fx_se_send(float x) { fx.se += x; }
 static inline float fx_next(float g)
 {
     const float x = fx.room, k = fm_maxf(g, 1.0f) * (1.0f / 32767.0f), e = se_next((fx.se + SE_TRY * x) / k) * k;
-    fx.room = 0.0f, fx.se = 0.0f;
+    fx.room = 0.0f, fx.se = 0.0f, fx.echo = e;
     if (fx.idle >= FX_IDLE)
         return e;
     fx.idle++;
