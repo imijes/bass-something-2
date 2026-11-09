@@ -1,20 +1,78 @@
-# The wheels from MIDI on GLO's channel (midi_in): pitch bend, 2 semitones at full, both ways; back to the middle,
-# none. The mod wheel (CC 1) touches no knob.
+# The wheels and aftertouch from MIDI on GLO's channel (midi_in): pitch bend, an octave at full (WHEELS' BEND, 12, as
+# the Init Patch's), both ways; back to the middle, none. AFTERTOUCH and WHEELS on FX after FX MODS: pressure on the
+# cutoff (K1), the bend's range on PRESET; kept over a reboot.
 wait 600
+listen
 midi 90 3C 64
 wait 100
 expect cents 0
 midi E0 7F 7F
 wait 100
-expect cents 199
+expect cents 1199
 midi E0 00 00
 wait 100
-expect cents -200
+expect cents -1200
 midi E0 00 40
 wait 100
 expect cents 0
-midi B0 01 7F
+expect cut_now 92
+midi D0 7F
 wait 100
-midi B0 01 00
+expect cut_now 101
+midi D0 00
+wait 100
 midi 80 3C 00
 wait 100
+tap FX
+wait 500
+tap FX
+wait 500
+tap FX
+wait 500
+tap FX
+wait 500
+tap FX
+wait 500
+said AFTERTOUCH
+turn K2 53
+wait 30
+said AFTERTOUCH FILTER +63
+tap FX
+wait 500
+said WHEELS
+turn PRESET -10
+wait 30
+said PITCH BEND RANGE +2
+turn K4 -10
+wait 30
+said MOD WHEEL OSC 2 PITCH -10
+wait 3000
+reboot
+wait 600
+midi 90 3C 64
+midi E0 7F 7F
+wait 100
+expect cents 199
+midi D0 7F
+wait 100
+expect cut_now 127
+midi E0 00 40
+midi D0 00
+midi 80 3C 00
+wait 100
+tap FX
+wait 500
+tap FX
+wait 500
+tap FX
+wait 500
+tap FX
+wait 500
+tap FX
+wait 500
+tap FX
+wait 500
+shot wheels.png
+tap FX
+wait 500
+expect page 10

@@ -66,6 +66,11 @@ typedef struct {
     uint8_t droom[4];                    /* DRUM ROOM: the room's DECAY, TONE, INPUT TONE, LEVEL, each 0..127 (64: as
                                           * modelled), by K1..K4 */
     uint8_t spare9[4];
+    int8_t at_amt[3];                    /* AFTERTOUCH: pressure on the filter's frequency, on LFO 1 to the pitches, on
+                                          * LFO 2's speed, each -63..63 (the Bass Station II's On-Key Aftertouch three) */
+    int8_t bend;                         /* WHEELS: the pitch bend's range, -24..24 semitones (negative: reversed) */
+    int8_t mw_amt[4];                    /* WHEELS: the mod wheel on the filter's frequency, LFO 1 to the pitches, LFO 2
+                                          * to the filter, oscillator 2's pitch, each -63..63 (its On-Key Mod Wh four) */
 } settings_t;
 /* GLO RMI's ROUTE: the RMI's notes (its keys, its channel's) into the bass, as its keys; what the bass plays (its
  * keys, its arp, its sequencer) on the RMI too. One hop: a note routed is never routed again, nor sent out, so BOTH
@@ -93,6 +98,7 @@ static uint32_t ms_stamp(void) { return (plat_ms() - 1u) | 1u; }
 #define SET_V7_SIZE offsetof(settings_t, rmi_chan)   /* the record before the RMI's MIDI */
 #define SET_V8_SIZE offsetof(settings_t, se_voice)   /* the record before ECHO VOICE */
 #define SET_V9_SIZE offsetof(settings_t, droom)      /* the record before DRUM ROOM */
+#define SET_V10_SIZE offsetof(settings_t, at_amt)    /* the record before AFTERTOUCH and WHEELS */
 enum { CH_OFF = 0, CH_ALL = 17 };
 enum { CLK_AUTO, CLK_INT, CLK_EXT, NCLK };   /* MIDI clock followed when it comes; never; always (none: stopped) */
 enum { VC_SOFT, VC_NORMAL, VC_HARD, NVC };
@@ -251,13 +257,15 @@ static const uint16_t SYNC_TICKS[NSYNCV] = {1536, 1152, 1008, 864, 768, 720, 672
 /* an LFO's step of n samples (dt: the clock's ticks in them): -1..1. Free-running (keysync: from 0 at a note,
  * lfo_note); its speed the knob's, or the clock's (sync); S&H a new value at each wrap; the slew a one-pole on what
  * it gives (its edges rounded); the delay a fade-in from the note */
+static float lfo_k[2] = {1.0f, 1.0f};        /* each LFO's speed, times: LFO 2's from aftertouch (AFTERTOUCH) */
+static float sq_amt(int32_t a) { return (float)a * (float)(a < 0 ? -a : a) * (1.0f / (63.0f * 63.0f)); }   /* -63..63: -1..1 */
 static float lfo_step(lfo_t *l, const lfo_patch_t *p, uint32_t i, uint32_t n, float dt, uint32_t slew, uint32_t delay,
                       uint32_t sync, uint32_t syncv)
 {
     static uint32_t rng = 1u;
     float ph, w;
-    l->ph += sync ? dt / (float)SYNC_TICKS[syncv < NSYNCV ? syncv : NSYNCV - 1u]
-                  : lfo_hz(p->rate) * (float)n * (1.0f / BS2_RATE);
+    l->ph += lfo_k[i & 1u] * (sync ? dt / (float)SYNC_TICKS[syncv < NSYNCV ? syncv : NSYNCV - 1u]
+                                   : lfo_hz(p->rate) * (float)n * (1.0f / BS2_RATE));
     if (l->ph >= 1.0f) {
         l->ph -= fm_floorf(l->ph);
         rng = rng * 1664525u + 1013904223u;
@@ -961,12 +969,12 @@ static void route_follow(void)               /* what the bass plays (its keys, a
     route_note = n;
     route_trig = voice_trig;
 }
-/* the wheels, from MIDI on GLO's channel: pitch bend -8192..8191 (BEND_SEMIS at full, both oscillators) and the mod
- * wheel (CC 1) 0..127, LFO 1 on the pitches by up to MW_SEMIS over the patch's own depth (a vibrato, at LFO 1's rate) */
-#define BEND_SEMIS 2.0f
-#define MW_SEMIS 0.5f
+/* the wheels, from MIDI on GLO's channel: pitch bend -8192..8191 and the mod wheel (CC 1) 0..127, as WHEELS sets them
+ * (set.bend, set.mw_amt); and aftertouch, the keys' pressure (at_keys, the main loop's) or MIDI's, channel or poly
+ * (at_midi), the greater, as AFTERTOUCH sets it (set.at_amt) */
 static int32_t bend_in;
-static uint32_t mw_in;
+static uint32_t mw_in, at_midi;
+static volatile uint32_t at_keys;
 static void midi_in(void)                    /* audio interrupt: the keys' notes, and the packets that came in */
 {
     uint32_t pkt, e;
@@ -1024,6 +1032,9 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
                 bend_in = (int32_t)(d1 | (d2 & 0x7Fu) << 7) - 8192;
         } else if ((st & 0xF0u) == 0xB0u && d1 == 1u && ours) {   /* the mod wheel (no knob's: CC_MAP leaves 1 out) */
             mw_in = d2 & 0x7Fu;
+        } else if ((st & 0xF0u) == 0xD0u || (st & 0xF0u) == 0xA0u) {   /* aftertouch: the channel's, a key's */
+            if (ours)
+                at_midi = (st & 0xF0u) == 0xD0u ? d1 : d2 & 0x7Fu;
         } else if ((st & 0xF0u) == 0xB0u) {  /* a CC: a knob of the sound's on CC CHAN alone (cc_apply) */
             if (cc)
                 fifo_put(&ccq, d1 | d2 << 8);
@@ -1056,12 +1067,18 @@ static float mod_step(const adsr_t *menv, uint32_t n, float *mod, float *lv)
                          patch.lfo_syncv[j]);
     mod[DEST_PITCH] = lv[0] * (float)patch.lfo[0].depth[0] * (1.0f / 63.0f);   /* LFO 1 the pitches, 2 the cutoff */
     mod[DEST_OSC2] = lv[0] * (float)patch.lfo[0].depth[1] * (1.0f / 63.0f);
-    {                                        /* the wheels (midi_in), on both pitches; an octave a 1 */
-        const float w = ((float)bend_in * (BEND_SEMIS / 8192.0f) + lv[0] * (float)mw_in * (MW_SEMIS / 127.0f)) / 12.0f;
-        mod[DEST_PITCH] += w;
-        mod[DEST_OSC2] += w;
-    }
     mod[DEST_CUTOFF] = lv[1] * (float)patch.lfo[1].depth[0] * (1.0f / 63.0f);
+    {                                        /* the wheels and the pressure (midi_in): mod an octave a 1, the cutoff's
+                                              * 127 a 1; a pitch amount on a square, fine near 0, 63 an octave */
+        const float mw = (float)mw_in * (1.0f / 127.0f), at = (float)(at_keys > at_midi ? at_keys : at_midi) * (1.0f / 127.0f);
+        const float w = (float)bend_in * ((float)set.bend / (8192.0f * 12.0f))
+                        + lv[0] * (mw * sq_amt(set.mw_amt[1]) + at * sq_amt(set.at_amt[1]));
+        mod[DEST_PITCH] += w;
+        mod[DEST_OSC2] += w + mw * sq_amt(set.mw_amt[3]);
+        mod[DEST_CUTOFF] += (mw * (float)set.mw_amt[0] + at * (float)set.at_amt[0] + lv[1] * mw * (float)set.mw_amt[2])
+                            * (0.5f / 63.0f);
+        lfo_k[1] = fm_exp2f(2.0f * at * (float)set.at_amt[2] * (1.0f / 63.0f));   /* (LFO 2's speed: 2 octaves at full) */
+    }
     return adsr_step(&voice.menv, menv) * (1.0f / 63.0f);
 }
 /* a pulse's width: 0.05..0.95 (the square's 0.5); LFO 2 on it by pwm, the mod envelope (menv: its depth times its
@@ -1531,6 +1548,9 @@ static void settings_defaults(settings_t *s)
     s->se_wow = 13;
     memset(s->se_voice, 64, sizeof s->se_voice);   /* (ECHO VOICE: as modelled) */
     memset(s->droom, 64, sizeof s->droom);   /* (DRUM ROOM: as modelled) */
+    s->at_amt[0] = s->mw_amt[1] = 10;        /* (as the Bass Station II's Init Patch: aftertouch on the filter, the mod
+                                              * wheel a vibrato; the bend an octave) */
+    s->bend = 12;
     s->rmi_chan = s->rmi_cc_chan = 3;        /* (the RMI: channel 3, as before its page; ROUTE off) */                          /* (WOW: Outer Space 2's own default, a tenth) */
     {
         static const seqmem_t E = {.len = 0, .step = {SEQ_REST}};
@@ -1598,8 +1618,8 @@ _Static_assert(offsetof(patch_t, env_trig) == BANK_V10_PSIZE, "version 10's: 11'
 _Static_assert(offsetof(patch_t, lfo_delay) == BANK_V11_PSIZE, "version 11's: 12's without the LFOs' delay on");
 _Static_assert(offsetof(patch_t, ofm) == BANK_V12_PSIZE, "version 12's: 13's without Osc Filter Mod on");
 _Static_assert(sizeof(settings_t) <= PLAT_STORE_MAX, "the settings fit a store object");
-_Static_assert(sizeof(settings_t) == SET_V9_SIZE + 8u, "the settings end with no padding");
-_Static_assert(offsetof(settings_t, spare9) < 256u, "every setting a param_t's offset (a byte) reaches");
+_Static_assert(sizeof(settings_t) == SET_V10_SIZE + 8u, "the settings end with no padding");
+_Static_assert(offsetof(settings_t, mw_amt[3]) < 256u, "every setting a param_t's offset (a byte) reaches");
 static bank_t bank[NBANKP] PLAT_POOL;
 #define BANK_P(s) (bank[(s) / NPSLOT].p[(s) % NPSLOT])   /* slot s's patch */
 static uint32_t bank_obj(uint32_t pg) { return pg ? OBJ_PATCHES1 + pg - 1u : OBJ_PATCHES; }   /* page pg's object */
@@ -2066,7 +2086,7 @@ static void ble_device_button(void)
 enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GCLK, PG_GDISP, PG_GDUMP,
        PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
        PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, PG_GAUD, PG_GCTL, PG_NAME, PG_RHOME, PG_RSEL,
-       PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD, PG_GRMI, PG_RVIEW, PG_SVOICE, PG_DROOM,
+       PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD, PG_GRMI, PG_RVIEW, PG_SVOICE, PG_DROOM, PG_ATOUCH, PG_WHEELS,
        NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI", "GLOBAL CLOCK",
@@ -2075,7 +2095,7 @@ static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRI
                                               "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL CONTROLS",
                                               "PATCH NAME", "PIANO HOME", "PIANO PANEL",
                                               "ECHO HOME", "ECHO INPUT", "ECHO PANEL", "ECHO MODS",
-                                              "GLOBAL PIANO", "PIANO PRESETS", "ECHO VOICE", "DRUM ROOM"};
+                                              "GLOBAL PIANO", "PIANO PRESETS", "ECHO VOICE", "DRUM ROOM", "AFTERTOUCH", "WHEELS"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME && (g) < PG_GAUD)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
@@ -2216,6 +2236,12 @@ static const param_t PARAMS[NPAGES][NE] = {
     [PG_SECHO] = {[EN_PRESET] = {"BASS", SF(se_bass), 0, 127, 0}, [EN_ALGO] = {"TREBLE", SF(se_treb), 0, 127, 0},
                   [EN_K1] = {"REPEAT RATE", SF(se_rate), 0, 127, 0}, [EN_K2] = {"INTENSITY", SF(se_int), 0, 127, 0},
                   [EN_K3] = {"ECHO VOLUME", SF(se_echo), 0, 127, 0}, [EN_K4] = {"REVERB VOLUME", SF(se_rev), 0, 127, 0}},
+    /* the bass's AFTERTOUCH and WHEELS (FX's mods; the settings', not the patch's) */
+    [PG_ATOUCH] = {[EN_K1] = {"FILTER", SF(at_amt[0]), -63, 63, 0}, [EN_K2] = {"LFO1 PITCH", SF(at_amt[1]), -63, 63, 0},
+                   [EN_K3] = {"LFO2 SPEED", SF(at_amt[2]), -63, 63, 0}},
+    [PG_WHEELS] = {[EN_PRESET] = {"BEND", SF(bend), -24, 24, 0}, [EN_K1] = {"MW FILTER", SF(mw_amt[0]), -63, 63, 0},
+                   [EN_K2] = {"MW LFO1", SF(mw_amt[1]), -63, 63, 0}, [EN_K3] = {"MW LFO2", SF(mw_amt[2]), -63, 63, 0},
+                   [EN_K4] = {"MW OSC2", SF(mw_amt[3]), -63, 63, 0}},
     [PG_SMOD] = {[EN_PRESET] = {"TEMPO SYNC", SF(se_sync), 0, 1, OFF_ON}, [EN_K1] = {"BASS SEND", SF(se_send[0]), 0, 127, 0},
                  [EN_K2] = {"DRUM SEND", SF(se_send[1]), 0, 127, 0}, [EN_K3] = {"PIANO SEND", SF(se_send[2]), 0, 127, 0},
                  [EN_K4] = {"WOW", SF(se_wow), 0, 127, 0}},
@@ -2287,6 +2313,9 @@ static const char *const TITLE[NPAGES][NE] = {
     [PG_FMOD] = {[EN_K1] = "FILTER LFO 2 DEPTH"},
     [PG_EFX] = {[EN_K1] = "DISTORTION", [EN_K2] = "OSC FILTER MOD"},
     [PG_XMOD] = {[EN_K1] = "FILTER KEY TRACKING", [EN_K2] = "VCA LIMITER"},
+    [PG_ATOUCH] = {[EN_K1] = "AFTERTOUCH FILTER", [EN_K2] = "AFTERTOUCH LFO 1 PITCH", [EN_K3] = "AFTERTOUCH LFO 2 SPEED"},
+    [PG_WHEELS] = {[EN_PRESET] = "PITCH BEND RANGE", [EN_K1] = "MOD WHEEL FILTER", [EN_K2] = "MOD WHEEL LFO 1 PITCH",
+                   [EN_K3] = "MOD WHEEL LFO 2 FILTER", [EN_K4] = "MOD WHEEL OSC 2 PITCH"},
     [PG_LFO1] = {[EN_SELECT] = "GLIDE TIME", [EN_K1] = "LFO 1 WAVE", [EN_K4] = "LFO 2 WAVE"},
 
     [PG_GMIDI] = {[EN_SELECT] = "CC CHANNEL", [EN_K2] = "LOCAL CONTROL", [EN_K3] = "AFTER TOUCH OUT", [EN_K4] = "BLUETOOTH MIDI"},
@@ -2633,7 +2662,7 @@ static const uint8_t ENC_MAP[NPAGES] = {
     [PG_GDRUM] = EMAP(EP_SP, 3),                               /* the drums' CC Chan; Channel on K4 */
     [PG_GRMI] = EMAP(EP_SP, 2),                                /* the RMI's CC Chan; Channel on K3, Route on K4 */
     [PG_SEQ] = EMAP(EP_ROW, 0),                                /* SEQ, LENGTH, STEP */
-    [PG_FMOD] = EMAP(EP_SAME, 3), [PG_EFX] = EMAP(EP_SAME, 2), [PG_XMOD] = EMAP(EP_SAME, 2),
+    [PG_FMOD] = EMAP(EP_SAME, 3), [PG_EFX] = EMAP(EP_SAME, 2), [PG_XMOD] = EMAP(EP_SAME, 2), [PG_ATOUCH] = EMAP(EP_SAME, 1),
     [PG_AMOD] = EMAP(EP_SAME, 2), [PG_GDISP] = EMAP(EP_SAME, 2), [PG_RPAT] = EMAP(EP_SAME, 1),
     [PG_SIN] = EMAP(EP_SAME, 3),                               /* MODE on PRESET, INPUT on K4 */
 };
@@ -3805,6 +3834,9 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_FMOD] = {[EN_K1] = "LFO 2 to cutoff"},
     [PG_EFX] = {[EN_K1] = "Distortion amount", "Osc 2 to cutoff"},
     [PG_XMOD] = {[EN_K1] = "Cutoff follows keys", "Level limiter"},
+    [PG_ATOUCH] = {[EN_K1] = "Pressure to cutoff", "Pressure: LFO 1 vibrato", "Pressure: LFO 2 faster"},
+    [PG_WHEELS] = {[EN_PRESET] = "Bend range, semitones", [EN_K1] = "Mod wheel to cutoff", "Mod wheel: LFO 1 vibrato",
+                   "Mod wheel: LFO 2 to cutoff", "Mod wheel to osc 2 pitch"},
     [PG_GMIDI] = {"CC input channel", [EN_K1] = "Note channel", "Keys play the synth", "Pressure out as MIDI",
                   "Bluetooth MIDI"},
     [PG_GCLK] = {[EN_K1] = "Speed, BPM", [EN_K3] = "Send MIDI clock", "Clock to follow"},
@@ -3869,7 +3901,8 @@ static uint32_t tap_page(uint32_t k)
     case B_LFO:
         return g == PG_LFO1 ? PG_LFO2 : PG_LFO1;
     case B_FX:                               /* the filters, LFO 2 on them, the effects, the group's mods */
-        return g == PG_TUNE ? PG_FMOD : g == PG_FMOD ? PG_EFX : g == PG_EFX ? PG_XMOD : PG_TUNE;
+        return g == PG_TUNE ? PG_FMOD : g == PG_FMOD ? PG_EFX : g == PG_EFX ? PG_XMOD : g == PG_XMOD ? PG_ATOUCH
+               : g == PG_ATOUCH ? PG_WHEELS : PG_TUNE;
     case B_EDIT:                             /* the oscillators, their pulse width, the sub osc and the mixer */
         return g == PG_OSC ? PG_MIX : g == PG_MIX ? PG_FX : PG_OSC;
     case B_ARP:                              /* the ARPEGGIATOR, again its mods */
@@ -3915,7 +3948,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
     static const char *const TAP_NAME[NPAGES] = {
         [PG_OSC] = "Oscillators", [PG_MIX] = "Pulse Width", [PG_FX] = "Sub + Mixer", [PG_AENV] = "Envelopes",
         [PG_MENV] = "Triggering", [PG_EMOD] = "Env Mods", [PG_LFO1] = "LFOs", [PG_LFO2] = "LFO Mods",
-        [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods",
+        [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods", [PG_ATOUCH] = "Aftertouch", [PG_WHEELS] = "Wheels",
         [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Controls", [PG_NAME] = "Patch Name", [PG_RSEL] = "Piano Panel", [PG_RVIEW] = "Piano Presets",
         [PG_GDISP] = "Display", [PG_GDUMP] = "Dump", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
         [PG_RTRK] = "RND Tracks", [PG_GDRUM] = "Drums", [PG_GRMI] = "Piano"};
@@ -4652,6 +4685,13 @@ static void input(void)
                 key_send(0xA0u, (uint32_t)note, ui.prs[k], ui.och[k]);
         }
     }
+    {                                        /* the bass's pressure (AFTERTOUCH): its held keys' most */
+        uint32_t m = 0;
+        for (k = 0; k < NKEYS; k++)
+            if ((keys >> k & 1u) && !(ui.rkeys >> k & 1u) && ui.prs[k] > m)
+                m = ui.prs[k];
+        at_keys = ui.drum || !set.local ? 0u : m;
+    }
     ui.btn_in = btn;
     for (k = 0; k < NB; k++) {               /* a button pressed: its name, and what it does here */
         uint32_t bit = 1u << k;
@@ -4887,7 +4927,7 @@ static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDI
                                          [PG_RTRK] = SEC_GLO, [PG_GDRUM] = SEC_GLO, [PG_DHOME] = NSEC,
                                          [PG_DCH1] = SEC_EDIT, [PG_DCH2] = SEC_EDIT, [PG_DCH3] = SEC_EDIT,
                                          [PG_DCH4] = SEC_EDIT, [PG_DCH5] = SEC_EDIT, [PG_DCH6] = SEC_EDIT, [PG_DMOD] = SEC_FX, [PG_DPAT] = SEC_SEQ, [PG_DSONG] = SEC_ARP, [PG_DPINFO] = SEC_FX, [PG_DSINFO] = SEC_FX,
-                                         [PG_DROOM] = SEC_FX};
+                                         [PG_DROOM] = SEC_FX, [PG_ATOUCH] = SEC_FX, [PG_WHEELS] = SEC_FX};
 /* the tabs span the panel's bar (x 2..235), a pixel between each; they end 3 rows over it, as its gaps are wide */
 #define TAB_X(i) (2 + (int32_t)(i) * 235 / NSEC)
 static uint8_t ycol[232] PLAT_POOL;          /* a picture's curve: each column's row */
@@ -5601,23 +5641,30 @@ static void plate(const char *grp)          /* a group's bar, the plate under it
 }
 static void mod_draw(void)
 {
-    static const char *const LBL[5][4] = {{"KEY TRACK", "LIMITER"}, {"VELOCITY", "RETRIGGER", "COUNT", "FIXED SUS"},
+    static const char *const LBL[7][4] = {{"KEY TRACK", "LIMITER"}, {"VELOCITY", "RETRIGGER", "COUNT", "FIXED SUS"},
                                           {"KEYSYNC", "SPEED/SYNC", "SLEW"}, {"SEQ RETRIG", "SWING"},
-                                          {"BASS SEND", "DRUM SEND", "PIANO SEND", "WOW"}};
+                                          {"BASS SEND", "DRUM SEND", "PIANO SEND", "WOW"},
+                                          {"FILTER", "LFO1 PITCH", "LFO2 SPEED"},
+                                          {"FILTER", "LFO1 PITCH", "LFO2 FILT", "OSC2 PITCH"}};
     static const char *const ENV_T[3] = {"ENV MOD: AMP ENV", "ENV MOD: MOD ENV", "ENV MOD: AMP+MOD"};
-    const int env = ui.page == PG_EMOD ? 1 : ui.page == PG_LFO2 ? 2 : ui.page == PG_AMOD ? 3 : ui.page == PG_SMOD ? 4 : 0;
-    const char *grp = env == 4 ? "SPACE SOMETHING" : env == 1 ? "ENVELOPES" : env == 2 ? "LFOS" : env ? "ARPEGGIATOR"
-                      : "FILTERS + EFFECTS";   /* (0: PG_XMOD) */
+    const int env = ui.page == PG_EMOD ? 1 : ui.page == PG_LFO2 ? 2 : ui.page == PG_AMOD ? 3 : ui.page == PG_SMOD ? 4
+                    : ui.page == PG_ATOUCH ? 5 : ui.page == PG_WHEELS ? 6 : 0;
+    char bt[16];
+    const char *grp = env == 4 ? "SPACE SOMETHING" : env == 1 ? "ENVELOPES" : env == 2 ? "LFOS" : env == 3 ? "ARPEGGIATOR"
+                      : "FILTERS + EFFECTS";   /* (0: PG_XMOD, 5 AFTERTOUCH, 6 WHEELS) */
     uint32_t i, n = 0;
     char t[12];
     plate(grp);
     /* its title; the ENV group's: which envelope it sets, as Env Select is (SELECT), lit while it moves */
-    dymo(120, 30, env == 4 ? (set.se_sync ? "TEMPO SYNC: ON" : "TEMPO SYNC: OFF") : env == 1 ? ENV_T[ui.env_sel]
+    bt[0] = 0;                               /* (WHEELS': its bend's range, on PRESET) */
+    text_cat(bt, "BEND: ");
+    knob_text(EN_PRESET, bt + 6);
+    dymo(120, 30, env == 6 ? bt : env == 5 ? "AFTERTOUCH" : env == 4 ? (set.se_sync ? "TEMPO SYNC: ON" : "TEMPO SYNC: OFF") : env == 1 ? ENV_T[ui.env_sel]
                   : env == 2 ? (ui.lfo_sel ? "LFO MOD: LFO 2" : "LFO MOD: LFO 1") : env ? "ARP MODS" : "FX MODS",
-         ((env == 1 || env == 2) && knob_lit(EN_SELECT)) || (env == 4 && knob_lit(EN_PRESET)) ? P_CYAN : RGB(235, 235, 235));
+         ((env == 1 || env == 2) && knob_lit(EN_SELECT)) || ((env == 4 || env == 6) && knob_lit(EN_PRESET)) ? P_CYAN : RGB(235, 235, 235));
     if (env == 1 || env == 2)                /* (its title: which envelope, which LFO; the echo's, its sync) */
         tag(120, 36, EN_SELECT);
-    else if (env == 4)
+    else if (env == 4 || env == 6)
         tag(120, 36, EN_PRESET);
     for (i = EN_K1; i <= EN_K4; i++)
         n += knob_param(i)->name != 0;
@@ -7461,7 +7508,7 @@ static void home_sect(uint32_t g, int16_t *x, int16_t *y, float *lc)   /* page g
                                     {333, 693, 190}, {693, 1140, 190}, {1140, 1293, 190}, {63, 333, 33}};   /* across, its top */
     const uint32_t i = g == PG_OSC || g == PG_MIX ? 0u : g == PG_FX ? 1u : g == PG_TUNE || g == PG_FMOD ? 2u
                        : g == PG_ARP || g == PG_AMOD || g == PG_SEQ ? 3u : g == PG_LFO1 || g == PG_LFO2 ? 4u
-                       : g == PG_EFX || g == PG_XMOD ? 6u : g == PG_PATCH || g == PG_NAME ? 7u : 5u;
+                       : g == PG_EFX || g == PG_XMOD || g == PG_ATOUCH || g == PG_WHEELS ? 6u : g == PG_PATCH || g == PG_NAME ? 7u : 5u;
     const int32_t w = HX(S[i][1]) - HX(S[i][0]), h = HL(S[i][2] == 33 ? 157 : 146);
     *x = (int16_t)((HX(S[i][0]) + HX(S[i][1])) / 2);
     *y = (int16_t)(HY(S[i][2]) + h / 2);
@@ -8564,7 +8611,8 @@ static void panel_draw(void)                 /* the page's section panel, from u
             env_draw();
         else if (ui.page == PG_MENV)
             trig_draw();
-        else if (ui.page == PG_EMOD || ui.page == PG_LFO2 || ui.page == PG_XMOD || ui.page == PG_AMOD)
+        else if (ui.page == PG_EMOD || ui.page == PG_LFO2 || ui.page == PG_XMOD || ui.page == PG_AMOD || ui.page == PG_ATOUCH
+                 || ui.page == PG_WHEELS)
             mod_draw();
         else if (ui.page == PG_NAME)
             name_draw();

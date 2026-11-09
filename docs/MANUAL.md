@@ -99,7 +99,7 @@ GLOBAL CONTROLS' KNOBS sets how much they speed up, from FINE to COARSE.
 | SEL | MASTER: the patch, picked, saved and sent | |
 | ENV | ENVELOPES: Env Select (PRESET) and the four faders | TRIGGERING; then the group's mods (velocity, retriggering, fixed sustain) |
 | LFO | PORTA and LFOS: the glide, both LFOs' waves and knobs, the Delay/Speed switch | the group's mods (keysync, Speed/Sync, slew) |
-| FX | FILTERS | LFO 2 on the filters; then EFFECTS: distortion and Osc Filter Mod; then the group's mods (key tracking, the VCA limiter) |
+| FX | FILTERS | LFO 2 on the filters; then EFFECTS: distortion and Osc Filter Mod; then the group's mods (key tracking, the VCA limiter), AFTERTOUCH and WHEELS |
 | ARP | ARPEGGIATOR: tempo, rhythm, mode, octaves, the On and Latch buttons (held a second: AFX mode) | the group's mods (Seq Retrig, swing), then back |
 | SEQ | SEQ: the sequencer (held a second: AFX mode) | recording on or off (the arp's REC) |
 | EDIT | OSCILLATORS: the pitch's view | the pulse width's view; then SUB OSC + MIXER, beside them on a Bass Station II. Held a second: [a random sound](#a-random-sound) |
@@ -303,6 +303,14 @@ Each group has its mods as its last page, a press of its button after the others
 | LFO | | K3 · SPEED/SYNC | Speed: its knob sets its speed. Sync: its knob sets a sync value instead, the LFO following the tempo. |
 | LFO | | K4 · SLEW | 0 to 127: its edges softened, a square gliding from one level to the next (at the top, over about 2 s). |
 | FX | | K4 · LIMITER | 0 (off) to 127: the Bass Station II's VCA limiter. The output's level held to a threshold that comes down as it goes up (to 24 dB under full), so a loud, resonant sound is kept in check: more compressed, and quieter. |
+| FX | AFTERTOUCH (fifth) | K2 · FILTER | How far the keys' pressure moves the filter's frequency, −63 to +63 (below 0, it closes). At +63 full pressure opens it by half its range. Starts at +10, as on a Bass Station II's Init Patch. |
+| FX | | K3 · LFO1 PITCH | How far pressure brings in LFO 1 on both oscillators' pitch (a vibrato at LFO 1's speed), on top of the patch's own LFO 1 depth: fine near 0, an octave at ±63. |
+| FX | | K4 · LFO2 SPEED | How far pressure speeds LFO 2 up (or, below 0, slows it), up to 2 octaves of speed at ±63. |
+| FX | WHEELS (sixth) | PRESET · BEND | The pitch bend's range, −24 to +24 semitones (below 0, reversed), as the title shows. Starts at 12, as on a Bass Station II. |
+| FX | | K1 · FILTER | How far the mod wheel moves the filter's frequency, −63 to +63. |
+| FX | | K2 · LFO1 PITCH | How far the mod wheel brings in LFO 1 on both pitches (vibrato): fine near 0, an octave at ±63. Starts at +10, as on a Bass Station II's Init Patch. |
+| FX | | K3 · LFO2 FILT | How far the mod wheel brings in LFO 2 on the filter's frequency. |
+| FX | | K4 · OSC2 PITCH | How far the mod wheel bends oscillator 2 alone: an octave at ±63. |
 
 New patches start with the amp's velocity at +63 and the mod's at 0, as the FM-1 always played. A Bass Station II
 patch brings its own.
@@ -1059,9 +1067,9 @@ A computer can send it the same way, or have the FM-1 send the RND SEED slot's p
 
 MIDI comes in over USB, Bluetooth and the TRS jack. A note on GLO's channel plays the voice (or the arp, or
 transposes the sequencer). MIDI clock and start drive the arp and the sequencer (see SYNC). Control changes on GLO's
-CC CHAN turn the sound's knobs (see Control changes below). Pitch bend on GLO's channel bends both oscillators up to 2 semitones either way, and
-the mod wheel (CC 1) adds a vibrato of up to half a semitone from LFO 1, at its rate, on top of the patch's own LFO 1
-depth. The piano and the drums ignore both. Other messages are shown on the bottom line but change nothing.
+CC CHAN turn the sound's knobs (see Control changes below). Pitch bend, the mod wheel (CC 1) and aftertouch (channel or
+poly) on GLO's channel play the bass as its own wheels and keys' pressure do, as FX's WHEELS and AFTERTOUCH set them
+(section 4's mods). They are settings, not a patch's, so every sound shares them. The piano and the drums ignore them. Other messages are shown on the bottom line but change nothing.
 
 The keys go out over USB and Bluetooth: their notes with velocity, and their pressure as poly aftertouch.
 
