@@ -3745,7 +3745,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
     const int rec = seq_rec && ui.page == PG_SEQ;
     if (k == B_HOME && ui.page == mode_home())   /* (on it: the next mode, mode_switch) */
         return ui.se ? "HOME tap: Bass Something 2" : ui.drum ? "HOME tap: Electra-Something 368X"
-               : ui.rmi ? "HOME tap: Space-Something RE-201" : "HOME tap: Drum Something";
+               : ui.rmi ? "HOME tap: Space-Something RE-201" : "HOME tap: Drum Something 400";
     if (ui.se && (SE_PAGE(ui.page) || ui.page < PG_HOME))   /* (the Space Echo's: its panels, se_button) */
         return k == B_SEL ? "Next panel" : k == B_HOME ? "Echo Home" : 0;
     if (ui.rmi && (RMI_PAGE(ui.page) || ui.page < PG_HOME))   /* (the RMI's: its panel and mods, rmi_button) */
@@ -7345,8 +7345,11 @@ static void dt_head_top(void)                /* the name and the two displays, o
     dt_digits(l, r);
     cv_rect(0, 0, 240, 45, P_BG);
     cv_text(10, 6, &FONT_B, fn ? NAME[ui.dt_fn][0] : "DRUM", P_SILK);
-    cv_text(10, 24, &FONT_B, fn ? NAME[ui.dt_fn][1] : "SOMETHING", P_SILK);
-    cv_rect(10, 42, 96, 2, RGB(252, 60, 72));
+    if (fn)
+        cv_text(10, 24, &FONT_B, NAME[ui.dt_fn][1], P_SILK);
+    else                                     /* (its model number, as the other instruments': the Drumtraks' 400) */
+        cv_text(cv_text(10, 24, &FONT_B, "SOMETHING", P_SILK) + 5, 24, &FONT_B, "400", RGB(252, 60, 72));
+    cv_rect(10, 42, 99, 2, RGB(252, 60, 72));
     dt_display(114, 1, l);
     dt_display(174, 1, r);
 }
@@ -7774,7 +7777,7 @@ static void dpinfo_draw(void)
 {
     const dq_pat_t *p = &dqm.pat[ui.dt_pat < DQ_NPAT ? ui.dt_pat : 0];
     char t[14], n[6];
-    plate("DRUM SOMETHING");
+    plate("DRUM SOMETHING 400");
     dymo(120, 30, "PATTERN INFO", RGB(235, 235, 235));
     t[0] = 0;
     int_text(ui.dt_pat, t);
@@ -7808,7 +7811,7 @@ static void dsinfo_draw(void)
     const int32_t from = at > 2 ? at - 2 : 0;
     char w[8], n[6];
     int32_t i;
-    plate("DRUM SOMETHING");
+    plate("DRUM SOMETHING 400");
     dymo(120, 30, "SONG INFO", RGB(235, 235, 235));
     w[0] = 0;
     text_cat(w, "SONG ");
@@ -7894,7 +7897,7 @@ static void home_back(void)
 /* DRUM MODS: what the 400 hasn't, on a plate as the synth's mods (one so far) */
 static void dmod_draw(void)
 {
-    plate("DRUM SOMETHING");
+    plate("DRUM SOMETHING 400");
     dymo(120, 30, "DRUM MODS", RGB(235, 235, 235));
     bs2_knob(70, 76, 20, set.dswing_lock != 0u, 1, KF_PLATE | (knob_lit(EN_K3) ? KF_LIT : 0u));
     tag(70, 76, EN_K3);

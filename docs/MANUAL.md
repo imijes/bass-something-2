@@ -10,10 +10,10 @@ goes out over USB and Bluetooth.
 It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of its patches as seeds with their locks
 (type, key, tracks), sends them back, and mixes its four tracks (see [RND Synth](#s9)).
 
-A second instrument plays beside the synth: [Drum Something](#s6), 13 drums with their own sequencer and songs.
+A second instrument plays beside the synth: [Drum Something 400](#s6), 13 drums with their own sequencer and songs.
 
 ![The Bass Something 2 screen with a note playing: the section tabs, the HOME page (the name, the red P01 display, the scope drawing the note's wave, the whole Bass Station II panel), the keys with the held one in cyan, then OCT +0, P01, 120 BPM, VOL 50% and ARP OFF](img/screen-home.png "Bass Something 2 playing")
-![Drum Something's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "Drum Something")
+![Drum Something 400's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "Drum Something 400")
 
 ---
 
@@ -24,7 +24,7 @@ A second instrument plays beside the synth: [Drum Something](#s6), 13 drums with
 3. Playing
 4. The sound
 5. The arpeggiator and the sequencer
-6. Drum Something
+6. Drum Something 400
 7. Patches and saving
 8. SysEx: a Bass Station II editor
 9. RND Synth
@@ -54,7 +54,7 @@ doesn't start can be recovered too. For details, see felucca-bsp's `tools/fm1_re
 
 At power-on the screen shows BASS SOMETHING 2 in cyan, "Inspired by the Bass Station 2" under it, and an oscilloscope whose
 wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.7) is in the bottom
-right corner. v0.7 brings Drum Something (section 6) and the 2026-11-05 platform update: a faster install, FM-1s with
+right corner. v0.7 brings Drum Something 400 (section 6) and the 2026-11-05 platform update: a faster install, FM-1s with
 the UC25HQ80 flash chip, and USB audio on macOS 15. v0.7.1 adds the demo below, and v0.7.2 makes it the author's own groove. It uses 516,496 B of the FM-1's flash, with
 about 65 KB free. Then the panel opens on the patch you last saved. The emulator shows the same splash when you
 switch it on.
@@ -93,7 +93,7 @@ GLOBAL CONTROLS' KNOBS sets how much they speed up, from FINE to COARSE.
 
 | Button | Page | Again |
 | --- | --- | --- |
-| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash). On HOME, a tap goes round the three instruments, the camera panning down to the next one's panel: Bass Something 2, Drum Something, Electra-Something 368X, and back. From any other page, a hold switches at once | |
+| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash). On HOME, a tap goes round the three instruments, the camera panning down to the next one's panel: Bass Something 2, Drum Something 400, Electra-Something 368X, and back. From any other page, a hold switches at once | |
 | SEL | MASTER: the patch, picked, saved and sent | |
 | ENV | ENVELOPES: Env Select (PRESET) and the four faders | TRIGGERING; then the group's mods (velocity, retriggering, fixed sustain) |
 | LFO | PORTA and LFOS: the glide, both LFOs' waves and knobs, the Delay/Speed switch | the group's mods (keysync, Speed/Sync, slew) |
@@ -482,16 +482,16 @@ turning PRESET write at once, so pressing SAVE mid-performance gives a short gap
 
 ---
 
-## 6. Drum Something
+## 6. Drum Something 400
 
-Drum Something is a second instrument on the FM-1, inspired by the Sequential Circuits Drumtraks: 13 drums on six channels, 99
+Drum Something 400 is a second instrument on the FM-1, inspired by the Sequential Circuits Drumtraks: 13 drums on six channels, 99
 patterns and 99 songs. It plays beside the synth, on the same output, with its own MIDI channels. Its sounds are
 synthesized for this firmware and stored as 8-bit tables that play faster or slower as you tune them, so the firmware
 contains no samples of the original.
 
-![Drum Something's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "HOME, tapped on HOME")
+![Drum Something 400's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "HOME, tapped on HOME")
 
-Tap HOME on HOME to go round the instruments: Bass Something 2, Drum Something, Electra-Something 368X (see [Electra-Something 368X](#rmi)), and back. From any other page, hold it for a second. In Drum Something, every button
+Tap HOME on HOME to go round the instruments: Bass Something 2, Drum Something 400, Electra-Something 368X (see [Electra-Something 368X](#rmi)), and back. From any other page, hold it for a second. In Drum Something 400, every button
 does a drum job, listed below, and the keys play the drums.
 
 ### Its keys and channels
@@ -530,7 +530,7 @@ Tapping a drum selects it for K3 and K4. On HOME, those two knobs zoom in to the
 
 | Button | Tap | Again or held |
 | --- | --- | --- |
-| HOME | Drum Something's HOME | On HOME, a tap switches to the synth. Held a second elsewhere: the same |
+| HOME | Drum Something 400's HOME | On HOME, a tap switches to the synth. Held a second elsewhere: the same |
 | EDIT | The selected drum's Channel page | The next drum, moving page at each new channel |
 | SEQ | The PATTERN page | The next pattern function |
 | ARP | The SONG page | The next song function |
@@ -621,7 +621,7 @@ There is one clock. While a pattern runs, the synth's arp and sequencer follow t
 
 ### MIDI
 
-Drum Something is a MIDI device of its own. GLOBAL DRUMS (GLO) sets its note channel and its CC channel, both 10 by default.
+Drum Something 400 is a MIDI device of its own. GLOBAL DRUMS (GLO) sets its note channel and its CC channel, both 10 by default.
 
 | Control | What it does |
 | --- | --- |
@@ -641,7 +641,7 @@ CCs 33 to 45 set each drum's tuning and 46 to 58 its volume, in the order Bass, 
 
 The third instrument, Electra-Something 368X, is after the RMI Electra-piano 368X, the 1970s electronic piano with
 its seven stop tablets: a piano, a harpsichord and a lute, each from its own tone generator per key, polyphonic (eight
-notes at once here). Tap HOME on Drum Something's HOME to reach it. Its HOME has its name, the tone tablets down (with ORGAN MODE and
+notes at once here). Tap HOME on Drum Something 400's HOME to reach it. Its HOME has its name, the tone tablets down (with ORGAN MODE and
 ACCENTER when down) and its stop strip down on the keys (the FM-1's keys are its keyboard); between them its notes as they
 ring, each a bar over its key's place as tall as its level, a mark falling slowly from the most it reached.
 
@@ -661,7 +661,7 @@ curve. The panel keeps itself with the GLO settings, so SAVE has nothing to do h
 3 plays it from outside too (CC 7 its volume, CC 64 the sustain pedal), and its keys' notes go out on channel 3.
 
 Its sound is synthesised, each key's tone and decay modelled on recordings of a real 368X; its tail is the room
-Drum Something uses. LUTE is the harpsichord's tone through the 368X's lute filter (a low pass about 1.3 kHz),
+Drum Something 400 uses. LUTE is the harpsichord's tone through the 368X's lute filter (a low pass about 1.3 kHz),
 its level set by ear, as is how much softer a PP tablet is: the recordings can't measure those.
 
 ## 7. Patches and saving
@@ -763,7 +763,7 @@ mode (off at each start) and whether the sequencer is playing.
 
 ### Backup and restore
 
-A backup is one file on your computer holding everything the FM-1 has saved: the patches, the sequences, Drum Something's
+A backup is one file on your computer holding everything the FM-1 has saved: the patches, the sequences, Drum Something 400's
 patterns and songs, the RND seeds and the settings. It leaves out the panel's calibration and the Bluetooth pairings, which belong
 to that FM-1. Make one over USB from the site's Backup page (Chrome or Edge), or from a terminal in fm1-base:
 
@@ -995,7 +995,7 @@ Holding GLO for a second opens the RND pages, for the RND Synth: see RND Synth.
 | AUDIO | K3 SPEAKER | The FM-1's speaker, which only ever plays with nothing in the headphone jack. FLAT (the default): as it is. BASS+: the bass the small speaker cannot play, heard through its harmonics. OFF: the speaker silent. Headphones and USB audio stay as they are whatever this is set to: stereo, and with none of BASS+. |
 | AUDIO | K4 TUNE | The master tune, −50 to +50 cents (0 is the default). |
 | CONTROLS | K3 VELOCITY | The keys' velocity curve: SOFT (louder for a light touch), NORMAL (the default) or HARD. |
-| CONTROLS | K4 KNOBS (KNOB RESPONSE) | How far the knobs go as you turn them faster. FINE: always one step a click. NORMAL (the default): up to 8 steps a click on a quick spin. FAST: up to 12, and sooner. COARSE: two steps a click even turned slowly, up to 16. Only the knobs with a wide range (levels, Frequency, Tune, Tempo, the LFOs' speeds and so on); switches and short lists always move one position a click. Drum Something's pattern and song numbers and its tempo move one a click when turned slowly, at any of these. |
+| CONTROLS | K4 KNOBS (KNOB RESPONSE) | How far the knobs go as you turn them faster. FINE: always one step a click. NORMAL (the default): up to 8 steps a click on a quick spin. FAST: up to 12, and sooner. COARSE: two steps a click even turned slowly, up to 16. Only the knobs with a wide range (levels, Frequency, Tune, Tempo, the LFOs' speeds and so on); switches and short lists always move one position a click. Drum Something 400's pattern and song numbers and its tempo move one a click when turned slowly, at any of these. |
 | DISPLAY | PRESET KNOB ZOOM | AUTO (the default): as you turn an encoder, the panel zooms in on its control (twice the size) and back out a second after you stop; on HOME, a MIDI CC dives in, one camera move: the small panel zooms in on the control's section until it fills the screen, becomes that section's own page and zooms on in to the control, stays while the CCs come, then pulls the same way back out to HOME (a turn of your own while that page is up keeps you there). OFF: no zoom. |
 | DISPLAY | K3 HINTS | ON (the default): as you turn a knob, a few words on what it does show under its value; as you press a button, over the keys (a section's button: the page its next tap opens). OFF: none. See The screen. |
 | DISPLAY | K4 POP-UPS (POP-UP TIME) | How long the pop-ups stay: the controls' labels as a page opens, a knob's value after you turn it, and the hints. OFF: no labels or button hints, and a value only while the knob turns. 1.5 S (the default), 2 S or 3 S. ALWAYS: until you turn another knob or open another page. |

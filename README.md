@@ -2,7 +2,7 @@
 
 A monosynth inspired by the legendary Novation Bass Station II, built for the M-VAVE FM-1. It's also a companion for Cyma Forma's RND Synth (firmware
 1.4): 32 seed slots with their locks, and a mixer for its four tracks. It runs on an iPhone or iPad in RemoteFM1 too. It's built on fm1-base, started from fm1-base's `template/`.
-It also has a second instrument, Drum Something: a drum machine inspired by the Sequential Circuits Drumtraks, with
+It also has a second instrument, Drum Something 400: a drum machine inspired by the Sequential Circuits Drumtraks, with
 synthesized voices on virtual EPROMs, patterns, songs and MIDI out. The manual (`docs/MANUAL.md`) describes everything
 it does. To see what's new, read `docs/RELEASE_v0.7.md`, `docs/RELEASE_v0.7.1.md` and `docs/RELEASE_v0.7.2.md`. The v0.7.2 firmware is 516,496 B, with about 65 KB of
 flash and 19.9 KB of RAM free (`docs/SIZE_LOG.md`).

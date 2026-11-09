@@ -21,7 +21,7 @@ tagline = "a monosynth inspired by the legendary Novation Bass Station II, built
 repo = "https://github.com/imijes/bass-something-2"   # the source
 licence = "MPL-2.0"
 # firmware.json, for firmware hubs (fm1-base docs/FIRMWARE-JSON.md); a --release needs all four
-description = "Bass Something 2 turns the M-VAVE FM-1 into two instruments. A monosynth inspired by the Novation Bass Station II, with two oscillators, a sub, filters, envelopes, LFOs, an arpeggiator, a 32-step sequencer and Bass Station II patch dumps. And Drum Something, a drum machine inspired by the Sequential Circuits Drumtraks: thirteen synthesized voices, patterns, songs and MIDI out. It is also a companion for Cyma Forma's RND Synth."
+description = "Bass Something 2 turns the M-VAVE FM-1 into two instruments. A monosynth inspired by the Novation Bass Station II, with two oscillators, a sub, filters, envelopes, LFOs, an arpeggiator, a 32-step sequencer and Bass Station II patch dumps. And Drum Something 400, a drum machine inspired by the Sequential Circuits Drumtraks: thirteen synthesized voices, patterns, songs and MIDI out. It is also a companion for Cyma Forma's RND Synth."
 tags = ["synth", "drum-machine", "sequencer", "midi"]
 install = "https://imijes.github.io/bass-something-2/install/"
 screenshot = "docs/img/screen-home.png"
