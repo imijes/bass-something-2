@@ -200,3 +200,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-09 | 526b859+ | Pitch bend (2 semitones) and the mod wheel (LFO 1 vibrato) from MIDI; randomize docs on hold EDIT | 533,580 | +288 | 47,984 | 82,820 | +16 | 15,484 | 254,392 |
 | 2026-11-09 | b424e30+ | AFTERTOUCH and WHEELS pages (FX mods): pressure, bend range, mod wheel destinations as the Bass Station II's | 534,700 | +1,120 | 46,864 | 82,820 | +0 | 15,484 | 254,416 |
 | 2026-11-09 | 45054bb+ | Motion recorder, first step: the bass's filter Frequency, REC + OCT- / OCT+, live loop on the bass's clock | 535,676 | +976 | 45,888 | 82,884 | +64 | 15,420 | 262,608 |
+| 2026-11-09 | ef18d8d+ | Motion recorder: REC's own light, MOTION REC / n/m on the footer, the combo without the octave's hint | 536,316 | +640 | 45,248 | 82,884 | +0 | 15,420 | 262,608 |

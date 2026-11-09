@@ -819,6 +819,7 @@ static struct {
     uint32_t n, len, rec, go, hand_at;       /* moves; the loop's ticks (0: none yet); recording; the first pass begun */
     float org, last;                         /* the loop's top, in mo_pos's ticks; where it was the last step */
     uint8_t val, hand;                       /* the cutoff as last seen; as the hand last set it (SAVE's) */
+    uint8_t bar_shown;                       /* the footer's bar */
 } mo;
 static void mo_clock(uint32_t m)             /* eng_run's: the clock's ticks in m samples */
 {
@@ -4220,6 +4221,7 @@ static void mo_del(uint32_t i)               /* the motion's move i out */
     memmove(&mo_ev[i], &mo_ev[i + 1u], (mo.n - i - 1u) * sizeof mo_ev[0]);
     mo.n--;
 }
+static uint32_t mo_bar(void);
 static void mo_step(void)                    /* each look at the buttons: the motion loop recorded and played */
 {
     const uint32_t now = plat_ms(), touch = now - mo.hand_at < MO_TOUCH_MS;
@@ -4248,6 +4250,10 @@ static void mo_step(void)                    /* each look at the buttons: the mo
         p -= (float)((uint32_t)p / mo.len * mo.len);
     }
     mo.last = pos;
+    if (mo_bar() != mo.bar_shown) {          /* (the footer's bar) */
+        mo.bar_shown = (uint8_t)mo_bar();
+        ui.redraw = 1;
+    }
     if (mo.rec && (hand || touch)) {         /* recording, the hand on it: what it passes over replaced, its move in */
         for (i = mo.n; i-- > 0u;)
             if (mo_ev[i].tgt == MO_CUTOFF && (p >= a ? mo_ev[i].t > a && mo_ev[i].t <= p
@@ -4298,6 +4304,24 @@ static void mo_cmd(int clear)                /* REC + OCT-: recording on or off;
     int_text((int32_t)(mo.len / MO_BAR), t);
     text_cat(t, mo.len == MO_BAR ? " BAR" : " BARS");
     app_say("MOTION", mo.len ? t : "EMPTY");
+}
+/* REC's light for the motion recorder, its own: recording, lit with a dark blink on each beat (waiting for a clock,
+ * a slow blink); a loop playing, a short flash at each bar's top, a double one at the loop's */
+static uint32_t mo_light(void)
+{
+    const uint32_t t = (uint32_t)mo_pos, b = t % 24u;
+    uint32_t p;
+    if (mo.rec)
+        return mo_run ? b >= 4u : plat_ms() / 250u & 1u;
+    if (!mo.len || !mo_run)
+        return 0;
+    p = (uint32_t)(mo_pos - mo.org) % mo.len;
+    return p % MO_BAR < 3u || (p < 9u && p >= 6u);
+}
+static uint32_t mo_bar(void)                 /* the loop's bar playing (or recorded so far), from 1 */
+{
+    const float d = mo_pos - mo.org;
+    return 1u + (mo.len ? (uint32_t)d % mo.len : (uint32_t)(d > 0.0f ? d : 0.0f)) / MO_BAR;
 }
 static void hold_tap(uint32_t k)
 {
@@ -4820,13 +4844,15 @@ static void input(void)
         }
         zoom_close_end();
         zoom.settle = 0;
-        hint_show(k);                        /* (Hints: what it does, from the page it's pressed on) */
-        said = ui.hint;
         if (ui.hold_live && ui.hold_k == B_REC && (k == B_OCTDN || k == B_OCTUP)) {   /* REC + OCT-/+: the motion
-                                              * recorder, REC's own tap and hold let go */
+                                              * recorder, REC's own tap and hold let go (no hint: the motion's said) */
             ui.hold_live = 0;
             mo_cmd(k == B_OCTUP);
-        } else if (ui.drum && k != B_HOME && k != B_REC && k != B_GLO
+            continue;
+        }
+        hint_show(k);                        /* (Hints: what it does, from the page it's pressed on) */
+        said = ui.hint;
+        if (ui.drum && k != B_HOME && k != B_REC && k != B_GLO
             && !(RND_PAGE(ui.page) && (k == B_SEL || k == B_FX || k == B_SAVE)))   /* (the RND pages keep their own) */
             dt_button(k);
         else if (ui.se && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && !RND_PAGE(ui.page)
@@ -4990,6 +5016,7 @@ static void input(void)
         ui.redraw = 1;
     ui.lit = lit;
     plat_glow(1);                            /* the unlit buttons glow, readable in the dark */
+    btn |= mo_light() << B_REC;
     plat_play_red((ui.drum && dq.rec) || (ui.rmi && pq.rec));   /* (PLAY: red while it records) */
     if (ui.rmi && !ui.drum)                  /* (the piano's part: PLAY lit as it plays, REC as it records) */
         plat_leds(btn | (dq.dirty ? 1u << B_SAVE : 0u) | (uint32_t)(dq.run && !pq.mute) << B_PLAY
@@ -8912,7 +8939,19 @@ static void keys_draw(void)                  /* the keys; the octave, the slot, 
         text_cat(t, "/32");
     } else if (patch.arp_on && !seq_playing() && !ui.drum)
         text_cat(t, ARP_NAME[patch.arp_mode]);
-    cv_text(236 - text_w(&FONT_XS, t), 45, &FONT_XS, t, seq_rec || seq_playing() || patch.arp_on ? P_CYAN : P_LABEL);
+    if (mo.rec || mo.len) {                  /* the motion recorder, over it: recording (red) or its loop playing, the bar */
+        t[0] = 0;
+        text_cat(t, mo.rec && !mo_run ? "MOTION WAIT" : mo.rec ? "MOTION REC " : "MOTION ");
+        if (mo_run || !mo.rec) {
+            int_text((int32_t)mo_bar(), t + strlen(t));
+            if (mo.len) {
+                text_cat(t, "/");
+                int_text((int32_t)(mo.len / MO_BAR), t + strlen(t));
+            }
+        }
+        cv_text(236 - text_w(&FONT_XS, t), 45, &FONT_XS, t, mo.rec ? RGB(240, 70, 60) : P_CYAN);
+    } else
+        cv_text(236 - text_w(&FONT_XS, t), 45, &FONT_XS, t, seq_rec || seq_playing() || patch.arp_on ? P_CYAN : P_LABEL);
     cv_blit(0, 180);
 }
 

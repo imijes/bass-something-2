@@ -23,6 +23,7 @@ turn K4 -40
 wait 1000
 turn K4 30
 wait 1000
+shot motion-rec.png
 press REC
 wait 50
 tap OCT-
@@ -35,6 +36,7 @@ expect mo_n >1
 # played back: the turns again, a bar on
 turn K4 20
 wait 4500
+shot motion-play.png
 expect cutoff <100
 press REC
 wait 50

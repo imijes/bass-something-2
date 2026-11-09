@@ -179,6 +179,10 @@ Frequency.
 - Touching the knob while it plays takes it over until you let go.
 - SAVE keeps the knob's own setting, not the loop's sweep. The loop is live only: switching off clears it.
 - The combo leaves REC's own tap and hold, and the octave, alone.
+- REC shows it in its own way: recording, it stays lit with a dark blink on each beat (a slow blink while it waits for
+  a clock); a loop playing, a short flash at each bar and a double one at the loop's top. The bottom right of the
+  screen says MOTION REC and the bar so far in red, MOTION WAIT, or MOTION and the bar playing of the loop's bars
+  (MOTION 3/5) in cyan.
 
 ### AFX mode
 
