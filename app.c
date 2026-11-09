@@ -5668,7 +5668,7 @@ static void rview_draw(void)
 #define RFX(x) (6 + (int32_t)(((x) - 258) * 41 / 100))
 #define RFY(y) (TALL_H - (int32_t)((299 - (y)) * 41 / 100))
 static void seg_display(int32_t x, int32_t y, const char *t, uint32_t n);
-enum { RB_X = 6, RB_Y = 70, RB_W = 228, RB_H = 42 };   /* the bars' place, over the front panel (the voice's line
+enum { RB_X = 6, RB_Y = 76, RB_W = 228, RB_H = 36 };   /* the bars' place, over the front panel (the voice's line
                                                   * above them) */
 static float rb_pk[RMI_NK];                  /* each key's mark: the most its level reached, falling */
 static uint32_t rb_at;                       /* (when the marks last fell) */
@@ -5731,11 +5731,12 @@ static void rhome_draw(void)
                                               * the 368X has none) */
     cv_text(cv_text(10, 30, &FONT_B, "SOMETHING", P_SILK) + 5, 30, &FONT_B, "368X", P_BAR);
     cv_rect(10, 49, 116, 2, P_BAR);
-    x = cv_text(10, 54, &FONT_XS, vc, P_CYAN);
+    cv_text(10, 54, &FONT_XS, vc, P_CYAN);   /* (ORGAN MODE and ACCENTER on the line under: all of it is too wide) */
+    x = 10;
     if (set.rmi_organ)
-        x = cv_text(x + 8, 56, &FONT_T, "ORGAN MODE", P_SILK);
+        x = cv_text(x, 67, &FONT_T, "ORGAN MODE", P_SILK) + 8;
     if (set.rmi_accent)
-        cv_text(x + 8, 56, &FONT_T, "ACCENTER", P_SILK);
+        cv_text(x, 67, &FONT_T, "ACCENTER", P_SILK);
     tag_at(10 + text_w(&FONT_XS, "SEL: PIANO PRESETS") / 2, 58, "SEL: PIANO PRESETS", 1);   /* (the toggles up
                                               * close; PRESET's own tag on the panel) */
     rbar_paint();
