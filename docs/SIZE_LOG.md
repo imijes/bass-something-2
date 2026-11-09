@@ -199,3 +199,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-08 | e8488b3+ | DRUM ROOM: the drums' room's decay, tone, input tone, level (FX) | 533,292 | +1,296 | 48,272 | 82,804 | +0 | 15,500 | 254,392 |
 | 2026-11-09 | 526b859+ | Pitch bend (2 semitones) and the mod wheel (LFO 1 vibrato) from MIDI; randomize docs on hold EDIT | 533,580 | +288 | 47,984 | 82,820 | +16 | 15,484 | 254,392 |
 | 2026-11-09 | b424e30+ | AFTERTOUCH and WHEELS pages (FX mods): pressure, bend range, mod wheel destinations as the Bass Station II's | 534,700 | +1,120 | 46,864 | 82,820 | +0 | 15,484 | 254,416 |
+| 2026-11-09 | 45054bb+ | Motion recorder, first step: the bass's filter Frequency, REC + OCT- / OCT+, live loop on the bass's clock | 535,676 | +976 | 45,888 | 82,884 | +64 | 15,420 | 262,608 |

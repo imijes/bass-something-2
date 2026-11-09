@@ -165,6 +165,21 @@ and stop one by one, and the letters on its label tumble until they spell RANDOM
 left as they were. Hold EDIT again for another, or press SAVE to keep
 it.
 
+### Motion recorder
+
+Records your knob moves as a loop and plays them back, apart from the notes. So far it records the bass's filter
+Frequency.
+
+- **REC + OCT−** (hold REC, tap OCT− within a second): recording on. Turn the knob, then **REC + OCT−** again to stop.
+  The first pass sets the loop's length, rounded up to whole bars (up to 16). Recording again overdubs: what you turn
+  replaces what was there, the rest plays on.
+- **REC + OCT+**: clears the loop and puts the knob back where your hand left it.
+- The loop runs on the clock the bass follows: MIDI clock if it's followed, else the drums while they run, else the
+  arp or the sequencer. With nothing playing, it waits. Each time that clock starts, the loop starts from its top.
+- Touching the knob while it plays takes it over until you let go.
+- SAVE keeps the knob's own setting, not the loop's sweep. The loop is live only: switching off clears it.
+- The combo leaves REC's own tap and hold, and the octave, alone.
+
 ### AFX mode
 
 Hold ARP or SEQ for a second to switch AFX mode on. The screen says AFX ON, and AFX stays lit at the bottom, left of VOL. Each

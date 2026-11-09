@@ -1,0 +1,47 @@
+# The motion recorder (mo_step): REC + OCT- records the filter's frequency's moves over the arp's clock, a loop of
+# whole bars (120 BPM: a bar 2 s; the turns take their time, so 5); the loop plays them back; SAVE keeps the knob's own; REC + OCT+ clears it, the
+# knob back as the hand left it. REC's own tap and the octave untouched by the combo.
+wait 600
+listen
+midi B0 6C 7F
+midi 90 3C 64
+wait 100
+tap FX
+wait 500
+expect octave 0
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+wait 50
+said MOTION RECORDING
+expect octave 0
+expect tempo 120
+wait 500
+turn K4 -40
+wait 1000
+turn K4 30
+wait 1000
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+wait 50
+said MOTION 5 BARS
+expect mo_len 480
+expect mo_n >1
+# played back: the turns again, a bar on
+turn K4 20
+wait 4500
+expect cutoff <100
+press REC
+wait 50
+tap OCT+
+wait 50
+release REC
+wait 50
+said MOTION CLEARED
+expect mo_n 0
+midi 80 3C 00

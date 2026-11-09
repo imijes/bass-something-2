@@ -802,6 +802,34 @@ static void seq_beat(void)                   /* a 16th of the arp's rhythm, the 
         eng_quiet();
     eng.tie = r[(at + 1u) % RHY_STEPS] == '-' || eng.leg;
 }
+/* the motion recorder (REC + OCT-: recording on or off; REC + OCT+: cleared; mo_step): the knobs' moves, a loop of
+ * whole bars on the clock the bass follows (MIDI's, else the drums' while they run, else its arp's or sequencer's),
+ * from its top each time that starts; nothing playing, it waits. Live only (a reboot clears it). The filter's
+ * frequency, so far */
+#define MO_N 2048u                           /* its moves */
+#define MO_BAR 96u                           /* a bar's ticks (24 a quarter note) */
+#define MO_MAXBARS 16u
+#define MO_TOUCH_MS 300u                     /* a hand on it holds the loop's moves off so long after its last */
+enum { MO_CUTOFF };
+typedef struct { uint16_t t; uint8_t tgt, v; } mo_ev_t;
+static mo_ev_t mo_ev[MO_N] PLAT_POOL;
+static volatile float mo_pos;                /* ticks since the clock started (the audio's, mo_clock) */
+static volatile uint8_t mo_run;              /* the clock running */
+static struct {
+    uint32_t n, len, rec, go, hand_at;       /* moves; the loop's ticks (0: none yet); recording; the first pass begun */
+    float org, last;                         /* the loop's top, in mo_pos's ticks; where it was the last step */
+    uint8_t val, hand;                       /* the cutoff as last seen; as the hand last set it (SAVE's) */
+} mo;
+static void mo_clock(uint32_t m)             /* eng_run's: the clock's ticks in m samples */
+{
+    const int x = ext_clock();
+    const uint32_t run = x ? eng.ext_age < EXT_HOLD : dt_running || eng.src != SRC_NONE;
+    if (run && !mo_run)
+        mo_pos = 0.0f;
+    mo_run = (uint8_t)run;
+    if (run)
+        mo_pos += x ? (float)eng.ext_ticks : clock_bpm() * (24.0f / 60.0f / BS2_RATE) * (float)m;
+}
 static void eng_run(uint32_t m)              /* each modulation step, m samples */
 {
     uint32_t i, src = !arp_takes() ? SRC_NONE
@@ -812,6 +840,7 @@ static void eng_run(uint32_t m)              /* each modulation step, m samples 
     const float lock = dt_lock_h;
     if (lock > 0.0f)                         /* (Swing Lock: the 16ths where the drums' swung 8ths put them) */
         len = (eng.rpos & 2u ? 24.0f - lock : lock) * 0.5f;
+    mo_clock(m);
     if (!patch.latch)                        /* (latch turned off: the notes no longer down go) */
         for (i = eng.nheld; i-- > 0u;)
             if (!(eng.down[eng.held[i] >> 5] >> (eng.held[i] & 31u) & 1u))
@@ -3380,6 +3409,7 @@ static void save(void)                       /* the settings, and the sound into
 {
     uint32_t i;
     BANK_P(set.slot) = patch;
+    BANK_P(set.slot).cutoff = mo.hand;       /* (the knob's own, under the motion loop's sweep) */
     for (i = PNAME_N; i && cur_name[i - 1u] <= ' '; i--)   /* (its spaces at the end left off) */
         cur_name[i - 1u] = 0;
     if (memcmp(names.n[set.slot], cur_name, PNAME_N)) {
@@ -4185,6 +4215,90 @@ static void pq_play_tap(void)
     pq_cmd(PQC_MUTE, !pq.mute);
     app_say("PIANO PART", pq.mute ? "ON" : "OFF");
 }
+static void mo_del(uint32_t i)               /* the motion's move i out */
+{
+    memmove(&mo_ev[i], &mo_ev[i + 1u], (mo.n - i - 1u) * sizeof mo_ev[0]);
+    mo.n--;
+}
+static void mo_step(void)                    /* each look at the buttons: the motion loop recorded and played */
+{
+    const uint32_t now = plat_ms(), touch = now - mo.hand_at < MO_TOUCH_MS;
+    const float pos = mo_pos;
+    uint32_t i, hand = patch.cutoff != mo.val;
+    float p, a;
+    if (hand) {                              /* a hand on it (a knob, a CC, a patch): recorded, if on; kept for SAVE */
+        mo.val = mo.hand = patch.cutoff;
+        mo.hand_at = now;
+    }
+    if (!mo.n && !mo.rec)
+        mo.hand = patch.cutoff;
+    if (!mo_run || (!mo.len && !mo.rec))
+        return;
+    if (pos < mo.last)                       /* (the clock started again: the loop from its top) */
+        mo.org = 0.0f, mo.last = 0.0f;
+    if (mo.rec && !mo.len && !mo.go) {       /* the first pass: from this bar's top */
+        mo.go = 1;
+        mo.org = (float)((uint32_t)pos / MO_BAR * MO_BAR);
+    }
+    if (!mo.len && pos - mo.org >= (float)(MO_MAXBARS * MO_BAR))   /* (the longest: closed) */
+        mo.len = MO_MAXBARS * MO_BAR;
+    a = mo.last - mo.org, p = pos - mo.org;
+    if (mo.len) {
+        a -= (float)((uint32_t)a / mo.len * mo.len);
+        p -= (float)((uint32_t)p / mo.len * mo.len);
+    }
+    mo.last = pos;
+    if (mo.rec && (hand || touch)) {         /* recording, the hand on it: what it passes over replaced, its move in */
+        for (i = mo.n; i-- > 0u;)
+            if (mo_ev[i].tgt == MO_CUTOFF && (p >= a ? mo_ev[i].t > a && mo_ev[i].t <= p
+                                                     : mo_ev[i].t > a || mo_ev[i].t <= p))
+                mo_del(i);
+        if (hand && mo.n < MO_N) {           /* (a move: the value changed) */
+            for (i = mo.n; i > 0u && mo_ev[i - 1u].t > (uint16_t)p; i--)
+                mo_ev[i] = mo_ev[i - 1u];
+            mo_ev[i].t = (uint16_t)p, mo_ev[i].tgt = MO_CUTOFF, mo_ev[i].v = patch.cutoff;
+            mo.n++;
+        }
+    } else if (mo.len && !touch)             /* playing: the last move it passed */
+        for (i = 0; i < mo.n; i++)
+            if (p >= a ? mo_ev[i].t > a && mo_ev[i].t <= p : mo_ev[i].t > a || mo_ev[i].t <= p) {
+                patch.cutoff = mo.val = mo_ev[i].v;
+                ui.redraw = 1;
+            }
+}
+static void mo_cmd(int clear)                /* REC + OCT-: recording on or off; REC + OCT+: the loop cleared */
+{
+    char t[12];
+    if (clear || ui.drum || ui.rmi) {
+        if (ui.drum || ui.rmi) {             /* (the bass's alone, so far) */
+            app_say("MOTION", "BASS ONLY");
+            return;
+        }
+        if (mo.n)
+            patch.cutoff = mo.val = mo.hand; /* (the knob as the hand left it) */
+        mo.n = mo.len = mo.rec = mo.go = 0;
+        app_say("MOTION", "CLEARED");
+        return;
+    }
+    if (!mo.rec) {
+        mo.rec = 1;
+        mo.go = 0;
+        app_say("MOTION", mo_run ? "RECORDING" : "WAITING");
+        return;
+    }
+    mo.rec = 0;
+    if (!mo.len && mo.go) {                  /* the first pass's end: its bars, rounded up */
+        float d = mo.last - mo.org;
+        mo.len = ((uint32_t)d + MO_BAR - 1u) / MO_BAR * MO_BAR;
+        mo.len = mo.len < MO_BAR ? MO_BAR : mo.len;
+    }
+    if (!mo.n)
+        mo.len = 0;
+    t[0] = 0;
+    int_text((int32_t)(mo.len / MO_BAR), t);
+    text_cat(t, mo.len == MO_BAR ? " BAR" : " BARS");
+    app_say("MOTION", mo.len ? t : "EMPTY");
+}
 static void hold_tap(uint32_t k)
 {
     const char *const said = ui.hint;        /* (what the tap refuses, said over this) */
@@ -4708,7 +4822,11 @@ static void input(void)
         zoom.settle = 0;
         hint_show(k);                        /* (Hints: what it does, from the page it's pressed on) */
         said = ui.hint;
-        if (ui.drum && k != B_HOME && k != B_REC && k != B_GLO
+        if (ui.hold_live && ui.hold_k == B_REC && (k == B_OCTDN || k == B_OCTUP)) {   /* REC + OCT-/+: the motion
+                                              * recorder, REC's own tap and hold let go */
+            ui.hold_live = 0;
+            mo_cmd(k == B_OCTUP);
+        } else if (ui.drum && k != B_HOME && k != B_REC && k != B_GLO
             && !(RND_PAGE(ui.page) && (k == B_SEL || k == B_FX || k == B_SAVE)))   /* (the RND pages keep their own) */
             dt_button(k);
         else if (ui.se && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && !RND_PAGE(ui.page)
@@ -4776,6 +4894,7 @@ static void input(void)
                                                   * refused stays) */
             hint_show(k);
     }
+    mo_step();
     hold_step(btn);
     if (ui.dt_was && !dq.run) {              /* stopped (STOP, or an empty cue): out of RECORD MODE, the number */
         dq.rec = DQR_OFF;
@@ -9530,6 +9649,12 @@ int app_expect(const char *what, int *got)
         *got = sag_now;
     else if (!strcmp(what, "dc_now"))
         *got = dc_now;
+    else if (!strcmp(what, "mo_n"))          /* the motion recorder's moves, its loop's ticks */
+        *got = (int32_t)mo.n;
+    else if (!strcmp(what, "mo_len"))
+        *got = (int32_t)mo.len;
+    else if (!strcmp(what, "mo_pos"))
+        *got = (int32_t)mo_pos;
     else if (!strcmp(what, "cut_now"))
         *got = cut_now;
     else if (!strcmp(what, "ofm"))
