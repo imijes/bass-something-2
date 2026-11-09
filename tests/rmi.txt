@@ -65,4 +65,7 @@ wait 600
 expect page 40
 tap HOME
 wait 600
+expect page 42
+tap HOME
+wait 600
 expect page 16

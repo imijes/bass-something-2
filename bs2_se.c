@@ -71,9 +71,14 @@ static struct {
     uint32_t w, step, rng;                   /* the record head; samples to the next step; the noise */
     uint32_t quiet;                          /* samples since the tape last took anything (asleep after a whole loop) */
     uint16_t peak;                           /* the PEAK lamp's hold, samples (lit while nonzero) */
+    float ig, vu, sync_ms;                   /* INPUT's gain; the VU meter's level (its input, about 0.3 s); TEMPO
+                                              * SYNC's head 1, ms (0: REPEAT RATE's own) */
 } se PLAT_POOL;
 
-static inline float se_target(void) { return (SE_SLOW_MS + (SE_FAST_MS - SE_SLOW_MS) * se.rate) * (BS2_RATE / 1000.0f); }
+static inline float se_target(void)
+{
+    return (se.sync_ms > 0.0f ? se.sync_ms : SE_SLOW_MS + (SE_FAST_MS - SE_SLOW_MS) * se.rate) * (BS2_RATE / 1000.0f);
+}
 
 static inline float se_bq(se_bq_t *q, float x)
 {
@@ -149,6 +154,7 @@ static void se_init(void)
     se_bq_set(&se.nf2, 0, 14.0f, 0.7f, 0.0f, BS2_RATE / (float)SE_STEP);
     se.w = 0, se.step = 0, se.rng = 22222u;
     se.quiet = 0xFFFFFFFFu, se.peak = 0;
+    se.ig = 1.0f, se.vu = se.sync_ms = 0.0f;
 }
 
 /* a playback head d samples behind the record head: a 4-point Hermite between the tape's samples */
@@ -280,10 +286,6 @@ static inline float se_tape_next(float x, uint32_t heads)
     se.h2 = a * (se.h2 + se.h1 - se.hx2), se.hx2 = se.h1;
     sum = se_bq(&se.lp, se.h2);                              /* and its high cut */
     x += SE_ASYM * fm_fabsf(x);
-    if (fm_fabsf(x) > SE_PEAK)
-        se.peak = (uint16_t)(0.15f * BS2_RATE);
-    else if (se.peak)
-        se.peak--;
     rec = SE_SAT * fm_tanhf((x + sum * SE_FB * se.intensity) * (1.0f / SE_SAT));
     se.quiet = fm_fabsf(rec) < 0.5f ? se.quiet + 1u : 0u;
     se_tape[se.w] = (int16_t)(rec + (rec < 0.0f ? -0.5f : 0.5f));
@@ -299,12 +301,16 @@ static inline float se_next(float x)
     const uint32_t heads = SE_HEADS[se.mode];
     const int on = fm_fabsf(x) >= 0.5f;
     float out = 0.0f;
-    if (on || se.quiet < SE_LEN || se_sp.idle < SE_SP_IDLE)
-        x *= fm_exp2f(4.0f * se.input - 2.0f);               /* INPUT: -12..+12 dB */
+    x *= se.ig;                              /* INPUT: -12..+12 dB (se.ig); the VU meter and PEAK lamp on it */
+    se.vu += (fm_fabsf(x) - se.vu) * (1.0f / (0.3f * BS2_RATE));
+    if (fm_fabsf(x) > SE_PEAK)
+        se.peak = (uint16_t)(0.15f * BS2_RATE);
+    else if (se.peak)
+        se.peak--;
     if (heads && (on || se.quiet < SE_LEN))
         out = se_tape_next(x, heads);
     else
-        se.m = se.d = se_target(), se.dv = 0.0f, se.peak = 0;   /* the tape asleep (or stopped): the motor where it's set */
+        se.m = se.d = se_target(), se.dv = 0.0f;   /* the tape asleep (or stopped): the motor where it's set */
     if (se.mode >= 4u) {
         se_sp.idle = on ? 0u : se_sp.idle + (se_sp.idle < SE_SP_IDLE);
         if (se_sp.idle < SE_SP_IDLE)

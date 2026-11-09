@@ -115,6 +115,10 @@ expect mpan 1
 wait 600
 expect mpan 0
 tap HOME
+wait 600
+expect page 42
+wait 1500
+tap HOME
 wait 100
 expect page 16
 expect mpan 1
@@ -132,6 +136,11 @@ tap HOME
 wait 600
 expect drum 0
 expect page 40
+press HOME
+wait 1100
+expect page 42
+release HOME
+wait 600
 press HOME
 wait 1100
 expect page 16
@@ -171,9 +180,15 @@ wait 30
 expect page 41
 press HOME
 wait 1100
-expect page 16
-expect mpan 0
+expect page 42
 release HOME
+wait 600
+press HOME
+wait 1100
+expect page 16
+expect mpan 1
+release HOME
+wait 600
 wait 30
 tap EDIT
 wait 30
@@ -207,7 +222,11 @@ wait 30
 expect dt_hits 6
 key w15 up
 key b10 up
-# HOME held again, twice: the RMI's mode, then the synth's, its HOME
+# HOME held again, three times: the RMI's mode, the Space Echo's, then the synth's, its HOME
+press HOME
+wait 1100
+release HOME
+wait 600
 press HOME
 wait 1100
 release HOME

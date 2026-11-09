@@ -1,0 +1,28 @@
+# ECHO HOME's knobs: each dives to its close-up as the other HOMEs' do (K1-K4 to ECHO PANEL, PRESET to ECHO INPUT's
+# MODE SELECTOR), turned there, back out to HOME. tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/sedive.txt bs2/build/host
+wait 600
+press HOME
+wait 1100
+release HOME
+wait 600
+press HOME
+wait 1100
+release HOME
+wait 600
+press HOME
+wait 1100
+release HOME
+wait 2500
+expect page 42
+turn K1 3
+wait 250
+wait 400
+expect page 44
+wait 3000
+expect page 42
+turn PRESET 1
+wait 700
+expect page 43
+wait 3000
+expect page 42

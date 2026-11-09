@@ -51,11 +51,19 @@ typedef struct {
     uint8_t rmi_organ, rmi_accent;       /* its ORGAN MODE and ACCENTER tablets: 0 up, 1 down */
     uint8_t rmi_bass;                    /* its BASS slider: the bass boost, 0..127 (64, the middle: none) */
     uint8_t spare5[8];                   /* (the first: once the RMI's own velocity; its touch is GLO CONTROLS' now) */
+    uint8_t se_mode;                     /* the Space Echo (its HOME mode's pages): MODE SELECTOR, 0..11 (modes 1..12) */
+    uint8_t se_rate, se_int, se_echo, se_rev;   /* REPEAT RATE, INTENSITY, ECHO VOLUME, REVERB VOLUME, 0..127 */
+    uint8_t se_bass, se_treb, se_input;  /* BASS, TREBLE, INSTRUMENT VOLUME (its input's drive), 0..127 */
+    uint8_t se_wow, se_sync;             /* its mods: WOW 0..127; TEMPO SYNC, 0 off, 1 on */
+    uint8_t se_send[3];                  /* the sends into it: the bass's, the drums', the RMI's, 0..127 */
+    uint8_t spare6[3];
 } settings_t;
 /* the RMI's tone tablets, as its panel's (any of them down at once: their stops layered, as the 368X's) */
 enum { RT_PIANO, RT_PIANO_PP, RT_HARPSI, RT_HARPSI_PP, RT_LUTE, NRT };
 static const char *const RT_NAME[NRT] = {"PIANO", "PIANO PP", "HARPSI", "HARPSI PP", "LUTE"};
 static const char *const RT_ABBR[NRT] = {"PNO", "PNO PP", "HRP", "HRP PP", "LUTE"};
+/* the Space Echo's MODE SELECTOR, as its panel prints it: 1..4 REPEAT, 5..11 REVERB ECHO, REVERB ONLY */
+static const char *const SE_MODE_NAME[12] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "REVERB ONLY"};
 /* the roll's rates, as other machines' note repeat: ticks (96 a bar), the fraction, a triplet's */
 enum { DQ_NROLL = 9, DQ_ROLL_DEF = 5 };   /* (1/16) */
 static const uint8_t DQ_ROLL[DQ_NROLL] = {48, 24, 16, 12, 8, 6, 4, 3, 2}, DQ_ROLL_N[DQ_NROLL] = {2, 4, 4, 8, 8, 16, 16, 32, 32},
@@ -67,6 +75,7 @@ static uint32_t ms_stamp(void) { return (plat_ms() - 1u) | 1u; }
 #define SET_V3_SIZE offsetof(settings_t, knobs)  /* the record before the knobs' response */
 #define SET_V4_SIZE offsetof(settings_t, dchan)  /* the record before the drums' MIDI */
 #define SET_V5_SIZE offsetof(settings_t, rmi_tabs)   /* the record before the RMI's panel */
+#define SET_V6_SIZE offsetof(settings_t, se_mode)    /* the record before the Space Echo */
 enum { CH_OFF = 0, CH_ALL = 17 };
 enum { CLK_AUTO, CLK_INT, CLK_EXT, NCLK };   /* MIDI clock followed when it comes; never; always (none: stopped) */
 enum { VC_SOFT, VC_NORMAL, VC_HARD, NVC };
@@ -1046,8 +1055,38 @@ static inline float out_soft(float s)
     }
 }
 static uint32_t cpu2_q12;                    /* the second core's load, in 1/4096 of a block (cpu_meter) */
+static float mix_se[APP_BLOCK] PLAT_POOL;   /* a block's sends into the Space Echo (the bass's, the drums') till the RMI's */
 static float mix_pre[APP_BLOCK] PLAT_POOL, mix_send[APP_BLOCK] PLAT_POOL;   /* a block's samples and room sends before
                                               * the RMI's */
+/* the Space Echo's knobs (the settings' bytes) onto it, a block at a time, and its sends' gains (each squared, as a
+ * fader's); TEMPO SYNC: REPEAT RATE picks a note, an 8th to a 32nd (slow to fast), head 1 its time at the tempo,
+ * halved or doubled into the RE-201's 60..175 ms */
+static float se_send_g[3];
+static void se_apply(void)
+{
+    static const float BEATS[5] = {0.5f, 1.0f / 3.0f, 0.25f, 1.0f / 6.0f, 0.125f};
+    uint32_t i;
+    se.mode = set.se_mode < 12u ? set.se_mode : 0u;
+    se.rate = (float)set.se_rate * (1.0f / 127.0f), se.intensity = (float)set.se_int * (1.0f / 127.0f);
+    se.echo = (float)set.se_echo * (1.0f / 127.0f), se.reverb = (float)set.se_rev * (1.0f / 127.0f);
+    se.bass = (float)set.se_bass * (1.0f / 127.0f), se.treble = (float)set.se_treb * (1.0f / 127.0f);
+    se.input = (float)set.se_input * (1.0f / 127.0f), se.wow = (float)set.se_wow * (1.0f / 127.0f);
+    se.ig = fm_exp2f(4.0f * se.input - 2.0f);
+    for (i = 0; i < 3u; i++) {
+        const float v = (float)set.se_send[i] * (1.0f / 127.0f);
+        se_send_g[i] = v * v;
+    }
+    se.sync_ms = 0.0f;
+    if (set.se_sync) {
+        const float bpm = ext_clock() && eng.ext_bpm > 0.0f ? eng.ext_bpm : clock_bpm();
+        float ms = 60000.0f / fm_maxf(bpm, 20.0f) * BEATS[set.se_rate * 5u / 128u];
+        while (ms > SE_SLOW_MS)
+            ms *= 0.5f;
+        while (ms < SE_FAST_MS)
+            ms *= 2.0f;
+        se.sync_ms = ms;
+    }
+}
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
     int c2 = 1;                              /* the RMI's block on the second core */
@@ -1078,6 +1117,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     float dsum = 0.0f, dabs = 0.0f;
 #endif
     plat_usb_audio_route(patch.lvl_ext != 0u);   /* (from the next render) */
+    se_apply();                              /* (the Space Echo's knobs, this block's) */
     if (n > APP_BLOCK) {                     /* (rmi_buf's block at most: the rest as another) */
         app_render(lr, APP_BLOCK, master_q12);
         app_render(lr + 2u * APP_BLOCK, n - APP_BLOCK, master_q12);
@@ -1238,9 +1278,11 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 #endif
             dq_sample();
             {
-                float g = DT_MIX * 0.3f * gain_now * ((float)dt.master / 127.0f);   /* the drums: after the bass's chain, over
-                                                  * its level (hits, it sustains), under their own MASTER VOLUME (K2) */
+                const float g = DT_MIX * 0.3f * gain_now * ((float)dt.master / 127.0f), b = s;   /* the drums: after the
+                                                  * bass's chain, over its level (hits, it sustains), under their own
+                                                  * MASTER VOLUME (K2) */
                 s += dt_next(g) + dq_click_next() * g;
+                mix_se[i + j] = b * se_send_g[0] + (s - b) * se_send_g[1];   /* (the Space Echo's sends, after their levels) */
             }
             mix_pre[i + j] = s;              /* (the RMI's yet to come: the sample and its room sends kept till then) */
             mix_send[i + j] = fx.room;
@@ -1262,6 +1304,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             if (woke)
                 fx_wake();
             fx_room_send(mix_send[i] + r * RMI_SEND);
+            fx_se_send(mix_se[i] + r * se_send_g[2]);
             s = out_soft(mix_pre[i] + r + fx_next());
             lr[2u * i] = lr[2u * i + 1u] = (int32_t)s;
         }
@@ -1368,6 +1411,9 @@ static void settings_defaults(settings_t *s)
     s->droll = DQ_ROLL_DEF;
     s->rmi_tabs = 1u << RT_PIANO;            /* (the RMI: PIANO down, its BASS in the middle) */
     s->rmi_bass = 64;
+    s->se_rate = s->se_int = s->se_echo = s->se_rev = s->se_bass = s->se_treb = s->se_input = 64;   /* (the Space
+                                              * Echo: mode 1, every knob at 5, as its manual's standard settings) */
+    s->se_wow = 13;                          /* (WOW: Outer Space 2's own default, a tenth) */
     {
         static const seqmem_t E = {.len = 0, .step = {SEQ_REST}};
         uint32_t i, j;
@@ -1434,8 +1480,8 @@ _Static_assert(offsetof(patch_t, env_trig) == BANK_V10_PSIZE, "version 10's: 11'
 _Static_assert(offsetof(patch_t, lfo_delay) == BANK_V11_PSIZE, "version 11's: 12's without the LFOs' delay on");
 _Static_assert(offsetof(patch_t, ofm) == BANK_V12_PSIZE, "version 12's: 13's without Osc Filter Mod on");
 _Static_assert(sizeof(settings_t) <= PLAT_STORE_MAX, "the settings fit a store object");
-_Static_assert(sizeof(settings_t) == SET_V5_SIZE + 12u, "the settings end with no padding");
-_Static_assert(offsetof(settings_t, spare5) < 256u, "every setting a param_t's offset (a byte) reaches");
+_Static_assert(sizeof(settings_t) == SET_V6_SIZE + 16u, "the settings end with no padding");
+_Static_assert(offsetof(settings_t, se_send) + 2u < 256u, "every setting a param_t's offset (a byte) reaches");
 static bank_t bank[NBANKP] PLAT_POOL;
 #define BANK_P(s) (bank[(s) / NPSLOT].p[(s) % NPSLOT])   /* slot s's patch */
 static uint32_t bank_obj(uint32_t pg) { return pg ? OBJ_PATCHES1 + pg - 1u : OBJ_PATCHES; }   /* page pg's object */
@@ -1705,6 +1751,8 @@ static struct {
     uint32_t lit;                        /* the keys whose notes are held (notes_lit): lit, on the keys and on screen */
     uint8_t drum;                        /* Drum Something's mode (HOME held): the keys its instruments, HOME its page */
     uint8_t rmi;                         /* the RMI's mode (HOME on the drums' HOME): the keys its, HOME its page */
+    uint8_t se;                          /* the Space Echo's (HOME on the RMI's): HOME its page, the keys the RMI's still
+                                          * (rmi stays set: an effect has no keys of its own) */
     uint32_t rkeys;                      /* the keys sounding the RMI (their release its too) */
     uint8_t rmi_cur;                     /* ELECTRA PANEL's cursor: the tone tablet PRESET switches, RT_* (SEL moves it) */
     uint32_t dt_at[NDT];                 /* when each drum was last hit (dt_flash_take): its key lit a moment */
@@ -1900,18 +1948,21 @@ static void ble_device_button(void)
 enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_AENV, PG_FX, PG_TUNE, PG_FMOD, PG_EMOD, PG_EFX, PG_XMOD, PG_AMOD, PG_HOME, PG_GMIDI, PG_GCLK, PG_GDISP, PG_GDUMP,
        PG_GRND, PG_RPAT, PG_RTRK, PG_GDRUM, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
        PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, PG_GAUD, PG_GCTL, PG_NAME, PG_RHOME, PG_RSEL,
+       PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD,
        NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI", "GLOBAL CLOCK",
                                               "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
                                               "GLOBAL DRUMS", "DRUM HOME", "CHANNEL 1", "CHANNEL 2", "CHANNEL 3",
                                               "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL CONTROLS",
-                                              "PATCH NAME", "ELECTRA HOME", "ELECTRA PANEL"};
+                                              "PATCH NAME", "ELECTRA HOME", "ELECTRA PANEL",
+                                              "ECHO HOME", "ECHO INPUT", "ECHO PANEL", "ECHO MODS"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME && (g) < PG_GAUD)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
 #define DCH_PAGE(g) ((g) >= PG_DCH1 && (g) <= PG_DCH6)   /* its Channel pages */
 #define RMI_PAGE(g) ((g) >= PG_RHOME && (g) <= PG_RSEL)   /* the RMI's pages (HOME on the drums' HOME: its mode, ui.rmi) */
+#define SE_PAGE(g) ((g) >= PG_SHOME && (g) <= PG_SMOD)    /* the Space Echo's (HOME on the RMI's HOME: its mode, ui.se) */
 static uint32_t mode_home(void);             /* the mode's HOME */
 static void zoom_rmi(uint32_t k);            /* RMI HOME's knob: in on RMI PANEL's */
 /* the 400's two LED lists, one number each: PATTERN's, then SONG's, BUILD MODE's own under it */
@@ -2033,6 +2084,19 @@ static const param_t PARAMS[NPAGES][NE] = {
                  [EN_K4] = {"VOL", SF(rvol_off), 0, 127, 0}},   /* (VOL: rvol_off turned and shown upside down, knob_turn) */
     [PG_GDISP] = {[EN_PRESET] = {"KNOB ZOOM", SF(zoom_off), 0, 1, AUTO_OFF},
                   [EN_K1] = {"HINTS", SF(hints), 0, 1, OFF_ON}, [EN_K2] = {"POP-UPS", SF(pop), 0, NPOP - 1, 0}},
+    /* the Space Echo: its HOME the knobs most played, each the same encoder on its close-up (HOME's dive: PRESET to
+     * INPUT's MODE, K1-K4 to PANEL's); INPUT the left of its panel (INSTRUMENT VOLUME, MODE SELECTOR); PANEL the right
+     * (the tone on PRESET and ALGO, the rest as HOME's); MODS what the RE-201 hasn't */
+    [PG_SHOME] = {[EN_PRESET] = {"MODE", SF(se_mode), 0, 11, SE_MODE_NAME}, [EN_K1] = {"REPEAT RATE", SF(se_rate), 0, 127, 0},
+                  [EN_K2] = {"INTENSITY", SF(se_int), 0, 127, 0}, [EN_K3] = {"ECHO VOLUME", SF(se_echo), 0, 127, 0},
+                  [EN_K4] = {"REVERB VOLUME", SF(se_rev), 0, 127, 0}},
+    [PG_SIN] = {[EN_PRESET] = {"MODE", SF(se_mode), 0, 11, SE_MODE_NAME}, [EN_K1] = {"INPUT", SF(se_input), 0, 127, 0}},
+    [PG_SECHO] = {[EN_PRESET] = {"BASS", SF(se_bass), 0, 127, 0}, [EN_ALGO] = {"TREBLE", SF(se_treb), 0, 127, 0},
+                  [EN_K1] = {"REPEAT RATE", SF(se_rate), 0, 127, 0}, [EN_K2] = {"INTENSITY", SF(se_int), 0, 127, 0},
+                  [EN_K3] = {"ECHO VOLUME", SF(se_echo), 0, 127, 0}, [EN_K4] = {"REVERB VOLUME", SF(se_rev), 0, 127, 0}},
+    [PG_SMOD] = {[EN_PRESET] = {"TEMPO SYNC", SF(se_sync), 0, 1, OFF_ON}, [EN_K1] = {"BASS SEND", SF(se_send[0]), 0, 127, 0},
+                 [EN_K2] = {"DRUM SEND", SF(se_send[1]), 0, 127, 0}, [EN_K3] = {"RMI SEND", SF(se_send[2]), 0, 127, 0},
+                 [EN_K4] = {"WOW", SF(se_wow), 0, 127, 0}},
 };
 /* SUB OSC + MIXER's switch, as the Bass Station II's: what its K4 sets, from the switch's bottom (NOISE, the start) up; EXT, the
  * external input's level: the computer's USB audio (plat_usb_audio_route) */
@@ -2427,6 +2491,7 @@ static const uint8_t ENC_MAP[NPAGES] = {
     [PG_SEQ] = EMAP(EP_ROW, 0),                                /* SEQ, LENGTH, STEP */
     [PG_FMOD] = EMAP(EP_SAME, 3), [PG_EFX] = EMAP(EP_SAME, 2), [PG_XMOD] = EMAP(EP_SAME, 2),
     [PG_AMOD] = EMAP(EP_SAME, 2), [PG_GDISP] = EMAP(EP_SAME, 2), [PG_RPAT] = EMAP(EP_SAME, 1),
+    [PG_SIN] = EMAP(EP_SAME, 3),                               /* MODE on PRESET, INPUT on K4 */
 };
 static uint32_t enc_logical(uint32_t p)       /* physical encoder p: what it is on this page (NE: nothing) */
 {
@@ -3468,8 +3533,13 @@ static uint32_t notes_lit(uint32_t *below, uint32_t *above)
  * drums' HOME: K3 and K4, the selected drum's Volume and Tuning, the dive to its Channel page (zoom_dt_cc); no zoom: as
  * on their other pages */
 #define HOME_KNOB_PAGE(p) ((p) == EN_K1 ? PG_PATCH : (p) == EN_K2 ? PG_ARP : PG_TUNE)
+#define SE_DIVE_PG(p) ((p) == EN_PRESET ? PG_SIN : PG_SECHO)   /* ECHO HOME's knob p: the close-up it's on */
+static void zoom_se(uint32_t p);             /* ECHO HOME's knob: in on its close-up */
 static int home_knob(uint32_t p)
 {
+    if (ui.se)                               /* ECHO HOME: PRESET INPUT's MODE, K1-K4 PANEL's (the same encoders there) */
+        return (p >= EN_K1 || p == EN_PRESET)
+               && (ui.page == PG_SHOME || (zoom.home && zoom.hp == PG_SHOME && zoom.g == SE_DIVE_PG(p) && zoom.ke == p));
     if (ui.rmi)                              /* RMI HOME: PRESET and K1-K4 RMI PANEL's (the voice, BASS, ORGAN MODE,
                                               * ACCENTER, VOL) */
         return (p >= EN_K1 || p == EN_PRESET) && (ui.page == PG_RHOME || (zoom.home && zoom.hp == PG_RHOME && zoom.g == PG_RSEL && zoom.ke == p));
@@ -3484,6 +3554,18 @@ static void home_knob_turn(uint32_t p, int32_t e)
 {
     const uint8_t pg = ui.page;
     char t[12];
+    if (ui.se) {                             /* (its close-up's, in on it) */
+        ui.page = (uint8_t)SE_DIVE_PG(p);
+        if (knob_turn(p, e)) {
+            knob_text(p, t);
+            app_say(knob_title(p), t);
+        }
+        ui.page = pg;
+        if (!set.zoom_off)
+            zoom_se(p);
+        ui.redraw = 1;
+        return;
+    }
     if (ui.rmi) {                            /* (RMI PANEL's, in on it) */
         ui.page = PG_RSEL;
         if (knob_turn(p, e)) {
@@ -3662,7 +3744,10 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [DTF_BINS] = "Insert a step", [DTF_BDEL] = "Delete the step"};
     const int rec = seq_rec && ui.page == PG_SEQ;
     if (k == B_HOME && ui.page == mode_home())   /* (on it: the next mode, mode_switch) */
-        return ui.drum ? "HOME tap: Electra-Something 368X" : ui.rmi ? "HOME tap: Bass Something 2" : "HOME tap: Drum Something";
+        return ui.se ? "HOME tap: Bass Something 2" : ui.drum ? "HOME tap: Electra-Something 368X"
+               : ui.rmi ? "HOME tap: Space-Something RE-201" : "HOME tap: Drum Something";
+    if (ui.se && (SE_PAGE(ui.page) || ui.page < PG_HOME))   /* (the Space Echo's: its panels, se_button) */
+        return k == B_SEL ? "Next panel" : k == B_HOME ? "Echo Home" : 0;
     if (ui.rmi && (RMI_PAGE(ui.page) || ui.page < PG_HOME))   /* (the RMI's: its panel and mods, rmi_button) */
         return k == B_SEL ? (ui.page == PG_RSEL ? "Next tablet" : "Electra Panel") : k == B_HOME ? "Electra Home" : 0;
     if (ui.drum && !RND_PAGE(ui.page)) {     /* (every button the drums', as dt_button: the bass's form) */
@@ -3785,7 +3870,8 @@ static void dt_bass_transport(int run)
 }
 static void mode_switch(void);
 static void sect_open(uint32_t g, uint32_t k);
-static uint32_t mode_home(void) { return ui.drum ? PG_DHOME : ui.rmi ? PG_RHOME : PG_HOME; }   /* the mode's HOME */
+static uint32_t mode_home(void) { return ui.se ? PG_SHOME : ui.drum ? PG_DHOME : ui.rmi ? PG_RHOME : PG_HOME; }   /* the
+                                              * mode's HOME */
 /* the RMI's buttons (its mode, but HOME, REC, GLO and the octaves): SEL its panel, there the next tone tablet; SAVE:
  * nothing to (its panel keeps itself, with the GLO settings); the rest the bass's, not its */
 static void rmi_button(uint32_t k)
@@ -3801,6 +3887,17 @@ static void rmi_button(uint32_t k)
         app_say("ELECTRA", "KEEPS ITSELF");
     else
         app_say("ELECTRA", "SEL: ITS PANEL");
+}
+/* the Space Echo's buttons (its mode, but HOME, REC, GLO and the octaves): SEL its panels in turn, INPUT, PANEL, MODS;
+ * the rest nothing (an effect: what plays is the RMI's, its keys) */
+static void se_button(uint32_t k)
+{
+    if (k == B_SEL)
+        sect_open(ui.page == PG_SIN ? PG_SECHO : ui.page == PG_SECHO ? PG_SMOD : PG_SIN, k);
+    else if (k == B_SAVE)
+        app_say("SPACE ECHO", "KEEPS ITSELF");
+    else
+        app_say("SPACE ECHO", "SEL: ITS PANELS");
 }
 static void hold_tap(uint32_t k)
 {
@@ -3827,17 +3924,19 @@ static void hold_tap(uint32_t k)
         hint_show(k);                        /* (its hint again from where it went: the next tap's) */
 }
 
-/* HOME tapped on HOME, or held: the next mode, the synth's, Drum Something's, the RMI's, round, on its HOME. From a
+/* HOME tapped on HOME, or held: the next mode, the synth's, Drum Something's, the RMI's, the Space Echo's, round, on its HOME. From a
  * HOME, the whole panel, the camera pans down there (mpan_band: the next HOME's panel under this one's), its map after;
  * else at once */
 static void mode_switch(void)
 {
     const int pan = ui.page == mode_home() && !zoom.z && !zoom.home;
-    ui.mpan_from = (uint8_t)(ui.drum ? 1u : ui.rmi ? 2u : 0u);
-    if (ui.drum)
+    ui.mpan_from = (uint8_t)(ui.se ? 3u : ui.drum ? 1u : ui.rmi ? 2u : 0u);
+    if (ui.se)
+        ui.se = ui.rmi = 0;
+    else if (ui.drum)
         ui.drum = 0, ui.rmi = 1;
     else if (ui.rmi)
-        ui.rmi = 0;
+        ui.se = 1;
     else
         ui.drum = 1;
     page_go(mode_home());
@@ -4300,6 +4399,9 @@ static void input(void)
         if (ui.drum && k != B_HOME && k != B_REC && k != B_GLO
             && !(RND_PAGE(ui.page) && (k == B_SEL || k == B_FX || k == B_SAVE)))   /* (the RND pages keep their own) */
             dt_button(k);
+        else if (ui.se && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && !RND_PAGE(ui.page)
+                 && ui.page != PG_GDUMP)
+            se_button(k);
         else if (ui.rmi && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && !RND_PAGE(ui.page)
                  && ui.page != PG_GDUMP)
             rmi_button(k);
@@ -4500,6 +4602,7 @@ enum { SEC_FX, SEC_SEL, SEC_ENV, SEC_LFO, SEC_ARP, SEC_SEQ, SEC_EDIT, SEC_GLO, N
 static const char *const SEC_NAME[NSEC] = {"FX", "SEL", "ENV", "LFO", "ARP", "SEQ", "EDIT", "GLO"};
 static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDIT, [PG_MENV] = SEC_ENV,
                                          [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL, [PG_NAME] = SEC_SEL, [PG_RHOME] = NSEC, [PG_RSEL] = SEC_SEL,
+                                         [PG_SHOME] = NSEC, [PG_SIN] = SEC_SEL, [PG_SECHO] = SEC_SEL, [PG_SMOD] = SEC_SEL,
                                          [PG_ARP] = SEC_ARP, [PG_SEQ] = SEC_SEQ, [PG_AENV] = SEC_ENV, [PG_FX] = SEC_EDIT,
                                          [PG_TUNE] = SEC_FX, [PG_FMOD] = SEC_FX,
                                          [PG_EMOD] = SEC_ENV, [PG_EFX] = SEC_FX, [PG_XMOD] = SEC_FX, [PG_AMOD] = SEC_ARP, [PG_HOME] = NSEC,
@@ -5216,27 +5319,31 @@ static void plate(const char *grp)          /* a group's bar, the plate under it
 }
 static void mod_draw(void)
 {
-    static const char *const LBL[4][4] = {{"KEY TRACK", "LIMITER"}, {"VELOCITY", "RETRIGGER", "COUNT", "FIXED SUS"},
-                                          {"KEYSYNC", "SPEED/SYNC", "SLEW"}, {"SEQ RETRIG", "SWING"}};
+    static const char *const LBL[5][4] = {{"KEY TRACK", "LIMITER"}, {"VELOCITY", "RETRIGGER", "COUNT", "FIXED SUS"},
+                                          {"KEYSYNC", "SPEED/SYNC", "SLEW"}, {"SEQ RETRIG", "SWING"},
+                                          {"BASS SEND", "DRUM SEND", "RMI SEND", "WOW"}};
     static const char *const ENV_T[3] = {"ENV MOD: AMP ENV", "ENV MOD: MOD ENV", "ENV MOD: AMP+MOD"};
-    const int env = ui.page == PG_EMOD ? 1 : ui.page == PG_LFO2 ? 2 : ui.page == PG_AMOD ? 3 : 0;   /* (0: PG_XMOD) */
-    const char *grp = env == 1 ? "ENVELOPES" : env == 2 ? "LFOS" : env ? "ARPEGGIATOR" : "FILTERS + EFFECTS";
+    const int env = ui.page == PG_EMOD ? 1 : ui.page == PG_LFO2 ? 2 : ui.page == PG_AMOD ? 3 : ui.page == PG_SMOD ? 4 : 0;
+    const char *grp = env == 4 ? "SPACE ECHO" : env == 1 ? "ENVELOPES" : env == 2 ? "LFOS" : env ? "ARPEGGIATOR"
+                      : "FILTERS + EFFECTS";   /* (0: PG_XMOD) */
     uint32_t i, n = 0;
     char t[12];
     plate(grp);
     /* its title; the ENV group's: which envelope it sets, as Env Select is (SELECT), lit while it moves */
-    dymo(120, 30, env == 1 ? ENV_T[ui.env_sel] : env == 2 ? (ui.lfo_sel ? "LFO MOD: LFO 2" : "LFO MOD: LFO 1")
-                  : env ? "ARP MODS" : "FX MODS",
-         (env == 1 || env == 2) && knob_lit(EN_SELECT) ? P_CYAN : RGB(235, 235, 235));
-    if (env == 1 || env == 2)                /* (its title: which envelope, which LFO) */
+    dymo(120, 30, env == 4 ? (set.se_sync ? "TEMPO SYNC: ON" : "TEMPO SYNC: OFF") : env == 1 ? ENV_T[ui.env_sel]
+                  : env == 2 ? (ui.lfo_sel ? "LFO MOD: LFO 2" : "LFO MOD: LFO 1") : env ? "ARP MODS" : "FX MODS",
+         ((env == 1 || env == 2) && knob_lit(EN_SELECT)) || (env == 4 && knob_lit(EN_PRESET)) ? P_CYAN : RGB(235, 235, 235));
+    if (env == 1 || env == 2)                /* (its title: which envelope, which LFO; the echo's, its sync) */
         tag(120, 36, EN_SELECT);
+    else if (env == 4)
+        tag(120, 36, EN_PRESET);
     for (i = EN_K1; i <= EN_K4; i++)
         n += knob_param(i)->name != 0;
     for (i = 0; i < n; i++) {                /* its knobs, K1 on: each one's tape, its setting printed under it */
         const param_t *q = knob_param(EN_K1 + i);
         int32_t cx = 10 + 220 * (2 * (int32_t)i + 1) / (2 * (int32_t)n);
         uint32_t lit = knob_lit(EN_K1 + i);
-        bs2_knob(cx, 76, n > 2u ? 16 : 20, param_get(q, &patch) - q->lo, q->hi - q->lo,
+        bs2_knob(cx, 76, n > 2u ? 16 : 20, param_get(q, page_rec(ui.page)) - q->lo, q->hi - q->lo,
                  KF_PLATE | (lit ? KF_LIT : 0u) | (q->lo < 0 ? KF_BIP : 0u));
         tag(cx, 76, EN_K1 + i);
         dymo(cx, 101, LBL[env][i], RGB(235, 235, 235));
@@ -5503,6 +5610,255 @@ static void rhome_draw(void)
 static void zoom_rmi(uint32_t k)             /* (its box: the tablets on the front panel) */
 {
     zoom_dive(PG_RHOME, PG_RSEL, k, 0, (int16_t)RFX(1243), (int16_t)RFY(490), fm_log2f(240.0f / (float)(RFX(1450) - RFX(1040))));
+}
+/* SPACE ECHO's pages: the RE-201's front panel as Tone Tweakers' photo of it has it (photo 1, at 800 px wide: SP_* are
+ * its pixels, tools-free: measured off a grid), drawn at each page's scale: HOME the whole case on the keys, INPUT the
+ * left of the panel up close (photos 2, 3: PEAK, the VU meter, the volumes, MODE SELECTOR), PANEL the right (4, 5: the
+ * tone, reverb and echo knobs, the lamp, POWER). The name and badge are this project's, as the other two HOMEs' */
+static int32_t sp_k, sp_x0, sp_y0, sp_oy;    /* the page's scale (1024ths), the photo's point at the canvas's left, row sp_oy */
+#define SPX(x) (((int32_t)(x) - sp_x0) * sp_k / 1024)
+#define SPY(y) (((int32_t)(y) - sp_y0) * sp_k / 1024 + sp_oy)
+#define SPR(r) (((int32_t)(r) * sp_k + 512) / 1024)
+#define SE_GREEN RGB(58, 82, 54)               /* the panel's green, its black, the jack strip's aluminium */
+#define SE_BLACK RGB(16, 17, 16)
+#define SE_ALU RGB(196, 198, 194)
+#define SE_VU_REF (0.35f * SE_SAT * 0.64f)     /* 0 VU: a tone's level where the tape starts to squeeze (its mean, as a VU's) */
+static void se_view(uint32_t g)              /* the page's camera on the photo */
+{
+    if (g == PG_SHOME)                       /* the case's front (x 88..716), its foot on the keys */
+        sp_k = 391, sp_x0 = 88, sp_y0 = 404, sp_oy = TALL_H;
+    else                                     /* the panel's left or right, the aluminium strip to the jacks */
+        sp_k = 859, sp_x0 = g == PG_SIN ? 118 : 402, sp_y0 = 186, sp_oy = 0;
+}
+/* the panel's print, as small as the RE-201's: 3 x 5 letters (rows top down, three bits each, the left the high), 4 apart:
+ * 0-9, A-Z, '.', '-', '+'; centred on cx, its top y */
+static const uint16_t SE_MICRO[39] = {0x7B6F, 0x2C97, 0x62A7, 0x628E, 0x5BC9, 0x798E, 0x39EF, 0x7292, 0x7BEF, 0x7BCE,
+                                      0x2BED, 0x6BAE, 0x3923, 0x6B6E, 0x79A7, 0x79A4, 0x396B, 0x5BED, 0x7497, 0x126A,
+                                      0x5BAD, 0x4927, 0x5FED, 0x6B6D, 0x2B6A, 0x6BA4, 0x2B73, 0x6BAD, 0x388E, 0x7492,
+                                      0x5B6F, 0x5B6A, 0x5BFD, 0x5AAD, 0x5A92, 0x72A7, 0x0002, 0x01C0, 0x05D0};
+static void se_lbl(int32_t cx, int32_t y, const char *s, uint16_t c)
+{
+    int32_t x = cx - ((int32_t)strlen(s) * 4 - 1) / 2, i;
+    for (; *s; s++, x += 4) {
+        const char ch = *s;
+        const int g = ch >= '0' && ch <= '9' ? ch - '0' : ch >= 'A' && ch <= 'Z' ? ch - 'A' + 10 : ch == '.' ? 36
+                      : ch == '-' ? 37 : ch == '+' ? 38 : -1;
+        for (i = 0; g >= 0 && i < 15; i++)
+            if (SE_MICRO[g] >> (14 - i) & 1u)
+                cv_pset(x + i % 3, y + i / 3, c);
+    }
+}
+/* a knob as the RE-201's: its scale's 11 ticks (0..10, 7 to 5 o'clock), a ribbed chrome skirt, a white cap, its line at
+ * angle a; lit (its line cyan) as encoder k turns (NE: none) */
+static void se_knob(int32_t cx, int32_t cy, int32_t r, float a, uint32_t k, int ticks)
+{
+    int32_t i, x, y, x1, y1;
+    for (i = 0; i < 11 && ticks; i++) {
+        pt_at(cx, cy, r + (r > 8 ? 4 : 2), ((float)i / 10.0f - 0.5f) * (FM_PI * 5.0f / 3.0f), &x, &y);
+        cv_pset(x, y, P_SILK);
+    }
+    disc(cx + 1, cy + 2, r, P_KSHADOW);
+    shade_disc(cx, cy, r, 150, 120);
+    for (i = 0; i < 24 && r > 6; i++) {      /* (the ribs turn with it) */
+        pt_at(cx, cy, r - 1, a + (float)i * (FM_PI / 12.0f), &x, &y);
+        cv_pset(x, y, grey(80));
+    }
+    shade_disc(cx, cy, r * 62 / 100, 222, 50);
+    pt_at(cx, cy, r * 62 / 100, a, &x, &y);
+    pt_at(cx, cy, r * 18 / 100, a, &x1, &y1);
+    cv_line(x1, y1, x, y, k < NE && knob_lit(k) ? P_CYAN : RGB(24, 24, 24));
+    if (r > 10)
+        cv_line(x1 + 1, y1, x + 1, y, k < NE && knob_lit(k) ? P_CYAN : RGB(24, 24, 24));
+}
+static float se_ang(uint32_t v) { return ((float)v / 127.0f - 0.5f) * (FM_PI * 5.0f / 3.0f); }   /* a 0..127's */
+static float se_mode_ang(void) { return (float)(7u + set.se_mode) * (FM_PI / 6.0f); }   /* 1 at 7 o'clock .. REVERB ONLY at 6 */
+/* the VU meter (its needle on se.vu: -20..+3 VU) and the PEAK lamp (se.peak); the needle's step, to know it moved */
+static int32_t se_vu_step(void)
+{
+    const float db = se.vu > 1.0f ? 6.0206f * fm_log2f(se.vu / SE_VU_REF) : -40.0f;
+    return (int32_t)(fm_clampf((db + 20.0f) / 23.0f, 0.0f, 1.0f) * 48.0f + 0.5f) * 2 + (se.peak != 0);
+}
+static void se_vu(void)
+{
+    const int32_t x0 = SPX(182), y0 = SPY(229), x1 = SPX(259), y1 = SPY(272), px = (x0 + x1) / 2, py = y1 + (y1 - y0) / 3;
+    const int32_t R = (y1 - y0) * 95 / 100, st = se_vu_step();
+    int32_t i, x, y, xe, ye;
+    cv_rect(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2, grey(96));
+    cv_rect(x0, y0, x1 - x0, y1 - y0, RGB(20, 24, 21));
+    for (i = 0; i <= 23; i++) {              /* its scale: -20..0 green, 0..+3 red */
+        pt_at(px, py, R, ((float)i / 23.0f - 0.5f) * (FM_PI / 2.0f), &x, &y);
+        cv_pset(x, y, i >= 20 ? RGB(220, 40, 30) : RGB(60, 190, 90));
+        if (sp_k > 600) {
+            cv_pset(x, y + 1, i >= 20 ? RGB(220, 40, 30) : RGB(60, 190, 90));
+            if (!(i % 5) || i == 23)
+                cv_rect(x, y - 2, 1, 2, P_SILK);
+        }
+    }
+    if (sp_k > 600)
+        se_lbl(px, y1 - 13, "VU", RGB(60, 190, 90));
+    pt_at(px, py, R + 2, ((float)(st >> 1) / 48.0f - 0.5f) * (FM_PI / 2.0f), &xe, &ye);
+    pt_at(px, py, (y1 - y0) / 3, ((float)(st >> 1) / 48.0f - 0.5f) * (FM_PI / 2.0f), &x, &y);
+    cv_line(x, y > y1 - 1 ? y1 - 1 : y, xe, ye, RGB(235, 235, 235));
+    cv_rect(x0, y1 - 2, x1 - x0, 2, grey(60));   /* (the needle's well) */
+    disc(SPX(158), SPY(248), SPR(6), RGB(40, 8, 8));   /* PEAK: dark red, glowing when the tape's input is hot */
+    disc(SPX(158), SPY(248), SPR(4), st & 1 ? RGB(255, 60, 50) : RGB(110, 20, 18));
+    if (st & 1)
+        disc(SPX(157), SPY(247), SPR(2) > 0 ? SPR(2) : 1, RGB(255, 190, 170));
+}
+static void se_jack(int32_t x, uint16_t ring)   /* a jack on the strip at photo x: its nut, its ring's colour */
+{
+    disc(SPX(x), SPY(361), SPR(9), ring);
+    disc(SPX(x), SPY(361), SPR(7), grey(170));
+    disc(SPX(x), SPY(361), SPR(4), RGB(10, 10, 10));
+}
+/* the front panel: (whole) the case round it; the strip, the black, the green panels, the knobs (as set), the jacks */
+static void se_front(int whole)
+{
+    static const int16_t BOX[6][2] = {{139, 197}, {202, 255}, {260, 366}, {376, 425}, {480, 566}, {575, 650}};
+    const int big = sp_k > 600;
+    int32_t y, i;
+    if (whole) {                             /* the tolex: the case's front, its top's edge behind */
+        cv_rect(SPX(96), SPY(168), SPX(708) - SPX(96), SPY(182) - SPY(168), RGB(46, 46, 46));
+        cv_rect(SPX(90), SPY(180), SPX(714) - SPX(90), SPY(402) - SPY(180), RGB(30, 30, 30));
+        cv_rect(SPX(92), SPY(182), SPX(712) - SPX(92), 1, RGB(64, 64, 64));
+    }
+    for (y = SPY(190); y < SPY(220); y++)    /* the brushed aluminium strip, the name, the badge */
+        cv_rect(SPX(122), y, SPX(678) - SPX(122), 1, grey(y & 1 ? 198 : 186));
+    if (big) {
+        y = cv_text(SPX(150), SPY(197), &FONT_B, "SPACE-SOMETHING", RGB(18, 18, 18));
+        cv_text(y + 6, SPY(199), &FONT_XS, "RE-201", RGB(18, 18, 18));
+    } else
+        se_lbl(SPX(150) + 43, SPY(203) - 2, "SPACE-SOMETHING RE-201", RGB(18, 18, 18));
+    cv_rect(SPX(610), SPY(195), SPX(646) - SPX(610), SPY(218) - SPY(195), grey(150));
+    cv_rect(SPX(612), SPY(197), SPX(644) - SPX(612), SPY(216) - SPY(197), grey(176));
+    cv_rect(SPX(122), SPY(221), SPX(678) - SPX(122), SPY(224) - SPY(221) > 0 ? SPY(224) - SPY(221) : 1, grey(172));
+    cv_rect(SPX(122), SPY(224), SPX(678) - SPX(122), SPY(343) - SPY(224), SE_BLACK);
+    cv_rect(SPX(195), SPY(282), 1, SPY(343) - SPY(282), grey(84));   /* the volumes' dividers */
+    cv_rect(SPX(252), SPY(282), 1, SPY(343) - SPY(282), grey(84));
+    cv_rect(SPX(309), SPY(231), SPX(401) - SPX(309), SPY(342) - SPY(231), SE_GREEN);   /* MODE SELECTOR's panel */
+    cv_rect(SPX(406), SPY(231), SPX(661) - SPX(406), SPY(340) - SPY(231), SE_GREEN);   /* the right's: its frame, the */
+    cv_rect(SPX(410), SPY(235), SPX(657) - SPX(410), SPY(287) - SPY(235), SE_BLACK);   /* tone's black, the lamp's corner */
+    cv_rect(SPX(578), SPY(287), SPX(661) - SPX(578), SPY(342) - SPY(287), SE_BLACK);
+    se_vu();
+    if (big) {                               /* the print */
+        se_lbl(SPX(158), SPY(256), "PEAK", P_SILK);
+        se_lbl(SPX(158), SPY(263), "LEVEL", P_SILK);
+        se_lbl(SPX(165), SPY(287), "MIC", P_SILK), se_lbl(SPX(165), SPY(294), "VOLUME", P_SILK);
+        se_lbl(SPX(224), SPY(287), "MIC", P_SILK), se_lbl(SPX(224), SPY(294), "VOLUME", P_SILK);
+        se_lbl(SPX(282), SPY(287), "INSTRUMENT", P_SILK), se_lbl(SPX(282), SPY(294), "VOLUME", P_SILK);
+        se_lbl(SPX(355), SPY(236), "MODE SELECTOR", P_SILK);
+        se_lbl(SPX(356), SPY(329), "REVERB", P_SILK), se_lbl(SPX(356), SPY(336), "ONLY", P_SILK);
+        se_lbl(SPX(437), SPY(238), "BASS", P_SILK), se_lbl(SPX(490), SPY(238), "TREBLE", P_SILK);
+        se_lbl(SPX(548), SPY(238), "REVERB VOLUME", P_SILK);
+        se_lbl(SPX(437), SPY(290), "REPEAT RATE", P_SILK), se_lbl(SPX(489), SPY(290), "INTENSITY", P_SILK);
+        se_lbl(SPX(546), SPY(290), "ECHO VOLUME", P_SILK), se_lbl(SPX(639), SPY(290), "POWER", P_SILK);
+        se_lbl(SPX(629), SPY(303), "ON", P_SILK), se_lbl(SPX(629), SPY(330), "OFF", P_SILK);
+        for (i = 0; i < 11; i++) {           /* MODE SELECTOR's ring: 1..4 REPEAT, 5..11 REVERB ECHO */
+            int32_t x, yy;
+            pt_at(SPX(356), SPY(291), SPR(35), (float)(7 + i) * (FM_PI / 6.0f), &x, &yy);
+            se_lbl(x, yy - 3, SE_MODE_NAME[i], (uint32_t)i == set.se_mode ? P_CYAN : P_SILK);
+        }
+    }
+    se_knob(SPX(165), SPY(322), SPR(17), se_ang(0), NE, big);   /* MIC VOLUME, both: down (nothing on them) */
+    se_knob(SPX(224), SPY(322), SPR(17), se_ang(0), NE, big);
+    se_knob(SPX(282), SPY(322), SPR(17), se_ang(set.se_input), ui.page == PG_SIN ? EN_K1 : NE, big);
+    se_knob(SPX(356), SPY(291), SPR(22), se_mode_ang(), ui.page == PG_SIN || ui.page == PG_SHOME ? EN_PRESET : NE, 0);
+    se_knob(SPX(437), SPY(267), SPR(17), se_ang(set.se_bass), ui.page == PG_SECHO ? EN_PRESET : NE, big);
+    se_knob(SPX(490), SPY(267), SPR(17), se_ang(set.se_treb), ui.page == PG_SECHO ? EN_ALGO : NE, big);
+    se_knob(SPX(548), SPY(267), SPR(17), se_ang(set.se_rev), ui.page == PG_SECHO || ui.page == PG_SHOME ? EN_K4 : NE, big);
+    se_knob(SPX(437), SPY(320), SPR(17), se_ang(set.se_rate), ui.page == PG_SECHO || ui.page == PG_SHOME ? EN_K1 : NE, big);
+    se_knob(SPX(489), SPY(320), SPR(17), se_ang(set.se_int), ui.page == PG_SECHO || ui.page == PG_SHOME ? EN_K2 : NE, big);
+    se_knob(SPX(546), SPY(320), SPR(17), se_ang(set.se_echo), ui.page == PG_SECHO || ui.page == PG_SHOME ? EN_K3 : NE, big);
+    disc(SPX(595), SPY(320), SPR(6), RGB(70, 20, 50));   /* the power lamp, lit; POWER, up */
+    disc(SPX(595), SPY(320), SPR(4), RGB(250, 80, 190));
+    cv_rect(SPX(633), SPY(310), SPX(645) - SPX(633), SPY(330) - SPY(310), grey(70));
+    disc(SPX(639), SPY(320), SPR(4), grey(200));
+    cv_rect(SPX(638), SPY(306), SPR(3) > 0 ? SPR(3) : 1, SPY(320) - SPY(306), grey(220));
+    cv_rect(SPX(122), SPY(343), SPX(678) - SPX(122), SPY(374) - SPY(343), SE_ALU);   /* the jack strip */
+    for (i = 0; i < 6; i++) {                /* its boxes, their print */
+        cv_rect(SPX(BOX[i][0]), SPY(346), SPX(BOX[i][1]) - SPX(BOX[i][0]), 1, grey(70));
+        cv_rect(SPX(BOX[i][0]), SPY(371), SPX(BOX[i][1]) - SPX(BOX[i][0]), 1, grey(70));
+        cv_rect(SPX(BOX[i][0]), SPY(346), 1, SPY(371) - SPY(346), grey(70));
+        cv_rect(SPX(BOX[i][1]), SPY(346), 1, SPY(371) - SPY(346), grey(70));
+    }
+    if (big) {
+        static const char *const JL[6] = {"MIC", "MIC", "INSTRUMENT", "FROM P.A.", "OUT PUT", "FOOT SW"};
+        static const int16_t JX[6] = {168, 228, 290, 400, 540, 600};
+        for (i = 0; i < 6; i++)
+            se_lbl(SPX(JX[i]), SPY(347), JL[i], RGB(30, 30, 30));
+        se_lbl(SPX(626), SPY(359), "ECHO CANCEL", RGB(30, 30, 30));
+        se_lbl(SPX(500), SPY(347), "H M L", RGB(30, 30, 30));
+    }
+    se_jack(168, grey(120)), se_jack(228, grey(120)), se_jack(282, grey(120));
+    se_jack(400, RGB(40, 140, 80)), se_jack(540, RGB(190, 40, 40)), se_jack(591, grey(120));
+    cv_rect(SPX(336), SPY(352), SPX(346) - SPX(336), SPY(370) - SPY(352), grey(120));   /* ECHO/NORMAL, H M L */
+    cv_rect(SPX(338), SPY(354), SPX(344) - SPX(338), SPY(361) - SPY(354), grey(230));
+    cv_rect(SPX(494), SPY(355), SPX(507) - SPX(494), SPY(368) - SPY(355), RGB(20, 20, 20));
+}
+/* ECHO HOME: its name and what it does now (the mode: the heads, the spring); the whole front panel on the keys, its
+ * meter live (se_vu_frame) */
+static void shome_draw(void)
+{
+    static const char *const HEADS[8] = {"", "HEAD 1", "HEAD 2", "HEADS 1+2", "HEAD 3", "HEADS 1+3", "HEADS 2+3", "HEADS 1+2+3"};
+    const uint32_t m = set.se_mode < 12u ? set.se_mode : 0u;
+    char t[24];
+    cv_rect(0, 0, 240, TALL_H, P_BG);
+    cv_text(10, 12, &FONT_B, "SPACE-", P_SILK);
+    cv_text(cv_text(10, 30, &FONT_B, "SOMETHING", P_SILK) + 5, 30, &FONT_B, "RE-201", P_BAR);
+    cv_rect(10, 49, 116, 2, P_BAR);
+    t[0] = 0;
+    text_cat(t, "MODE ");
+    text_cat(t, SE_MODE_NAME[m]);
+    cv_text(232 - text_w(&FONT_XS, t), 6, &FONT_XS, t, knob_lit(EN_PRESET) ? P_CYAN : P_CYAN);
+    cv_text(232 - text_w(&FONT_T, HEADS[SE_HEADS[m]]), 20, &FONT_T, HEADS[SE_HEADS[m]], P_SILK);
+    if (m >= 4u)
+        cv_text(232 - text_w(&FONT_T, "SPRING"), SE_HEADS[m] ? 29 : 20, &FONT_T, "SPRING", P_SILK);
+    if (set.se_sync)
+        cv_text(232 - text_w(&FONT_T, "TEMPO SYNC"), 38, &FONT_T, "TEMPO SYNC", P_SILK);
+    tag(232 - text_w(&FONT_XS, t) / 2, 10, EN_PRESET);
+    se_view(PG_SHOME);
+    se_front(1);
+    tag(SPX(437), SPY(320), EN_K1), tag(SPX(489), SPY(320), EN_K2), tag(SPX(546), SPY(320), EN_K3);
+    tag(SPX(548), SPY(267), EN_K4);
+}
+/* ECHO INPUT and ECHO PANEL: the panel's halves up close */
+static void se_close_draw(void)
+{
+    cv_rect(0, 0, 240, TALL_H, RGB(30, 30, 30));   /* (the case round the panel's ends) */
+    se_view(ui.page);
+    se_front(0);
+    if (ui.page == PG_SIN)
+        tag(SPX(282), SPY(322), EN_K1), tag(SPX(356), SPY(291), EN_PRESET);
+    else {
+        tag(SPX(437), SPY(267), EN_PRESET), tag(SPX(490), SPY(267), EN_ALGO), tag(SPX(548), SPY(267), EN_K4);
+        tag(SPX(437), SPY(320), EN_K1), tag(SPX(489), SPY(320), EN_K2), tag(SPX(546), SPY(320), EN_K3);
+    }
+}
+/* ECHO HOME's knob p turned: its close-up's, the camera in on it from the panel's half on HOME, as the other HOMEs' */
+static void zoom_se(uint32_t p)
+{
+    const int32_t a = SE_DIVE_PG(p) == PG_SIN ? 118 : 402;
+    se_view(PG_SHOME);
+    zoom_dive(PG_SHOME, SE_DIVE_PG(p), p, 0, (int16_t)SPX(a + 140), (int16_t)SPY(281),
+              fm_log2f(240.0f / (float)(SPX(a + 280) - SPX(a))));
+}
+static int32_t se_vu_was = -1;               /* the meter as last drawn (se_vu_step) */
+static int se_vu_live(void) { return (ui.page == PG_SHOME || ui.page == PG_SIN) && se_vu_step() != se_vu_was; }
+static void se_vu_frame(void)                /* the meter's rows alone, over the page as it's drawn */
+{
+    int32_t y0, y1;
+    se_view(ui.page);
+    y0 = SPY(226), y1 = SPY(276);
+    se_vu_was = se_vu_step();
+    cv_begin(240, (uint32_t)(y1 - y0), P_BG);
+    cv_oy = -y0;
+    if (ui.page == PG_SHOME)
+        shome_draw();
+    else
+        se_close_draw();
+    tags_draw();                             /* (the labels in its rows too: HOME's K4 sits beside the meter) */
+    ntags = 0;
+    cv_blit(0, 20 + y0);
 }
 static void osc_wave_icon(int32_t x, int32_t y, uint32_t w, uint16_t c);
 /* an LFO's waves as printed by its LEDs, 8 x 7 from x, y: LFO_* (the saw falling, the S&H steps) */
@@ -7682,18 +8038,20 @@ static void rfx_draw(void)
 #define MPAN_MS 450u
 static void mpan_home(uint32_t m)            /* mode m's HOME, drawn as though it were up */
 {
-    ui.drum = (uint8_t)(m == 1u), ui.rmi = (uint8_t)(m == 2u);
+    ui.drum = (uint8_t)(m == 1u), ui.rmi = (uint8_t)(m >= 2u), ui.se = (uint8_t)(m == 3u);
     ui.page = (uint8_t)mode_home();
     if (m == 1u)
         dhome_draw();
     else if (m == 2u)
         rhome_draw();
+    else if (m == 3u)
+        shome_draw();
     else
         home_draw();
 }
 static void mpan_band(uint32_t i)
 {
-    const uint32_t page = ui.page, drum = ui.drum, rm = ui.rmi, to = drum ? 1u : rm ? 2u : 0u;
+    const uint32_t page = ui.page, drum = ui.drum, rm = ui.rmi, se = ui.se, to = se ? 3u : drum ? 1u : rm ? 2u : 0u;
     const float u = fm_clampf((float)(plat_ms() - ui.mpan_at) / (float)MPAN_MS, 0.0f, 1.0f), e = u * u * (3.0f - 2.0f * u);
     const int32_t s = (int32_t)((float)TALL_H * e + 0.5f), top = (int32_t)i * (TALL_H / 2) + s;
     if (top < TALL_H) {
@@ -7705,7 +8063,7 @@ static void mpan_band(uint32_t i)
         cv_rect(0, 0, 240, TALL_H, P_BG);
         mpan_home(to);
     }
-    ui.page = (uint8_t)page, ui.drum = (uint8_t)drum, ui.rmi = (uint8_t)rm;
+    ui.page = (uint8_t)page, ui.drum = (uint8_t)drum, ui.rmi = (uint8_t)rm, ui.se = (uint8_t)se;
     ntags = 0;                               /* (the controls' labels: when it lands) */
 }
 
@@ -7744,6 +8102,12 @@ static void panel_draw(void)                 /* the page's section panel, from u
             rsel_draw();
         else if (ui.page == PG_RHOME)
             rhome_draw();
+        else if (ui.page == PG_SHOME)
+            shome_draw();
+        else if (ui.page == PG_SIN || ui.page == PG_SECHO)
+            se_close_draw();
+        else if (ui.page == PG_SMOD)
+            mod_draw();
         else if (ui.page == PG_ARP)
             arp_draw();
         else if (ui.page == PG_SEQ)
@@ -8222,6 +8586,11 @@ void app_frame(void)
         scope_at = now;                      /* (RMI HOME's bars: as the scope, while they move, once more after) */
         scope_was = (uint8_t)rbar_live();
         rbar_frame();
+    }
+    if ((ui.page == PG_SHOME || ui.page == PG_SIN) && !zoom.z && !rfx_at && !ui.mpan_at && now - scope_at >= 33u
+        && se_vu_live()) {
+        scope_at = now;                      /* (the Space Echo's meter: as the scope, while its needle moves) */
+        se_vu_frame();
     }
     if (ui.page == PG_HOME && !zoom.z && !rfx_at && !ui.mpan_at && now - scope_at >= 33u && (scope_live() || scope_was)) {
         scope_at = now;                      /* (HOME's scope: 30 times a second while it sounds, once more after) */
