@@ -45,7 +45,8 @@ typedef struct {
     uint8_t bvol_off;                    /* the bass's own volume (the MASTER page's Volume, K1), under full: 127 - it
                                           * (stored so: older records' spare 0, full) */
     uint8_t rvol_off;                    /* the RMI's own volume, as bvol_off (its faceplate's fader) */
-    uint8_t spare4[1];
+    uint8_t usb_host;                    /* USB HOST (GLO CONNECT): the port a MIDI host; never kept on (off at every start:
+                                          * set_load), so the computer always finds it after a power-off (was spare, 0) */
     uint8_t rmi_tabs;                    /* the RMI's tone tablets down, a bit each, RT_* (PIANO PANEL: SEL the
                                           * tablet, PRESET it on or off; older records: settings_defaults', PIANO) */
     uint8_t rmi_organ, rmi_accent;       /* its ORGAN MODE and ACCENTER tablets: 0 up, 1 down */
@@ -1025,10 +1026,27 @@ static void route_follow(void)               /* what the bass plays (its keys, a
 static int32_t bend_in;
 static uint32_t mw_in, at_midi;
 static volatile uint32_t at_keys;
+/* a USB host session ended (its device gone, the mode changed): what its notes held let go, the bass's (the keys'
+ * too: no note keeps its owner), the piano's and its pedal, and the wheels and pressure */
+static void usb_lost(void)
+{
+    uint8_t h[NHELD];
+    uint32_t i, n = eng.nheld;
+    memcpy(h, eng.held, n);                  /* (a copy: with LATCH a note-off keeps it) */
+    for (i = 0; i < n; i++)
+        note_in(h[i], 0);
+    for (i = 0; i < 128u; i++)
+        rmi_play(i, 0);
+    rmi_cc(64, 0);
+    bend_in = 0;
+    mw_in = at_midi = 0;
+}
 static void midi_in(void)                    /* audio interrupt: the keys' notes, and the packets that came in */
 {
     uint32_t pkt, e;
     int port;
+    if (plat_usb_lost())
+        usb_lost();
     while (fifo_get(&keyq, &e))
         if (e & KEYQ_RMI)
             rmi_play(e & 0xFFu, (e >> 8) & 0xFFu);
@@ -1918,6 +1936,7 @@ void app_init(void)
         for (i = (uint32_t)n < SET_V3_SIZE && (uint32_t)n > SET_V2_SIZE ? SET_V2_SIZE : (uint32_t)n; i < sizeof set; i++)
             ((uint8_t *)&set)[i] = ((const uint8_t *)&d)[i];
     set_sane();
+    set.usb_host = 0;                        /* (a device at every start: the computer's) */
     tol_init();
     set_kept = set;
     bank_load();
@@ -2291,7 +2310,8 @@ static const param_t PARAMS[NPAGES][NE] = {
                   [EN_K1] = {"BASS", SF(chan), CH_OFF, CH_ALL, CHAN_NAME},
                   [EN_K2] = {"DRUMS", SF(dchan), CH_OFF, CH_ALL, CHAN_NAME},
                   [EN_K3] = {"PIANO", SF(rmi_chan), CH_OFF, CH_ALL, CHAN_NAME}},
-    [PG_GCONN] = {[EN_K2] = {"BLE", SF(ble_off), 0, 1, ON_OFF}, [EN_K3] = {"AT OUT", SF(at_out), 0, 1, OFF_ON}},   /* (K1: the USB host) */
+    [PG_GCONN] = {[EN_K1] = {"USB HOST", SF(usb_host), 0, 1, OFF_ON}, [EN_K2] = {"BLE", SF(ble_off), 0, 1, ON_OFF},
+                  [EN_K3] = {"AT OUT", SF(at_out), 0, 1, OFF_ON}},
     /* the global settings by what they are about: the clock (the tempo on the display), the sound coming out, how the
      * controls answer; the settings on K3 and K4 (ENC_MAP) */
     [PG_GCLK] = {[EN_K3] = {"SEND CLK", SF(clk_out), 0, 1, OFF_ON}, [EN_K4] = {"SYNC", SF(clock), 0, NCLK - 1, CLK_NAME}},   /* (K1, the tempo: the patch's, knob_param) */
@@ -2400,7 +2420,7 @@ static const char *const TITLE[NPAGES][NE] = {
 
     [PG_GMIDI] = {[EN_SELECT] = "BASS CC CHANNEL", [EN_ALGO] = "DRUMS CC CHANNEL", [EN_PRESET] = "PIANO CC CHANNEL",
                   [EN_K1] = "BASS CHANNEL", [EN_K2] = "DRUMS CHANNEL", [EN_K3] = "PIANO CHANNEL"},
-    [PG_GCONN] = {[EN_K2] = "BLUETOOTH MIDI", [EN_K3] = "AFTER TOUCH OUT"},
+    [PG_GCONN] = {[EN_K1] = "USB MIDI HOST", [EN_K2] = "BLUETOOTH MIDI", [EN_K3] = "AFTER TOUCH OUT"},
     [PG_GCLK] = {[EN_K3] = "SEND MIDI CLOCK", [EN_K4] = "CLOCK SYNC"},
     [PG_GCTL] = {[EN_K2] = "KNOB RESPONSE", [EN_K3] = "LOCAL CONTROL", [EN_K4] = "NOTE ROUTE"},
     [PG_GDISP] = {[EN_PRESET] = "KNOB ZOOM", [EN_K1] = "HINTS", [EN_K2] = "POP-UP TIME"},
@@ -3195,6 +3215,8 @@ static int knob_turn(uint32_t k, int32_t e)
         seq_changed();
     if (ui.page == PG_GCONN && k == EN_K2)   /* Bluetooth: at once */
         plat_ble_enable(!set.ble_off);
+    if (ui.page == PG_GCONN && k == EN_K1)   /* the USB host: at once (the computer gone meanwhile) */
+        plat_usb_host(set.usb_host);
     return 1;
 }
 static const char *knob_name(uint32_t k)
@@ -3924,7 +3946,7 @@ static const char *const HINT[NPAGES][NE] = {
                    "Mod wheel: LFO 2 to cutoff", "Mod wheel to osc 2 pitch"},
     [PG_GMIDI] = {"Bass CC channel", "Drums' CC channel", "Piano's CC channel", "Bass note channel",
                   "Drums' note channel", "Piano's note channel"},
-    [PG_GCONN] = {[EN_K2] = "Bluetooth MIDI", "Pressure out as MIDI"},
+    [PG_GCONN] = {[EN_K1] = "A USB MIDI device, no computer", "Bluetooth MIDI", "Pressure out as MIDI"},
     [PG_GCLK] = {[EN_K1] = "Speed, BPM", [EN_K3] = "Send MIDI clock", "Clock to follow"},
     [PG_GAUD] = {[EN_K1] = "The speaker's sound, or off", "Master tune"},
     [PG_GCTL] = {[EN_K1] = "Touch curve", "Knob speed-up", "Keys play the synth", "Notes piano to bass, or back"},
@@ -6894,15 +6916,23 @@ static void glo_chan_draw(void)
         print_knob(x, GLO_ROW, 14, n, EN_K1 + i, 1, CHAN_NAME[param_get(n, &set)], 0);
     }
 }
-/* GLOBAL CONNECT: what the FM-1 is joined to and what goes out to it: Bluetooth (K2, on K3; REC: a device to join) and
- * AT Out (K3, on K4), with how each stands */
+/* GLOBAL CONNECT: what the FM-1 is joined to and what goes out to it: the USB host (K1, on K2: a USB MIDI device on the
+ * port instead of a computer), Bluetooth (K2, on K3; REC: a device to join) and AT Out (K3, on K4), with how each
+ * stands */
 static void glo_conn_draw(void)
 {
+    const int uh = plat_usb_host_state();
+    const char *nm = plat_usb_host_name();
     glo_frame("Connect");
+    info(10, 64, 58, "USB", uh == USBH_CONNECTED ? (*nm ? nm : "Device") : uh == USBH_LOOKING ? "Looking" : "Computer",
+         uh == USBH_CONNECTED ? P_CYAN : P_SILK);
+    if (set.usb_host)
+        cv_text(10, 86, &FONT_XS, "A powered hub feeds the device.", P_SILK);
     info(10, 64, 46, "Bluetooth", set.ble_off ? "Off" : plat_ble_connected() ? "Connected" : "On",
          !set.ble_off && plat_ble_connected() ? P_CYAN : P_SILK);
     if (FM1B_BLE_CENTRAL && !set.ble_off)
         cv_text(10, 72, &FONT_XS, "REC: find a Bluetooth MIDI device.", P_SILK);
+    print_switch(92, GLO_ROW, EN_K1, "Off", "On", "USB Host");
     print_switch(150, GLO_ROW, EN_K2, "On", "Off", "Bluetooth");
     print_switch(208, GLO_ROW, EN_K3, "Off", "On", "AT Out");
 }
@@ -9279,6 +9309,16 @@ void app_frame(void)
         lit_until = 0;
         ui.redraw = 1;
     }
+    if (FM1B_USB_HOST) {                     /* the USB host's news, said (one at a time: the latest) */
+        static const char *const UH_WORD[] = {"", "LOOKING", "OFF", "", "NO MIDI", "LOW POWER", "LOST"};
+        int m = plat_usb_host_msg();
+        if (m == USBH_MSG_MIDI)
+            app_say("USB DEVICE", *plat_usb_host_name() ? plat_usb_host_name() : "CONNECTED");
+        else if (m > USBH_MSG_NONE && m < (int)(sizeof UH_WORD / sizeof *UH_WORD))
+            app_say(m == USBH_MSG_ON || m == USBH_MSG_OFF ? "USB HOST" : "USB DEVICE", UH_WORD[m]);
+        if (m != USBH_MSG_NONE)
+            ui.redraw = 1;
+    }
     if (FM1B_BLE_CENTRAL) {                  /* looking: a device found is named at once (REC connects to it) */
         static int found;
         int n = ui.looking ? btdev_count() : 0, ev;
@@ -9717,6 +9757,8 @@ int app_expect(const char *what, int *got)
         *got = set.knobs;
     else if (!strcmp(what, "ble_off"))
         *got = set.ble_off;
+    else if (!strcmp(what, "usb_host"))
+        *got = set.usb_host;
     else if (!strcmp(what, "afx"))
         *got = afx_on;
     else if (!strcmp(what, "ext_bpm"))       /* MIDI clock's tempo as GLO CLOCK shows it (0: not measured) */

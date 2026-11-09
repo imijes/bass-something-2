@@ -1119,7 +1119,7 @@ from something else. A write to memory (SAVE, a patch change, and the sequence a
 up the sound for a moment. In silence nothing is heard and it isn't counted; while something is sounding, it counts.
 
 ![GLO CHANNELS: Bass, Drums and Piano columns, each a CC channel knob over a note channel knob](img/screen-glo-channels.png "GLO: CHANNELS")
-![GLO CONNECT: how Bluetooth stands, then the Bluetooth and AT Out switches](img/screen-glo-connect.png "GLO, again: CONNECT")
+![GLO CONNECT: how Bluetooth and USB stand (a keyboard connected), then the USB Host, Bluetooth and AT Out switches](img/screen-glo-connect.png "GLO, again: CONNECT")
 ![GLO CLOCK: the tempo 120 on the display and what the clock is doing, then the Tempo knob, the Send Clk switch and the Sync knob](img/screen-glo-clock.png "GLO, again: CLOCK")
 ![GLO KEYS: what each does, then the Velocity and Knobs knobs, the Local switch and the Route knob](img/screen-glo-keys.png "GLO, again: KEYS")
 ![GLO AUDIO: what the speaker's setting reaches, then the Speaker switch and the Tune knob](img/screen-glo-audio.png "GLO, again: AUDIO")
@@ -1239,6 +1239,17 @@ To connect to a Bluetooth MIDI device, such as a keyboard or a controller, put t
 advertising mode, then press GLO twice for GLOBAL CONNECT and press REC: the screen says BLE SCANNING. Turn ALGO to
 pick the device by its name, and press REC again to connect. DEV at the bottom lights while it's connected, and the
 bottom line shows the last message it sent. Press REC once more (on GLOBAL CONNECT) to disconnect.
+
+### A USB MIDI keyboard (USB host)
+
+The FM-1's USB port can play host to a USB MIDI keyboard, controller or synth instead of a computer. Press GLO twice for
+GLOBAL CONNECT and turn K2 (USB HOST) to ON: the screen says USB HOST LOOKING. Plug the device in, through a powered USB
+hub or a powered OTG adapter (the FM-1 gives the port no power), and the screen names it (USB DEVICE and its name);
+GLOBAL CONNECT shows it beside USB. Its notes, wheels and CCs come in as a computer's would, on the channels of GLOBAL
+CHANNELS, and the FM-1's keys and sequences go out to it. Unplugged, any note it was holding stops (USB DEVICE LOST).
+
+While USB HOST is on there is no computer: no USB audio, no MIDI to a computer, no backup and no updates. Turn it OFF
+to give the port back to the computer. It is always OFF at power-on, so the computer finds the FM-1 after any restart.
 
 ### USB audio
 

@@ -210,3 +210,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-09 | 7f85f02+ | motion: arp octaves | 537,772 | +16 | 43,792 | 83,140 | +0 | 15,164 | 262,616 |
 | 2026-11-09 | 1e0d757+ | USB audio: 6 channels (master, bass, drums, piano, echo) | 538,604 | +832 | 42,960 | 87,620 | +4,480 | 10,684 | 263,640 |
 | 2026-11-09 | 085206a+ | GLO regrouped: CHANNELS (all six), CONNECT, KEYS (Local, Route); GLOBAL DRUMS and PIANO gone | 537,692 | -912 | 43,872 | 87,620 | +0 | 10,684 | 263,640 |
+| 2026-11-09 | 85c7727+ | USB host: GLO CONNECT's USB HOST (K2), the device's name, its notes let go when lost | 541,148 | +3,456 | 40,416 | 88,084 | +464 | 10,220 | 263,640 |
