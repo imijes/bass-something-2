@@ -169,7 +169,9 @@ it.
 
 Records your knob moves as a loop and plays them back, apart from the notes. So far it records the bass's filter
 Frequency, and on the drums each drum's VOLUME and TUNING and the roll key (which drum, how hard, when it starts and
-stops). A roll the loop plays isn't recorded into the pattern, even in RECORD MODE; one you play is, as always.
+stops). A roll the loop plays isn't recorded into the pattern, even in RECORD MODE; one you play is, as always. It records the
+patterns you cue as the drums run, too, an improvised song: the loop cues them again at the same places, and cues the
+pattern it began on in time for its top. Its cues wait while a song runs, or in RECORD MODE.
 
 - **REC + OCT−** (hold REC, tap OCT− within a second): recording on. Turn the knob, then **REC + OCT−** again to stop.
   The first pass sets the loop's length, rounded up to whole bars (up to 16). Recording again overdubs: what you turn

@@ -810,9 +810,11 @@ static void seq_beat(void)                   /* a 16th of the arp's rhythm, the 
 #define MO_BAR 96u                           /* a bar's ticks (24 a quarter note) */
 #define MO_MAXBARS 16u
 #define MO_TOUCH_MS 300u                     /* a hand on it holds the loop's moves off so long after its last */
-enum { MO_CUTOFF, MO_DVOL, MO_DTUNE = MO_DVOL + NDT, MO_ROLL = MO_DTUNE + NDT };   /* its values (mo_ref), then the
-                                              * roll: MO_ROLL off, MO_ROLL + 1 + the drum on (its velocity, the accent's bit 7) */
-#define MO_NT (MO_ROLL + 1)                  /* what a hand holds: the values and the roll */
+enum { MO_CUTOFF, MO_DVOL, MO_DTUNE = MO_DVOL + NDT, MO_ROLL = MO_DTUNE + NDT, MO_PAT = MO_ROLL + 1 + NDT };   /* its
+                                              * values (mo_ref), then the roll: MO_ROLL off, MO_ROLL + 1 + the drum on (its
+                                              * velocity, the accent's bit 7); a drum pattern cued (its number) */
+#define MO_NT (MO_ROLL + 2)                  /* what a hand holds: the values, the roll, the patterns */
+#define MO_HELD(g) ((g) < MO_ROLL ? (g) : (g) == MO_PAT ? MO_ROLL + 1u : MO_ROLL)   /* a move's in mo.at */
 typedef struct { uint16_t t; uint8_t tgt, v; } mo_ev_t;
 static mo_ev_t mo_ev[MO_N] PLAT_POOL;
 static volatile float mo_pos;                /* ticks since the clock started (the audio's, mo_clock) */
@@ -824,8 +826,10 @@ static struct {
     uint32_t at[MO_NT];                      /* when the hand last moved each (the roll: while its key is held) */
     uint8_t bar_shown;                       /* the footer's bar */
     uint8_t roll_held;                       /* the roll key down */
+    uint8_t pat0;                            /* the drums' pattern at the loop's top (its cues: back to it there) */
     uint8_t rq_n, rq[4][2];                  /* the roll key's presses and releases since the last step, to record */
 } mo;
+static void mo_pat(uint32_t n);
 static void mo_clock(uint32_t m)             /* eng_run's: the clock's ticks in m samples */
 {
     const int x = ext_clock();
@@ -2781,8 +2785,10 @@ static int dt_value(uint32_t k, int32_t e)
             return 0;
         ui.dt_pat = (uint8_t)clamp((int32_t)ui.dt_pat + e, 0, 99);
         ui.dt_show = DTS_NONE;
-        if (dq.run)
+        if (dq.run) {
             dq_cmd(DQC_CUE, ui.dt_pat, 0);
+            mo_pat(ui.dt_pat);               /* (the motion recorder's too) */
+        }
         return 1;
     }
     if (f >= DTF_BPAT) {                     /* BUILD MODE: PRESET the step (the left display), ALGO what goes there (the right) */
@@ -4249,6 +4255,12 @@ static void mo_roll(uint32_t g, uint32_t v)  /* the roll key's (dt_roll; let go:
     if (mo.rec && mo.rq_n < 4u)
         mo.rq[mo.rq_n][0] = (uint8_t)g, mo.rq[mo.rq_n++][1] = (uint8_t)v;
 }
+static void mo_pat(uint32_t n)               /* a pattern cued as the drums run (dt_value), to record */
+{
+    mo.at[MO_ROLL + 1] = plat_ms();
+    if (mo.rec && mo.rq_n < 4u)
+        mo.rq[mo.rq_n][0] = MO_PAT, mo.rq[mo.rq_n++][1] = (uint8_t)n;
+}
 static void mo_step(void)                    /* each look at the buttons: the motion loop recorded and played */
 {
     const uint32_t now = plat_ms();
@@ -4274,6 +4286,7 @@ static void mo_step(void)                    /* each look at the buttons: the mo
     if (mo.rec && !mo.len && !mo.go) {       /* the first pass: from this bar's top */
         mo.go = 1;
         mo.org = (float)((uint32_t)pos / MO_BAR * MO_BAR);
+        mo.pat0 = dq.cur;
     }
     if (!mo.len && pos - mo.org >= (float)(MO_MAXBARS * MO_BAR))   /* (the longest: closed) */
         mo.len = MO_MAXBARS * MO_BAR;
@@ -4289,7 +4302,7 @@ static void mo_step(void)                    /* each look at the buttons: the mo
     }
     if (mo.rec) {                            /* recording: what a hand holds, what it passes over replaced; its moves in */
         for (i = mo.n; i-- > 0u;) {
-            g = mo_ev[i].tgt < MO_ROLL ? mo_ev[i].tgt : MO_ROLL;
+            g = MO_HELD(mo_ev[i].tgt);
             if (now - mo.at[g] < MO_TOUCH_MS && mo_in(mo_ev[i].t, a, p))
                 mo_del(i);
         }
@@ -4302,10 +4315,15 @@ static void mo_step(void)                    /* each look at the buttons: the mo
     if (mo.len)                              /* playing: the moves it passed, of what no hand holds */
         for (i = 0; i < mo.n; i++) {
             const mo_ev_t e = mo_ev[i];
-            g = e.tgt < MO_ROLL ? e.tgt : MO_ROLL;
+            g = MO_HELD(e.tgt);
             if (!mo_in(e.t, a, p) || now - mo.at[g] < MO_TOUCH_MS)
                 continue;
-            if (e.tgt < MO_ROLL)
+            if (e.tgt == MO_PAT) {           /* (a cue, as the hand's: not while a song runs, nor stopped) */
+                if (dq.run && dq.sel_song == DQ_NONE && !dq.rec) {
+                    ui.dt_pat = e.v & 0x7Fu;
+                    dq_cmd(DQC_CUE, e.v & 0x7Fu, 0);
+                }
+            } else if (e.tgt < MO_ROLL)
                 *mo_ref(e.tgt) = mo.lv[e.tgt] = e.v;
             else if (e.tgt > MO_ROLL)        /* (its hits not recorded into the pattern: the loop's) */
                 dq_cmd(DQC_ROLL, e.tgt - MO_ROLL - 1u, e.v | 1u << 8);
@@ -4346,6 +4364,26 @@ static void mo_cmd(int clear)                /* REC + OCT-: recording on or off;
         float d = mo.last - mo.org;
         mo.len = ((uint32_t)d + MO_BAR - 1u) / MO_BAR * MO_BAR;
         mo.len = mo.len < MO_BAR ? MO_BAR : mo.len;
+    }
+    if (mo.len) {                            /* patterns cued: back to the top's for the loop's top, cued in its last
+                                              * half bar after any other (a cue plays at its pattern's end; bit 7: this one) */
+        uint32_t i, any = 0, at = mo.len - MO_BAR / 2u;
+        for (i = mo.n; i-- > 0u;)
+            if (mo_ev[i].tgt == MO_PAT && mo_ev[i].v & 0x80u)
+                mo_del(i);
+        for (i = 0; i < mo.n; i++)
+            if (mo_ev[i].tgt == MO_PAT) {
+                any = 1;
+                at = mo_ev[i].t + 1u > at ? mo_ev[i].t + 1u : at;
+            }
+        if (any) {
+            mo_put((float)(at < mo.len ? at : mo.len - 1u), MO_PAT, mo.pat0 | 0x80u);
+            if ((uint32_t)(mo.last - mo.org) % mo.len >= at && dq.run && dq.sel_song == DQ_NONE) {   /* (past it this
+                                              * pass: now, for this top) */
+                ui.dt_pat = mo.pat0;
+                dq_cmd(DQC_CUE, mo.pat0, 0);
+            }
+        }
     }
     if (!mo.n)
         mo.len = 0;

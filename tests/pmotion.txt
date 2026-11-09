@@ -1,0 +1,57 @@
+# The motion recorder's pattern changes (mo_pat): a pattern cued as the drums run, recorded and cued again by the
+# loop at the same place; at its top, back to the pattern it began on. 100 BPM: a bar (a pattern here) 2.4 s.
+wait 600
+listen
+tap HOME
+wait 2500
+expect drum 1
+# patterns 00 and 01, a hit each
+tap REC
+tap PLAY
+wait 200
+tapkey w4 100
+wait 30
+tap REC
+wait 30
+tap PLAY
+wait 300
+spin PRESET 1
+wait 30
+tap REC
+tap PLAY
+wait 200
+tapkey w4 100
+wait 30
+tap REC
+wait 30
+expect dt_cur 1
+spin PRESET -1
+wait 2600
+expect dt_cur 0
+# armed at 00's top: a bar of 00, 01 cued, its bar, off
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+said MOTION RECORDING
+wait 1000
+spin PRESET 1
+wait 30
+expect dt_pat 1
+wait 2400
+expect dt_cur 1
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+said MOTION 2 BARS
+expect mo_n 2
+# the loop: 00 again at its top, 01 at its second bar
+wait 1300
+expect dt_cur 0
+wait 2400
+expect dt_cur 1
+wait 2400
+expect dt_cur 0
