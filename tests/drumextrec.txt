@@ -1,0 +1,17 @@
+# Drum Something recording under MIDI clock: REC keeps the clock's time (90 BPM here), not the drums' own tempo (120):
+# eight beats of clock, the metronome's nine clicks (one a beat, the first at the start; at 120 it was ten).
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/drumextrec.txt bs2/build/host
+wait 600
+press HOME
+wait 1100
+release HOME
+wait 600
+clock 24 28
+tap REC
+wait 10
+tap PLAY
+wait 10
+expect dt_rec 1
+clock 192 28
+expect dt_clicks 9

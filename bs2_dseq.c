@@ -434,6 +434,9 @@ static void dq_step(void)
     dq_next(p);
 }
 /* the roll key: the drum again and again at the roll's rate (the list's ROLL), as if played: recorded too */
+/* the drums' tempo on their own clock: MIDI clock's as measured while it leads (recording with it stopped, a roll), else
+ * theirs */
+static float dq_bpm(void) { return ext_clock() && eng.ext_bpm > 0.0f ? eng.ext_bpm : (float)dt.tempo; }
 static float dq_roll_grid(void)
 {
     return (float)DQ_ROLL[set.droll < DQ_NROLL ? set.droll : DQ_ROLL_DEF];
@@ -454,7 +457,7 @@ static void dq_roll_on(uint32_t d, uint32_t b)
     if (was)                                 /* (another drum tapped as it rolls: that one's, in time) */
         return;
     dq.roll_g = dq_roll_grid();
-    dq.roll_inc = (float)dt.tempo * (24.0f / 60.0f / BS2_RATE);
+    dq.roll_inc = dq_bpm() * (24.0f / 60.0f / BS2_RATE);
     dq.roll_t = dq.run ? dt_pos - dq.roll_g * (float)(uint32_t)(dt_pos / dq.roll_g) : 0.0f;   /* (running: on the pattern's grid) */
     if (dq.roll_t < dq.roll_g / 2.0f)        /* (now, unless the grid's next is nearer) */
         dq_roll_hit();
@@ -481,8 +484,8 @@ static inline float dq_click_next(void)      /* the metronome, its beats a short
         dq.click_ph -= 1.0f;
     return (dq.click_ph < 0.5f ? dq.click : -dq.click) * dq.click_g;
 }
-/* a block's start (audio interrupt): what the main loop asked; the clock (MIDI's only while not recording, as the
- * manual) */
+/* a block's start (audio interrupt): what the main loop asked; the clock: MIDI's while it leads and comes (recording
+ * too: a pattern recorded in a band keeps the band's time), else the drums' own at dq_bpm */
 static void dq_block(void)
 {
     uint32_t c;
@@ -539,7 +542,8 @@ static void dq_block(void)
             break;
         }
     }
-    if (ext_clock() && !dq.rec) {
+    if (ext_clock() && (!dq.rec || eng.ext_age < EXT_HOLD)) {   /* (recording too while the clock comes: a pattern
+                                              * recorded in a band keeps the band's time) */
         dq.inc = 0.0f;
         if (dq.run) {
             dt_pos += (float)x;
@@ -547,11 +551,11 @@ static void dq_block(void)
                 dq_step();
         }
     } else {
-        dq.inc = (float)dt.tempo * (24.0f / 60.0f / BS2_RATE);
+        dq.inc = dq_bpm() * (24.0f / 60.0f / BS2_RATE);
     }
     if (dq.roll) {
         dq.roll_g = dq_roll_grid();
-        dq.roll_inc = (float)dt.tempo * (24.0f / 60.0f / BS2_RATE);
+        dq.roll_inc = dq_bpm() * (24.0f / 60.0f / BS2_RATE);
     }
     dt_lock_h = set.dswing_lock && dq.run && dq.cur < DQ_NPAT ? 0.24f * (float)DQ_SWING[dqm.pat[dq.cur].swing] : 0.0f;
     if (dq.run && dq.cur < DQ_NPAT)          /* (RECORD MODE just on: its metronome) */
