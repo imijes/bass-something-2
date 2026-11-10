@@ -1404,6 +1404,18 @@ audio line says Streaming). Press SEL on GLOBAL AUDIO to hang up.
 **Bluetooth headphones aren't found:** put them in pairing mode before the search, and search again (SEL or ALGO on
 GLOBAL AUDIO, with none listed). Headphones connected to a phone often don't answer: disconnect them from it first.
 
+**USB HOST stays at Looking and never finds the device:** the FM-1 gives no USB power in host mode, and a device
+that sees no power never answers, even one running on its own batteries. Connect it through a powered USB hub (the FM-1
+into the hub's upstream port with an OTG adapter or a C-to-A cable) or a powered OTG adapter, then unplug and replug the
+device, or turn USB HOST off and on: the FM-1 tries a device once each time it's plugged in. A straight USB-C to USB-C
+cable between two devices doesn't work. Not every device connects yet, even with power: a USB MIDI 1.0 device at full
+speed is what host mode supports.
+
+**A USB device's audio doesn't come through in USB host mode:** host mode takes a device's MIDI only, not its USB
+audio, so Ext (SUB OSC + MIXER) stays silent. To put a device's sound through the synth, connect the FM-1 and the
+device to a computer instead (USB HOST off) and send the device's audio to the "Bass Something 2 FM-1" output (see USB
+audio).
+
 **The installer doesn't find the FM-1:** use Chrome or Edge, allow MIDI when asked, and close other programs that use
 the FM-1's MIDI port. If it still isn't found, the installer lists the computer's other MIDI ports to try: a Mac can
 show the FM-1 under another name.
