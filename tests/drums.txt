@@ -1,5 +1,5 @@
 # Drum Something's MIDI: a device of its own beside the synth (GLO DRUMS): its note channel and its CC channel,
-# apart from GLO MIDI's; the 400's key map on its channel; its CCs (33-45 each drum's tuning, 46-58 its volume);
+# apart from GLO MIDI's; the 400's key map on its channel; its CCs (33-37 and 39-46 each drum's volume, 48-60 its tuning);
 # both kept across a reboot. tools/build.py bs2 --host, then from the repository's root
 #   bs2/build/host/bass-something-2_host bs2/tests/drums.txt bs2/build/host
 wait 600
@@ -61,18 +61,18 @@ expect dt_hits 3
 spin K3 -7
 wait 30
 expect dchan 10
-# their CCs on channel 10: CC 34 the snare's tuning (64: step 8 of 0-15), CC 47 its volume (0)
-midi B9 22 40
+# their CCs on channel 10: CC 49 the snare's tuning (64: step 8 of 0-15), CC 34 its volume (0)
+midi B9 31 40
 wait 30
 expect dtune1 8
-midi B9 2F 00
+midi B9 22 00
 wait 30
 expect dvol1 0
-midi B9 2F 7F
+midi B9 22 7F
 wait 30
 expect dvol1 15
-# the synth's CCs are not the drums': CC 34 on channel 1 leaves the snare's tuning
-midi B0 22 00
+# the synth's CCs are not the drums': CC 49 on channel 1 leaves the snare's tuning
+midi B0 31 00
 wait 30
 expect dtune1 8
 # DRUMS CC 9 (ALGO on GLO CHANNELS): CCs on 10 no longer reach the drums
@@ -80,10 +80,10 @@ spin ALGO -1
 wait 30
 expect dcc_chan 9
 said DRUMS CC CHANNEL 9
-midi B9 22 00
+midi B9 31 00
 wait 30
 expect dtune1 8
-midi B8 22 00
+midi B8 31 00
 wait 30
 expect dtune1 0
 # SAVE keeps them: a reboot reads them back

@@ -1,0 +1,66 @@
+# The CC map with every instrument on one channel (bass, drums, piano CC all 1): no number does two things. The bass's
+# Bass Station II numbers (7 its volume, 83 the filter's Type, 84 Shape, 106 Slope, 25 EXT), the piano's (11 volume,
+# 61 PIANO, 62 HARPSI), the drums' (33.. volume, 48.. tuning, 66 the roll held, 67 its rate), the Space Echo's (8 REVERB).
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/ccmap.txt bs2/build/host
+wait 600
+tap GLO
+wait 30
+expect page 17
+spin ALGO -9
+spin SELECT -2
+wait 30
+expect cc_chan 1
+expect dcc_chan 1
+expect rmi_cc_chan 1
+# the bass: its volume, EXT, the filter's switches (Acid, back to its classic, BP, 12)
+midi B0 07 64
+midi B0 19 7F
+wait 50
+expect bvol_off 27
+expect lvl_ext 127
+expect rvol_off 0
+expect filter 0
+midi B0 53 01
+wait 50
+expect filter 6
+midi B0 54 01
+wait 50
+expect filter 6
+midi B0 53 00
+midi B0 54 01
+midi B0 6A 00
+wait 50
+expect filter 3
+# the piano: its volume, PIANO up, HARPSI down; the bass's volume left
+midi B0 0B 64
+midi B0 3D 00
+midi B0 3E 7F
+wait 50
+expect rvol_off 27
+expect bvol_off 27
+expect rmi_tabs 4
+# the drums: the snare's volume (34) and tuning (49), the bass's untouched
+midi B0 22 00
+midi B0 31 40
+wait 50
+expect dvol1 0
+expect dtune1 8
+expect filter 3
+# the echo's REVERB VOLUME (8)
+midi B0 08 00
+wait 50
+expect se_rev 0
+# the roll: its rate (67), held (66) on the selected drum, a snare note (the drums' channel, 10) moves it, let go
+midi B0 43 7F
+wait 30
+expect droll 8
+midi B0 42 7F
+wait 50
+expect rolling 1
+midi 99 26 64
+wait 50
+expect rolling 2
+midi B0 42 00
+wait 50
+expect rolling 0

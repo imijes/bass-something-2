@@ -668,11 +668,13 @@ by default, in its DRUMS column.
 | Control | What it does |
 | --- | --- |
 | K3 · DRUMS | The drums' note channel, in and out: ALL, OFF or 1 to 16. On the synth's channel, one note plays both. |
-| ALGO · DRUMS CC | The channel for the drums' tuning (CC 33-45) and volume (CC 46-58) CCs. |
+| ALGO · DRUMS CC | The channel for the drums' CCs: volume, tuning and the roll. |
 
 Notes play each drum, and the keys and patterns send them too: Bass 36, Rim 37, Snare 38, Claps 39, Tom 1 41, Closed Hat 42, Tom 2 45, Open Hat 46, Crash 49, Ride 51, Tambourine 54, Cowbell 56, Cabasa 58. Velocity 120 and up is an accent.
 
-CCs 33 to 45 set each drum's tuning and 46 to 58 its volume, in the order Bass, Snare, Rim, Tom 1, Tom 2, Crash, Ride, Closed Hat, Open Hat, Claps, Tambourine, Cowbell, Cabasa. MIDI Start and Stop run the drums.
+CCs 33 to 37 and 39 to 46 set each drum's volume and 48 to 60 its tuning, in the order Bass, Snare, Rim, Tom 1, Tom 2, Crash, Ride, Closed Hat, Open Hat, Claps, Tambourine, Cowbell, Cabasa. MIDI Start and Stop run the drums.
+
+The roll works over MIDI too, by CC on the drums' CC channel (not by a note): CC 66 at 64 and up is the ROLL key held, rolling the selected drum at velocity 100, and below 64 lets it go. A drum's note while it's held rolls that drum instead, at the note's velocity, as tapping a drum with ROLL held does. CC 67 sets the roll's rate across its list (0 is 1/2, 127 is 1/32T).
 
 ---
 
@@ -705,9 +707,12 @@ GLOBAL KEYS.
 
 | Control | What it does |
 | --- | --- |
-| SELECT · PIANO CC (GLOBAL MIDI CHANNELS) | The channel its CCs come in on (CC 7 its volume, CC 64 the sustain pedal): OFF, 1 to 16 or ALL. 3 by default. |
+| SELECT · PIANO CC (GLOBAL MIDI CHANNELS) | The channel its CCs come in on, and the Space Echo's (section 10's numbers, its sends with them): OFF, 1 to 16 or ALL. 3 by default. |
 | K4 · PIANO (GLOBAL MIDI CHANNELS) | The channel its notes come in on and its keys' notes go out on. 3 by default. |
 | K4 · ROUTE (GLOBAL KEYS) | Notes from one instrument to the other, inside the FM-1: OFF, PIANO>BASS, BASS>PIANO or BOTH. |
+
+Its CCs: 11 its volume (MIDI's Expression; 7 is the bass's), 64 the sustain pedal, 61 PIANO, 62 HARPSI, 63 LUTE, 65
+ORGAN MODE and 68 ACCENTER (each down at 64 and up), 69 its BASS slider. PIANO PP and HARPSI PP have no CC.
 
 PIANO>BASS sends its notes, from its keys and its channel, into the bass as if played on the bass's keys. With the
 bass's ARP on, a chord on the piano becomes a bass arpeggio; without it the bass, being mono, plays one note of the
@@ -1159,7 +1164,9 @@ Station II uses two CCs for one knob (cutoff 16 and 48, for example), the FM-1 r
 | CC | Page | Knob |
 | --- | --- | --- |
 | 5 | PORTA | GLIDE TIME |
+| 7 | MASTER | the bass's Volume (a setting: SAVE stays dark) |
 | 16 | FILTERS | FREQUENCY |
+| 17 | FILTERS (its mods) | LFO 2 depth |
 | 18 | LFOS | LFO 1 speed |
 | 19 | LFOS | LFO 2 speed |
 | 20 | SUB OSC + MIXER | OSC1 level |
@@ -1167,10 +1174,13 @@ Station II uses two CCs for one knob (cutoff 16 and 48, for example), the FM-1 r
 | 22 | SUB OSC + MIXER | SUB level |
 | 23 | SUB OSC + MIXER | NOISE level |
 | 24 | SUB OSC + MIXER | RING level |
+| 25 | SUB OSC + MIXER | EXT level |
 | 26 | OSCILLATORS (Osc 1) | FINE |
 | 27 | OSCILLATORS (Osc 1) | COARSE |
+| 28 | OSCILLATORS (Osc 1) | LFO 1 depth |
 | 29 | OSCILLATORS (Osc 2) | FINE |
 | 30 | OSCILLATORS (Osc 2) | COARSE |
+| 31 | OSCILLATORS (Osc 2) | LFO 1 depth |
 | 70 | OSCILLATORS (Osc 1) | RANGE |
 | 71 | OSCILLATORS (Osc 1) | MOD ENV depth |
 | 72 | PULSE WIDTH (Osc 1) | Mod Env |
@@ -1182,7 +1192,10 @@ Station II uses two CCs for one knob (cutoff 16 and 48, for example), the FM-1 r
 | 78 | PULSE WIDTH (Osc 2) | LFO 2 |
 | 79 | PULSE WIDTH (Osc 2) | Manual |
 | 80 | SUB OSC + MIXER | SUBWAVE |
+| 81 | SUB OSC + MIXER | OCTAVE |
 | 82 | FILTERS | RESONANCE |
+| 83 | FILTERS | Type: 0 CLASSIC, 1 ACID |
+| 84 | FILTERS | Shape: 0 LP, 1 BP, 2 HP (CLASSIC only) |
 | 85 | FILTERS | MOD ENV depth |
 | 86 | LFOS | LFO 1 delay |
 | 87 | LFOS | LFO 2 delay |
@@ -1190,7 +1203,9 @@ Station II uses two CCs for one knob (cutoff 16 and 48, for example), the FM-1 r
 | 89 | LFOS | LFO 2 wave |
 | 90 to 93 | ENVELOPES (Amp Env) | ATTACK, DECAY, SUSTAIN, RELEASE |
 | 94 | EFFECTS | DISTORTION |
+| 95 | EFFECTS (its mods) | LIMITER |
 | 102 to 105 | ENVELOPES (Mod Env) | ATTACK, DECAY, SUSTAIN, RELEASE |
+| 106 | FILTERS | Slope: 0 12, 1 24 (CLASSIC only) |
 | 108 | ARP | on or off |
 | 109 | ARP | LATCH |
 | 110 | OSCILLATORS (the pulse width's view) | SYNC 1-2 |
@@ -1203,18 +1218,31 @@ Station II uses two CCs for one knob (cutoff 16 and 48, for example), the FM-1 r
 | 118 | ARP | MODE, K3 (6 PLAY, 7 REC, as the Bass Station II sends them) |
 | 119 | ARP | RHYTHM, K2 |
 
-**Space Something 201:** its knobs on the same channel, on numbers the Bass Station II doesn't use. They set its
-settings, not the patch, so SAVE doesn't light. MODE takes 0 to 11 (11 is REVERB ONLY); TEMPO SYNC is on above 0.
+**Space Something 201:** its knobs and the three instruments' sends into it, on the same channel and on the piano's
+CC channel (PIANO CC, GLOBAL MIDI CHANNELS). On the piano's channel the bass's own CCs are left alone, so a controller
+there works the echo without touching the patch. They set its settings, not the patch, so SAVE doesn't light. MODE
+takes 0 to 11 (11 is REVERB ONLY). BASS, TREBLE and TEMPO SYNC have no CC.
 
 | CC | Knob | CC | Knob |
 | --- | --- | --- | --- |
-| 3 | MODE | 81 | INPUT |
-| 9 | REPEAT RATE | 83 | WOW |
-| 14 | INTENSITY | 106 | TEMPO SYNC |
-| 15 | ECHO VOLUME | 12 | BASS SEND |
-| 25 | REVERB VOLUME | 13 | DRUM SEND |
-| 28 | BASS | 107 | PIANO SEND |
-| 31 | TREBLE | | |
+| 3 | MODE | 47 | INPUT |
+| 9 | REPEAT RATE | 117 | WOW |
+| 14 | INTENSITY | 12 | BASS SEND |
+| 15 | ECHO VOLUME | 13 | DRUM SEND |
+| 8 | REVERB VOLUME | 107 | PIANO SEND |
+
+**One channel for everything:** no CC number does two things, so the bass, the drums and the piano (and the echo) can
+all share one channel, or ALL, and a controller still reaches each on its own. The bass keeps the Bass Station II's
+numbers; the others use numbers it leaves free, and MIDI's standard ones where there is one (the sustain pedal, 64).
+The drums' tunings (48 to 60) sit on the numbers where a real Bass Station II sends the fine half of a knob, so a Bass
+Station II played into the FM-1 on a shared channel can nudge them.
+
+| Instrument | CCs |
+| --- | --- |
+| Bass | 1, 5, 7, 16 to 31, 70 to 95, 102 to 106, 108 to 116, 118, 119 (the Bass Station II's) |
+| Drums | 33 to 37 and 39 to 46 volume, 48 to 60 tuning, 66 roll, 67 roll rate |
+| Piano | 11, 61 to 65, 68, 69 |
+| Space Echo | 3, 8, 9, 12 to 15, 47, 107, 117 |
 
 **The RND Synth:** its notes come in on channels 1 to 4. Keep CC CHAN on another channel, or OFF, and its messages
 can't change the sound.

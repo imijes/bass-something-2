@@ -6,8 +6,8 @@
  * oldest taken for a new key. Its panel (RMI PANEL, kept with the GLO settings): the voice (its tablets down), ORGAN
  * MODE (the stops keyed with its own envelopes: no percussive decay, a slow one), ACCENTER (its keying's thump at
  * each note's start, under the harpsichord and the lute: the low keys', to A#2, and the rest's, as recorded), BASS (a
- * boost about 98 Hz, as its 1.2 H / 2.2 uF tank) and VOL. MIDI channel 3 plays it too, CC 7 its volume, CC 64 the
- * sustain pedal (CC 20/21/22: PIANO, HARPSI, ORGAN MODE, the tests') */
+ * boost about 98 Hz, as its 1.2 H / 2.2 uF tank) and VOL. MIDI channel 3 plays it too, its CCs (rmi_cc) on its CC
+ * channel */
 #include "rmi_tab.h"
 
 #define RMI_NV 8u                            /* voices */
@@ -38,7 +38,7 @@ typedef struct {
 } rmi_voice_t;
 static struct {
     rmi_voice_t v[RMI_NV];
-    uint8_t sustain, cc_p, cc_h;             /* (the pedal; CC 20 and 21's tablets, the tests') */
+    uint8_t sustain;                         /* the pedal */
     uint8_t bass;                            /* the BASS its boost was made for (0xFF: none yet) */
     uint32_t age;
     float b0, b1, b2, a1, a2, x1, x2, y1, y2;   /* the boost: a peaking biquad's, its state */
@@ -114,16 +114,23 @@ static void rmi_note(uint32_t note, uint32_t vel)
     v->g[0] = v->g[1] = v->g[2] = v->dg[0] = v->dg[1] = v->dg[2] = 0.0f;
 }
 
-static void rmi_cc(uint32_t c, uint32_t v)   /* (until its pages: its stops by CC, the sustain pedal) */
+static void rmi_cc(uint32_t c, uint32_t v)   /* its CCs, clear of the bass's (the Bass Station II's numbers), the drums'
+                                              * and the Space Echo's: 11 its volume (MIDI's Expression: 7 is the
+                                              * bass's), 61 PIANO, 62 HARPSI, 63 LUTE, 65 ORGAN MODE, 68 ACCENTER (64
+                                              * and up: down), 69 its BASS slider, 64 the sustain pedal */
 {
     uint32_t i;
-    if (c == 20u || c == 21u) {              /* (PIANO, HARPSI: their tablets) */
-        const uint32_t b = 1u << (c == 20u ? RT_PIANO : RT_HARPSI);
+    if (c == 61u || c == 62u || c == 63u) {  /* (the tone tablets) */
+        const uint32_t b = 1u << (c == 61u ? RT_PIANO : c == 62u ? RT_HARPSI : RT_LUTE);
         set.rmi_tabs = (uint8_t)(v >= 64u ? set.rmi_tabs | b : set.rmi_tabs & ~b);
     }
-    if (c == 22u)
+    if (c == 65u)
         set.rmi_organ = v >= 64u;
-    if (c == 7u)                             /* (its volume, the faceplate's fader: kept with the settings) */
+    if (c == 68u)
+        set.rmi_accent = v >= 64u;
+    if (c == 69u)
+        set.rmi_bass = (uint8_t)v;
+    if (c == 11u)                            /* (its volume, the faceplate's fader: kept with the settings) */
         set.rvol_off = (uint8_t)(127u - v);
     if (c == 64u) {                          /* the sustain pedal: up, what it held let go */
         rmi.sustain = v >= 64u;

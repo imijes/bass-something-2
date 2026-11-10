@@ -805,10 +805,21 @@ static uint32_t dt_flash_take(void)
     return f;
 }
 
-/* a MIDI CC on the drums' CC channel (audio interrupt): 33..45 each drum's tuning, 46..58 its volume (Bass to
- * Cabasa, the panel's order; 0..127 to 0..15) */
-#define DT_CC_TUNE 33u
+/* a MIDI CC on the drums' CC channel (audio interrupt): 33..37 and 39..46 each drum's volume, 48..60 its tuning (Bass
+ * to Cabasa, the panel's order; 0..127 to 0..15), clear of the Bass Station II's CCs and the piano's and the Space
+ * Echo's (38: MIDI's data entry; 48..60: the Bass Station II's fine halves, the tunings the least played). Inside, as
+ * dt_cc_last and zoom_dt_cc take it: DT_CC_TUNE + the drum, DT_CC_VOL + the drum */
+#define DT_CC_TUNE 1u
 #define DT_CC_VOL (DT_CC_TUNE + NDT)
+#define DT_MIDI_TUNE 48u
+static uint32_t dt_cc_code(uint32_t cc)
+{
+    if (cc >= DT_MIDI_TUNE && cc < DT_MIDI_TUNE + NDT)
+        return DT_CC_TUNE + cc - DT_MIDI_TUNE;
+    if (cc >= 33u && cc <= 46u && cc != 38u)
+        return DT_CC_VOL + cc - 33u - (cc > 38u);
+    return 0;
+}
 /* the sequencer's (bs2_dseq.c), for the bass's clock, which comes first in app.c */
 static volatile uint8_t dt_running;          /* a pattern runs */
 static volatile float dt_pos;                /* where in its loop, ticks */
@@ -816,6 +827,7 @@ static volatile float dt_lock_h;             /* Swing Lock (GLO: DRUM MODS) on a
 static volatile uint8_t dt_cc_last;          /* audio -> main loop: the last of those CCs (0: none since it looked) */
 static void dt_cc(uint32_t cc, uint32_t v)
 {
+    cc = dt_cc_code(cc);
     if (cc >= DT_CC_TUNE && cc < DT_CC_TUNE + NDT)
         dt.tune[cc - DT_CC_TUNE] = (uint8_t)(v >> 3);
     else if (cc >= DT_CC_VOL && cc < DT_CC_VOL + NDT)

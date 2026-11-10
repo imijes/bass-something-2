@@ -572,6 +572,9 @@ static int fifo_get(fifo_t *f, uint32_t *v)
 static fifo_t keyq;                          /* main loop -> audio: note | velocity << 8 (0: off); NOTE_ALL_OFF */
 static fifo_t recq;                          /* audio -> main loop: MIDI in's notes while recording */
 static fifo_t ccq;                           /* audio -> main loop: MIDI in's CCs on CC CHAN, number | value << 8 */
+#define CCQ_ECHO (1u << 16)                  /* (one on the piano's CC channel: the Space Echo's alone) */
+#define CCQ_DRUM (1u << 17)                  /* (the drums' roll, CC 66 and 67: dt_roll_cc; bits 18 up: a drum + 1) */
+static volatile uint8_t dt_cc_roll;          /* the roll held by CC 66 (MIDI in's) */
 #define NOTE_ALL_OFF 0xFFu
 #define KEYQ_RMI (1u << 16)                  /* (keyq: a key of the RMI's mode, rmi_note's) */
 static int store_save(uint32_t obj, const void *src, uint32_t len);   /* plat_store_save, told if it is in silence */
@@ -1059,15 +1062,27 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
         if (st < 0xF0u) {                    /* Drum Something: a device of its own on the network (GLO DRUMS), its
                                               * channels apart from the synth's (one both are on plays both) */
             uint32_t ch = (st & 0x0Fu) + 1u;
-            if ((st & 0xF0u) == 0x90u && d2 && (set.dchan == CH_ALL || set.dchan == ch))
+            if ((st & 0xF0u) == 0x90u && d2 && (set.dchan == CH_ALL || set.dchan == ch)) {
                 dt_note(d1, d2);             /* (Note Off: nothing, as the 400) */
-            else if ((st & 0xF0u) == 0xB0u && (set.dcc_chan == CH_ALL || set.dcc_chan == ch))
+                if (dt_cc_roll && d1 >= 35u && d1 < 35u + 24u && DT_KEY[d1 - 35u] != DT_NONE)   /* (rolling by CC:
+                                              * that drum's now, as a tap with the ROLL key held) */
+                    fifo_put(&ccq, 66u | d2 << 8 | CCQ_DRUM | (DT_KEY[d1 - 35u] + 1u) << 18);
+            } else if ((st & 0xF0u) == 0xB0u && (set.dcc_chan == CH_ALL || set.dcc_chan == ch)) {
                 dt_cc(d1, d2);
+                if (d1 == 66u || d1 == 67u) {   /* the ROLL key's hold (64 and up) and its rate */
+                    if (d1 == 66u)
+                        dt_cc_roll = d2 >= 64u;
+                    fifo_put(&ccq, d1 | d2 << 8 | CCQ_DRUM);
+                }
+            }
             if ((set.rmi_chan == CH_ALL || set.rmi_chan == ch) && ((st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u))
                 rmi_play(d1, (st & 0xF0u) == 0x90u ? d2 : 0u);   /* the RMI (GLO RMI), a device of its own too */
             else if ((set.rmi_cc_chan == CH_ALL || set.rmi_cc_chan == ch) && (st & 0xF0u) == 0xB0u)
             {
                 rmi_cc(d1, d2);
+                if (!cc)                         /* the Space Echo's knobs and sends too, by CC_MAP's numbers (on CC
+                                              * CHAN as well, once if both are the one channel) */
+                    fifo_put(&ccq, d1 | d2 << 8 | CCQ_ECHO);
                 pq_cc(d1, d2);                   /* (the sustain pedal into the piano's part, recording) */
             }
         }
@@ -2491,22 +2506,44 @@ static const cc_map_t CC_MAP[] = {
     {94, CCP(PG_EFX, EN_K1)},                  {27, CCP(PG_OSC, EN_K1)},      {26, CCP(PG_OSC, EN_K2)},
     {72, &PW_P[0][PW_MENV]},        {77, &PW_P[1][PW_MENV]},       {112, CCP(PG_EMOD, EN_K1)},
     {113, &EMODM_P[EN_K1]},        {115, CCP(PG_EFX, EN_K2)},
-    /* the Space Echo (its settings, not the patch; numbers MIDI leaves undefined or spare, none the Bass Station II's): its
-     * HOME's five where HOME has them (a CC there dives as a turn does), the rest on their close-ups and its mods */
+    {17, CCP(PG_FMOD, EN_K1)},      {25, &MIX_SRC[MS_EXT]},        {28, CCP(PG_OSC, EN_K4)},
+    {31, &OSC2_P[EN_K4]},           {81, CCP(PG_FX, EN_SELECT)},   {95, CCP(PG_XMOD, EN_K2)},
+    /* the Space Echo (its settings, not the patch; on the piano's CC channel too): numbers MIDI leaves undefined or
+     * spare, none the Bass Station II's, the piano's or the drums': its HOME's five where HOME has them (a CC there dives
+     * as a turn does), the rest on their close-ups and its mods. Its BASS, TREBLE and TEMPO SYNC: none */
     {3, CCP(PG_SHOME, EN_PRESET)},  {9, CCP(PG_SHOME, EN_K1)},     {14, CCP(PG_SHOME, EN_K2)},
-    {15, CCP(PG_SHOME, EN_K3)},     {25, CCP(PG_SHOME, EN_K4)},    {28, CCP(PG_SECHO, EN_PRESET)},
-    {31, CCP(PG_SECHO, EN_ALGO)},   {81, CCP(PG_SIN, EN_K1)},      {83, CCP(PG_SMOD, EN_K4)},
-    {106, CCP(PG_SMOD, EN_PRESET)}, {12, CCP(PG_SMOD, EN_K1)},     {13, CCP(PG_SMOD, EN_K2)},
+    {15, CCP(PG_SHOME, EN_K3)},     {8, CCP(PG_SHOME, EN_K4)},     {47, CCP(PG_SIN, EN_K1)},
+    {117, CCP(PG_SMOD, EN_K4)},     {12, CCP(PG_SMOD, EN_K1)},     {13, CCP(PG_SMOD, EN_K2)},
     {107, CCP(PG_SMOD, EN_K3)},
 };
 static void zoom_se(uint32_t p);             /* ECHO HOME's knob: in on its close-up */
 static void zoom_cc_in(const param_t *q);
 static void zoom_dt_cc(uint32_t cc);
 static void zoom_views(const uint8_t *v);
-static void cc_apply(uint32_t cc, uint32_t v)   /* the main loop's: a CC on CC CHAN, number and value */
+static void cc_apply(uint32_t cc, uint32_t v, int echo)   /* the main loop's: a CC on CC CHAN, number and value;
+                                              * echo: on the piano's CC channel, the Space Echo's alone */
 {
     uint32_t i;
-    if (cc == 108u) {                        /* (the arp's On: a button, no encoder) */
+    if ((cc == 83u || cc == 84u || cc == 106u) && !echo) {   /* the filter's Type, Shape and Slope switches (0, 1,
+                                              * 2 as the Bass Station II sends them; else across 0..127), our one
+                                              * FILTER (FLT_NAME): Shape and Slope a classic filter's, ACID's none */
+        const uint32_t n = cc == 84u ? 3u : 2u, x = v < n ? v : v * n >> 7, f = patch.filter;
+        if (cc == 83u && (x != 0) != (f == FLT_ACID)) {   /* (as the panel's Type: the classic one kept) */
+            if (f != FLT_ACID)
+                ui.flt_classic = (uint8_t)f;
+            patch.filter = (uint8_t)(x ? FLT_ACID : ui.flt_classic);
+        } else if (cc != 83u && f != FLT_ACID)
+            patch.filter = (uint8_t)(cc == 84u ? x * 2u + (f & 1u) : (f & ~1u) + !x);   /* (Slope: 0 12, 1 24) */
+        set_dirty = 1;
+        ui.redraw = 1;
+        return;
+    }
+    if (cc == 7u && !echo) {                 /* the bass's own volume (a setting: SAVE stays dark) */
+        set.bvol_off = (uint8_t)(127u - v);
+        ui.redraw = 1;
+        return;
+    }
+    if (cc == 108u && !echo) {                        /* (the arp's On: a button, no encoder) */
         patch.arp_on = v != 0u;
         ui.dt_b_saved = ui.dt_b_paused = 0;  /* (the user's now: TRANSPORT forgets what it was keeping) */
         set_dirty = 1;
@@ -2520,6 +2557,8 @@ static void cc_apply(uint32_t cc, uint32_t v)   /* the main loop's: a CC on CC C
         const int glo = q >= &PARAMS[PG_GMIDI][0] && q <= &PARAMS[NPAGES - 1][NE - 1];   /* (a setting's: the Space
                                               * Echo's; OSC2_P and the like, the patch's, outside PARAMS) */
         int32_t x = (int32_t)v, span = q->hi - q->lo;
+        if (echo && !glo)
+            return;
         if (q->names == RANGE_NAME)
             x -= 63;
         else if (q->names && span == 1)
@@ -4527,6 +4566,22 @@ static void dt_roll(uint32_t d, uint32_t v, uint32_t keys)
     dq_cmd(DQC_ROLL, d, b);
     mo_roll(MO_ROLL + 1u + d, b);            /* (the motion recorder's too) */
 }
+/* the ROLL key by MIDI, on the drums' CC channel (GLO MIDI CHANNELS): CC 66 held (64 and up), the selected drum rolls,
+ * at 100 (a drum's note meanwhile, d + 1: that one, at its velocity); CC 67 its rate (ROLL's list, across 0..127) */
+static void dt_roll_cc(uint32_t cc, uint32_t v, uint32_t d)
+{
+    if (cc == 67u)
+        set.droll = (uint8_t)(v * DQ_NROLL >> 7);
+    else if (d)
+        dt_roll(d - 1u, v, 0);
+    else if (v >= 64u)
+        dt_roll(ui.dt_sel, 100u, 0);
+    else {
+        dq_cmd(DQC_ROLLOFF, 0, 0);
+        mo_roll(MO_ROLL, 0);
+    }
+    ui.redraw = 1;
+}
 static void dt_key(uint32_t k, uint32_t v, uint32_t keys)
 {
     static const uint8_t BK[11] = PLAT_BLACK_KEYS;
@@ -5138,7 +5193,10 @@ static void input(void)
         if (seq_rec)
             step_enter(k);
     while (fifo_get(&ccq, &k))               /* MIDI in's CCs on CC CHAN */
-        cc_apply(k & 0x7Fu, k >> 8);
+        if (k & CCQ_DRUM)
+            dt_roll_cc(k & 0x7Fu, k >> 8 & 0x7Fu, k >> 18);
+        else
+            cc_apply(k & 0x7Fu, k >> 8 & 0x7Fu, (k & CCQ_ECHO) != 0);
     if (keys != ui.keys || btn != ui.btn)
         ui.redraw = 1;
     ui.keys = keys;
@@ -6913,8 +6971,12 @@ static void glo_conn_draw(void)
          uh == USBH_CONNECTED ? P_CYAN : P_SILK);
     if (set.usb_host)
         cv_text(10, 86, &FONT_XS, "A powered hub feeds the device.", P_SILK);
-    info(10, 64, 46, "Bluetooth", set.ble_off ? "Off" : plat_ble_connected() ? "Connected" : "On",
-         !set.ble_off && plat_ble_connected() ? P_CYAN : P_SILK);
+    char bt[32] = "Connected ";
+    const int dev = FM1B_BLE_CENTRAL && !set.ble_off && plat_ble_device() == BLE_DEV_READY && *btdev_name();
+    if (dev)                                 /* a device joined: its name */
+        text_cat(bt, btdev_name());
+    info(10, 64, 46, "Bluetooth", set.ble_off ? "Off" : dev ? bt : plat_ble_connected() ? "Connected" : "On",
+         !set.ble_off && (dev || plat_ble_connected()) ? P_CYAN : P_SILK);
     if (FM1B_BLE_CENTRAL && !set.ble_off)
         cv_text(10, 72, &FONT_XS, "REC: find a Bluetooth MIDI device.", P_SILK);
     print_switch(92, GLO_ROW, EN_K1, "Off", "On", "USB Host");
@@ -9560,6 +9622,17 @@ int app_expect(const char *what, int *got)
         *got = set.se_rate;
     else if (!strcmp(what, "se_rev"))
         *got = set.se_rev;
+    else if (!strcmp(what, "se_send_drum"))  /* (its sends: the drums') */
+        *got = set.se_send[1];
+    else if (!strcmp(what, "rmi_tabs"))      /* the piano's tablets (RT_* bits), its volume and the bass's (as stored:
+                                              * 127 - it) */
+        *got = set.rmi_tabs;
+    else if (!strcmp(what, "rvol_off"))
+        *got = set.rvol_off;
+    else if (!strcmp(what, "bvol_off"))
+        *got = set.bvol_off;
+    else if (!strcmp(what, "rolling"))       /* the roll: its drum + 1, 0 none */
+        *got = dq.roll ? dq.roll_d + 1 : 0;
     else if (!strcmp(what, "drum"))          /* Drum Something's mode (HOME held) */
         *got = ui.drum;
     else if (!strcmp(what, "dlit"))          /* the drum HOME's instruments lit (dt_lit), a bit each */
