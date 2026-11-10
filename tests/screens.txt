@@ -272,7 +272,22 @@ tap HOME
 wait 2500
 tap HOME
 wait 3000
+# a chord struck (F3, C4, E4, G4, C5, E5): its notes' bars at their keys, shot just after the attack
+key 0 down 127
+key 7 down 127
+key 11 down 120
+key 14 down 120
+key 19 down 127
+key 23 down 115
+wait 120
 shot screen-piano-home.png
+key 0 up
+key 7 up
+key 11 up
+key 14 up
+key 19 up
+key 23 up
+wait 2000
 tap HOME
 wait 3000
 shot screen-echo-home.png

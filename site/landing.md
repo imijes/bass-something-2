@@ -13,10 +13,10 @@ echo and spring reverb inspired by the Roland RE-201, and all three instruments 
 It's also a companion for Cyma Forma's RND Synth (firmware 1.4): 32 seed slots with their locks, and a mixer for its
 four tracks.
 
-![Bass Something 2's HOME page with a note playing: the BASS SOMETHING 2 name, the red P01 display, the scope drawing the wave, and the whole Bass Station II panel above the keys](manual/img/screen-home.png "Bass Something 2 on the FM-1's screen")
-![Drum Something 400's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](manual/img/screen-drum-home.png "Drum Something 400 on the FM-1's screen")
-![Piano Something 368X's HOME page: its name, the tone toggle that's on, and the RMI Electra-piano's front panel above the keys](manual/img/screen-piano-home.png "Piano Something 368X on the FM-1's screen")
-![Space Something 201's HOME page: its name and mode above the whole RE-201 front panel, the keys under it](manual/img/screen-echo-home.png "Space Something 201 on the FM-1's screen")
+![Bass Something 2's HOME page, animated: the name, the red P01 display and the whole Bass Station II panel; then FREQUENCY turned, the camera diving into the filter's knob and back out to HOME](manual/img/screen-bass-home.gif "Bass Something 2 on the FM-1's screen")
+![Drum Something 400's HOME page, animated: the panel with its two red displays; then SEQ tapped, the patterns' page, and HOME again](manual/img/screen-drum-home.gif "Drum Something 400 on the FM-1's screen")
+![Piano Something 368X's HOME page, animated: chords played, their notes ringing as bars over the RMI Electra-piano's front panel; then ORGAN MODE turned on and off, the camera diving into the tone tablets and back out](manual/img/screen-piano-home.gif "Piano Something 368X on the FM-1's screen")
+![Space Something 201's HOME page, animated: its name and mode above the whole RE-201 front panel; then REPEAT RATE turned, the camera diving into the knob and back out](manual/img/screen-echo-home.gif "Space Something 201 on the FM-1's screen")
 
 Version {{VERSION}}. Installing is at your own risk; the installer can put M-VAVE's own firmware back.
 
