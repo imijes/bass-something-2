@@ -6,6 +6,8 @@ usb_manufacturer = "imijes"
 usb_product = "Bass Something 2 FM-1"   # "fm-1" in it: the installer and fm1_install.py find the port by that
 cpu2 = true                    # the second core: the RMI's block (bs2_rmi.c rmi_job) beside the bass and drums
 cpu2_fallback = true           # one core after a failure of it, not a restart
+unity_opt = "z"                # -Oz, not -Os: 28.9 KB less flash; the audio a little slower too (the heavy case,
+                               # drums + arp + piano + echo: CPU0 peak 62 -> 67, CPU1 20 -> 20, 2026-11-09)
 o2 = []                        # separate units compiled at -O2 (an app's DSP)
 words = "words.tsv"
 ble = true                     # Bluetooth MIDI (--no-ble builds without it)

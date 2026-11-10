@@ -280,7 +280,7 @@ expect rfx 0
 # the RND Synth's tracks: GLO MIDI's channel at 3, track 3's notes play, track 1's don't
 tap GLO
 wait 30
-spin K1 2
+spin K2 2
 wait 30
 expect chan 3
 midi 90 40 64
