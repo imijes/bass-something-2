@@ -2177,7 +2177,7 @@ enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_A
        PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD, PG_RVIEW, PG_SVOICE, PG_DROOM, PG_ATOUCH, PG_WHEELS,
        NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
-                                              "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL CHANNELS", "GLOBAL CLOCK",
+                                              "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI CHANNELS", "GLOBAL CLOCK",
                                               "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
                                               "GLOBAL CONNECT", "DRUM HOME", "CHANNEL 1", "CHANNEL 2", "CHANNEL 3",
                                               "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL KEYS",
@@ -4038,7 +4038,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [PG_OSC] = "Oscillators", [PG_MIX] = "Pulse Width", [PG_FX] = "Sub + Mixer", [PG_AENV] = "Envelopes",
         [PG_MENV] = "Triggering", [PG_EMOD] = "Env Mods", [PG_LFO1] = "LFOs", [PG_LFO2] = "LFO Mods",
         [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods", [PG_ATOUCH] = "Aftertouch", [PG_WHEELS] = "Wheels",
-        [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "Channels", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Keys", [PG_NAME] = "Patch Name", [PG_RSEL] = "Piano Panel", [PG_RVIEW] = "Piano Presets",
+        [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI Channels", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Keys", [PG_NAME] = "Patch Name", [PG_RSEL] = "Piano Panel", [PG_RVIEW] = "Piano Presets",
         [PG_GDISP] = "Display", [PG_GDUMP] = "Dump", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
         [PG_RTRK] = "RND Tracks", [PG_GCONN] = "Connect"};
     static char tap[48];                     /* "GLO tap: System, hold: RND Synth Companion" */
@@ -6884,13 +6884,13 @@ static void info(int32_t x, int32_t w, int32_t y, const char *name, const char *
     cv_text(x + w, y, &FONT_T, v, c);
 }
 #define GLO_ROW 124                          /* the knobs' and switches' row */
-/* GLOBAL CHANNELS: each instrument's channels in its column, Bass, Drums and Piano: its CCs' along the top (SELECT,
+/* GLOBAL MIDI CHANNELS: each instrument's channels in its column, Bass, Drums and Piano: its CCs' along the top (SELECT,
  * ALGO, PRESET: on PRESET, ALGO, SELECT) and its notes' along the bottom (K1-K3, on K2-K4), each knob's channel under it */
 static void glo_chan_draw(void)
 {
     static const char *const NAME[3] = {"Bass", "Drums", "Piano"};
     uint32_t i;
-    glo_frame("Channels");
+    glo_frame("MIDI Channels");
     print_c(34, 68, "CC", P_SILK);
     print_c(34, GLO_ROW - 4, "Notes", P_SILK);
     for (i = 0; i < 3u; i++) {

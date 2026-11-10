@@ -165,8 +165,13 @@ wait 400
 shot screen-glo-channels.png
 tap GLO
 wait 1500
-wait 400
+spin K2 1
+wait 30
+usbh plug Launchkey_Mini_MK3
+wait 1900
 shot screen-glo-connect.png
+spin K2 -1
+wait 30
 tap GLO
 wait 1500
 wait 400
