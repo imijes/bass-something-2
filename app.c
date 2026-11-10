@@ -2489,12 +2489,13 @@ static const param_t PARAMS[NPAGES][NE] = {
                   [EN_K1] = {"HINTS", SF(hints), 0, 1, OFF_ON}, [EN_K2] = {"POP-UPS", SF(pop), 0, NPOP - 1, 0}},
     /* the Space Echo: its HOME the knobs most played, each the same encoder on its close-up (HOME's dive: PRESET to
      * INPUT's MODE, K1-K4 to PANEL's); INPUT the left of its panel (INSTRUMENT VOLUME, MODE SELECTOR); PANEL the right
-     * (the tone on PRESET and ALGO, the rest as HOME's); MODS what the RE-201 hasn't */
+     * (the tone on SELECT and ALGO, the MODE on PRESET, the rest as HOME's); MODS what the RE-201 hasn't */
     [PG_SHOME] = {[EN_PRESET] = {"MODE", SF(se_mode), 0, 11, SE_MODE_NAME}, [EN_K1] = {"REPEAT RATE", SF(se_rate), 0, 127, 0},
                   [EN_K2] = {"INTENSITY", SF(se_int), 0, 127, 0}, [EN_K3] = {"ECHO VOLUME", SF(se_echo), 0, 127, 0},
                   [EN_K4] = {"REVERB VOLUME", SF(se_rev), 0, 127, 0}},
     [PG_SIN] = {[EN_PRESET] = {"MODE", SF(se_mode), 0, 11, SE_MODE_NAME}, [EN_K1] = {"INPUT", SF(se_input), 0, 127, 0}},
-    [PG_SECHO] = {[EN_PRESET] = {"BASS", SF(se_bass), 0, 127, 0}, [EN_ALGO] = {"TREBLE", SF(se_treb), 0, 127, 0},
+    [PG_SECHO] = {[EN_SELECT] = {"BASS", SF(se_bass), 0, 127, 0}, [EN_ALGO] = {"TREBLE", SF(se_treb), 0, 127, 0},
+                  [EN_PRESET] = {"MODE", SF(se_mode), 0, 11, SE_MODE_NAME},
                   [EN_K1] = {"REPEAT RATE", SF(se_rate), 0, 127, 0}, [EN_K2] = {"INTENSITY", SF(se_int), 0, 127, 0},
                   [EN_K3] = {"ECHO VOLUME", SF(se_echo), 0, 127, 0}, [EN_K4] = {"REVERB VOLUME", SF(se_rev), 0, 127, 0}},
     /* the bass's AFTERTOUCH and WHEELS (FX's mods; the settings', not the patch's) */
@@ -4147,7 +4148,7 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_SHOME] = {[EN_PRESET] = "Heads and spring", [EN_K1] = "Tape speed: delay", "Repeats, feedback", "Echo level",
                   "Spring level"},
     [PG_SIN] = {[EN_PRESET] = "Heads and spring", [EN_K1] = "Drive into the tape"},
-    [PG_SECHO] = {[EN_ALGO] = "Echo's highs", "Echo's lows", "Tape speed: delay", "Repeats, feedback",
+    [PG_SECHO] = {[EN_SELECT] = "Echo's lows", "Echo's highs", "Heads and spring", "Tape speed: delay", "Repeats, feedback",
                   "Echo level", "Spring level"},
     [PG_SVOICE] = {"Loop gain: runaway point", "Feedback with 2-3 heads", "Tape compression", "Slow pitch drift",
                    "Fast pitch warble", "Spring chirp", "Spring tail length"},
@@ -6877,8 +6878,8 @@ static void se_front(int whole)
     se_knob(SPX(165), SPY(322), SPR(17), se_ang(0), NE, big);   /* MIC VOLUME, both: down (nothing on them) */
     se_knob(SPX(224), SPY(322), SPR(17), se_ang(0), NE, big);
     se_knob(SPX(282), SPY(322), SPR(17), se_ang(set.se_input), ui.page == PG_SIN ? EN_K1 : NE, big);
-    se_knob(SPX(356), SPY(291), SPR(22), se_mode_ang(), ui.page == PG_SIN || ui.page == PG_SHOME ? EN_PRESET : NE, 0);
-    se_knob(SPX(437), SPY(267), SPR(17), se_ang(set.se_bass), ui.page == PG_SECHO ? EN_PRESET : NE, big);
+    se_knob(SPX(356), SPY(291), SPR(22), se_mode_ang(), ui.page == PG_SIN || ui.page == PG_SHOME || ui.page == PG_SECHO ? EN_PRESET : NE, 0);
+    se_knob(SPX(437), SPY(267), SPR(17), se_ang(set.se_bass), ui.page == PG_SECHO ? EN_SELECT : NE, big);
     se_knob(SPX(490), SPY(267), SPR(17), se_ang(set.se_treb), ui.page == PG_SECHO ? EN_ALGO : NE, big);
     se_knob(SPX(548), SPY(267), SPR(17), se_ang(set.se_rev), ui.page == PG_SECHO || ui.page == PG_SHOME ? EN_K4 : NE, big);
     se_knob(SPX(437), SPY(320), SPR(17), se_ang(set.se_rate), ui.page == PG_SECHO || ui.page == PG_SHOME ? EN_K1 : NE, big);

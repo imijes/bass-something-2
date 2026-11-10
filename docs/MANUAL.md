@@ -788,7 +788,8 @@ the knob as it turns.
 | HOME | K4 · REVERB VOLUME | The spring's level |
 | ECHO INPUT | PRESET · MODE | As on HOME |
 | ECHO INPUT | K4 · INPUT | How hard the sends drive the tape (INSTRUMENT VOLUME on the RE-201). The VU meter shows it; PEAK lights near the tape's limit |
-| ECHO PANEL | PRESET · BASS, ALGO · TREBLE | The echo's lows and highs, about 10 dB either way |
+| ECHO PANEL | PRESET · MODE | As on HOME |
+| ECHO PANEL | SELECT · BASS, ALGO · TREBLE | The echo's lows and highs, about 10 dB either way |
 | ECHO PANEL | K1 to K4 | As on HOME |
 | ECHO MODS | PRESET · TEMPO SYNC | REPEAT RATE picks a note at the tempo instead (an 8th, an 8th triplet, a 16th, a 16th triplet or a 32nd, slow to fast), halved or doubled to stay in the RE-201's range |
 | ECHO MODS | K1 to K3 · BASS, DRUM, PIANO SEND | How much of each instrument goes into it, after its own volume. All three are off at first |
