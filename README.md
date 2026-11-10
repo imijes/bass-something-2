@@ -3,9 +3,11 @@
 A monosynth inspired by the legendary Novation Bass Station II, built for the M-VAVE FM-1. It's also a companion for Cyma Forma's RND Synth (firmware
 1.4): 32 seed slots with their locks, and a mixer for its four tracks. It runs on an iPhone or iPad in RemoteFM1 too. It's built on fm1-base, started from fm1-base's `template/`.
 It also has a second instrument, Drum Something 400: a drum machine inspired by the Sequential Circuits Drumtraks, with
-synthesized voices on virtual EPROMs, patterns, songs and MIDI out. The manual (`docs/MANUAL.md`) describes everything
-it does. To see what's new, read `docs/RELEASE_v0.7.md`, `docs/RELEASE_v0.7.1.md` and `docs/RELEASE_v0.7.2.md`. The v0.7.2 firmware is 516,496 B, with about 65 KB of
-flash and 19.9 KB of RAM free (`docs/SIZE_LOG.md`).
+synthesized voices on virtual EPROMs, patterns, songs and MIDI out. Since v0.8 there are two more: Piano Something 368X, an
+electric piano inspired by the RMI Electra-piano, and Space Something 201, a tape echo and spring reverb inspired by the
+Roland RE-201 that every instrument sends into. The manual (`docs/MANUAL.md`) describes everything
+it does. To see what's new, read `docs/RELEASE_v0.8.md` (earlier: `docs/RELEASE_v0.7.md` to `v0.7.2`). The v0.8 firmware is 514,028 B, with about 66 KB of
+flash and 9.9 KB of RAM free (`docs/SIZE_LOG.md`).
 
 | File | What |
 | --- | --- |
@@ -51,12 +53,12 @@ Then, from the repository root:
 
 The site (bs2/build/site), from a release:
 
-    tools/build.py bs2 --release 0.7.2 && tools/build.py bs2 --web --release 0.7.2
-    tools/build.py bs2 --rfm1 --release 0.7.2               # RemoteFM1 (iOS): bs2/build/bass-something-2-0.7.2.rfm1,
+    tools/build.py bs2 --release 0.8 && tools/build.py bs2 --web --release 0.8
+    tools/build.py bs2 --rfm1 --release 0.8               # RemoteFM1 (iOS): bs2/build/bass-something-2-0.8.rfm1,
                                                           # a release asset; build it from a pushed commit (its source_url)
-    python3 bs2/site/make_site.py bs2/build/bass-something-2-0.7.2.fwsc 0.7.2
+    python3 bs2/site/make_site.py bs2/build/bass-something-2-0.8.fwsc 0.8
     (cd bs2/build/site && python3 -m http.server 8765)    # http://localhost:8765
-    python3 bs2/site/publish_pages.py 0.7.2                 # https://imijes.github.io/bass-something-2/
+    python3 bs2/site/publish_pages.py 0.8                 # https://imijes.github.io/bass-something-2/
 
 Bass Something 2 is by John Brown ([@imijes](https://github.com/imijes)). Credits for everyone whose work it builds on: `docs/MANUAL.md`, section 13.
 

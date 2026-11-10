@@ -55,10 +55,9 @@ the screen, sound and MIDI. There's no Bluetooth or USB host there, and the app 
 doesn't start can be recovered too. For details, see felucca-bsp's `tools/fm1_rescue.sh`.
 
 At power-on the screen shows BASS SOMETHING 2 in cyan, "Inspired by the Bass Station 2" under it, and an oscilloscope whose
-wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.7) is in the bottom
-right corner. v0.7 brings Drum Something 400 (section 6) and the 2026-11-05 platform update: a faster install, FM-1s with
-the UC25HQ80 flash chip, and USB audio on macOS 15. It uses 516,496 B of the FM-1's flash, with
-about 65 KB free. Then the panel opens on the patch you last saved. The emulator shows the same splash when you
+wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.8) is in the bottom
+right corner. v0.8 brings Piano Something 368X, Space Something 201, the motion recorder and PROX (`docs/RELEASE_v0.8.md`).
+It uses 514,028 B of the FM-1's flash, with about 66 KB free. Then the panel opens on the patch you last saved. The emulator shows the same splash when you
 switch it on.
 
 ---
@@ -1106,7 +1105,7 @@ writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL 
 BS2 SysEx Dump. GLOBAL MIDI CHANNELS has a column for each instrument (Bass, Drums, Piano): its CC channel on top, its
 note channel under it, each knob's channel printed beneath. A red display shows the main value where a page has one: GLOBAL CLOCK's the tempo (while MIDI clock leads, its tempo as measured over
 every two beats; dashes until then) with the clock's state beside it, GLOBAL DUMP's the patch. GLOBAL DISPLAY shows the
-firmware's version (VERSION v0.7). The on/off settings are slide switches.
+firmware's version (VERSION v0.8). The on/off settings are slide switches.
 
 On every GLO page, the right of the page's own bar shows the audio's load (for a moment after a change, what changed
 instead), for example **CPU0 34/41**. The first number is the
