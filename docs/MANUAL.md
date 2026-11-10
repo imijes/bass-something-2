@@ -1283,7 +1283,7 @@ jack go quiet; USB audio to a computer carries on.
 Press SEL again to hang up: the sound comes back to the FM-1. The FM-1 remembers the last four devices it played to.
 They come first when you turn ALGO (Known), the last one used at the top, so the next time it's SEL alone: no search,
 and the device doesn't need to be in pairing mode, only switched on. Bluetooth audio doesn't connect by itself at
-power-on; press SEL on GLOBAL AUDIO.
+power-on; press SEL on GLOBAL AUDIO. To find a new device, turn ALGO past the last one listed (New search) and press SEL. To forget a remembered device, turn ALGO on past New search to Forget and its name, then press SEL twice (within 3 seconds).
 
 As with any Bluetooth headphones, the sound arrives a moment late (a fraction of a second), so play the keys through the FM-1's
 own speaker or wired headphones when timing matters. The lines on GLOBAL AUDIO show where it stands: BT audio (Off,

@@ -2234,9 +2234,11 @@ static void ble_device_button(void)
 
 /* GLO AUDIO's Bluetooth audio (FM1B_BT_AUDIO: headphones and speakers, A2DP): ALGO picks a device, the remembered
  * ones first (the last one at the top), then the ones a search found; SEL connects it, or hangs up while there's a
- * link; with none listed, SEL or ALGO searches */
+ * link; past the last one, or with none listed, SEL searches; past that, a Forget for each remembered one (SEL twice) */
 #if FM1B_BT_AUDIO
-static uint8_t bta_cur;                      /* the device ALGO picked: remembered, then found */
+static uint8_t bta_cur;                      /* the device ALGO picked: remembered, then found; then a search, the forgets */
+static uint32_t bta_sure;                    /* a forget's first SEL: when (plat_ms, 0: none) */
+#define BTA_SURE_MS 3000u
 static const char *const BTA_STATE[] = {"Off", "Searching", "Found", "None found", "Connecting", "Linked", "Setting up",
                                         "Streaming", "Refused", "No last", "Failed", "Ready"};
 static uint32_t bta_count(uint32_t *known)   /* how many listed; known: how many of them remembered */
@@ -2278,20 +2280,40 @@ static void bta_turn(int32_t e)              /* ALGO: the next device, or a sear
             bta_search();
         return;
     }
-    bta_cur = (uint8_t)(((int32_t)bta_cur + e % (int32_t)n + (int32_t)n) % (int32_t)n);
-    if (bta_name(bta_cur, name))
+    const uint32_t m = n + 1u + k;           /* past the last one: a new search; then each remembered one's forget */
+    bta_sure = 0;
+    bta_cur = (uint8_t)(((int32_t)bta_cur + e % (int32_t)m + (int32_t)m) % (int32_t)m);
+    if (bta_cur > n && plat_bta_known((int)(bta_cur - n - 1u), name))
+        app_say("BT AUDIO FORGET", name);
+    else if (bta_name(bta_cur, name))
         app_say(bta_cur < k ? "BT AUDIO KNOWN" : "BT AUDIO FOUND", name);
+    else
+        app_say("BT AUDIO", "SEL: NEW SEARCH");
 }
 static void bta_button(void)                 /* SEL */
 {
     char name[17];
     uint32_t k, n;
+    n = bta_count(&k);
+    if (n && bta_cur > n && bta_cur <= n + k) {   /* a forget: SEL again to be sure */
+        const uint32_t i = bta_cur - n - 1u, now = plat_ms() | 1u;
+        if (!bta_sure || now - bta_sure > BTA_SURE_MS) {
+            bta_sure = now;
+            app_say("BT AUDIO", "SEL AGAIN: FORGET");
+            return;
+        }
+        bta_sure = 0;
+        (void)plat_bta_known((int)i, name);
+        plat_bta_forget((int)i);
+        bta_cur = 0;
+        app_say("BT AUDIO FORGOT", name);
+        return;
+    }
     if (bta_busy()) {
         plat_bta_hangup();
         app_say("BT AUDIO", "HUNG UP");
         return;
     }
-    n = bta_count(&k);
     if (!n || bta_cur >= n) {
         bta_search();
         return;
@@ -4672,11 +4694,15 @@ static int prox_rssi(void)                   /* the link's signal, dBm; 0: none 
 #define PROX_K 0.18f                         /* a look's smoothing: 1 - e^(-20 ms / 0.1 s) */
 #define PROX_NEAR 23u                        /* uncalibrated: touching, -dBm (an SP-1 2026-11-09) */
 #define PROX_FAR 50u                         /* arm's length, sweeping */
+#define PROX_SETTLE 700u                     /* ms on a new target before it's turned: scrolling the list past knobs
+                                              * leaves them be */
 static struct {
     uint32_t at;                             /* its last look */
     float e, x, lo, hi;                      /* the smoothed signal, dBm; where it is, 0 near .. 1 far; calibrating: its
                                               * lowest, highest */
-    uint8_t cal, live, v, tgt;               /* calibrating; a link read last look; the 0..127 out; the target it went to */
+    uint32_t since;                          /* when the target last changed */
+    uint8_t cal, live, v, tgt, seen;         /* calibrating; a link read last look; the 0..127 out; the target it went to;
+                                              * the target last look */
 } prox;
 static int prox_calibrating(void) { return prox.cal; }
 static void prox_put(uint32_t g, uint32_t v)   /* value g (MO_*) at v of 0..127, in its own range */
@@ -4698,6 +4724,10 @@ static void prox_step(void)                  /* the main loop's (input) */
     if (now - prox.at < PROX_MS)
         return;
     prox.at = now;
+    if (prox.seen != set.prox_tgt) {
+        prox.seen = set.prox_tgt;
+        prox.since = now;
+    }
     if ((!set.prox_tgt && !prox.cal) || !(r = prox_rssi())) {
         prox.live = 0;
         return;
@@ -4721,6 +4751,8 @@ static void prox_step(void)                  /* the main loop's (input) */
     f = 1.0f - (float)(set.prox_far ? set.prox_far : PROX_FAR);
     x = prox.x = fm_minf(fm_maxf((n - prox.e) / (n - f), 0.0f), 1.0f);
     v = (uint32_t)(x * x * 127.0f + 0.5f);
+    if (prox.tgt != set.prox_tgt && now - prox.since < PROX_SETTLE)
+        return;                              /* (still scrolling the list) */
     if (v + 1u < prox.v || v > prox.v + 1u || ((v == 0u || v == 127u) && v != prox.v) || prox.tgt != set.prox_tgt) {
         prox.v = (uint8_t)v;                 /* (a step's dead band; the ends always; a new target at once) */
         prox.tgt = set.prox_tgt;
@@ -7346,13 +7378,18 @@ static void glo_audio_draw(void)
         cv_text(10, 42, &FONT_XS, "Speaker: the FM-1's own speaker alone.", P_SILK);
         info(10, 64, 58, "BT audio", st >= 0 && st <= PLAT_BTA_READY ? BTA_STATE[st] : "?",
              st == PLAT_BTA_STREAMING ? P_CYAN : P_SILK);
-        if (!bta_name(bta_cur < n ? bta_cur : 0u, name))
+        const int pick = bta_cur < n, forget = n && bta_cur > n && bta_cur <= n + k;   /* past the list: a new
+                                              * search, then the forgets */
+        if (forget)
+            (void)plat_bta_known((int)(bta_cur - n - 1u), name);
+        else if (!pick || !bta_name(bta_cur, name))
         {
             name[0] = 0;
-            text_cat(name, n ? "" : "ALGO: search");
+            text_cat(name, pick ? "" : n ? "New search" : "ALGO: search");
         }
-        info(10, 64, 72, bta_cur < k && n ? "Known" : n ? "Found" : "Device", name, P_SILK);
-        info(10, 64, 86, "SEL", bta_busy() ? "hang up" : n ? "connect" : "search", P_DIM);
+        info(10, 64, 72, forget ? "Forget" : pick && bta_cur < k ? "Known" : pick ? "Found" : "Device", name, P_SILK);
+        info(10, 64, 86, "SEL", forget ? "twice: forget" : bta_busy() ? "hang up" : pick ? "connect" : "search",
+             P_DIM);
     }
 #else
     cv_text(10, 42, &FONT_XS, "Speaker: the FM-1's own speaker alone.", P_SILK);
