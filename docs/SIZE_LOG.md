@@ -218,3 +218,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-09 | 3c0cdfc+ | PROX: the Bluetooth link's distance turns one knob (GLO CONNECT PRESET, SEL calibrates), plat_ble_rssi local patch | 513,820 | +1,616 | 67,744 | 88,116 | +32 | 10,188 | 263,640 |
 | 2026-11-09 | 3c0cdfc+ | PROX: calibration sweep (SEL), Signal readout, CC 4 picks the target in spans, list reordered, drum volumes dropped | 514,028 | +208 | 67,536 | 88,116 | +0 | 10,188 | 263,640 |
 | 2026-11-09 | 01e24a2+ | Button glow: only the buttons that do something in the mode (leds_out, btn_live) | 513,980 | -48 | 67,584 | 88,116 | +0 | 10,188 | 263,640 |
+| 2026-11-09 | 780ce8b | Bluetooth audio trial (own stack, A2DP, GLO AUDIO), PROX on the own stack + headphones, FX bus on the second core (bt-audio-trial) | 466,304 | -47,676 | 115,260 | 72,656 | -15,460 | 25,648 | 254,824 |
