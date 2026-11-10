@@ -244,13 +244,10 @@ static inline float rmi_next(uint32_t *woke)
  * bass and the drums, else on the first before them), into rmi_buf at level 1 */
 static float rmi_buf[APP_BLOCK] PLAT_POOL;
 static volatile uint32_t rmi_woke;           /* a voice sounded in it (the FX bus woken for it) */
-static volatile uint32_t rmi_ticks;          /* how long it took (plat_ticks24's): the second core's load */
 static void rmi_job(uint32_t n)
 {
-    const uint32_t t0 = plat_ticks24();
     uint32_t i, w = 0;
     for (i = 0; i < n; i++)
         rmi_buf[i] = rmi_next(&w);
     rmi_woke = w;
-    rmi_ticks = plat_ticks24() - t0;
 }

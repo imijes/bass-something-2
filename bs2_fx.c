@@ -1,8 +1,9 @@
 /* The FX bus: one of each effect, shared by every instrument, as a mixer's aux sends into one rack (one room, so its
  * memory once). An instrument sends into an effect after its own level (a post-fader send: fx_room_send) and wakes the
- * bus while it plays (fx_wake); fx_next is the effects' returns, a sample at a time, on the master after the
+ * bus while it plays (fx_wake); fx_take is the effects' returns, a sample at a time, on the master after the
  * instruments. Each instrument's send shows as its own mod; the effect behind it is the one here. Today: the room, and
- * the Space Echo (bs2_se.c). */
+ * the Space Echo (bs2_se.c). The bus runs a block late, on the second core when there is one (fx_job, beside the
+ * RMI's block): see fxq. */
 
 /* The room: a drum's tail is mostly the space it was played in (the 400's own samples had theirs in them), and a
  * resonator ringing on sounds a synth's. So the voices' modes ring short and a small room makes the tail, in real
@@ -28,11 +29,24 @@ static struct {
 
 #define FX_IDLE (fx_room.idle)
 static struct {
-    float room;                              /* this sample's sends into the room, summed */
-    float se;                                /* and into the Space Echo (bs2_se.c) */
-    float echo;                              /* the Space Echo's return, the last sample's (the USB audio's own channel) */
-    uint32_t idle;                           /* samples since an instrument last woke the bus (it stops once quiet) */
+    float room;                              /* this sample's sends into the room, summed (the first core's: the drums') */
+    uint32_t idle;                           /* samples since an instrument last woke the bus (it stops once quiet: the
+                                              * bus's, fx_job's) */
 } fx PLAT_POOL;
+static volatile uint32_t fx_woke;            /* an instrument woke the bus in this block (the first core's: fx_wake) */
+
+/* The bus a block late: the render's second half (the first core, after the job is back) keeps the block's sends here;
+ * the next block's job (fx_job: the second core's, beside the bass and the drums) makes their returns into the ring,
+ * which that block's second half takes. 5.8 ms more before the echo and the room, unheard on either. Neither core
+ * touches a side while the other has it: the sends written after a job, read by the next; the ring the same */
+#define FX_RET (2u * APP_BLOCK)              /* the returns' ring (a block's, as the device renders: room for a host's) */
+static struct {
+    float room[APP_BLOCK], se[APP_BLOCK];    /* a block's sends into the room and the Space Echo */
+    float g0, dg;                            /* MASTER across it */
+    uint32_t n, wake;                        /* its samples (0: taken); an instrument woke the bus in it */
+    float ret[FX_RET], echo[FX_RET];         /* the returns; the echo's alone (the USB audio's own channel) */
+    uint32_t rw, rr;                         /* the ring's written (the job's), read (the render's) */
+} fxq PLAT_POOL;
 
 /* DRUM ROOM: its time (s), its walls' and input's low passes' steps, its level out (the main loop's: a float each, read
  * whole by the audio interrupt) */
@@ -58,13 +72,14 @@ static void fx_init(void)
     }
     fx_room.rt = 0.0f;
     fx_room_set(FX_ROOM_RT, 1.0f - FX_ROOM_DAMP, FX_ROOM_IN, FX_ROOM_WET);
-    fx.room = 0.0f, fx.se = 0.0f;
+    fx.room = 0.0f;
     fx.idle = 0xFFFFFFFFu;
+    fxq.n = fxq.rw = fxq.rr = 0;
     se_init();
 }
 
-/* an instrument playing (audio interrupt): the bus on until its tails are out */
-static inline void fx_wake(void) { fx.idle = 0; }
+/* an instrument playing (audio interrupt, the first core's): the bus on until its tails are out (from fx_job's next) */
+static inline void fx_wake(void) { fx_woke = 1; }
 /* an instrument's send into the room, after its level (audio interrupt) */
 static inline void fx_room_send(float x) { fx.room += x; }
 
@@ -101,19 +116,52 @@ static inline float fx_room_next(float x)
     return out * (0.25f * fx_room.wet);
 }
 
-/* an instrument's send into the Space Echo, after its level (audio interrupt) */
-static inline void fx_se_send(float x) { fx.se += x; }
-
-/* the effects' returns, a sample (audio interrupt): the sends taken, the room left alone while the bus sleeps (the
- * echo sleeps on its own: its tail can outlast the bus's). g: MASTER's gain now. The echo works before MASTER, in a
- * 16-bit sample's units as at full MASTER: its sends (after MASTER) undone into them, its return under MASTER again,
- * so the tape saturates the same at any MASTER and MASTER turns down a runaway too */
-static inline float fx_next(float g)
+/* the effects' returns, a sample (fx_job's), from x into the room and s into the Space Echo: the room left alone while
+ * the bus sleeps (the echo sleeps on its own: its tail can outlast the bus's). g: MASTER's gain then; *echo the echo's
+ * alone. The echo works before MASTER, in a 16-bit sample's units as at full MASTER: its sends (after MASTER) undone
+ * into them, its return under MASTER again, so the tape saturates the same at any MASTER and MASTER turns down a
+ * runaway too */
+static inline float fx_next(float x, float s, float g, float *echo)
 {
-    const float x = fx.room, k = fm_maxf(g, 1.0f) * (1.0f / 32767.0f), e = se_next((fx.se + SE_TRY * x) / k) * k;
-    fx.room = 0.0f, fx.se = 0.0f, fx.echo = e;
+    const float k = fm_maxf(g, 1.0f) * (1.0f / 32767.0f), e = se_next((s + SE_TRY * x) / k) * k;
+    *echo = e;
     if (fx.idle >= FX_IDLE)
         return e;
     fx.idle++;
     return e + fx_room_next(x);
+}
+
+/* the last block's sends into the ring's returns (the render's job, after the RMI's block: the second core's when there
+ * is one) */
+static void fx_job(void)
+{
+    const uint32_t n = fxq.n;
+    uint32_t i;
+    fxq.n = 0;
+    if (fxq.wake)
+        fx.idle = 0;
+    for (i = 0; i < n && fxq.rw - fxq.rr < FX_RET; i++, fxq.rw++)   /* (full: the render took fewer than it gave) */
+        fxq.ret[fxq.rw % FX_RET] = fx_next(fxq.room[i], fxq.se[i], fxq.g0 + fxq.dg * (float)i,
+                                           &fxq.echo[fxq.rw % FX_RET]);
+}
+
+/* the render's second half, a sample: the returns' next (0 before the first), *echo the echo's alone; x into the room
+ * and s into the Space Echo kept as sample i of the block for the next job */
+static inline float fx_take(uint32_t i, float x, float s, float *echo)
+{
+    float r = 0.0f;
+    *echo = 0.0f;
+    if (fxq.rr != fxq.rw) {
+        r = fxq.ret[fxq.rr % FX_RET], *echo = fxq.echo[fxq.rr % FX_RET];
+        fxq.rr++;
+    }
+    fxq.room[i] = x, fxq.se[i] = s;
+    return r;
+}
+/* and after its last sample: n of them kept, MASTER across them (from g0 by dg a sample) */
+static inline void fx_kept(uint32_t n, float g0, float dg, uint32_t woke)
+{
+    fxq.g0 = g0, fxq.dg = dg, fxq.wake = woke || fx_woke;
+    fx_woke = 0;
+    fxq.n = n;
 }

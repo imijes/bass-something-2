@@ -606,7 +606,7 @@ static volatile uint8_t dt_cc_roll;          /* the roll held by CC 66 (MIDI in'
 #define KEYQ_RMI (1u << 16)                  /* (keyq: a key of the RMI's mode, rmi_note's) */
 static int store_save(uint32_t obj, const void *src, uint32_t len);   /* plat_store_save, told if it is in silence */
 #include "bs2_se.c"                       /* the Space Echo, on the FX bus */
-#include "bs2_fx.c"                       /* the FX bus: one room every instrument sends into (fx_room_send, fx_next) */
+#include "bs2_fx.c"                       /* the FX bus: one room every instrument sends into (fx_room_send, fx_take) */
 #include "bs2_drum.c"                     /* Drum Something: the drum voices (dt_hit, dt_note, dt_next) */
 #include "bs2_rmi.c"                      /* the RMI 368X, the third instrument (rmi_note, rmi_next) */
 /* the clock's BPM: the drums', the master, while a pattern runs (the bass on the same clock, as on a 400 sending MIDI
@@ -1353,9 +1353,18 @@ static inline int16_t usb_s16(float s)       /* a sample, the master's scale, as
 {
     return (int16_t)fm_clampf(s * (1.0f / 256.0f), -32768.0f, 32767.0f);
 }
+/* the second core's job: the RMI's block, then the FX bus's returns for the last block's sends (fx_job) */
+static volatile uint32_t c2_ticks;           /* how long it took (plat_ticks24's): the second core's load */
+static void c2_job(uint32_t n)
+{
+    const uint32_t t0 = plat_ticks24();
+    rmi_job(n);
+    fx_job();
+    c2_ticks = plat_ticks24() - t0;
+}
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
-    int c2 = 1;                              /* the RMI's block on the second core */
+    int c2 = 1;                              /* the job (c2_job) on the second core */
     float g0;                                /* MASTER at the block's start */
     static uint32_t rng = 1u;                /* the noise's */
     static uint32_t scope_ph;                /* (the scope's every 4th) */
@@ -1397,9 +1406,9 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     pq_block();                              /* (the piano's part: its notes before the piano's block) */
     dt_block();
     rmi_block();
-    if (!(plat_cpu2_on() && plat_cpu2_run(rmi_job, n)))   /* the RMI's block: the second core's while the bass and
-                                              * the drums are made here, else first, here */
-        rmi_job(n), c2 = 0;
+    if (!(plat_cpu2_on() && plat_cpu2_run(c2_job, n)))   /* the RMI's block and the FX bus's: the second core's while
+                                              * the bass and the drums are made here, else first, here */
+        c2_job(n), c2 = 0;
     g0 = gain_now;
     dq_block();
     if (!afx_on)
@@ -1562,12 +1571,13 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         }
     }
     if (c2 && plat_cpu2_wait() != 0)         /* (given up: the job dropped, so here) */
-        rmi_job(n), c2 = 0;
-    cpu2_q12 = c2 ? (cpu2_q12 * 15u + (uint32_t)((float)rmi_ticks * 4096.0f * BS2_RATE
+        c2_job(n), c2 = 0;
+    cpu2_q12 = c2 ? (cpu2_q12 * 15u + (uint32_t)((float)c2_ticks * 4096.0f * BS2_RATE
                                              / ((float)n * (float)PLAT_TICKS_PER_US * 1e6f)) + 8u) / 16u
                   : 0u;                      /* (the second core's load, smoothed as the platform's: about 16 blocks) */
     {                                        /* the RMI: as the drums, after the bass's chain, under its own volume (MASTER
-                                              * across the block as it went); then the FX bus's returns, on the master */
+                                              * across the block as it went); then the FX bus's returns (the last
+                                              * block's: fx_take), on the master */
         const float rv = RMI_MIX * 0.3f * (float)(127u - set.rvol_off) * (1.0f / 127.0f), dg = (gain_now - g0) / (float)n;
         const uint32_t woke = rmi_woke;
         uint32_t ur = 0;                     /* the USB audio's own channels (fm1.toml usb_audio_channels): the bass, the
@@ -1576,21 +1586,18 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         int16_t *u = PLAT_USB_CH >= 4 ? plat_usb_ch(usb_off, &ur) : 0;
         for (i = 0; i < n; i++) {
             const float r = rmi_buf[i] * rv * (g0 + dg * (float)i);
-            float s;
-            if (woke)
-                fx_wake();
-            fx_room_send(mix_send[i] + r * RMI_SEND);
-            fx_se_send(mix_se[i] + r * se_send_g[2]);
-            s = out_soft(mix_pre[i] + r + fx_next(g0 + dg * (float)i));
+            float s, e;
+            s = out_soft(mix_pre[i] + r + fx_take(i, mix_send[i] + r * RMI_SEND, mix_se[i] + r * se_send_g[2], &e));
             lr[2u * i] = lr[2u * i + 1u] = (int32_t)s;
             if (u && !ur)                    /* (the ring wrapped: from here) */
                 u = plat_usb_ch(usb_off + i, &ur);
             if (u) {
                 u[0] = usb_s16(mix_bass[i]), u[1] = usb_s16(mix_pre[i] - mix_bass[i]);
-                u[2] = usb_s16(r), u[3] = usb_s16(fx.echo);
+                u[2] = usb_s16(r), u[3] = usb_s16(e);
                 u += PLAT_USB_CH_STRIDE, ur--;
             }
         }
+        fx_kept(n, g0, dg, woke);
     }
 #ifdef PLAT_HOST
     {
@@ -10468,8 +10475,11 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
                 while (dt.ch[DT_CH[d]].drum != DT_NONE && b < 4000u) {
                     long e;
                     t0 = dt_prof_ns();
-                    for (i = 0; i < APP_BLOCK; i++)
-                        (void)dt_next(1.0f), (void)fx_next(gain_now);   /* (the room too, as it was in dt_next) */
+                    for (i = 0; i < APP_BLOCK; i++) {   /* (the room too, as it was in dt_next) */
+                        float ee;
+                        (void)dt_next(1.0f), (void)fx_next(fx.room, 0.0f, gain_now, &ee);
+                        fx.room = 0.0f;
+                    }
                     e = dt_prof_ns() - t0;
                     sum += e;
                     if (e > pk)
