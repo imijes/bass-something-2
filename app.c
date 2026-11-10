@@ -5110,6 +5110,29 @@ static void hold_step(uint32_t btn)
     }
 }
 
+/* the buttons that do something in this mode (the rest dark, not glowing): the bass's and the drums' every one; the
+ * piano's SEL, SAVE, HOME, GLO, REC, PLAY, SEQ and the octaves; the Space Echo's SEL, HOME, GLO, REC and the octaves
+ * (rmi_button, se_button: the others only say so). An RND page's: every one (the bass's, there) */
+static uint32_t btn_live(void)
+{
+    const uint32_t all = (1u << NB) - 1u, oct = 1u << B_OCTDN | 1u << B_OCTUP,
+                   both = 1u << B_SEL | 1u << B_HOME | 1u << B_GLO | 1u << B_REC | oct;
+    if (!ui.rmi || ui.drum || RND_PAGE(ui.page))
+        return all;
+    return ui.se ? both : both | 1u << B_SAVE | 1u << B_PLAY | 1u << B_SEQ;
+}
+/* plat_leds, with the glow on btn_live's only: PLAY green, red while it records */
+static void leds_out(uint32_t buttons, uint32_t keys)
+{
+    const uint32_t play = 1u << B_PLAY;
+    uint32_t b = buttons, dim = btn_live() & ~buttons;
+    if (!((ui.drum && dq.rec) || (ui.rmi && pq.rec))) {
+        b = (b & ~play) | (buttons & play ? LED_PLAY_GREEN : 0u);
+        dim = (dim & ~play) | (dim & play ? LED_PLAY_GREEN : 0u);
+    }
+    plat_lights(b, keys, dim, 0, 2);
+}
+
 static void input(void)
 {
     uint32_t keys, btn = plat_buttons(), k, lit, below, above, mid, mid_b;
@@ -5358,7 +5381,6 @@ static void input(void)
     if (lit != ui.lit)
         ui.redraw = 1;
     ui.lit = lit;
-    plat_glow(1);                            /* the unlit buttons glow, readable in the dark */
     btn |= mo_light() << B_REC;
     {                                        /* GLO: a slow pulse while Bluetooth has a link (a device joined, or a
                                               * computer or phone listening): glow, half, lit, half, 0.5 s each */
@@ -5367,15 +5389,14 @@ static void input(void)
         btn |= (uint32_t)(bt && ph == 2u) << B_GLO;
         mid_b = bt && (ph & 1u) ? 1u << B_GLO : 0u;
     }
-    plat_play_red((ui.drum && dq.rec) || (ui.rmi && pq.rec));   /* (PLAY: red while it records) */
     if (ui.rmi && !ui.drum)                  /* (the piano's part: PLAY lit as it plays, REC as it records) */
-        plat_leds(btn | (dq.dirty ? 1u << B_SAVE : 0u) | (uint32_t)(dq.run && !pq.mute) << B_PLAY
+        leds_out(btn | (dq.dirty ? 1u << B_SAVE : 0u) | (uint32_t)(dq.run && !pq.mute) << B_PLAY
                   | (uint32_t)(pq.rec != 0u) << B_REC, keys | lit);
     else if (ui.drum)
-        plat_leds(btn | (dq.dirty ? 1u << B_SAVE : 0u) | (uint32_t)dt_play_light() << B_PLAY
+        leds_out(btn | (dq.dirty ? 1u << B_SAVE : 0u) | (uint32_t)dt_play_light() << B_PLAY
                   | (uint32_t)dt_rec_light() << B_REC, keys | lit);
     else
-        plat_leds(btn | (set_dirty ? 1u << B_SAVE : 0u) | (uint32_t)patch.arp_on << B_ARP | (uint32_t)seq_rec << B_SEQ
+        leds_out(btn | (set_dirty ? 1u << B_SAVE : 0u) | (uint32_t)patch.arp_on << B_ARP | (uint32_t)seq_rec << B_SEQ
                   | (uint32_t)seq_rec << B_REC              | (uint32_t)seq_playing() << B_PLAY | below << B_OCTDN | above << B_OCTUP, keys | lit);   /* (OCT-, OCT+: a
                                               * note held out of the keys' reach, that way) */
     if (mid || mid_b || mid_was)             /* (a channel's other keys, GLO's pulse; none: let go once) */
