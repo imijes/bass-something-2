@@ -1,7 +1,10 @@
 {
-  "what": "A Bass Station II style mono synth with arpeggiator and 32-step sequencer, plus Drum Something 400, a Drumtraks-inspired drum machine with patterns and songs. Factory patches, SysEx patch dumps and a first-boot demo groove.",
+  "what": "A Bass Station II style mono synth with arpeggiator and sequencer, plus Drum Something 400 (a Drumtraks-inspired drum machine), Piano Something 368X (an RMI Electra-piano style electric piano) and Space Something 201 (an RE-201 style tape echo and spring reverb). Motion recorder, Bluetooth distance control (PROX), 128 patches and SysEx patch dumps.",
   "author": "John Brown",
-  "kinds": ["synth", "drums"],
+  "kinds": [
+    "synth",
+    "drums"
+  ],
   "play": "https://imijes.github.io/bass-something-2/emu/",
   "cheat": "https://imijes.github.io/bass-something-2/manual/",
   "image": "docs/img/screen-home.png",
