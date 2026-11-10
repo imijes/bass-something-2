@@ -6847,12 +6847,13 @@ static void section_frame(const char *bar, const char *name, const char *right, 
 }
 static void glo_frame(const char *name)
 {
-    char t[24];
-    cpu_text(t);
-    section_frame("GLOBAL", name, t, xruns_shown() ? P_CYAN : P_DIM);
-    if (plat_ms() >= ui.msg_until) {         /* (the second core's under it) */
-        cpu2_text(t);
-        cv_text(232 - text_w(&FONT_XS, t), 33, &FONT_XS, t, P_DIM);
+    char t[24], t2[24];
+    cpu2_text(t2);
+    section_frame("GLOBAL", name, t2, P_DIM);
+    if (plat_ms() >= ui.msg_until) {         /* (the first core's before it, on its line) */
+        cpu_text(t);
+        cv_text(232 - text_w(&FONT_XS, t2) - 8 - text_w(&FONT_XS, t), 20, &FONT_XS, t,
+                xruns_shown() ? P_CYAN : P_DIM);
     }
 }
 /* the RND pages' (bs2_rnd.c): the RND SYNTH COMPANION bar; at the right the synth's firmware once it has answered */
