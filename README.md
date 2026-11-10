@@ -1,11 +1,13 @@
 # Bass Something 2
 
-A monosynth inspired by the legendary Novation Bass Station II, built for the M-VAVE FM-1. It's also a companion for Cyma Forma's RND Synth (firmware
-1.4): 32 seed slots with their locks, and a mixer for its four tracks. It runs on an iPhone or iPad in RemoteFM1 too. It's built on fm1-base, started from fm1-base's `template/`.
+A monosynth inspired by the legendary Novation Bass Station II, built for the M-VAVE FM-1. It runs on an iPhone or iPad in RemoteFM1 too. It's built on fm1-base, started from fm1-base's `template/`.
 It also has a second instrument, Drum Something 400: a drum machine inspired by the Sequential Circuits Drumtraks, with
 synthesized voices on virtual EPROMs, patterns, songs and MIDI out. Since v0.8 there are two more: Piano Something 368X, an
 electric piano inspired by the RMI Electra-piano, and Space Something 201, a tape echo and spring reverb inspired by the
-Roland RE-201 that every instrument sends into. The manual (`docs/MANUAL.md`) describes everything
+Roland RE-201 that every instrument sends into.
+
+It's also a companion for Cyma Forma's RND Synth (firmware 1.4): 32 seed slots with their locks, and a mixer for its
+four tracks. The manual (`docs/MANUAL.md`) describes everything
 it does. To see what's new, read `docs/RELEASE_v0.8.md` (earlier: `docs/RELEASE_v0.7.md` to `v0.7.2`). The v0.8 firmware is 514,028 B, with about 66 KB of
 flash and 9.9 KB of RAM free (`docs/SIZE_LOG.md`).
 

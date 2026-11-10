@@ -3,13 +3,15 @@
 Bass Something 2 turns the M-VAVE FM-1 into a monosynth inspired by the Novation Bass Station II: two oscillators and a sub,
 ring modulation and noise, a Classic or Acid filter with drive, two envelopes, two LFOs, distortion, the Bass Station
 II's 32 arp rhythms with its 32-step sequencer (four sequences) and 32 patches. Patches go to and from a Bass Station II editor as SysEx, and
-MIDI comes in over USB, Bluetooth and TRS, and goes out over USB and Bluetooth. It's also a companion for Cyma Forma's RND Synth (firmware 1.4): 32
-seed slots with their locks, and a mixer for its four tracks.
+MIDI comes in over USB, Bluetooth and TRS, and goes out over USB and Bluetooth.
 
 A second instrument plays beside the synth: Drum Something 400, a drum machine inspired by the Sequential Circuits
 Drumtraks, with 13 synthesized drums, patterns, songs and MIDI out. A third, Piano Something 368X, is an electric piano
 inspired by the RMI Electra-piano 368X, with its own sequenced part on each drum pattern. Space Something 201 is a tape
 echo and spring reverb inspired by the Roland RE-201, and all three instruments can send into it.
+
+It's also a companion for Cyma Forma's RND Synth (firmware 1.4): 32 seed slots with their locks, and a mixer for its
+four tracks.
 
 ![Bass Something 2's HOME page with a note playing: the BASS SOMETHING 2 name, the red P01 display, the scope drawing the wave, and the whole Bass Station II panel above the keys](manual/img/screen-home.png "Bass Something 2 on the FM-1's screen")
 ![Drum Something 400's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](manual/img/screen-drum-home.png "Drum Something 400 on the FM-1's screen")

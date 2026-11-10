@@ -7,10 +7,10 @@ arp rhythms with its 32-step sequencer (four sequences) and 128 named patches, a
 shows on the FM-1's screen as a small Bass Station II front panel. MIDI comes in over USB, Bluetooth and TRS, and
 goes out over USB and Bluetooth.
 
+A second instrument plays beside the synth: [Drum Something 400](#s6), 13 drums with their own sequencer and songs. A third, [Piano Something 368X](#rmi), is an electric piano, and [Space Something 201](#echo) is a tape echo and spring reverb that all three can send into.
+
 It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of its patches as seeds with their locks
 (type, key, tracks), sends them back, and mixes its four tracks (see [RND Synth](#s9)).
-
-A second instrument plays beside the synth: [Drum Something 400](#s6), 13 drums with their own sequencer and songs. A third, [Piano Something 368X](#rmi), is an electric piano, and [Space Something 201](#echo) is a tape echo and spring reverb that all three can send into.
 
 ![The Bass Something 2 screen with a note playing: the section tabs, the HOME page (the name, the red P01 display, the scope drawing the note's wave, the whole Bass Station II panel), the keys with the held one in cyan, then OCT +0, P01, 120 BPM, VOL 50% and ARP OFF](img/screen-home.png "Bass Something 2 playing")
 ![Drum Something 400's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "Drum Something 400")
