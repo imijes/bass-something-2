@@ -5590,7 +5590,7 @@ void app_input_only(void) { input(); }
 #define P_KEYB RGB(10, 10, 10)
 /* the firmware's version as shown (the splash, GLO DISPLAY): a release's "v0.6", a development build's the last release
  * and "DEV" ("v0.6 DEV": built after it; BS2_RELEASE bumped with each release) */
-#define BS2_RELEASE "0.8"
+#define BS2_RELEASE "0.8.1"
 #define VERSION_TEXT (APP_VERSION[0] >= '0' && APP_VERSION[0] <= '9' ? "v" APP_VERSION : "v" BS2_RELEASE " " APP_VERSION)
 static void ui_start(void) { ui.page = PG_HOME; }   /* the first page, after the splash: HOME */
 
