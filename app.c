@@ -4645,11 +4645,23 @@ static uint32_t mo_bar(void)                 /* the loop's bar playing (or recor
 
 /* PROX: the Bluetooth link's signal as a hand on one knob (GLO CONNECT: PRESET picks it, SEL calibrates), a controller's
  * or a phone's distance from the FM-1, touching 0 to arm's length 127, onto a value the motion recorder records (its
- * loop records PROX's moves as a hand's). The device's link first, else the computer's (plat_ble_rssi). Smoothed
+ * loop records PROX's moves as a hand's). The device's link first, else the computer's (plat_ble_rssi), else the
+ * Bluetooth headphones' (plat_bta_rssi, the own stack's Classic link). Smoothed
  * about 0.1 s, squared (the signal falls fastest in the first inches), a dead band of a step against a still hand's
  * shimmer; a target's own range (mo_ref's byte). Calibrating: the link's lowest and highest, slower smoothed, over a
  * few sweeps (a still hold at arm's length reads lower than a sweep reaches) */
 #define PROX_MS 20u                          /* a look at the link */
+static int prox_rssi(void)                   /* the link's signal, dBm; 0: none */
+{
+    int r = plat_ble_rssi(1);
+    if (!r)
+        r = plat_ble_rssi(0);
+#if FM1B_BT_AUDIO
+    if (!r)
+        r = plat_bta_rssi();
+#endif
+    return r;
+}
 #define PROX_K 0.18f                         /* a look's smoothing: 1 - e^(-20 ms / 0.1 s) */
 #define PROX_NEAR 23u                        /* uncalibrated: touching, -dBm (an SP-1 2026-11-09) */
 #define PROX_FAR 50u                         /* arm's length, sweeping */
@@ -4679,7 +4691,7 @@ static void prox_step(void)                  /* the main loop's (input) */
     if (now - prox.at < PROX_MS)
         return;
     prox.at = now;
-    if ((!set.prox_tgt && !prox.cal) || !((r = plat_ble_rssi(1)) || (r = plat_ble_rssi(0)))) {
+    if ((!set.prox_tgt && !prox.cal) || !(r = prox_rssi())) {
         prox.live = 0;
         return;
     }
@@ -4713,7 +4725,7 @@ static void prox_cal(void)                   /* SEL on GLO CONNECT: calibrating,
     char t[24], n[8];
     int r;
     if (!prox.cal) {
-        if (!(r = plat_ble_rssi(1)) && !(r = plat_ble_rssi(0))) {
+        if (!(r = prox_rssi())) {
             app_say("PROX", "NO BLUETOOTH LINK");
             return;
         }
