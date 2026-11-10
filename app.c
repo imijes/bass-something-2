@@ -9,6 +9,29 @@
  * gfx.c and announce.c are in scope. */
 #include <stddef.h>
 #include "fastmath.h"
+#if defined(FM1B_BLE_OWN) && !defined(PLAT_HOST)
+/* the two the compiler calls on its own (mo_del's shift, a text's length) and JieLi's libraries gave; the own
+ * Bluetooth stack links none of them (bsp/chip/libc.c has memcpy, memset, memcmp) */
+void *memmove(void *d, const void *s, size_t n)
+{
+    unsigned char *a = d;
+    const unsigned char *b = s;
+    if (a < b)
+        while (n--)
+            *a++ = *b++;
+    else
+        while (n--)
+            a[n] = b[n];
+    return d;
+}
+size_t strlen(const char *s)
+{
+    const char *p = s;
+    while (*p)
+        p++;
+    return (size_t)(p - s);
+}
+#endif
 
 #define SET_MAGIC 0x54504C31u            /* "TPL1": the settings record; another magic loads defaults */
 typedef struct {
@@ -2202,6 +2225,82 @@ static void ble_device_button(void)
     app_say(ev == BTDEV_CONNECTING ? btdev_word(ev) : "BLE", ev == BTDEV_CONNECTING ? btdev_name() : btdev_word(ev));
 }
 
+/* GLO AUDIO's Bluetooth audio (FM1B_BT_AUDIO: headphones and speakers, A2DP): ALGO picks a device, the remembered
+ * ones first (the last one at the top), then the ones a search found; SEL connects it, or hangs up while there's a
+ * link; with none listed, SEL or ALGO searches */
+#if FM1B_BT_AUDIO
+static uint8_t bta_cur;                      /* the device ALGO picked: remembered, then found */
+static const char *const BTA_STATE[] = {"Off", "Searching", "Found", "None found", "Connecting", "Linked", "Setting up",
+                                        "Streaming", "Refused", "No last", "Failed", "Ready"};
+static uint32_t bta_count(uint32_t *known)   /* how many listed; known: how many of them remembered */
+{
+    char name[17];
+    uint32_t k = 0, f = 0;
+    while (k < 4u && plat_bta_known((int)k, name))
+        k++;
+    while (f < 16u && plat_bta_found((int)f, name))
+        f++;
+    *known = k;
+    return k + f;
+}
+static int bta_name(uint32_t i, char *name)  /* bta_cur's name (17 bytes) -> 0: none */
+{
+    uint32_t k, n = bta_count(&k);
+    if (i >= n)
+        return 0;
+    return i < k ? plat_bta_known((int)i, name) : plat_bta_found((int)(i - k), name);
+}
+static int bta_busy(void)                    /* a link, or one on its way */
+{
+    const int st = plat_bta_state();
+    return st == PLAT_BTA_PAGING || st == PLAT_BTA_LINKED || st == PLAT_BTA_SETUP || st == PLAT_BTA_STREAMING;
+}
+static void bta_search(void)
+{
+    plat_bta_on(1);
+    plat_bta_scan(1);
+    bta_cur = 0;
+    app_say("BT AUDIO", "SEARCHING");
+}
+static void bta_turn(int32_t e)              /* ALGO: the next device, or a search */
+{
+    char name[17];
+    uint32_t k, n = bta_count(&k);
+    if (!n) {
+        if (plat_bta_state() != PLAT_BTA_SCANNING)
+            bta_search();
+        return;
+    }
+    bta_cur = (uint8_t)(((int32_t)bta_cur + e % (int32_t)n + (int32_t)n) % (int32_t)n);
+    if (bta_name(bta_cur, name))
+        app_say(bta_cur < k ? "BT AUDIO KNOWN" : "BT AUDIO FOUND", name);
+}
+static void bta_button(void)                 /* SEL */
+{
+    char name[17];
+    uint32_t k, n;
+    if (bta_busy()) {
+        plat_bta_hangup();
+        app_say("BT AUDIO", "HUNG UP");
+        return;
+    }
+    n = bta_count(&k);
+    if (!n || bta_cur >= n) {
+        bta_search();
+        return;
+    }
+    plat_bta_on(1);
+    if (bta_cur < k)
+        (void)plat_bta_reconnect(bta_cur);
+    else
+        plat_bta_pick((int)(bta_cur - k));
+    app_say("BT AUDIO", bta_name(bta_cur, name) ? name : "CONNECTING");
+}
+#else
+static void bta_turn(int32_t e) { (void)e; }
+static void bta_button(void) { app_say("BT AUDIO", "NOT IN THIS BUILD"); }
+#endif
+
 /* the pages: HOME the oscillators and the filter, again their mix (the glide, the noise, the pulses' widths), ENV the
  * mod envelope (its three depths), again the amp envelope, FX the mixer's levels, the ranges and the distortion, LFO
  * LFO 1 then 2 (and its PW modulation), EDIT the patch (PRESET picks a slot and
@@ -4138,6 +4237,8 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [DTF_BUILD] = "Enter Build Mode", [DTF_BPAT] = "Enter, or leave Build", [DTF_BVOL] = "Enter the step", [DTF_BTEMPO] = "Enter the step",
         [DTF_BINS] = "Insert a step", [DTF_BDEL] = "Delete the step"};
     const int rec = seq_rec && ui.page == PG_SEQ;
+    if (k == B_SEL && ui.page == PG_GAUD)    /* (Bluetooth audio's, in any mode) */
+        return "SEL tap: BT audio connect / hang up";
     if (k == B_SEL && ui.page == PG_GCONN)   /* (PROX's, in any mode) */
         return prox_calibrating() ? "SEL tap: Keep PROX range" : "SEL tap: Calibrate PROX";
     if (k == B_HOME && ui.page == mode_home())   /* (on it: the next mode, mode_switch) */
@@ -5214,6 +5315,8 @@ static void input(void)
         said = ui.hint;
         if (k == B_SEL && ui.page == PG_GCONN)   /* GLO CONNECT's, in any mode: PROX calibrated */
             prox_cal();
+        else if (k == B_SEL && ui.page == PG_GAUD)   /* GLO AUDIO's, in any mode: Bluetooth audio */
+            bta_button();
         else if (ui.drum && k != B_HOME && k != B_REC && k != B_GLO
             && !(RND_PAGE(ui.page) && (k == B_SEL || k == B_FX || k == B_SAVE)))   /* (the RND pages keep their own) */
             dt_button(k);
@@ -5340,7 +5443,9 @@ static void input(void)
         ui.last_enc = (uint8_t)l;
         ui.val_until = pop_until();
         ui.redraw = 1;
-        if (l == EN_ALGO && FM1B_BLE_CENTRAL && ui.looking && ui.page == PG_GCONN) {
+        if (l == EN_ALGO && FM1B_BT_AUDIO && ui.page == PG_GAUD)
+            bta_turn(e);
+        else if (l == EN_ALGO && FM1B_BLE_CENTRAL && ui.looking && ui.page == PG_GCONN) {
             btdev_choose(btdev_pick() + e);
             ble_device_say();
         } else if (knob_turn(l, e)) {
@@ -5364,6 +5469,15 @@ static void input(void)
             cc_apply(k & 0x7Fu, k >> 8 & 0x7Fu, (k & CCQ_ECHO) != 0);
     if (keys != ui.keys || btn != ui.btn)
         ui.redraw = 1;
+#if FM1B_BT_AUDIO
+    if (ui.page == PG_GAUD) {                /* (GLO AUDIO: Bluetooth audio's state and list as they change) */
+        static uint32_t was;
+        uint32_t kn, now = (uint32_t)plat_bta_state() << 8 | bta_count(&kn);
+        if (now != was)
+            ui.redraw = 1;
+        was = now;
+    }
+#endif
     ui.keys = keys;
     ui.btn = btn;
     quiet_step();
@@ -7137,7 +7251,7 @@ static void glo_conn_draw(void)
 {
     const int uh = plat_usb_host_state();
     const char *nm = plat_usb_host_name();
-    char px[32], nb[8];
+    char px[32] = "", nb[8];
     glo_frame("Connect");
     info(10, 64, 58, "USB", uh == USBH_CONNECTED ? (*nm ? nm : "Device") : uh == USBH_LOOKING ? "Looking" : "Computer",
          uh == USBH_CONNECTED ? P_CYAN : P_SILK);
@@ -7150,9 +7264,9 @@ static void glo_conn_draw(void)
     info(10, 64, 46, "Bluetooth", set.ble_off ? "Off" : dev ? bt : plat_ble_connected() ? "Connected" : "On",
          !set.ble_off && (dev || plat_ble_connected()) ? P_CYAN : P_SILK);
     if (prox.cal)                            /* PROX: what it turns and where, or calibrating */
-        text_cat(strcpy(px, ""), "Sweep near to far, SEL");
+        text_cat(px, "Sweep near to far, SEL");
     else {
-        strcpy(px, PROX_NAME[set.prox_tgt < PROX_N ? set.prox_tgt : 0]);
+        text_cat(px, PROX_NAME[set.prox_tgt < PROX_N ? set.prox_tgt : 0]);
         if (set.prox_tgt && prox.live) {
             text_cat(px, " ");
             int_text(prox.v, nb);
@@ -7162,8 +7276,7 @@ static void glo_conn_draw(void)
     }
     if ((prox.live || prox.cal) && !set.usb_host) {   /* (the signal now; calibrating, the range so far; else the
                                               * calibration; the USB host's note there instead) */
-        char sg[40];
-        strcpy(sg, "Signal ");
+        char sg[40] = "Signal ";
         int_text((int32_t)(prox.e - 0.5f), nb);
         text_cat(sg, nb);
         text_cat(sg, prox.cal ? " dB, swept " : " dB, near -");
@@ -7206,9 +7319,27 @@ static void glo_audio_draw(void)
 {
     const int32_t x = 136;
     glo_frame("Audio");
+#if FM1B_BT_AUDIO
+    {                                        /* Bluetooth audio: its state, the device ALGO picked (SEL connects it) */
+        char name[17];
+        const int st = plat_bta_state();
+        uint32_t k, n = bta_count(&k);
+        cv_text(10, 42, &FONT_XS, "Speaker: the FM-1's own speaker alone.", P_SILK);
+        info(10, 64, 58, "BT audio", st >= 0 && st <= PLAT_BTA_READY ? BTA_STATE[st] : "?",
+             st == PLAT_BTA_STREAMING ? P_CYAN : P_SILK);
+        if (!bta_name(bta_cur < n ? bta_cur : 0u, name))
+        {
+            name[0] = 0;
+            text_cat(name, n ? "" : "ALGO: search");
+        }
+        info(10, 64, 72, bta_cur < k && n ? "Known" : n ? "Found" : "Device", name, P_SILK);
+        info(10, 64, 86, "SEL", bta_busy() ? "hang up" : n ? "connect" : "search", P_DIM);
+    }
+#else
     cv_text(10, 42, &FONT_XS, "Speaker: the FM-1's own speaker alone.", P_SILK);
     cv_text(10, 57, &FONT_XS, "Headphones and USB stay stereo and flat.", P_SILK);
     cv_text(10, 72, &FONT_XS, "Tune: the master pitch, in cents.", P_SILK);
+#endif
     cv_text(x - 37, GLO_ROW - 20, &FONT_T, "Flat", set.spk == SPK_FLAT ? P_SILK : P_DIM);
     cv_text(x - text_w(&FONT_T, "Bass+") / 2, GLO_ROW - 20, &FONT_T, "Bass+", set.spk == SPK_BASS ? P_SILK : P_DIM);
     cv_text(x + 37 - text_w(&FONT_T, "Off"), GLO_ROW - 20, &FONT_T, "Off", set.spk == SPK_OFF ? P_SILK : P_DIM);

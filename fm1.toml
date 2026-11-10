@@ -12,6 +12,11 @@ o2 = []                        # separate units compiled at -O2 (an app's DSP)
 words = "words.tsv"
 ble = true                     # Bluetooth MIDI (--no-ble builds without it)
 ble_central = true             # and the FM-1 connects to Bluetooth MIDI devices too
+ble_stack = "own"              # Bluetooth audio trial: the own stack (one link at a time; PROX reads 0 there)
+ble_pairing = true             # pairing and an encrypted link (the bond kept)
+bt_audio = true                # Bluetooth audio out to headphones and speakers (A2DP)
+bt_audio_mem = "static"        # its buffers static for the trial (the app lends none yet)
+bt_audio_sim = true           # the host simulator and the browser emulator with Bluetooth audio too
 usb_host = true                # the USB port a MIDI host when GLO CONNECT's USB HOST is on (off at every start)
 usb_audio_channels = 6         # the USB audio input: the master on 1 and 2, then the bass, the drums, the piano and the
                                # Space Echo's return, one each (app_render, plat_usb_ch)
