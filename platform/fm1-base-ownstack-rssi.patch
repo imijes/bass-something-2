@@ -1,0 +1,156 @@
+diff --git a/bt/ble/ble_hw.h b/bt/ble/ble_hw.h
+index d76b1d9..fd9d231 100644
+--- a/bt/ble/ble_hw.h
++++ b/bt/ble/ble_hw.h
+@@ -73,6 +73,9 @@ struct ble_hw_conn {
+ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c);
+ /* leave the connection now (the engine stops; no more ble_ll_hw_* calls for it) */
+ BLE_API void ble_hw_conn_stop(void);
++/* the link's signal: the engine's RSSI word (HW §3 RSSI2, as ble_scan.h's) of the last good packet heard on the
++ * connection (empty and repeated ones too, so every event), 0: none since ble_hw_conn_start */
++BLE_API uint16_t ble_hw_conn_rssi(void);
+ 
+ /* (as master, HW §21.4: the same call; the driver writes the master's values at instant - 1) */
+ struct ble_hw_conn_upd {
+diff --git a/bt/ble/ble_hw_stub.c b/bt/ble/ble_hw_stub.c
+index 09a2887..e7294a5 100644
+--- a/bt/ble/ble_hw_stub.c
++++ b/bt/ble/ble_hw_stub.c
+@@ -7,6 +7,7 @@
+ BLE_API void ble_hw_adv_start(const struct ble_hw_adv *a) { (void)a; }
+ BLE_API void ble_hw_adv_stop(void) {}
+ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c) { (void)c; }
++BLE_API uint16_t ble_hw_conn_rssi(void) { return 0; }
+ BLE_API void ble_hw_conn_stop(void) {}
+ BLE_API void ble_hw_conn_update(const struct ble_hw_conn_upd *u) { (void)u; }
+ BLE_API void ble_hw_chmap_update(const uint8_t chm[5], uint16_t instant)
+diff --git a/bt/ble/ble_hw_wl82.c b/bt/ble/ble_hw_wl82.c
+index 00653df..69c521b 100644
+--- a/bt/ble/ble_hw_wl82.c
++++ b/bt/ble/ble_hw_wl82.c
+@@ -158,6 +158,8 @@ struct ble_hw_stats {
+     uint32_t events, rx, rx_repeat, rx_error, tx, acked, connects, late_instant, isr_max_ticks;
+ };
+ static struct ble_hw_stats ble_hw_stat;
++static volatile uint16_t hw_conn_rssi;                     /* ble_hw_conn_rssi: the last good packet's RSSI word */
++BLE_API uint16_t ble_hw_conn_rssi(void) { return hw_conn_rssi; }
+ 
+ /* ------------------------------------------------------------------------------- diagnostics (blell) --- */
+ 
+@@ -500,6 +502,7 @@ BLE_API void ble_hw_adv_stop(void)
+ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c)
+ {
+     uint16_t h0;
++    hw_conn_rssi = 0;                                      /* (a new link: no reading yet) */
+     cb_rfprio(28u);                                        /* 1 */
+     CB->anchor = 0x8000u;
+     CB->txtog &= (uint16_t)~2u;
+@@ -952,7 +955,10 @@ static void hw_rx_service(void)
+                                                             * supervision timer resets on nothing else (Core Vol 6
+                                                             * Part B 4.5.2); CRC-failed receptions kept a switched-off
+                                                             * central's link CONNECTED for ever */
++        {
+             drv.rx_seen = drv.rx_any = 1;
++            hw_conn_rssi = CB->rssi[2];                    /* (its signal, as a scan report's: ble_hw_conn_rssi) */
++        }
+         if (!hwd.first_rx) {                               /* (diagnostics) the first packet of this connection */
+             hwd.first_rx = 1;
+             BLE_DG(ble_dg.first_rx_us = (fm1_ticks() - hwd.conn_t0) / FM1_TICKS_PER_US);
+diff --git a/bt/br/bt_page.c b/bt/br/bt_page.c
+index 18da1f5..94f0df1 100644
+--- a/bt/br/bt_page.c
++++ b/bt/br/bt_page.c
+@@ -73,6 +73,7 @@ static struct {
+                                                     * announced (LMP_set_AFH) and due at afh_at (CLKN slots, bp_alarm) */
+     uint32_t afh_at, afh_switches;
+ } bp;
++static volatile uint32_t bp_rssi;                  /* the RSSI readback (BR §10.3) at the link's last good packet, 0: none */
+ #define BP_CH_SEC 30u                              /* the channel assessment's window, s (~2 answers a channel a second) */
+ #define BP_AFH_AHEAD 320u                          /* the switch this many slots (200 ms) after its announcement */
+ /* the audio packets (bt_acl.c ba_media_send, from the audio interrupt): whole L2CAP frames, each one DH5 (or DH3 / DH1
+@@ -234,6 +235,7 @@ static void bp_conn_enter(void)                    /* BR §8.3 sub-state 2 -> th
+         f->linkcntl[i] |= 1u << 14;
+     }
+     bti.mode = BTI_M_CONN;
++    bp_rssi = 0;
+ #if FELUCCA_BT_AUDIO
+     for (i = 0; i < 2u; i++)
+         f->linkcntl[i] &= (uint16_t)~(1u << 7 | 1u << 15);   /* (a new link: no encryption until it is started) */
+@@ -358,6 +360,7 @@ static void bp_conn_rx(void)                       /* a packet in the connection
+             bp.good++;
+             bp_good_note(f);
+             bp.last_good_ms = fm1_ms;
++            bp_rssi = fm1_br_agc3() & 0x3FFFu;
+             if (FELUCCA_BT_DIAG) {
+                 uint32_t b = f->rxbit & 0x3FFu;
+                 bp.rb_sum += b;
+diff --git a/device/bt_own.c b/device/bt_own.c
+index 1f4b2e6..475ce7e 100644
+--- a/device/bt_own.c
++++ b/device/bt_own.c
+@@ -420,7 +420,19 @@ static void ble_poll(void)
+ static uint8_t ble_off;                           /* switched off by the player (plat_ble_enable) */
+ int plat_ble_state(void) { return ble_off ? BLE_OFF : ble_state; }
+ int plat_ble_connected(void) { return !ble_off && ble_state == BLE_READY && ble_midi_peripheral_connected(); }
+-int plat_ble_rssi(int link) { (void)link; return 0; }   /* (not yet: the own controller keeps no link's reading) */
++/* the link's signal, from the engine's RSSI word of its last good packet (ble_hw_conn_rssi): dBm = 21 - fine - T[gain]
++ * (BLE-HW-FACTS §3 0x138), the gain table T not transcribed (U9): each gain step taken as 1 dB, so the dBm are
++ * approximate; nearer is higher all the same, as PROX needs (its calibration sets the range). 0: no reading, or
++ * not that link (one at a time: link 0 a computer connected to us, link 1 we to a device) */
++int plat_ble_rssi(int link)
++{
++    const uint32_t r = ble_hw_conn_rssi();
++    int v;
++    if (ble_off || ble_state != BLE_READY || !r || own_role != (link == 0 ? 1u : 2u))
++        return 0;
++    v = 21 - (int)(r & 63u) - (int)(r >> 8 & 63u);
++    return v < -127 ? -127 : v > -1 ? -1 : v;
++}
+ int plat_ble_linked(void) { return !ble_off && ble_state == BLE_READY && ble_midi_peripheral_linked(); }
+ void plat_ble_link_info(uint32_t v[7])            /* the computer's link as agreed (0 each: none) */
+ {
+diff --git a/device/bt_own_audio.c b/device/bt_own_audio.c
+index d5bcba6..ca4175a 100644
+--- a/device/bt_own_audio.c
++++ b/device/bt_own_audio.c
+@@ -276,6 +276,16 @@ void plat_bta_forget(int i)
+     bta.key_new = 1;
+ }
+ void plat_bta_hangup(void) { bta_hangup(); }
++int plat_bta_rssi(void)                           /* the link's signal, about dBm (as plat_ble_rssi: the gain table
++                                                   * not transcribed, a step a dB) -> 0: no link */
++{
++    const uint32_t r = bp_rssi;
++    int v;
++    if (bti.mode != BTI_M_CONN || !r)
++        return 0;
++    v = 21 - (int)(r & 63u) - (int)(r >> 8 & 63u);
++    return v < -127 ? -127 : v > -1 ? -1 : v;
++}
+ int plat_bta_state(void) { return (int)bta_state(); }   /* PLAT_BTA_S_* (the same values as bt_audio.h's BTA_S_*) */
+ void plat_bta_output(int to_device) { bta_output(to_device != 0); }   /* (streaming only: bt_audio.c) */
+ int plat_bta_out_device(void) { return bta_out_bt(); }
+diff --git a/host/plat_host.c b/host/plat_host.c
+index 676db00..7d79921 100644
+--- a/host/plat_host.c
++++ b/host/plat_host.c
+@@ -859,6 +859,7 @@ void plat_bta_hangup(void)
+         bth_st = bth_rest();
+ }
+ int plat_bta_state(void) { return bth_st; }
++int plat_bta_rssi(void) { return bth_st >= PLAT_BTA_LINKED && bth_st <= PLAT_BTA_STREAMING ? -40 : 0; }
+ void plat_bta_output(int to_device)
+ {
+     if (bth_st == PLAT_BTA_STREAMING)
+diff --git a/include/plat.h b/include/plat.h
+index 7a96251..0864deb 100644
+--- a/include/plat.h
++++ b/include/plat.h
+@@ -279,6 +279,7 @@ int plat_bta_reconnect(int i);         /* connect remembered device i -> 0 pagin
+ void plat_bta_forget(int i);
+ void plat_bta_hangup(void);
+ int plat_bta_state(void);              /* PLAT_BTA_* */
++int plat_bta_rssi(void);               /* a link up: its signal strength, about dBm (as plat_ble_rssi); 0: none */
+ /* while it streams, where the sound goes: 1 the device, 0 the FM-1's own output (the stream suspended, the link
+  * kept: back to the device at once, without a new connection) */
+ void plat_bta_output(int to_device);

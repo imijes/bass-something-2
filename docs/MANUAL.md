@@ -5,7 +5,7 @@ and a sub, a ring modulator and noise. The filter is Classic (low, band or high 
 diode ladder), with drive and distortion. It has a mod envelope, an amp envelope, two LFOs, the Bass Station II's 32
 arp rhythms with its 32-step sequencer (four sequences) and 128 named patches, as many as a Bass Station II holds. Patches go to and from a Bass Station II editor as SysEx. Everything
 shows on the FM-1's screen as a small Bass Station II front panel. MIDI comes in over USB, Bluetooth and TRS, and
-goes out over USB and Bluetooth.
+goes out over USB and Bluetooth, and the sound can play through Bluetooth headphones or a speaker.
 
 A second instrument plays beside the synth: [Drum Something 400](#s6), 13 drums with their own sequencer and songs. A third, [Piano Something 368X](#rmi), is an electric piano, and [Space Something 201](#echo) is a tape echo and spring reverb that all three can send into.
 
@@ -1110,8 +1110,8 @@ firmware's version (VERSION v0.8). The on/off settings are slide switches.
 On every GLO page, the right of the page's own bar shows the audio's load (for a moment after a change, what changed
 instead), for example **CPU0 34/41**. The first number is the
 load now, as a percentage of the time the FM-1 has to make each block of sound. The second is the highest it reached
-in the last five seconds. **CPU1** under it is the FM-1's second core, which makes the Piano Something's sound
-beside the first (**CPU1 OFF**: one core is doing it all). If the sound ever misses its deadline (a dropout, heard as
+in the last five seconds. **CPU1** under it is the FM-1's second core, which makes the Piano Something's sound and
+runs the Space Echo, its spring reverb and the drums' room beside the first (**CPU1 OFF**: one core is doing it all). If the sound ever misses its deadline (a dropout, heard as
 a click), a count follows in cyan, for example **CPU0 97/100 !2**, and stays until the FM-1 is switched off. A click without the count going up came
 from something else. A write to memory (SAVE, a patch change, and the sequence and GLO settings keeping themselves) holds
 up the sound for a moment. In silence nothing is heard and it isn't counted; while something is sounding, it counts.
@@ -1120,7 +1120,7 @@ up the sound for a moment. In silence nothing is heard and it isn't counted; whi
 ![GLO CONNECT: how Bluetooth and USB stand (a keyboard connected), then the USB Host, Bluetooth and AT Out switches](img/screen-glo-connect.png "GLO, again: CONNECT")
 ![GLO CLOCK: the tempo 120 on the display and what the clock is doing, then the Tempo knob, the Send Clk switch and the Sync knob](img/screen-glo-clock.png "GLO, again: CLOCK")
 ![GLO KEYS: what each does, then the Velocity and Knobs knobs, the Local switch and the Route knob](img/screen-glo-keys.png "GLO, again: KEYS")
-![GLO AUDIO: what the speaker's setting reaches, then the Speaker switch and the Tune knob](img/screen-glo-audio.png "GLO, again: AUDIO")
+![GLO AUDIO: the Bluetooth audio's state, the device ALGO has picked and what SEL does, then the Speaker switch and the Tune knob](img/screen-glo-audio.png "GLO, again: AUDIO")
 ![GLO DISPLAY: what the pop-ups are, then the Knob Zoom switch, the Hints switch and the Pop-ups knob](img/screen-glo-disp.png "GLO, again: DISPLAY")
 ![GLO DUMP: P01 on the display, then the All 128 button (FX) and the Sound button (SEL)](img/screen-glo-dump.png "GLO, again: DUMP (the last)")
 
@@ -1137,6 +1137,8 @@ Holding GLO for a second opens the RND pages, for the RND Synth: see RND Synth.
 | CLOCK | K1 TEMPO | The tempo, the same setting as ARP's K1, kept with the patch. While MIDI clock is followed, the knob shows the clock's tempo and turning it changes nothing. |
 | CLOCK | K3 SEND CLK (SEND MIDI CLOCK) | ON (the default): MIDI clock goes out at the tempo, and PLAY sends start and stop. Not while following MIDI clock. |
 | CLOCK | K4 SYNC (CLOCK SYNC) | What the arp and the sequencer follow. AUTO (the default): MIDI clock while it comes in, else the tempo. INT: the tempo only. EXT: MIDI clock only (without it they wait). While following, a MIDI start begins again from the first step. |
+| AUDIO | ALGO | Bluetooth audio: picks a device, the remembered ones first (the last one used at the top), then the ones a search found. With none listed, it searches (below). |
+| AUDIO | SEL | Bluetooth audio: connects the device ALGO picked, or hangs up while connected. With none listed, it searches. |
 | AUDIO | K3 SPEAKER | The FM-1's speaker, which only ever plays with nothing in the headphone jack. FLAT (the default): as it is. BASS+: the bass the small speaker cannot play, heard through its harmonics. OFF: the speaker silent. Headphones and USB audio stay as they are whatever this is set to: stereo, and with none of BASS+. |
 | AUDIO | K4 TUNE | The master tune, −50 to +50 cents (0 is the default). |
 | CONTROLS | K3 VELOCITY | The keys' velocity curve: SOFT (louder for a light touch), NORMAL (the default) or HARD. |
@@ -1255,6 +1257,10 @@ Connect next to the FM-1. On an iPad or iPhone, connect from a music app's Bluet
 of the screen lights while connected, and the GLO button pulses slowly while anything is connected over Bluetooth (a
 computer, a phone or a device).
 
+Bluetooth MIDI has one link at a time: a computer or phone connected to the FM-1, or a device the FM-1 connected to
+(below), not both. While one is connected, the other can't connect: disconnect it first. Bluetooth headphones or a
+speaker (Bluetooth audio, below) can be connected beside either.
+
 To switch Bluetooth off, press GLO twice for GLOBAL CONNECT and turn K3 (BLUETOOTH) to OFF: the FM-1 stops advertising and
 drops any connection. Turn it back to ON to switch it on again. It is kept for the next start.
 
@@ -1263,11 +1269,33 @@ advertising mode, then press GLO twice for GLOBAL CONNECT and press REC: the scr
 pick the device by its name, and press REC again to connect. DEV at the bottom lights while it's connected, GLOBAL
 CONNECT's Bluetooth line says Connected and its name, and the bottom line shows the last message it sent. Press REC once more (on GLOBAL CONNECT) to disconnect.
 
+### Bluetooth audio: headphones and speakers
+
+The FM-1 can play its sound through Bluetooth headphones or a Bluetooth speaker. Everything it plays goes there: the
+bass, the drums, the piano and the Space Echo, at MASTER's volume. While it streams, the FM-1's own speaker and headphone
+jack go quiet; USB audio to a computer carries on.
+
+1. Put the headphones or speaker in pairing mode.
+2. Press GLO five times for GLOBAL AUDIO, then press SEL or turn ALGO: the screen says BT AUDIO SEARCHING. The search takes about 10 seconds.
+3. Turn ALGO to pick the device by its name (Found), then press SEL to connect. The first time, it pairs.
+4. The BT audio line goes from Connecting through Setting up to Streaming, and the sound moves to the device.
+
+Press SEL again to hang up: the sound comes back to the FM-1. The FM-1 remembers the last four devices it played to.
+They come first when you turn ALGO (Known), the last one used at the top, so the next time it's SEL alone: no search,
+and the device doesn't need to be in pairing mode, only switched on. Bluetooth audio doesn't connect by itself at
+power-on; press SEL on GLOBAL AUDIO.
+
+As with any Bluetooth headphones, the sound arrives a moment late (a fraction of a second), so play the keys through the FM-1's
+own speaker or wired headphones when timing matters. The lines on GLOBAL AUDIO show where it stands: BT audio (Off,
+Searching, Found, None found, Connecting, Linked, Setting up, Streaming, Refused, Failed), the device ALGO has picked,
+and what SEL will do (connect, hang up or search).
+
 ### PROX: distance as a knob
 
 PROX turns one knob by how far a Bluetooth MIDI controller or phone is from the FM-1: touching it is the knob's
 lowest, arm's length its highest, a sweep between them the knob turning. It reads the strength of the Bluetooth link's
-signal, so anything connected works, a device the FM-1 joined (REC, above) first, else a computer or phone. It follows
+signal, so anything connected works: a device the FM-1 joined (REC, above) first, else a computer or phone, else
+Bluetooth headphones or a speaker (Bluetooth audio, above), so it can follow headphones on your head. It follows
 the controller or phone, not a hand: something passing between them barely moves it, and a shake only blurs it.
 
 On GLOBAL CONNECT (GLO twice), turn PRESET (PROX) to pick the knob, or OFF. It can turn the knobs the motion
@@ -1295,7 +1323,9 @@ The target and the calibration are kept with the settings, not the patch.
 To calibrate it to your controller and your reach, press SEL on GLOBAL CONNECT (PROX SWEEP NEAR TO FAR), sweep the
 controller a few times between touching the FM-1 and arm's length, at the speed you'll play it, then press SEL again:
 the screen shows the near and far it kept. Sweep rather than hold still: held out at arm's length, a body in the way
-reads farther than a sweep ever reaches. Uncalibrated it uses what an SP-1 read: -23 dBm touching, -50 at arm's length.
+reads farther than a sweep ever reaches. Uncalibrated it uses -23 dBm touching and -50 at arm's length, a guess
+that reaches only part of the range: calibrate it with what you'll use (an SP-1 reads about -8 sitting on the FM-1
+and -61 at arm's length). The dB on the Signal line are close to real dBm, not exact.
 
 The signal falls fastest in the first few inches, so PROX squares its reading to give the rest of the reach more of
 the knob: with an SP-1, 6 inches out reads about a third up instead of over half. It updates 50 times a second, smoothed over about a tenth of a second close in and a quarter at arm's length (where
@@ -1364,6 +1394,16 @@ receive and as its MIDI output to send.
 
 **The drums are too loud or too quiet against the synth:** turn the drums' MASTER (K2 on a drum page), or one drum's VOLUME (K3).
 
+**A Bluetooth MIDI device won't connect, or a computer can't find the FM-1:** Bluetooth MIDI has one link at a time.
+Disconnect the other one first: REC on GLOBAL CONNECT drops a device; disconnect the computer or phone from its own
+Bluetooth settings.
+
+**No sound from the FM-1's speaker or headphone jack:** Bluetooth audio is streaming to a device (GLOBAL AUDIO's BT
+audio line says Streaming). Press SEL on GLOBAL AUDIO to hang up.
+
+**Bluetooth headphones aren't found:** put them in pairing mode before the search, and search again (SEL or ALGO on
+GLOBAL AUDIO, with none listed). Headphones connected to a phone often don't answer: disconnect them from it first.
+
 **The installer doesn't find the FM-1:** use Chrome or Edge, allow MIDI when asked, and close other programs that use
 the FM-1's MIDI port. If it still isn't found, the installer lists the computer's other MIDI ports to try: a Mac can
 show the FM-1 under another name.
@@ -1386,6 +1426,9 @@ Bass Something 2 is by **John Brown** ([@imijes](https://github.com/imijes)), un
 - **Leo Kuroshita** ([@kurogedelic](https://github.com/kurogedelic), [Hügelton Instruments](https://hugelton.com)):
   Felucca, the firmware fm1-base grew from, and felucca-bsp, which it runs on. Used under MPL-2.0 with his permission.
 - **keremimo** ([@keremimo](https://github.com/keremimo)): MIDI clock and transport sync in felucca-bsp.
+- **Henri David** (Optimist): the Bluetooth stack this firmware runs, from the Bluetooth MIDI to the Bluetooth audio
+  (pairing, the audio link and its SBC encoder), written from the Bluetooth specifications. Used under MPL-2.0 (it
+  is offered under GPL-3.0 or MPL-2.0).
 - **Chris Farrell** ([@seajaysec](https://github.com/seajaysec)): from fm-static, the web installer's finding of an
   FM-1 under any port name, and its package and update checks. Used under MPL-2.0 with his permission.
 - **BS2-Web** by François Georgy ([francoisgeorgy/BS2-Web](https://github.com/francoisgeorgy/BS2-Web)): where each

@@ -38,11 +38,15 @@ Bass Something 2 builds in an [fm1-base](https://github.com/charlesvestal/fm1-ba
 - the host's xrun count, for tests;
 - felucca-bsp's EP0 fix (#28);
 - a Bluetooth link's signal strength for PROX (`plat_ble_rssi`; `platform/fm1-base-prox.patch`, its draft PR beside it).
+- on the own Bluetooth stack (fm1.toml `ble_stack = "own"`, `bt_audio = true`: Bluetooth MIDI and Bluetooth audio
+  from Optimist's stack), that signal for a MIDI link and for the headphones' link (`plat_ble_rssi`,
+  `plat_bta_rssi`; `platform/fm1-base-ownstack-rssi.patch`, after the PROX patch).
 
 From the fm1-base root:
 
     git apply bs2/platform/fm1-base.patch
     git apply bs2/platform/fm1-base-prox.patch
+    git apply bs2/platform/fm1-base-ownstack-rssi.patch
     git -C bsp apply ../bs2/platform/felucca-bsp.patch
 
 Then, from the repository root:

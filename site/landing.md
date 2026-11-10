@@ -3,7 +3,8 @@
 Bass Something 2 turns the M-VAVE FM-1 into a monosynth inspired by the Novation Bass Station II: two oscillators and a sub,
 ring modulation and noise, a Classic or Acid filter with drive, two envelopes, two LFOs, distortion, the Bass Station
 II's 32 arp rhythms with its 32-step sequencer (four sequences) and 32 patches. Patches go to and from a Bass Station II editor as SysEx, and
-MIDI comes in over USB, Bluetooth and TRS, and goes out over USB and Bluetooth.
+MIDI comes in over USB, Bluetooth and TRS, and goes out over USB and Bluetooth, and the sound can play through
+Bluetooth headphones or a speaker.
 
 A second instrument plays beside the synth: Drum Something 400, a drum machine inspired by the Sequential Circuits
 Drumtraks, with 13 synthesized drums, patterns, songs and MIDI out. A third, Piano Something 368X, is an electric piano
