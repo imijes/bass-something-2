@@ -12,10 +12,10 @@ A second instrument plays beside the synth: [Drum Something 400](#s6), 13 drums 
 It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of its patches as seeds with their locks
 (type, key, tracks), sends them back, and mixes its four tracks (see [RND Synth](#s9)).
 
-![The Bass Something 2 screen with a note playing: the section tabs, the HOME page (the name, the red P01 display, the scope drawing the note's wave, the whole Bass Station II panel), the keys with the held one in cyan, then OCT +0, P01, 120 BPM, VOL 50% and ARP OFF](img/screen-home.png "Bass Something 2 playing")
-![Drum Something 400's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "Drum Something 400")
-![Piano Something 368X's HOME page: its name, the tone toggle that's on, and the RMI Electra-piano's front panel above the keys](img/screen-piano-home.png "Piano Something 368X")
-![Space Something 201's HOME page: its name and mode above the whole RE-201 front panel, the keys under it](img/screen-echo-home.png "Space Something 201")
+![Bass Something 2's HOME page, animated: the name, the red P01 display and the whole Bass Station II panel; then FREQUENCY turned, the camera diving into the filter's knob and back out to HOME](img/screen-bass-home.gif "Bass Something 2 playing")
+![Drum Something 400's HOME page, animated: the panel with its two red displays; then SEQ tapped, the patterns' page, and HOME again](img/screen-drum-home.gif "Drum Something 400")
+![Piano Something 368X's HOME page, animated: chords played, their notes ringing as bars over the RMI Electra-piano's front panel; then ORGAN MODE turned on and off, the camera diving into the tone tablets and back out](img/screen-piano-home.gif "Piano Something 368X")
+![Space Something 201's HOME page, animated: its name and mode above the whole RE-201 front panel; then REPEAT RATE turned, the camera diving into the knob and back out](img/screen-echo-home.gif "Space Something 201")
 
 ---
 
@@ -1308,9 +1308,12 @@ less to work with than the first few inches: if the knob tops out early, calibra
 
 The FM-1's USB port can play host to a USB MIDI keyboard, controller or synth instead of a computer. Press GLO twice for
 GLOBAL CONNECT and turn K2 (USB HOST) to ON: the screen says USB HOST LOOKING. Plug the device in, through a powered USB
-hub or a powered OTG adapter (the FM-1 gives the port no power), and the screen names it (USB DEVICE and its name);
+hub or a powered OTG adapter, and the screen names it (USB DEVICE and its name);
 GLOBAL CONNECT shows it beside USB. Its notes, wheels and CCs come in as a computer's would, on the channels of GLOBAL
 MIDI CHANNELS, and the FM-1's keys and sequences go out to it. Unplugged, any note it was holding stops (USB DEVICE LOST).
+
+USB host mode gives no USB power: the FM-1 doesn't power the port, so a device that runs from USB power stays dark
+plugged straight in. Power it from a powered USB hub, a powered OTG adapter, or its own supply.
 
 While USB HOST is on there is no computer: no USB audio, no MIDI to a computer, no backup and no updates. Turn it OFF
 to give the port back to the computer. It is always OFF at power-on, so the computer finds the FM-1 after any restart.

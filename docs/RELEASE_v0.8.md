@@ -31,7 +31,7 @@ Four instruments on one M-VAVE FM-1 now: the bass synth, Drum Something 400, a t
 
 - **CC map:** no CC number is shared between instruments, so all of them can share one channel. The bass keeps the
   Bass Station II chart. The Space Echo's CCs are on the piano's CC channel, and drum roll is on CC 66/67.
-- **USB host:** GLO CONNECT's USB HOST makes the USB port a MIDI host for a keyboard or synth.
+- **USB host:** GLO CONNECT's USB HOST makes the USB port a MIDI host for a keyboard or synth. It gives no USB power: power the device itself, or connect it through a powered hub or OTG adapter.
 - **USB audio, 6 channels:** the master on 1-2, then the bass, the drums, the piano and the Space Echo's return
   (checked in Logic Pro).
 - **Bluetooth:** GLO CONNECT shows the connected device's name. GLO pulses slowly while Bluetooth has a link.
