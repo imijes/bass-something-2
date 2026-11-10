@@ -1252,15 +1252,16 @@ can't change the sound.
 Bass Something 2 advertises over Bluetooth as "FM-1" and four characters of its own, such as "FM-1 1F2D", so two FM-1s can
 be told apart. On a Mac, open Audio MIDI Setup, choose Window > Show MIDI Studio, click the Bluetooth button, then
 Connect next to the FM-1. On an iPad or iPhone, connect from a music app's Bluetooth MIDI settings. BLE at the bottom
-of the screen lights while connected.
+of the screen lights while connected, and the GLO button pulses slowly while anything is connected over Bluetooth (a
+computer, a phone or a device).
 
 To switch Bluetooth off, press GLO twice for GLOBAL CONNECT and turn K3 (BLUETOOTH) to OFF: the FM-1 stops advertising and
 drops any connection. Turn it back to ON to switch it on again. It is kept for the next start.
 
 To connect to a Bluetooth MIDI device, such as a keyboard or a controller, put the device in its pairing or
 advertising mode, then press GLO twice for GLOBAL CONNECT and press REC: the screen says BLE SCANNING. Turn ALGO to
-pick the device by its name, and press REC again to connect. DEV at the bottom lights while it's connected, and the
-bottom line shows the last message it sent. Press REC once more (on GLOBAL CONNECT) to disconnect.
+pick the device by its name, and press REC again to connect. DEV at the bottom lights while it's connected, GLOBAL
+CONNECT's Bluetooth line says Connected and its name, and the bottom line shows the last message it sent. Press REC once more (on GLOBAL CONNECT) to disconnect.
 
 ### A USB MIDI keyboard (USB host)
 

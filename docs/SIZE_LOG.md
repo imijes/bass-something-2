@@ -213,3 +213,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-09 | 85c7727+ | USB host: GLO CONNECT's USB HOST (K2), the device's name, its notes let go when lost | 541,148 | +3,456 | 40,416 | 88,084 | +464 | 10,220 | 263,640 |
 | 2026-11-09 | eb0f231+ | First-boot demo removed (presets/demo.h, make_demo.py): P01 DUB PLATE, empty drums, v0.7's line | 540,204 | -944 | 41,360 | 88,084 | +0 | 10,220 | 263,640 |
 | 2026-11-09 | c546738+ | CC map: no overlap across instruments (BS2 chart for the bass, piano/echo/drums moved), drum roll by CC 66/67, echo CCs on the piano channel, BLE device name on GLO CONNECT | 541,036 | +832 | 40,528 | 88,084 | +0 | 10,220 | 263,640 |
+| 2026-11-09 | b489b01+ | GLO pulses slowly while Bluetooth has a link | 541,132 | +96 | 40,432 | 88,084 | +0 | 10,220 | 263,640 |

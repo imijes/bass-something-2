@@ -4974,7 +4974,8 @@ static void hold_step(uint32_t btn)
 
 static void input(void)
 {
-    uint32_t keys, btn = plat_buttons(), k, lit, below, above, mid;
+    uint32_t keys, btn = plat_buttons(), k, lit, below, above, mid, mid_b;
+    static uint8_t mid_was;                  /* (the lights' middle level set last time: let go once) */
     int32_t e;
     touch_poll();                            /* the sensed keys' presses, velocities and pressure */
     keys = touch_keys();
@@ -5218,6 +5219,13 @@ static void input(void)
     ui.lit = lit;
     plat_glow(1);                            /* the unlit buttons glow, readable in the dark */
     btn |= mo_light() << B_REC;
+    {                                        /* GLO: a slow pulse while Bluetooth has a link (a device joined, or a
+                                              * computer or phone listening): glow, half, lit, half, 0.5 s each */
+        const uint32_t ph = plat_ms() / 500u % 4u;
+        const int bt = !set.ble_off && ((FM1B_BLE_CENTRAL && plat_ble_device() == BLE_DEV_READY) || plat_ble_connected());
+        btn |= (uint32_t)(bt && ph == 2u) << B_GLO;
+        mid_b = bt && (ph & 1u) ? 1u << B_GLO : 0u;
+    }
     plat_play_red((ui.drum && dq.rec) || (ui.rmi && pq.rec));   /* (PLAY: red while it records) */
     if (ui.rmi && !ui.drum)                  /* (the piano's part: PLAY lit as it plays, REC as it records) */
         plat_leds(btn | (dq.dirty ? 1u << B_SAVE : 0u) | (uint32_t)(dq.run && !pq.mute) << B_PLAY
@@ -5229,8 +5237,9 @@ static void input(void)
         plat_leds(btn | (set_dirty ? 1u << B_SAVE : 0u) | (uint32_t)patch.arp_on << B_ARP | (uint32_t)seq_rec << B_SEQ
                   | (uint32_t)seq_rec << B_REC              | (uint32_t)seq_playing() << B_PLAY | below << B_OCTDN | above << B_OCTUP, keys | lit);   /* (OCT-, OCT+: a
                                               * note held out of the keys' reach, that way) */
-    if (mid || ui.dt_mid)                    /* (a channel's other keys; none: let go once) */
-        plat_lights_mid(0, mid);
+    if (mid || mid_b || mid_was)             /* (a channel's other keys, GLO's pulse; none: let go once) */
+        plat_lights_mid(mid_b, mid);
+    mid_was = mid || mid_b;
     ui.dt_mid = mid;
 }
 
