@@ -1243,6 +1243,7 @@ Station II played into the FM-1 on a shared channel can nudge them.
 | Drums | 33 to 37 and 39 to 46 volume, 48 to 60 tuning, 66 roll, 67 roll rate |
 | Piano | 11, 61 to 65, 68, 69 |
 | Space Echo | 3, 8, 9, 12 to 15, 47, 107, 117 |
+| PROX | 4, its target (on the bass's and the piano's CC channels) |
 
 **The RND Synth:** its notes come in on channels 1 to 4. Keep CC CHAN on another channel, or OFF, and its messages
 can't change the sound.
@@ -1262,6 +1263,47 @@ To connect to a Bluetooth MIDI device, such as a keyboard or a controller, put t
 advertising mode, then press GLO twice for GLOBAL CONNECT and press REC: the screen says BLE SCANNING. Turn ALGO to
 pick the device by its name, and press REC again to connect. DEV at the bottom lights while it's connected, GLOBAL
 CONNECT's Bluetooth line says Connected and its name, and the bottom line shows the last message it sent. Press REC once more (on GLOBAL CONNECT) to disconnect.
+
+### PROX: distance as a knob
+
+PROX turns one knob by how far a Bluetooth MIDI controller or phone is from the FM-1: touching it is the knob's
+lowest, arm's length its highest, a sweep between them the knob turning. It reads the strength of the Bluetooth link's
+signal, so anything connected works, a device the FM-1 joined (REC, above) first, else a computer or phone. It follows
+the controller or phone, not a hand: something passing between them barely moves it, and a shake only blurs it.
+
+On GLOBAL CONNECT (GLO twice), turn PRESET (PROX) to pick the knob, or OFF. It can turn the knobs the motion
+recorder records but the drums' volumes, in this order: the bass's FREQUENCY, RESONANCE, ARP RHYTHM and ARP OCTAVES,
+each drum's tuning, then the Space Echo's MODE, its three sends, WOW, REVERB VOLUME, ECHO VOLUME, INPUT, INTENSITY
+and REPEAT RATE. The Prox line shows the knob
+and where PROX has it, 0 to 127, with the signal under it. While it's on, PROX holds that knob: a turn by hand lasts until the controller moves.
+PROX's moves are recorded by the motion recorder like a hand's. A controller can pick the target too: CC 4 (MIDI's Foot Controller) on the bass's or the piano's CC channel, in the
+list's order, each target a span of its values so a short fader can land on one, the most played wider:
+
+| CC 4 | Target |
+| --- | --- |
+| 0 to 2 | OFF |
+| 3 to 10 | FREQUENCY |
+| 11 to 17 | RESONANCE |
+| 18 to 20, 21 to 23 | ARP RHYTHM, ARP OCTAVES |
+| 24 to 88 | the drums' tunings, 5 each: Bass, Snare, Rim, Tom 1, Tom 2, Crash, Ride, Closed Hat, Open Hat, Claps, Tambourine, Cowbell, Cabasa |
+| 89 to 109 | 3 each: MODE, BASS SEND, DRUM SEND, PIANO SEND, WOW, REVERB VOLUME, ECHO VOLUME |
+| 110 to 115 | INPUT |
+| 116 to 121 | INTENSITY |
+| 122 to 127 | REPEAT RATE |
+
+The target and the calibration are kept with the settings, not the patch.
+
+To calibrate it to your controller and your reach, press SEL on GLOBAL CONNECT (PROX SWEEP NEAR TO FAR), sweep the
+controller a few times between touching the FM-1 and arm's length, at the speed you'll play it, then press SEL again:
+the screen shows the near and far it kept. Sweep rather than hold still: held out at arm's length, a body in the way
+reads farther than a sweep ever reaches. Uncalibrated it uses what an SP-1 read: -23 dBm touching, -50 at arm's length.
+
+The signal falls fastest in the first few inches, so PROX squares its reading to give the rest of the reach more of
+the knob: with an SP-1, 6 inches out reads about a third up instead of over half. It updates 50 times a second, smoothed over about a tenth of a second close in and a quarter at arm's length (where
+the signal moves least and wobbles most), and ignores a change of a single step, so a still hand doesn't make the
+knob shimmer. The line under Prox shows the signal now and the near and far it's calibrated to (while calibrating,
+the range swept so far). Past about a foot the signal changes only a few dB, so the last stretch to arm's length has
+less to work with than the first few inches: if the knob tops out early, calibrate again with full sweeps.
 
 ### A USB MIDI keyboard (USB host)
 

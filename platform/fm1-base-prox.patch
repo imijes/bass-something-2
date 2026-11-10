@@ -1,0 +1,106 @@
+diff --git a/ble/midi/le_midi.c b/ble/midi/le_midi.c
+index 70dad89..aaf6e1b 100644
+--- a/ble/midi/le_midi.c
++++ b/ble/midi/le_midi.c
+@@ -218,6 +218,15 @@ static int mc_ready(void) { return 0; }
+ static int periph_ready(void) { return con_handle && CCC_GET(con_handle, H_CCC); }
+ int ble_midi_connected(int link) { return link ? mc_ready() : periph_ready(); }
+ int ble_midi_peripheral_connected(void) { return periph_ready(); }
++extern s8 ble_vendor_get_peer_rssi(u16 conn_handle);   /* (btctrler.a: the controller's reading of the link) */
++int ble_midi_rssi(int link)                  /* plat_ble_rssi's: link 0 the central's, 1 the device's; dBm, 0 none */
++{
++#if BLE_MIDI_CENTRAL
++    if (link)
++        return mc_handle ? ble_vendor_get_peer_rssi(mc_handle) : 0;
++#endif
++    return !link && con_handle ? ble_vendor_get_peer_rssi(con_handle) : 0;
++}
+ int ble_midi_peripheral_linked(void) { return con_handle != 0; }   /* listening or not yet */
+ static u16 send_mtu = 20;                        /* ATT payload: 23 - 3 until the exchange says more */
+ int ble_midi_send_many(int link, const uint32_t *pkts, const uint16_t *ms, int n)
+diff --git a/device/ble_none.c b/device/ble_none.c
+index d71ba92..f5d286b 100644
+--- a/device/ble_none.c
++++ b/device/ble_none.c
+@@ -12,6 +12,7 @@ static uint32_t ble_midi_out_room(uint32_t to) { (void)to; return 0; }
+ /* ---- plat.h */
+ int plat_ble_state(void) { return BLE_OFF; }
+ int plat_ble_connected(void) { return 0; }
++int plat_ble_rssi(int link) { (void)link; return 0; }
+ int plat_ble_linked(void) { return 0; }
+ int plat_ble_stream(const struct plat_ble_stream *s) { (void)s; return 0; }   /* (send by plat_midi_send) */
+ void plat_ble_link_info(uint32_t v[7])
+diff --git a/device/bt_own.c b/device/bt_own.c
+index 2ff5b1d..1f4b2e6 100644
+--- a/device/bt_own.c
++++ b/device/bt_own.c
+@@ -420,6 +420,7 @@ static void ble_poll(void)
+ static uint8_t ble_off;                           /* switched off by the player (plat_ble_enable) */
+ int plat_ble_state(void) { return ble_off ? BLE_OFF : ble_state; }
+ int plat_ble_connected(void) { return !ble_off && ble_state == BLE_READY && ble_midi_peripheral_connected(); }
++int plat_ble_rssi(int link) { (void)link; return 0; }   /* (not yet: the own controller keeps no link's reading) */
+ int plat_ble_linked(void) { return !ble_off && ble_state == BLE_READY && ble_midi_peripheral_linked(); }
+ void plat_ble_link_info(uint32_t v[7])            /* the computer's link as agreed (0 each: none) */
+ {
+diff --git a/device/radio.c b/device/radio.c
+index eb732a9..0062b5f 100644
+--- a/device/radio.c
++++ b/device/radio.c
+@@ -781,6 +781,8 @@ extern void ble_midi_enable(int on);
+ static uint8_t ble_off;                           /* switched off by the player (plat_ble_enable) */
+ int plat_ble_state(void) { return ble_off ? BLE_OFF : ble_state; }
+ int plat_ble_connected(void) { return !ble_off && ble_state == BLE_READY && ble_midi_peripheral_connected(); }
++extern int ble_midi_rssi(int link);
++int plat_ble_rssi(int link) { return !ble_off && ble_state == BLE_READY ? ble_midi_rssi(link) : 0; }
+ int plat_ble_linked(void) { return !ble_off && ble_state == BLE_READY && ble_midi_peripheral_linked(); }
+ int plat_ble_stream(const struct plat_ble_stream *s) { (void)s; return 0; }   /* (send by plat_midi_send) */
+ void plat_ble_link_info(uint32_t v[7])
+diff --git a/host/plat_host.c b/host/plat_host.c
+index 4357364..676db00 100644
+--- a/host/plat_host.c
++++ b/host/plat_host.c
+@@ -532,6 +532,7 @@ static void ble_say(const char *s) { snprintf(ble_log[ble_log_n++ % 8], 40, "%s"
+ int plat_ble_state(void) { return ble_state; }
+ static int ble_link;                            /* "ble link": a computer linked, not listening yet */
+ int plat_ble_connected(void) { return ble_conn; }
++static int ble_rssi_set[2];                     /* "ble rssi DBM [LINK]": each link's signal, while it's connected */
+ int plat_ble_linked(void) { return ble_conn || ble_link; }
+ int plat_ble_stream(const struct plat_ble_stream *s) { (void)s; return 0; }   /* (send by plat_midi_send) */
+ void plat_ble_link_info(uint32_t v[7])
+@@ -601,6 +602,10 @@ void plat_ble_disconnect(void)
+     bdev_state = BLE_DEV_OFF;
+ }
+ int plat_ble_device(void) { return bdev_state; }
++int plat_ble_rssi(int link)
++{
++    return link == 0 ? (ble_conn || ble_link ? ble_rssi_set[0] : 0) : link == 1 && bdev_state == BLE_DEV_READY ? ble_rssi_set[1] : 0;
++}
+ int plat_ble_passkey(void) { return -1; }
+ /* the devices one by one (plat.h plat_ble_connect_peer): the stand-in's advertising report (ADV_IND, a random static
+  * address, the BLE-MIDI service, its name) to the app every 100 ms of a scan once it is found; connecting to its
+@@ -2678,6 +2683,8 @@ int main(int argc, char **argv)
+             } else if (!strcmp(a, "link") && ble_state == BLE_READY) {   /* linked, its MIDI not subscribed */
+                 ble_link = 1;
+                 ble_say("connected");
++            } else if (!strcmp(a, "rssi")) {           /* "ble rssi -45 [1]": a link's signal (plat_ble_rssi) */
++                ble_rssi_set[*c ? atoi(c) != 0 : 0] = atoi(b);
+             } else if (!strcmp(a, "disconnect")) {
+                 ble_conn = ble_link = 0;
+                 ble_say("disconnected: reason 13");
+diff --git a/include/plat.h b/include/plat.h
+index acfd16b..7a96251 100644
+--- a/include/plat.h
++++ b/include/plat.h
+@@ -153,6 +153,12 @@ int plat_ble_state(void);
+ int plat_ble_connected(void);          /* a central is connected and listening */
+ int plat_ble_linked(void);             /* a central is connected, listening or not yet (a Mac whose MIDI driver
+                                         * never subscribed holds the link, and the FM-1 stops advertising) */
++int plat_ble_rssi(int link);           /* a connected link's signal strength, dBm (about -20 with the other end
++                                        * touching the FM-1, -90 far off); 0: no link, or not known. link 0: the
++                                        * central's (a computer, a phone: plat_ble_linked), 1: the device's
++                                        * (plat_ble_device). The controller's reading of the link's latest packets, new
++                                        * every 30-40 ms: noisy (a few dB), an app smooths it. Main loop.
++                                        * ble_stack = "own": 0 (not yet) */
+ void plat_ble_start(void);
+ /* A stream of SysEx frames to the computer's link (ble_stack = "own"; a screen mirrored): the radio reads it in its own
+  * interrupts, a connection event at a time, as much as the link takes (full notifications, as many as the stack puts

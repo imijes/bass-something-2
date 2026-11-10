@@ -66,7 +66,11 @@ typedef struct {
     uint8_t spare8;
     uint8_t droom[4];                    /* DRUM ROOM: the room's DECAY, TONE, INPUT TONE, LEVEL, each 0..127 (64: as
                                           * modelled), by K1..K4 */
-    uint8_t spare9[4];
+    uint8_t prox_tgt;                    /* PROX (GLO CONNECT's PRESET): the knob the Bluetooth link's distance turns,
+                                          * its place in PROX_NAME, 0 off (was spare, 0) */
+    uint8_t prox_near, prox_far;         /* its calibration (SEL there): touching's and arm's length's signal, -dBm (0:
+                                          * PROX_NEAR, PROX_FAR) */
+    uint8_t spare9;
     int8_t at_amt[3];                    /* AFTERTOUCH: pressure on the filter's frequency, on LFO 1 to the pitches, on
                                           * LFO 2's speed, each -63..63 (the Bass Station II's On-Key Aftertouch three) */
     int8_t bend;                         /* WHEELS: the pitch bend's range, -24..24 semitones (negative: reversed) */
@@ -822,6 +826,27 @@ enum { MO_CUTOFF, MO_RESO, MO_RHY, MO_AOCT, MO_DVOL, MO_DTUNE = MO_DVOL + NDT, M
                                               * velocity, the accent's bit 7); a drum pattern cued (its number) */
 #define MO_NT (MO_ROLL + 2)                  /* what a hand holds: the values, the roll, the patterns */
 #define MO_HELD(g) ((g) < MO_ROLL ? (g) : (g) == MO_PAT ? MO_ROLL + 1u : MO_ROLL)   /* a move's in mo.at */
+/* PROX's targets (set.prox_tgt) in its list's order, the PRESET's and CC 4's: off, the bass's, the drums' tunings
+ * (across the middle), the Space Echo's (REPEAT RATE last); PROX_MO each one's motion value (MO_*: the drums' volumes
+ * left out) */
+#define PROX_N 28u
+static const char *const PROX_NAME[PROX_N] = {
+    "OFF", "FREQUENCY", "RESONANCE", "ARP RHYTHM", "ARP OCTAVES", "BASS TUNE", "SNARE TUNE", "RIM TUNE", "TOM1 TUNE",
+    "TOM2 TUNE", "CRASH TUNE", "RIDE TUNE", "CHH TUNE", "OHH TUNE", "CLAPS TUNE", "TAMB TUNE", "COWBELL TUNE",
+    "CABASA TUNE", "ECHO MODE", "BASS SEND", "DRUM SEND", "PIANO SEND", "WOW", "REVERB VOL", "ECHO VOL", "ECHO INPUT",
+    "INTENSITY", "REPEAT RATE"};
+static const uint8_t PROX_MO[PROX_N] = {
+    0, MO_CUTOFF, MO_RESO, MO_RHY, MO_AOCT, MO_DTUNE, MO_DTUNE + 1, MO_DTUNE + 2, MO_DTUNE + 3, MO_DTUNE + 4,
+    MO_DTUNE + 5, MO_DTUNE + 6, MO_DTUNE + 7, MO_DTUNE + 8, MO_DTUNE + 9, MO_DTUNE + 10, MO_DTUNE + 11, MO_DTUNE + 12,
+    MO_SE + 3, MO_SE + 6, MO_SE + 7, MO_SE + 8, MO_SE + 9, MO_SE + 4, MO_SE + 5, MO_SE + 2, MO_SE, MO_SE + 1};
+                                             /* (MO_SE_AT's order: INTENSITY, REPEAT RATE, INPUT, MODE, REVERB, ECHO,
+                                              * the three sends, WOW) */
+/* CC 4's span of 0..127 each takes, a fader's room: the most played wider (FREQUENCY, RESONANCE, the drums' tunings,
+ * ECHO INPUT, INTENSITY, REPEAT RATE), 128 in all */
+static const uint8_t PROX_CCW[PROX_N] = {3, 8, 7, 3, 3, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 3, 3, 3, 3, 3, 3, 3, 6, 6,
+                                        6};
+_Static_assert(sizeof PROX_CCW == PROX_N, "a span each");
+static int prox_calibrating(void);
 #define MO_INST(g) ((g) < MO_DVOL ? 0u : (g) < MO_SE || (g) >= MO_ROLL ? 1u : 2u)   /* the bass's, the drums', the echo's */
 static const uint8_t MO_BASS_AT[MO_DVOL] = {offsetof(patch_t, cutoff), offsetof(patch_t, reso), offsetof(patch_t, rhythm),
                                            offsetof(patch_t, arp_oct)};
@@ -2314,7 +2339,8 @@ static const param_t PARAMS[NPAGES][NE] = {
                   [EN_K1] = {"BASS", SF(chan), CH_OFF, CH_ALL, CHAN_NAME},
                   [EN_K2] = {"DRUMS", SF(dchan), CH_OFF, CH_ALL, CHAN_NAME},
                   [EN_K3] = {"PIANO", SF(rmi_chan), CH_OFF, CH_ALL, CHAN_NAME}},
-    [PG_GCONN] = {[EN_K1] = {"USB HOST", SF(usb_host), 0, 1, OFF_ON}, [EN_K2] = {"BLE", SF(ble_off), 0, 1, ON_OFF},
+    [PG_GCONN] = {[EN_PRESET] = {"PROX", SF(prox_tgt), 0, PROX_N - 1u, PROX_NAME},
+                  [EN_K1] = {"USB HOST", SF(usb_host), 0, 1, OFF_ON}, [EN_K2] = {"BLE", SF(ble_off), 0, 1, ON_OFF},
                   [EN_K3] = {"AT OUT", SF(at_out), 0, 1, OFF_ON}},
     /* the global settings by what they are about: the clock (the tempo on the display), the sound coming out, how the
      * controls answer; the settings on K3 and K4 (ENC_MAP) */
@@ -2424,7 +2450,8 @@ static const char *const TITLE[NPAGES][NE] = {
 
     [PG_GMIDI] = {[EN_SELECT] = "BASS CC CHANNEL", [EN_ALGO] = "DRUMS CC CHANNEL", [EN_PRESET] = "PIANO CC CHANNEL",
                   [EN_K1] = "BASS CHANNEL", [EN_K2] = "DRUMS CHANNEL", [EN_K3] = "PIANO CHANNEL"},
-    [PG_GCONN] = {[EN_K1] = "USB MIDI HOST", [EN_K2] = "BLUETOOTH MIDI", [EN_K3] = "AFTER TOUCH OUT"},
+    [PG_GCONN] = {[EN_PRESET] = "PROX TARGET", [EN_K1] = "USB MIDI HOST", [EN_K2] = "BLUETOOTH MIDI",
+                  [EN_K3] = "AFTER TOUCH OUT"},
     [PG_GCLK] = {[EN_K3] = "SEND MIDI CLOCK", [EN_K4] = "CLOCK SYNC"},
     [PG_GCTL] = {[EN_K2] = "KNOB RESPONSE", [EN_K3] = "LOCAL CONTROL", [EN_K4] = "NOTE ROUTE"},
     [PG_GDISP] = {[EN_PRESET] = "KNOB ZOOM", [EN_K1] = "HINTS", [EN_K2] = "POP-UP TIME"},
@@ -2535,6 +2562,16 @@ static void cc_apply(uint32_t cc, uint32_t v, int echo)   /* the main loop's: a 
         } else if (cc != 83u && f != FLT_ACID)
             patch.filter = (uint8_t)(cc == 84u ? x * 2u + (f & 1u) : (f & ~1u) + !x);   /* (Slope: 0 12, 1 24) */
         set_dirty = 1;
+        ui.redraw = 1;
+        return;
+    }
+    if (cc == 4u) {                          /* PROX's target (GLO CONNECT's PRESET), a setting, on the bass's and the
+                                              * piano's channels: each its span of 0..127 (PROX_CCW); MIDI's Foot
+                                              * Controller, a number none of the instruments uses */
+        uint32_t t = 0, at = PROX_CCW[0];
+        while (v >= at && t < PROX_N - 1u)
+            at += PROX_CCW[++t];
+        set.prox_tgt = (uint8_t)t;
         ui.redraw = 1;
         return;
     }
@@ -3969,7 +4006,8 @@ static const char *const HINT[NPAGES][NE] = {
                    "Mod wheel: LFO 2 to cutoff", "Mod wheel to osc 2 pitch"},
     [PG_GMIDI] = {"Bass CC channel", "Drums' CC channel", "Piano's CC channel", "Bass note channel",
                   "Drums' note channel", "Piano's note channel"},
-    [PG_GCONN] = {[EN_K1] = "A USB MIDI device, no computer", "Bluetooth MIDI", "Pressure out as MIDI"},
+    [PG_GCONN] = {[EN_PRESET] = "Bluetooth distance turns it", [EN_K1] = "A USB MIDI device, no computer",
+                  "Bluetooth MIDI", "Pressure out as MIDI"},
     [PG_GCLK] = {[EN_K1] = "Speed, BPM", [EN_K3] = "Send MIDI clock", "Clock to follow"},
     [PG_GAUD] = {[EN_K1] = "The speaker's sound, or off", "Master tune"},
     [PG_GCTL] = {[EN_K1] = "Touch curve", "Knob speed-up", "Keys play the synth", "Notes piano to bass, or back"},
@@ -4100,6 +4138,8 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [DTF_BUILD] = "Enter Build Mode", [DTF_BPAT] = "Enter, or leave Build", [DTF_BVOL] = "Enter the step", [DTF_BTEMPO] = "Enter the step",
         [DTF_BINS] = "Insert a step", [DTF_BDEL] = "Delete the step"};
     const int rec = seq_rec && ui.page == PG_SEQ;
+    if (k == B_SEL && ui.page == PG_GCONN)   /* (PROX's, in any mode) */
+        return prox_calibrating() ? "SEL tap: Keep PROX range" : "SEL tap: Calibrate PROX";
     if (k == B_HOME && ui.page == mode_home())   /* (on it: the next mode, mode_switch) */
         return ui.se ? "HOME tap: Bass Something 2" : ui.drum ? "HOME tap: Piano Something 368X"
                : ui.rmi ? "HOME tap: Space Something 201" : "HOME tap: Drum Something 400";
@@ -4500,6 +4540,104 @@ static uint32_t mo_bar(void)                 /* the loop's bar playing (or recor
 {
     const float d = mo_pos - mo.org;
     return 1u + (mo.len ? (uint32_t)d % mo.len : (uint32_t)(d > 0.0f ? d : 0.0f)) / MO_BAR;
+}
+
+/* PROX: the Bluetooth link's signal as a hand on one knob (GLO CONNECT: PRESET picks it, SEL calibrates), a controller's
+ * or a phone's distance from the FM-1, touching 0 to arm's length 127, onto a value the motion recorder records (its
+ * loop records PROX's moves as a hand's). The device's link first, else the computer's (plat_ble_rssi). Smoothed
+ * about 0.1 s, squared (the signal falls fastest in the first inches), a dead band of a step against a still hand's
+ * shimmer; a target's own range (mo_ref's byte). Calibrating: the link's lowest and highest, slower smoothed, over a
+ * few sweeps (a still hold at arm's length reads lower than a sweep reaches) */
+#define PROX_MS 20u                          /* a look at the link */
+#define PROX_K 0.18f                         /* a look's smoothing: 1 - e^(-20 ms / 0.1 s) */
+#define PROX_NEAR 23u                        /* uncalibrated: touching, -dBm (an SP-1 2026-11-09) */
+#define PROX_FAR 50u                         /* arm's length, sweeping */
+static struct {
+    uint32_t at;                             /* its last look */
+    float e, x, lo, hi;                      /* the smoothed signal, dBm; where it is, 0 near .. 1 far; calibrating: its
+                                              * lowest, highest */
+    uint8_t cal, live, v, tgt;               /* calibrating; a link read last look; the 0..127 out; the target it went to */
+} prox;
+static int prox_calibrating(void) { return prox.cal; }
+static void prox_put(uint32_t g, uint32_t v)   /* value g (MO_*) at v of 0..127, in its own range */
+{
+    const uint32_t lo = g == MO_RHY || g == MO_AOCT ? 1u : 0u, hi = g == MO_RHY ? NRHY : g == MO_AOCT ? 4u
+                      : g < MO_DVOL || g >= MO_SE ? (g == MO_SE + 3u ? 11u : 127u) : 15u;   /* (MO_SE + 3: the MODE) */
+    uint8_t *p = mo_ref(g), x = (uint8_t)(lo + (v * (hi - lo) + 63u) / 127u);
+    if (*p != x) {
+        *p = x;
+        ui.redraw = 1;
+    }
+}
+static void prox_step(void)                  /* the main loop's (input) */
+{
+    const uint32_t now = plat_ms();
+    int r;
+    float n, f, x;
+    uint32_t v;
+    if (now - prox.at < PROX_MS)
+        return;
+    prox.at = now;
+    if ((!set.prox_tgt && !prox.cal) || !((r = plat_ble_rssi(1)) || (r = plat_ble_rssi(0)))) {
+        prox.live = 0;
+        return;
+    }
+    if (!prox.live) {                        /* (a link again: from where it is, its knob at once) */
+        prox.e = (float)r;
+        prox.tgt = 0;
+    }
+    prox.live = 1;
+    prox.e += PROX_K * (1.0f - 0.6f * prox.x) * ((float)r - prox.e);   /* (0.1 s near, deeper out to 0.25 s far:
+                                              * there the signal moves least and wobbles most) */
+    if (prox.cal) {                          /* (calibrating: the knob left alone; play's smoothing, so a fast sweep's
+                                              * ends count) */
+        prox.lo = fm_minf(prox.lo, prox.e);
+        prox.hi = fm_maxf(prox.hi, prox.e);
+        ui.redraw = 1;
+        return;
+    }
+    n = -1.0f - (float)(set.prox_near ? set.prox_near : PROX_NEAR);   /* (each end a dB inside: reached, the smoothing
+                                              * only nearing them) */
+    f = 1.0f - (float)(set.prox_far ? set.prox_far : PROX_FAR);
+    x = prox.x = fm_minf(fm_maxf((n - prox.e) / (n - f), 0.0f), 1.0f);
+    v = (uint32_t)(x * x * 127.0f + 0.5f);
+    if (v + 1u < prox.v || v > prox.v + 1u || ((v == 0u || v == 127u) && v != prox.v) || prox.tgt != set.prox_tgt) {
+        prox.v = (uint8_t)v;                 /* (a step's dead band; the ends always; a new target at once) */
+        prox.tgt = set.prox_tgt;
+        prox_put(PROX_MO[set.prox_tgt < PROX_N ? set.prox_tgt : 0], v);
+    }
+}
+static void prox_cal(void)                   /* SEL on GLO CONNECT: calibrating, then its range kept */
+{
+    char t[24], n[8];
+    int r;
+    if (!prox.cal) {
+        if (!(r = plat_ble_rssi(1)) && !(r = plat_ble_rssi(0))) {
+            app_say("PROX", "NO BLUETOOTH LINK");
+            return;
+        }
+        prox.cal = 1;
+        prox.e = prox.hi = prox.lo = (float)r;
+        prox.x = 0.0f;                       /* (calibrating: play's quickest smoothing throughout) */
+        prox.live = 1;
+        app_say("PROX", "SWEEP NEAR TO FAR");
+        return;
+    }
+    prox.cal = 0;
+    if (prox.hi - prox.lo < 6.0f) {          /* (barely moved: the last kept) */
+        app_say("PROX", "TOO LITTLE, NOT KEPT");
+        return;
+    }
+    set.prox_near = (uint8_t)fm_minf(-prox.hi + 0.5f, 127.0f);
+    set.prox_far = (uint8_t)fm_minf(-prox.lo + 0.5f, 127.0f);
+    t[0] = 0;
+    text_cat(t, "NEAR -");
+    int_text(set.prox_near, n);
+    text_cat(t, n);
+    text_cat(t, " FAR -");
+    int_text(set.prox_far, n);
+    text_cat(t, n);
+    app_say("PROX SET", t);
 }
 static void hold_tap(uint32_t k)
 {
@@ -5051,7 +5189,9 @@ static void input(void)
         }
         hint_show(k);                        /* (Hints: what it does, from the page it's pressed on) */
         said = ui.hint;
-        if (ui.drum && k != B_HOME && k != B_REC && k != B_GLO
+        if (k == B_SEL && ui.page == PG_GCONN)   /* GLO CONNECT's, in any mode: PROX calibrated */
+            prox_cal();
+        else if (ui.drum && k != B_HOME && k != B_REC && k != B_GLO
             && !(RND_PAGE(ui.page) && (k == B_SEL || k == B_FX || k == B_SAVE)))   /* (the RND pages keep their own) */
             dt_button(k);
         else if (ui.se && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && !RND_PAGE(ui.page)
@@ -5119,6 +5259,7 @@ static void input(void)
                                                   * refused stays) */
             hint_show(k);
     }
+    prox_step();                             /* (before the motion's look: PROX's moves a hand's) */
     mo_step();
     hold_step(btn);
     if (ui.dt_was && !dq.run) {              /* stopped (STOP, or an empty cue): out of RECORD MODE, the number */
@@ -6975,6 +7116,7 @@ static void glo_conn_draw(void)
 {
     const int uh = plat_usb_host_state();
     const char *nm = plat_usb_host_name();
+    char px[32], nb[8];
     glo_frame("Connect");
     info(10, 64, 58, "USB", uh == USBH_CONNECTED ? (*nm ? nm : "Device") : uh == USBH_LOOKING ? "Looking" : "Computer",
          uh == USBH_CONNECTED ? P_CYAN : P_SILK);
@@ -6986,8 +7128,32 @@ static void glo_conn_draw(void)
         text_cat(bt, btdev_name());
     info(10, 64, 46, "Bluetooth", set.ble_off ? "Off" : dev ? bt : plat_ble_connected() ? "Connected" : "On",
          !set.ble_off && (dev || plat_ble_connected()) ? P_CYAN : P_SILK);
-    if (FM1B_BLE_CENTRAL && !set.ble_off)
-        cv_text(10, 72, &FONT_XS, "REC: find a Bluetooth MIDI device.", P_SILK);
+    if (prox.cal)                            /* PROX: what it turns and where, or calibrating */
+        text_cat(strcpy(px, ""), "Sweep near to far, SEL");
+    else {
+        strcpy(px, PROX_NAME[set.prox_tgt < PROX_N ? set.prox_tgt : 0]);
+        if (set.prox_tgt && prox.live) {
+            text_cat(px, " ");
+            int_text(prox.v, nb);
+            text_cat(px, nb);
+        } else if (set.prox_tgt)
+            text_cat(px, ", no link");
+    }
+    if ((prox.live || prox.cal) && !set.usb_host) {   /* (the signal now; calibrating, the range so far; else the
+                                              * calibration; the USB host's note there instead) */
+        char sg[40];
+        strcpy(sg, "Signal ");
+        int_text((int32_t)(prox.e - 0.5f), nb);
+        text_cat(sg, nb);
+        text_cat(sg, prox.cal ? " dB, swept " : " dB, near -");
+        int_text(prox.cal ? (int32_t)(prox.hi - 0.5f) : (int32_t)(set.prox_near ? set.prox_near : PROX_NEAR), nb);
+        text_cat(sg, nb);
+        text_cat(sg, prox.cal ? " to " : " far -");
+        int_text(prox.cal ? (int32_t)(prox.lo - 0.5f) : (int32_t)(set.prox_far ? set.prox_far : PROX_FAR), nb);
+        text_cat(sg, nb);
+        cv_text(10, 86, &FONT_XS, sg, P_SILK);
+    }
+    info(10, 64, 72, "Prox", px, prox.cal || (set.prox_tgt && prox.live) ? P_CYAN : P_SILK);
     print_switch(92, GLO_ROW, EN_K1, "Off", "On", "USB Host");
     print_switch(150, GLO_ROW, EN_K2, "On", "Off", "Bluetooth");
     print_switch(208, GLO_ROW, EN_K3, "Off", "On", "AT Out");
@@ -9365,6 +9531,20 @@ void app_frame(void)
         lit_until = 0;
         ui.redraw = 1;
     }
+    {                                        /* PROX PROBE (local, not for commit): each link's signal out, 50 a second,
+                                              * CC 118 (the computer's link) and 119 (the device's) on channel 16: -dBm */
+        extern int plat_ble_rssi(int link);
+        static uint32_t pr_at;
+        uint32_t l;
+        if (plat_ms() - pr_at >= 20u) {
+            pr_at = plat_ms();
+            for (l = 0; l < 2u; l++) {
+                int r = -plat_ble_rssi((int)l);
+                if (r > 0 && r < 128)
+                    plat_midi_send(0x0Bu | 0xBFu << 8 | (118u + l) << 16 | (uint32_t)r << 24, TO_USB);
+            }
+        }
+    }
     if (FM1B_USB_HOST) {                     /* the USB host's news, said (one at a time: the latest) */
         static const char *const UH_WORD[] = {"", "LOOKING", "OFF", "", "NO MIDI", "LOW POWER", "LOST"};
         int m = plat_usb_host_msg();
@@ -9640,6 +9820,16 @@ int app_expect(const char *what, int *got)
         *got = set.rvol_off;
     else if (!strcmp(what, "bvol_off"))
         *got = set.bvol_off;
+    else if (!strcmp(what, "prox"))          /* PROX: its 0..127 out, calibrating, its calibration (-dBm) */
+        *got = prox.v;
+    else if (!strcmp(what, "prox_tgt"))
+        *got = set.prox_tgt;
+    else if (!strcmp(what, "prox_cal"))
+        *got = prox.cal;
+    else if (!strcmp(what, "prox_near"))
+        *got = set.prox_near;
+    else if (!strcmp(what, "prox_far"))
+        *got = set.prox_far;
     else if (!strcmp(what, "rolling"))       /* the roll: its drum + 1, 0 none */
         *got = dq.roll ? dq.roll_d + 1 : 0;
     else if (!strcmp(what, "drum"))          /* Drum Something's mode (HOME held) */

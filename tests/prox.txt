@@ -1,0 +1,79 @@
+# PROX (GLO CONNECT: PRESET its target, SEL calibrates): the Bluetooth link's signal (plat_ble_rssi; the host's "ble
+# rssi") turns one knob, touching 0 to arm's length 127, squared; calibrated by sweeping; kept through a restart.
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/prox.txt bs2/build/host
+wait 600
+listen
+tap GLO
+wait 30
+tap GLO
+wait 30
+expect page 24
+# no link: calibrating refused
+tap SEL
+wait 30
+said PROX NO BLUETOOTH LINK
+expect prox_cal 0
+# a computer's link, FREQUENCY the target: touching (the default near, -23) 0, arm's length (-50) 127, between squared
+wait 2500
+ble connect
+ble rssi -23
+spin PRESET 1
+wait 300
+expect cutoff 0
+ble rssi -50
+wait 1500
+expect prox 127
+expect cutoff 127
+ble rssi -40
+wait 1500
+expect prox 52
+# calibrated: SEL, a sweep -30 to -60, SEL: near 30, far 60
+tap SEL
+wait 30
+expect prox_cal 1
+said PROX SWEEP NEAR TO FAR
+ble rssi -30
+wait 1500
+ble rssi -60
+wait 1500
+tap SEL
+wait 30
+expect prox_cal 0
+expect prox_near 30
+expect prox_far 60
+said PROX SET NEAR -30 FAR -60
+ble rssi -45
+wait 1500
+expect prox 32
+# a drum's tuning (SNARE TUNE, 0..15): arm's length 15
+spin PRESET 5
+wait 30
+ble rssi -60
+wait 1500
+expect dtune1 15
+# the link gone: the knob stays
+ble disconnect
+ble rssi -30
+wait 1500
+expect dtune1 15
+# kept through a restart
+wait 2500
+reboot
+wait 1500
+expect prox_near 30
+expect prox_far 60
+# CC 4 picks the target by its span (PROX_CCW), on the bass's CC channel (1) and on the piano's (3): 6 FREQUENCY, 0
+# OFF, 70 CLAPS TUNE (24..88 the tunings, 5 each), 127 REPEAT RATE (the last)
+midi B0 04 06
+wait 50
+expect prox_tgt 1
+midi B2 04 00
+wait 50
+expect prox_tgt 0
+midi B0 04 46
+wait 50
+expect prox_tgt 14
+midi B0 04 7F
+wait 50
+expect prox_tgt 27

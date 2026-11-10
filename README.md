@@ -32,11 +32,13 @@ Bass Something 2 builds in an [fm1-base](https://github.com/charlesvestal/fm1-ba
 - the computer's USB audio as the synth's external input (`plat_usb_audio_route`, `plat_usb_audio_in`; fm1-base #17);
 - the speaker told about the headphone jack (`APP_SPEAKER`);
 - the host's xrun count, for tests;
-- felucca-bsp's EP0 fix (#28).
+- felucca-bsp's EP0 fix (#28);
+- a Bluetooth link's signal strength for PROX (`plat_ble_rssi`; `platform/fm1-base-prox.patch`, its draft PR beside it).
 
 From the fm1-base root:
 
     git apply bs2/platform/fm1-base.patch
+    git apply bs2/platform/fm1-base-prox.patch
     git -C bsp apply ../bs2/platform/felucca-bsp.patch
 
 Then, from the repository root:
