@@ -154,7 +154,19 @@ touch), NORMAL or HARD.
 
 Hold EDIT for a second: the oscillators' waves, oscillator 2's tuning, the sync, the pitches' and pulse widths'
 modulation, the widths, the filter (its type, frequency, resonance, overdrive and depths), the glide, the ring and the noise, both envelopes and both LFOs are set at
-random. The filter is kept a little open and the attack under a second, so the result is heard at once. The screen
+random, each within a musical range so the result plays as a sound rather than noise:
+
+| Part | Kept to |
+| --- | --- |
+| Oscillator 2 | an octave, a fifth, a fourth or unison from oscillator 1, detuned ±12 cents at most; sync one time in five |
+| Pitch modulation | rare: the mod envelope on a pitch about one time in seven, the LFO 1 vibrato one time in five and under half a semitone, at 4 to 7 Hz |
+| Pulse widths | 20 to 80 %, LFO 2 on them ±30 at most |
+| Filter | mostly low-pass (LP24, LP12; now and then BP12, HP12 or ACID), frequency 30 to 105, resonance up to 85, overdrive up to 70; the mod envelope mostly opens it; LFO 2 (0.3 to 8 Hz) on it, small, about two times in five |
+| Ring and noise | each one time in five, ring up to 60, noise up to 30 |
+| Glide | one time in four, short |
+| Envelopes | the attack mostly at once; a decay, a sustain from about a third up, a release under a second or so; velocity never inverted |
+
+The screen
 says SOUND RANDOMIZED, and for a second a card over the panel shows the randomizer at work: four knobs whirl
 and stop one by one, and the letters on its label tumble until they spell RANDOMIZE. Oscillator 1's tuning and the ranges, the mixer's other levels, the arp and the sequencer are
 left as they were. Hold EDIT again for another, or press SAVE to keep

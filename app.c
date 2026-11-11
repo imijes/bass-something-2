@@ -2759,9 +2759,20 @@ static void rsplash_draw(void);
 /* the randomizer's moment on screen (rfx_draw): when it began (0: not showing), and what its knobs land on */
 static uint32_t rfx_at, rfx_seed;
 
+/* the randomizer's dice: lo..hi; and odds in 100, the share that comes out true */
+static int32_t rz_in(uint32_t *rng, int32_t lo, int32_t hi)
+{
+    *rng = *rng * 1664525u + 1013904223u;
+    return lo + (int32_t)((*rng >> 16) % (uint32_t)(hi - lo + 1));
+}
+static int rz_odds(uint32_t *rng, int32_t pct) { return rz_in(rng, 0, 99) < pct; }
+static int32_t rz_pm(uint32_t *rng, int32_t m) { return rz_in(rng, -m, m); }   /* -m..+m */
+
 /* EDIT held HOLD_MS: every knob of the oscillators, their mix, the filter, both envelopes and both LFOs at random,
- * a new sound to start from (unsaved: SAVE keeps it); the filter left a little open and the attack under a second, so
- * it is heard */
+ * a new sound to start from (unsaved: SAVE keeps it); then each kept to a musical range, so it plays as a sound and not
+ * as noise: oscillator 2 an octave, a fifth or unison and a little detuned, the pitch's modulation rare and small
+ * (a vibrato), the filter mostly low-pass, open some and not screaming, the noise and the ring rare and low, the
+ * envelopes a note's (heard at once, a decay, a release under a second or so) */
 static void randomize(void)
 {
     static const param_t *const RND_P[] = {
@@ -2777,12 +2788,44 @@ static void randomize(void)
     rng ^= plat_ms();
     for (i = 0; i < sizeof RND_P / sizeof RND_P[0]; i++) {
         const param_t *q = RND_P[i];
-        rng = rng * 1664525u + 1013904223u;
-        param_put(q, &patch, q->lo + (int32_t)((rng >> 16) % (uint32_t)(q->hi - q->lo + 1)));
+        param_put(q, &patch, rz_in(&rng, q->lo, q->hi));
     }
-    patch.cutoff = (uint8_t)clamp(patch.cutoff, 24, 127);
-    patch.amp_a = (uint8_t)clamp(patch.amp_a, 0, 64);
-    patch.vel_amp = (int8_t)clamp(patch.vel_amp, 0, 63);   /* (never inverted: a hard note silent) */
+    {
+        static const int8_t IVL[] = {-12, -12, -7, -5, 0, 0, 0, 5, 7, 7, 12, 12};   /* oscillator 2's intervals */
+        static const uint8_t FLT[] = {FLT_LP24, FLT_LP24, FLT_LP24, FLT_LP12, FLT_LP12, FLT_BP12, FLT_HP12, FLT_ACID};
+        uint32_t *r = &rng;
+        patch.coarse2 = IVL[rz_in(r, 0, (int32_t)sizeof IVL - 1)];
+        patch.fine2 = (int8_t)rz_pm(r, 12);                      /* a chorus's detune, not a clash */
+        patch.sync = (uint8_t)rz_odds(r, 20);
+        patch.menv_o1 = (int8_t)(rz_odds(r, 15) ? rz_pm(r, 12) : 0);   /* a pitch blip now and then */
+        patch.menv_o2 = (int8_t)(rz_odds(r, patch.sync ? 50 : 15) ? rz_pm(r, 24) : 0);   /* (the sync's sweep) */
+        patch.lfo[0].depth[0] = (int8_t)(rz_odds(r, 20) ? rz_pm(r, 3) : 0);   /* a vibrato, under half a tone */
+        patch.lfo[0].depth[1] = (int8_t)(rz_odds(r, 20) ? rz_pm(r, 3) : 0);
+        patch.lfo[0].rate = (uint8_t)rz_in(r, 58, 72);           /* 4 .. 7 Hz (lfo_hz) */
+        patch.lfo[1].rate = (uint8_t)rz_in(r, 8, 75);            /* 0.3 .. 8 Hz: a sweep, a wobble */
+        patch.pw1 = (uint8_t)rz_in(r, 20, 80);
+        patch.pw2 = (uint8_t)rz_in(r, 20, 80);
+        patch.pwm1 = (int8_t)rz_pm(r, 30);
+        patch.pwm2 = (int8_t)rz_pm(r, 30);
+        patch.filter = FLT[rz_in(r, 0, (int32_t)sizeof FLT - 1)];
+        patch.cutoff = (uint8_t)rz_in(r, 30, 105);
+        patch.reso = (uint8_t)rz_in(r, 0, 85);
+        patch.drive = (uint8_t)rz_in(r, 0, 70);
+        patch.menv_cut = (int8_t)(rz_odds(r, 85) ? rz_in(r, 0, 50) : rz_in(r, -25, 0));   /* mostly opening */
+        patch.lfo[1].depth[0] = (int8_t)(rz_odds(r, 40) ? rz_pm(r, 20) : 0);
+        patch.ring = (uint8_t)(rz_odds(r, 20) ? rz_in(r, 0, 60) : 0);
+        patch.noise = (uint8_t)(rz_odds(r, 20) ? rz_in(r, 0, 30) : 0);
+        patch.glide = (uint8_t)(rz_odds(r, 25) ? rz_in(r, 0, 50) : 0);
+        patch.menv_a = (uint8_t)rz_in(r, 0, 60);
+        patch.menv_d = (uint8_t)rz_in(r, 20, 100);
+        patch.menv_r = (uint8_t)rz_in(r, 0, 80);
+        patch.amp_a = (uint8_t)(rz_odds(r, 75) ? rz_in(r, 0, 10) : rz_in(r, 0, 45));   /* mostly at once */
+        patch.amp_d = (uint8_t)rz_in(r, 30, 127);
+        patch.amp_s = (uint8_t)rz_in(r, 40, 127);
+        patch.amp_r = (uint8_t)rz_in(r, 5, 70);
+        patch.vel_amp = (int8_t)rz_in(r, 0, 50);                 /* (never inverted: a hard note silent) */
+        patch.vel_menv = (int8_t)rz_in(r, 0, 50);
+    }
     set_dirty = 1;
     rfx_at = ms_stamp();
     rfx_seed = rng;
