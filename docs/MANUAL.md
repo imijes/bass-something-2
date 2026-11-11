@@ -645,7 +645,7 @@ There is one clock. While a pattern runs, the synth's arp and sequencer follow t
 | Control | What it does |
 | --- | --- |
 | K3 · SWING LOCK | OFF (the default): each has its own swing. ON: the synth's 16ths follow the running pattern's swing |
-| K4 · TRANSPORT | ON (the default): the drums' run and stop also start and stop the synth's arp or sequence. OFF: each runs on its own |
+| K4 · TRANSPORT | ON (the default): the drums' run and stop also start and stop the synth's arp or sequence, and the piano's part. OFF: each runs on its own: the drums' PLAY stops the drums alone while the piano's part plays on (again, they come back in on the beat), and the piano's PLAY starts and stops its part alone |
 
 ![DRUM MODS: the Swing Lock and Transport knobs on their plate](img/screen-drum-mods.png "DRUM MODS (FX)")
 
@@ -727,7 +727,7 @@ Each drum pattern (00 to 98) has a piano part beside its drums, played with it a
 | Button (piano pages) | Tap | Held a second |
 | --- | --- | --- |
 | REC | Records the piano into the pattern playing. With the drums stopped, the pattern shown on the drums' pages starts. Again: recording off | Erase: hold a key as the loop passes its notes, and they're gone. The keys stay silent while erasing; tap REC to record again |
-| PLAY | The piano's part on or off, the drums playing on. With the drums stopped, they start with it | Undo: the last pass you recorded notes in is taken back |
+| PLAY | The piano's part on or off, the drums playing on. With the drums stopped, they start with it; with TRANSPORT off (DRUM MODS), the part plays alone, and PLAY stops it | Undo: the last pass you recorded notes in is taken back |
 | SAVE | Saves the drums' patterns and songs with the piano's parts (stopped only) | |
 | SEQ | | Clears the pattern's piano part, whole (the pattern playing, or the one shown) |
 

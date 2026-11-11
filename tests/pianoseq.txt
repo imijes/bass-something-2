@@ -92,9 +92,59 @@ wait 1000
 tap HOME
 wait 1000
 said DRUM HOME
+# TRANSPORT off (DRUM MODS, K4): the drums' PLAY stops them alone, the piano's part playing on (their clock running,
+# hushed); again, they're back; the piano's PLAY then stops its part, and with the drums hushed the clock too, and
+# starts it alone
+tap FX
+wait 30
+turn K4 -1
+wait 30
+expect dtrans_off 1
+tap PLAY
+wait 100
+said DRUMS STOPPED
+expect dt_run 1
+expect dq_hush 1
+tap PLAY
+wait 100
+said DRUMS PLAYING
+expect dq_hush 0
+tap PLAY
+wait 100
+expect dq_hush 1
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+said PIANO HOME
+tap PLAY
+wait 100
+said PIANO PART STOPPED
+expect dt_run 0
+expect dq_hush 0
+tap PLAY
+wait 100
+said PIANO PART PLAYING
+expect dt_run 1
+expect dq_hush 1
+expect pq_mute 0
 tap PLAY
 wait 100
 expect dt_run 0
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+said DRUM HOME
+tap FX
+wait 30
+turn K4 1
+wait 30
+expect dtrans_off 0
+tap HOME
+wait 30
 tap SAVE
 wait 100
 said DRUMS SAVED

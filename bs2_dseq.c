@@ -77,6 +77,8 @@ static ds_mem_t dsm PLAT_POOL;
 enum { DQR_OFF, DQR_REC, DQR_ERASE };        /* RECORD MODE, ERASE INSTRUMENT */
 static struct {
     volatile uint8_t run, rec, full, dirty;  /* running; DQR_*; a hit found no room; unsaved */
+    volatile uint8_t hush;                   /* the drums stopped, their clock running on for the piano's part
+                                              * (TRANSPORT off: dt_stop_tap, pq_play_tap) */
     volatile uint32_t held;                  /* the drums' keys held (the main loop's): Erase Instrument's */
     volatile uint32_t ext;                   /* MIDI clock's ticks since the last block */
     uint8_t cur, cue;                        /* the pattern playing; the one to take over at its end (DQ_NONE: none) */
@@ -125,7 +127,8 @@ static fifo_t pqq;                           /* main loop -> audio, the part's (
 enum { PQC_REC, PQC_MUTE, PQC_UNDO, PQC_CLEAR };
 static void pq_cmd(uint32_t op, uint32_t a) { fifo_put(&pqq, op | a << 8); }
 static fifo_t dqq;                           /* main loop -> audio: op | a << 8 | b << 16 */
-enum { DQC_RUN, DQC_STOP, DQC_CUE, DQC_HIT, DQC_EKEY, DQC_ERASE, DQC_COPY, DQC_SONG, DQC_SCUE, DQC_ROLL, DQC_ROLLOFF };
+enum { DQC_RUN, DQC_STOP, DQC_CUE, DQC_HIT, DQC_EKEY, DQC_ERASE, DQC_COPY, DQC_SONG, DQC_SCUE, DQC_ROLL, DQC_ROLLOFF,
+       DQC_HUSH };
 #ifdef PLAT_HOST
 static uint32_t dq_clicks;                   /* (the host's: the metronome's beats, for tests/drumseq.txt) */
 #endif
@@ -205,7 +208,7 @@ static void dq_remove(dq_pat_t *p, uint32_t i)
 }
 static void dq_stop(void)
 {
-    dq.run = 0;
+    dq.run = dq.hush = 0;
     dt_running = 0;
     dq.in_song = 0;
     dq.svol = 0;
@@ -216,6 +219,7 @@ static void dq_start(uint32_t g)
     uint32_t i;
     dq.cur = (uint8_t)g;
     dq.cue = DQ_NONE;
+    dq.hush = 0;
     dq.in_song = 0;
     dt_pos = 0.0f;
     dq.idx = dq.click_t = 0;
@@ -725,7 +729,7 @@ static void dq_step(void)
             dq.idx++;
             if (dq.skip[d] == (int32_t)DQ_T(e))
                 dq.skip[d] = -1;
-            else if (d < NDT) {
+            else if (d < NDT && !dq.hush) {
                 const uint32_t pr = (e >> 24) != 0u, v = pr ? DQ_V(e) : dt.vol[d], u = pr ? DQ_U(e) : dt.tune[d];
                 const uint32_t l = (uint32_t)clamp((int32_t)((175u + (DQ_A(e) ? 80u : 0u)) * v / 15u) + (v ? dq.svol : 0), 0, 255);
                 dt_hit(d, u, l);
@@ -864,6 +868,9 @@ static void dq_block(void)
             break;
         case DQC_ROLLOFF:
             dq.roll = 0;
+            break;
+        case DQC_HUSH:
+            dq.hush = (uint8_t)a;
             break;
         case DQC_EKEY:
             dq_erase_key(a);

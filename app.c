@@ -4436,7 +4436,8 @@ static void se_button(uint32_t k)
         app_say("SPACE SOMETHING", "SEL: ITS PANELS");
 }
 /* the piano's part (bs2_dseq.c's pq): REC records into the pattern playing (stopped: the drums' pattern shown, started),
- * held erases; PLAY the part on or off (stopped: the drums started), held takes the last pass back */
+ * held erases; PLAY the part on or off (stopped: the drums started), held takes the last pass back. TRANSPORT off: PLAY
+ * starts the part alone (the drums' clock running, hushed) and stops it alone (the clock too, the drums hushed) */
 static uint32_t pq_target(void) { return dq.run ? dq.cur : ui.dt_pat; }
 static int pq_go(void)                       /* the drums running, for recording: 0 refused */
 {
@@ -4472,8 +4473,18 @@ static void pq_erase_hold(void)
 }
 static void pq_play_tap(void)
 {
+    if (dq.run && dq.hush) {
+        dq_cmd(DQC_STOP, 0, 0);
+        app_say("PIANO PART", "STOPPED");
+        return;
+    }
     if (!dq.run) {
-        if (ui.dt_pat < DQ_NPAT && (pqm.n[ui.dt_pat] || dqm.pat[ui.dt_pat].n)) {
+        if (ui.dt_pat < DQ_NPAT && set.dtrans_off && pqm.n[ui.dt_pat]) {
+            pq_cmd(PQC_MUTE, 0);
+            dq_cmd(DQC_RUN, ui.dt_pat, 0);
+            dq_cmd(DQC_HUSH, 1, 0);
+            app_say("PIANO PART", "PLAYING");
+        } else if (ui.dt_pat < DQ_NPAT && !set.dtrans_off && (pqm.n[ui.dt_pat] || dqm.pat[ui.dt_pat].n)) {
             pq_cmd(PQC_MUTE, 0);
             dq_cmd(DQC_RUN, ui.dt_pat, 0);
             app_say("PIANO PART", "PLAYING");
@@ -5134,8 +5145,16 @@ static void dt_button(uint32_t k)
             dt_copy();
         break;
     case B_PLAY:                             /* RUN/STOP: an empty pattern won't run but in RECORD MODE; a function that
-                                              * needs it stopped gives way to the number */
-        if (dq.run)
+                                              * needs it stopped gives way to the number. TRANSPORT off, the piano's
+                                              * part playing: the drums alone stopped (hushed, the clock on for it) and
+                                              * started again on its beat */
+        if (dq.run && dq.hush) {
+            dq_cmd(DQC_HUSH, 0, 0);
+            app_say("DRUMS", "PLAYING");
+        } else if (dq.run && set.dtrans_off && !pq.mute && dq.cur < DQ_NPAT && pqm.n[dq.cur]) {
+            dq_cmd(DQC_HUSH, 1, 0);
+            app_say("DRUMS", "STOPPED");
+        } else if (dq.run)
             dq_cmd(DQC_STOP, 0, 0);
         else if (f >= DTF_SONG) {            /* song functions lit: the song (BUILD MODE: ENTER out first) */
             if (f >= DTF_BPAT)
@@ -5209,7 +5228,7 @@ static float dt_beat_phase(void)             /* where in its beat the running pa
     const float bt = (float)(96u / DQ_BEAT[p->beat]), b = dt_pos / bt;
     return b - (float)(uint32_t)b;
 }
-static int dt_play_light(void) { return dq.run && dt_beat_phase() < 0.3f; }   /* PLAY: the tempo, a pulse each beat */
+static int dt_play_light(void) { return dq.run && !dq.hush && dt_beat_phase() < 0.3f; }   /* PLAY: the tempo, a pulse each beat */
 static int dt_rec_light(void)
 {
     float ph;
@@ -10158,6 +10177,8 @@ int app_expect(const char *what, int *got)
         *got = pqm.n[pq_target() < DQ_NPAT ? pq_target() : 0u];
     else if (!strcmp(what, "pq_rec"))
         *got = pq.rec;
+    else if (!strcmp(what, "dq_hush"))
+        *got = dq.hush;
     else if (!strcmp(what, "pq_mute"))
         *got = pq.mute;
     else if (!strcmp(what, "rmi_held")) {    /* the RMI's keys held, its voices' */
