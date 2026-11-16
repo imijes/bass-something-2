@@ -1397,6 +1397,8 @@ static inline int16_t usb_s16(float s)       /* a sample, the master's scale, as
 /* the second core's job: the RMI's block, then the FX bus's returns for the last block's sends (fx_job) */
 static volatile uint32_t c2_ticks;           /* how long it took (plat_ticks24's): the second core's load */
 #if BS2_B3_PROTO
+static float b3_side[APP_BLOCK] PLAT_POOL;   /* the B3's stereo sides (its Leslie's two microphones; its middle in
+                                              * rmi_buf): left plus, right minus */
 static volatile uint32_t b3_pk[2], b3_sum[2], b3_nb;   /* the B3 prototype's timing: the RMI's and the B3's share of a
                                               * block, % (the most, the sum over b3_nb blocks; b3_say reads them) */
 #endif
@@ -1408,8 +1410,8 @@ static void c2_job(uint32_t n)
     {
         const uint32_t t1 = plat_ticks24(), blk = n * PLAT_TICKS_PER_US * 1000000u / 44100u;
         uint32_t t2, p0, p1;
-        const uint32_t on = PLAT_FAR(b3_job)(rmi_buf, n);   /* (the B3 prototype's, into rmi_buf; in RAM: through a
-                                              * far pointer) */
+        const uint32_t on = PLAT_FAR(b3_job)(rmi_buf, b3_side, n);   /* (the B3 prototype's, its middle into
+                                              * rmi_buf; in RAM: through a far pointer) */
         t2 = plat_ticks24();
         if (on) {                            /* (timed while it sounds) */
             rmi_woke = 1;
@@ -1688,8 +1690,16 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         for (i = 0; i < n; i++) {
             const float r = rmi_buf[i] * rv * (g0 + dg * (float)i);
             float s, e;
-            s = out_soft(mix_pre[i] + r + fx_take(i, mix_send[i] + r * RMI_SEND, mix_se[i] + r * se_send_g[2], &e));
-            lr[2u * i] = lr[2u * i + 1u] = (int32_t)s;
+            s = mix_pre[i] + r + fx_take(i, mix_send[i] + r * RMI_SEND, mix_se[i] + r * se_send_g[2], &e);
+#if BS2_B3_PROTO
+            {                                /* (the B3's sides: its Leslie in stereo, the speaker's sum the middle) */
+                const float sd = b3_side[i] * rv * (g0 + dg * (float)i);
+                lr[2u * i] = (int32_t)out_soft(s + sd);
+                lr[2u * i + 1u] = (int32_t)out_soft(s - sd);
+            }
+#else
+            lr[2u * i] = lr[2u * i + 1u] = (int32_t)out_soft(s);
+#endif
             if (u && !ur)                    /* (the ring wrapped: from here) */
                 u = plat_usb_ch(usb_off + i, &ur);
             if (u) {

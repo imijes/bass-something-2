@@ -70,7 +70,8 @@ static struct {
     float hp_x, hp_y;                        /* the preamp's input high pass */
     float xo[2][4];                          /* the crossover's biquads' states (x1 x2 y1 y2) */
     float hz[2], to[2], ang[2];              /* the rotors: speed now, its aim, the angle (0..1) */
-    float hlp;                               /* the horn's facing low pass */
+    float hlp[2];                            /* the horn's facing low pass, at each microphone */
+    float width;                             /* the stereo's: 0 mono .. 1 the two microphones as they are (CC 29) */
     uint32_t lw;
     uint8_t fast, brake, awake;
     uint8_t tab;                             /* (test, CC 90: the wheels from the table, not the recurrence) */
@@ -113,6 +114,7 @@ void b3_init(void)
     b3.hz[0] = b3.to[0] = 0.83f, b3.hz[1] = b3.to[1] = 0.67f;
     b3.rng = 22222u;
     b3.cap = B3_NW;
+    b3.width = 0.8f;
     b3_levels();
 }
 
@@ -184,6 +186,8 @@ void b3_cc(uint32_t c, uint32_t v)           /* its test controls (MIDI channel 
         b3.expr = (float)v * (1.0f / 127.0f);
     else if (c == 90u)
         b3.tab = v >= 64u;
+    else if (c == 29u)
+        b3.width = (float)v * (1.0f / 127.0f);
     b3_levels();
     b3.dirty = 1;
 }
@@ -309,7 +313,7 @@ B3_IN float b3_clip(float x)         /* a soft clip, no division: x - x^3/6.75 t
 /* a step of the organ (B3_CH samples) through its Leslie, into o: the wheels a wheel at a time over the step (its
  * state held while it runs), then the rest a sample at a time, the rotors' and the scanner's angles from the step's
  * ends */
-static B3_HOT void b3_chunk(float *o)
+static B3_HOT void b3_chunk(float *ol, float *orr)
 {
     float bus[B3_CH], pbus[B3_CH];
     uint32_t i, k;
@@ -370,7 +374,7 @@ static B3_HOT void b3_chunk(float *o)
         b3.lw += B3_CH;
         b3.sc_w += B3_CH;
         for (i = 0; i < B3_CH; i++)
-            o[i] = 0.0f;
+            ol[i] = orr[i] = 0.0f;
         return;
     }
     if (b3.scan) {                           /* the scanner: V1-3 the delay alone, C1-3 half dry; its sweep's ends */
@@ -395,22 +399,23 @@ static B3_HOT void b3_chunk(float *o)
     } else
         for (i = 0; i < B3_CH; i++)
             bus[i] *= 0.125f;
-    {                                        /* the preamp, the crossover, the rotors */
-        static const float SWING[2] = {19.0f, 6.0f}, REF[2] = {137.0f, 295.0f};
+    {                                        /* the preamp, the crossover, the rotors heard by two microphones */
+        static const float SWING[2] = {19.0f, 6.0f}, REF[2] = {137.0f, 295.0f},
+                           AT[3] = {-0.125f, 0.125f, 0.25f};   /* (the microphones 45 degrees either side of the
+                                              * cabinet's front; the reflection's a quarter turn on, both hear it) */
         const float g = 1.0f + 6.0f * b3.drive, bias = 0.08f + 0.2f * b3.drive, tb = b3_clip(bias),
                     og = 1.0f / (0.5f + 0.5f * g);
-        float c[2][2], dc[2][2];
+        float c[2][3], dc[2][3];
         uint32_t r, j;
-        for (r = 0; r < 2u; r++) {           /* each rotor's two angles (its face, its reflection a quarter turn on)
-                                              * at the step's ends */
+        for (r = 0; r < 2u; r++) {           /* each rotor's angle at each microphone and its reflection's, at the
+                                              * step's ends */
             float a1 = b3.ang[r] + b3.hz[r] * B3_CH / B3_RATE;
             if (a1 >= 1.0f)
                 a1 -= 1.0f;
-            for (j = 0; j < 2u; j++) {
-                float e = a1 + 0.25f * (float)j;
-                float s0 = b3.ang[r] + 0.25f * (float)j;
-                e -= e >= 1.0f ? 1.0f : 0.0f;
-                s0 -= s0 >= 1.0f ? 1.0f : 0.0f;
+            for (j = 0; j < 3u; j++) {
+                float e = a1 + AT[j] + 1.0f, s0 = b3.ang[r] + AT[j] + 1.0f;
+                e -= (float)(uint32_t)e;
+                s0 -= (float)(uint32_t)s0;
                 c[r][j] = b3_cos(s0);
                 dc[r][j] = (b3_cos(e) - c[r][j]) * (1.0f / B3_CH);
             }
@@ -418,7 +423,8 @@ static B3_HOT void b3_chunk(float *o)
         }
         for (i = 0; i < B3_CH; i++) {
             const float x = (bus[i] + pbus[i] * 0.125f) * b3.expr;
-            float y, hi, lo, out = 0.0f;
+            float y, hi, lo, out[2] = {0.0f, 0.0f};
+            uint32_t m;
             b3.hp_y = 0.996f * (b3.hp_y + x - b3.hp_x);   /* (the input transformer: a high pass) */
             b3.hp_x = x;
             y = (b3_clip(g * b3.hp_y + bias) - tb) * og;
@@ -426,42 +432,52 @@ static B3_HOT void b3_chunk(float *o)
             hi = y - lo;                     /* (the horn's: the rest, so the two add back to the whole) */
             b3_les[0][b3.lw & (B3_LES_N - 1u)] = hi;
             b3_les[1][b3.lw & (B3_LES_N - 1u)] = lo;
-            for (r = 0; r < 2u; r++) {       /* its path's delay, its level by its facing; the reflections */
-                const float *l = b3_les[r], cf = c[r][0];
-                const float dir = r ? 0.75f + 0.25f * cf * cf : 0.22f + 0.78f * (0.5f + 0.5f * cf) * (0.5f + 0.5f * cf);
-                float s = b3_line(l, b3.lw, 2.0f + SWING[r] * (1.0f - cf)) * dir
-                          + 0.4f * b3_line(l, b3.lw, REF[r] + SWING[r] * (1.0f - c[r][1]));   /* (one reflection) */
-                if (!r) {                    /* (the horn: brighter facing the microphone) */
-                    b3.hlp += (s - b3.hlp) * (0.3f + 0.6f * dir);
-                    s = b3.hlp;
+            for (r = 0; r < 2u; r++) {       /* each microphone: the rotor's path's delay, its level by its facing;
+                                              * the reflection, one for both */
+                const float *l = b3_les[r];
+                const float rf = 0.4f * b3_line(l, b3.lw, REF[r] + SWING[r] * (1.0f - c[r][2]));
+                for (m = 0; m < 2u; m++) {
+                    const float cf = c[r][m];
+                    const float dir = r ? 0.75f + 0.25f * cf * cf
+                                        : 0.22f + 0.78f * (0.5f + 0.5f * cf) * (0.5f + 0.5f * cf);
+                    float v = b3_line(l, b3.lw, 2.0f + SWING[r] * (1.0f - cf)) * dir + rf;
+                    if (!r) {                /* (the horn: brighter facing the microphone) */
+                        b3.hlp[m] += (v - b3.hlp[m]) * (0.3f + 0.6f * dir);
+                        v = b3.hlp[m];
+                    }
+                    out[m] += v;
                 }
-                out += s;
-                c[r][0] += dc[r][0], c[r][1] += dc[r][1];
+                c[r][0] += dc[r][0], c[r][1] += dc[r][1], c[r][2] += dc[r][2];
             }
             b3.lw++;
-            o[i] = out * B3_LEVEL;
+            ol[i] = out[0] * B3_LEVEL;
+            orr[i] = out[1] * B3_LEVEL;
         }
     }
 }
 
-/* the organ's block, after the RMI's, added into buf (the second core's job; b3_note and b3_cc before it, in the
- * render; n a multiple of B3_CH); 1 if it sounds */
-B3_HOT uint32_t b3_job(float *buf, uint32_t n)
+/* the organ's block, after the RMI's: its middle (left and right's mean) added into mid, its sides (half their
+ * difference, by the width) written into side (the second core's job; b3_note and b3_cc before it, in the render; n a
+ * multiple of B3_CH); 1 if it sounds */
+B3_HOT uint32_t b3_job(float *mid, float *side, uint32_t n)
 {
-    float o[B3_CH];
+    float ol[B3_CH], orr[B3_CH];
     uint32_t i, j;
+    for (i = 0; i < n; i++)
+        side[i] = 0.0f;
     if (!b3.awake)
         return 0;
     if (b3.quiet > B3_LES_N + B3_SCAN_N + 4096u && !b3.dirty && !b3.nact) {   /* (silent: the rotors turn on alone) */
-        float o2[B3_CH];
         for (i = 0; i + B3_CH <= n; i += B3_CH)
-            b3_chunk(o2);
+            b3_chunk(ol, orr);
         return 0;
     }
     for (i = 0; i + B3_CH <= n; i += B3_CH) {
-        b3_chunk(o);
-        for (j = 0; j < B3_CH; j++)
-            buf[i + j] += o[j];
+        b3_chunk(ol, orr);
+        for (j = 0; j < B3_CH; j++) {
+            mid[i + j] += 0.5f * (ol[j] + orr[j]);
+            side[i + j] = 0.5f * b3.width * (ol[j] - orr[j]);
+        }
     }
     return 1;
 }
