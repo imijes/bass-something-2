@@ -1422,14 +1422,16 @@ static void c2_job(uint32_t n)
     fx_job();
     c2_ticks = plat_ticks24() - t0;
 }
-/* the overload's guard: the second core's job past OVL_HI of a block (the one that overruns: the first waits on
- * it; not plat_xruns, which a flash write counts too), and the voices are capped a level further (0..3: the RMI's 8, 6, 5, 4; the B3's wheels all, 40, 28, 18), the quietest or oldest
+/* the overload's guard: the second core's job past OVL_HI of a block, or the first core's render so far (its
+ * own work and its wait for the second's) past OVL_HI0 (lower: the first has more to do around the render; not
+ * plat_xruns, which a flash write counts too), and the voices are capped a level further (0..3: the RMI's 8, 6, 5, 4; the B3's wheels all, 40, 28, 18), the quietest or oldest
  * going (each its release); under OVL_LO for OVL_BACK_MS, a level back. Its first said (ovl_said: the main loop) */
 #define OVL_HI 0.88f
+#define OVL_HI0 0.80f
 #define OVL_LO 0.60f
 #define OVL_BACK_MS 2000u
 static volatile uint8_t ovl, ovl_said;       /* the level; 1: say it */
-static void ovl_step(float p2, uint32_t n)   /* the render's, each block: the second core's share of it */
+static void ovl_step(float p2, float p0, uint32_t n)   /* the render's, each block: each core's share of it */
 {
     static const uint8_t RMI_CAPS[4] = {8, 6, 5, 4};
 #if BS2_B3_PROTO
@@ -1439,16 +1441,16 @@ static void ovl_step(float p2, uint32_t n)   /* the render's, each block: the se
     uint32_t lv = ovl;
     if (wait_n)                              /* (a level's effect settling: none further yet, about 50 ms) */
         wait_n -= n < wait_n ? n : wait_n;
-    if (p2 > OVL_HI && lv < 3u && !wait_n) {
+    if ((p2 > OVL_HI || p0 > OVL_HI0) && lv < 3u && !wait_n) {
         lv++;
         ok_n = 0;
         wait_n = (uint32_t)(0.05f * BS2_RATE);
         if (lv == 1u)
             ovl_said = 1;
-    } else if (p2 < OVL_LO && lv && (ok_n += n) >= (uint32_t)(OVL_BACK_MS * BS2_RATE / 1000.0f)) {
+    } else if (p2 < OVL_LO && p0 < OVL_LO && lv && (ok_n += n) >= (uint32_t)(OVL_BACK_MS * BS2_RATE / 1000.0f)) {
         lv--;
         ok_n = 0;
-    } else if (p2 >= OVL_LO)
+    } else if (p2 >= OVL_LO || p0 >= OVL_LO)
         ok_n = 0;
     if (lv != ovl) {
         ovl = (uint8_t)lv;
@@ -1460,6 +1462,7 @@ static void ovl_step(float p2, uint32_t n)   /* the render's, each block: the se
 }
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
+    const uint32_t t_in = plat_ticks24();    /* (the overload's guard: the first core's time in the render) */
     int c2 = 1;                              /* the job (c2_job) on the second core */
     float g0;                                /* MASTER at the block's start */
     static uint32_t rng = 1u;                /* the noise's */
@@ -1671,7 +1674,8 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     cpu2_q12 = c2 ? (cpu2_q12 * 15u + (uint32_t)((float)c2_ticks * 4096.0f * BS2_RATE
                                              / ((float)n * (float)PLAT_TICKS_PER_US * 1e6f)) + 8u) / 16u
                   : 0u;                      /* (the second core's load, smoothed as the platform's: about 16 blocks) */
-    ovl_step(c2 ? (float)c2_ticks * BS2_RATE / ((float)n * (float)PLAT_TICKS_PER_US * 1e6f) : 0.0f, n);
+    ovl_step(c2 ? (float)c2_ticks * BS2_RATE / ((float)n * (float)PLAT_TICKS_PER_US * 1e6f) : 0.0f,
+             (float)((plat_ticks24() - t_in) & 0xFFFFFFu) * BS2_RATE / ((float)n * (float)PLAT_TICKS_PER_US * 1e6f), n);
     {                                        /* the RMI: as the drums, after the bass's chain, under its own volume (MASTER
                                               * across the block as it went); then the FX bus's returns (the last
                                               * block's: fx_take), on the master */
