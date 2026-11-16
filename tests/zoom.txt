@@ -208,7 +208,7 @@ expect page 8
 tap HOME
 wait 30
 expect zoom >0
-turn SELECT 1
+turn ALGO 1
 wait 1500
 expect zoom 0
 # a knob just turned on its page: not the camera on HOME as it lands

@@ -1,0 +1,46 @@
+# Every HOME's knobs alike: SELECT its own volume, PRESET its presets (the bass's patch, the drums' pattern, the
+# piano's voice, the organ's preset, the echo's MODE); the bass's K1 its tempo; the drums' K1 the tempo, K2 the
+# METRONOME; the echo's ALGO its INSTRUMENT VOLUME (INPUT's, on ALGO there too)
+wait 600
+listen
+expect page 16
+turn SELECT -27
+wait 30
+said BASS VOLUME 100
+expect bvol_off 27
+wait 2500
+turn K1 2
+wait 30
+expect tempo 122
+wait 2500
+tap HOME
+wait 2500
+expect page 25
+turn SELECT -27
+wait 30
+expect dt_master 100
+turn K2 -1
+wait 30
+expect dt_metro 89
+turn K1 1
+wait 30
+expect dt_tempo 102
+tap HOME
+wait 2500
+tap HOME
+wait 2500
+expect page 52
+turn SELECT -27
+wait 30
+said ORGAN VOLUME 100
+tap HOME
+wait 2500
+expect page 42
+turn SELECT -27
+wait 30
+said ECHO OWN VOLUME 100
+expect se_vol_off 27
+turn ALGO 2
+wait 400
+expect page 43
+expect se_input 66

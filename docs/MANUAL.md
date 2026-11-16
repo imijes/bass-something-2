@@ -578,11 +578,11 @@ These do the same job on every drum page, unless the page says otherwise:
 
 | Control | What it does |
 | --- | --- |
-| K1 | METRONOME: the click's level |
-| K2 | MASTER: all the drums' level, under the FM-1's MASTER, so you can set the drums against the synth |
+| SELECT | MASTER: all the drums' level, under the FM-1's MASTER, so you can set the drums against the synth (every instrument's own volume is on SELECT) |
+| K1 | TEMPO, one of the 91 tempos of the original |
+| K2 | METRONOME: the click's level |
 | K3 | VOLUME of the last drum you tapped, 0 to 15 |
 | K4 | TUNING of the last drum you tapped, 0 to 15 |
-| SELECT | TEMPO, one of the 91 tempos of the original |
 | PRESET | The pattern or song number, or what the lit function picks |
 | ALGO | The value of the lit function |
 
@@ -722,11 +722,11 @@ it, as on HOME. **PIANO PANEL** (SEL again; SEL there moves along the toggles) i
 
 | Control | What it does |
 | --- | --- |
-| SEL, PRESET | The tone toggles, as the 368X's: SEL moves the cursor (a cyan outline) along PIANO, PIANO PP, HARPSI, HARPSI PP, LUTE, ORGAN MODE and ACCENTER, the panel sliding to it; PRESET turns that toggle on (right) or off (left). K2 and K3 also switch ORGAN MODE and ACCENTER. Any of them can be down at once, their sounds layered as the 368X layers them: PIANO with HARPSI is its "honky-tonk". PP is pianissimo, very soft: the same tone, about 14 dB down. |
+| PRESET, ALGO | The tone toggles, as the 368X's: PRESET moves the cursor (a cyan outline) along PIANO, PIANO PP, HARPSI, HARPSI PP, LUTE, ORGAN MODE and ACCENTER, either way, the panel sliding to it (SEL on PIANO PANEL moves it on too); ALGO turns that toggle on (right) or off (left). The same on HOME, PIANO PRESETS and PIANO PANEL. K2 and K3 also switch ORGAN MODE and ACCENTER. Any of them can be down at once, their sounds layered as the 368X layers them: PIANO with HARPSI is its "honky-tonk". PP is pianissimo, very soft: the same tone, about 14 dB down. |
 | K1 · BASS | The bass boost, around 98 Hz: the middle is none, up boosts, down cuts. |
 | K2 · ORGAN MODE | Notes hold while their keys do, with a slow fade, instead of a piano's decay. |
 | K3 · ACCENTER | A thump at the start of each note, as the 368X's keying made it, under the harpsichord and lute voices (the low keys, to A#2, have their own). |
-| K4 · VOL | Its own volume. The FM-1's MASTER knob is the master over every instrument. |
+| SELECT · VOL | Its own volume, as every instrument's on SELECT. The FM-1's MASTER knob is the master over every instrument. |
 
 On its HOME, PRESET and K1 to K4 do the same, the camera zooming in on the panel as they turn. It answers the
 keys' touch (the 368X didn't): the softest note at about a third of the hardest, through GLO KEYS' Velocity
@@ -801,10 +801,11 @@ DRAWBARS, as the other HOMEs do, and back out after.
 
 | Control | What it does |
 | --- | --- |
-| SELECT, ALGO | The 16' and 5⅓' drawbars. |
-| K1 to K4 | The 8', 4', 2⅔' and 2' drawbars. |
+| SELECT | The organ's own volume, as every instrument's on SELECT (also K4 on ORGAN LESLIE). |
+| ALGO | The 16' drawbar. |
+| K1 to K4 | The 5⅓', 8', 4' and 2⅔' drawbars. |
 | PRESET | The preset, here and on both ORGAN DRAWBARS views (it plays at once; changes not saved to the one you leave are lost). |
-| SEL | ORGAN DRAWBARS: the nine drawbars up close, the same controls. SEL there: its other view, K2 to K4 the 1⅗', 1⅓' and 1' drawbars. SEL again goes on through the organ's pages. |
+| SEL | ORGAN DRAWBARS: the nine drawbars up close, the same controls. SEL there: its other view, K1 to K4 the 2', 1⅗', 1⅓' and 1' drawbars. SEL again goes on through the organ's pages. |
 
 **ORGAN TABS** (SEL from ORGAN DRAWBARS' other view): K1 the percussion on or off, K2 its volume (SOFT or NORMAL), K3 its decay
 (FAST or SLOW), K4 its harmonic (SECOND or THIRD); SELECT the vibrato on or off, ALGO its knob, V1 V2 V3 C1 C2 C3.
@@ -875,15 +876,16 @@ the knob as it turns.
 
 | Page | Control | What it does |
 | --- | --- | --- |
+| HOME | SELECT · VOLUME | The echo's own volume: its echo and reverb together, as every instrument's on SELECT. On ECHO INPUT and ECHO PANEL too |
+| HOME | ALGO · INPUT | INSTRUMENT VOLUME, as on ECHO INPUT |
 | HOME | PRESET · MODE | The MODE SELECTOR: 1 to 11 and REVERB ONLY |
 | HOME | K1 · REPEAT RATE | The tape's speed: the time between repeats |
 | HOME | K2 · INTENSITY | How much of the echo goes round again |
 | HOME | K3 · ECHO VOLUME | The echo's level |
 | HOME | K4 · REVERB VOLUME | The spring's level |
 | ECHO INPUT | PRESET · MODE | As on HOME |
-| ECHO INPUT | K4 · INPUT | How hard the sends drive the tape (INSTRUMENT VOLUME on the RE-201). The VU meter shows it; PEAK lights near the tape's limit |
-| ECHO PANEL | PRESET · MODE | As on HOME |
-| ECHO PANEL | SELECT · BASS, ALGO · TREBLE | The echo's lows and highs, about 10 dB either way |
+| ECHO INPUT | ALGO · INPUT | How hard the sends drive the tape (INSTRUMENT VOLUME on the RE-201). The VU meter shows it; PEAK lights near the tape's limit |
+| ECHO PANEL | PRESET · BASS, ALGO · TREBLE | The echo's lows and highs, about 10 dB either way |
 | ECHO PANEL | K1 to K4 | As on HOME |
 | ECHO MODS | PRESET · TEMPO SYNC | REPEAT RATE picks a note at the tempo instead (an 8th, an 8th triplet, a 16th, a 16th triplet or a 32nd, slow to fast), halved or doubled to stay in the RE-201's range |
 | ECHO MODS | K1 to K3 · BASS, DRUM, PIANO SEND | How much of each instrument goes into it, after its own volume. All three are off at first |
@@ -961,7 +963,7 @@ the synth's wave as it plays (two of its periods, standing still while a note is
 large as a loud one; a flat line in silence), and under them a Bass Station II's whole front panel, drawn to the scale of the keys
 at the foot of the screen (they stand for its keys and its wheels together). Every knob, fader, switch and LED on it
 shows the sound as it is set, and follows it as you change it on the other pages. PRESET picks the patch here, as on
-MASTER. K1 is the bass's own volume, as the MASTER page's Volume. K2 sets the arp's Rhythm, K3 the filter's Resonance and K4 its Frequency: the panel zooms in to that knob on its
+MASTER. SELECT is the bass's own volume, as the MASTER page's Volume (every instrument's own volume is on SELECT). K1 sets the arp's Tempo, K2 the arp's Rhythm, K3 the filter's Resonance and K4 its Frequency: the panel zooms in to that knob on its
 page (ARP or FILTERS) as you turn it, and back out to HOME a second after you stop. A section's button (FX, SEL, ENV, LFO, ARP, SEQ or EDIT) zooms in on that section of the
 panel and opens its page; any button or knob on the way gets you there at once. HOME on that page does the reverse: the
 panel appears up close on the section and zooms back out. GLOBAL DISPLAY's KNOB ZOOM OFF makes both changes straight away.
@@ -978,7 +980,7 @@ follow the control changed last, on whichever page. The display shows that contr
 
 | Control | What it does |
 | --- | --- |
-| K1 | Volume: the bass's own volume, 0 to 127 (127, full, is the default). It's kept with the GLO settings, not the patch, like a mixer's fader: the drums have their own (their MASTER VOLUME) and the FM-1's MASTER knob is the master over everything. |
+| SELECT | Volume: the bass's own volume, 0 to 127 (127, full, is the default). It's kept with the GLO settings, not the patch, like a mixer's fader: the drums have their own (their MASTER VOLUME) and the FM-1's MASTER knob is the master over everything. |
 | PRESET | The Patch buttons: picks a patch, P01 to 128, and plays it at once; the button the way you turned lights. Changes you haven't saved to the patch you leave are lost. An arp or a sequence that is playing keeps playing, in the new sound. |
 | SAVE | Stores the sound into a patch you pick, as on a Bass Station II (below). |
 

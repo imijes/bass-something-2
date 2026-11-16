@@ -116,6 +116,7 @@ static inline float fx_room_next(float x)
     return out * (0.25f * fx_room.wet);
 }
 
+static float se_own = 1.0f;                  /* the echo's own volume (SELECT on its pages: se_apply), on its return */
 /* the effects' returns, a sample (fx_job's), from x into the room and s into the Space Echo: the room left alone while
  * the bus sleeps (the echo sleeps on its own: its tail can outlast the bus's). g: MASTER's gain then; *echo the echo's
  * alone. The echo works before MASTER, in a 16-bit sample's units as at full MASTER: its sends (after MASTER) undone
@@ -123,7 +124,7 @@ static inline float fx_room_next(float x)
  * runaway too */
 static inline float fx_next(float x, float s, float g, float *echo)
 {
-    const float k = fm_maxf(g, 1.0f) * (1.0f / 32767.0f), e = se_next((s + SE_TRY * x) / k) * k;
+    const float k = fm_maxf(g, 1.0f) * (1.0f / 32767.0f), e = se_next((s + SE_TRY * x) / k) * k * se_own;
     *echo = e;
     if (fx.idle >= FX_IDLE)
         return e;

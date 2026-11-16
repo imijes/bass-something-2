@@ -30,10 +30,10 @@ tapkey w4 100
 wait 30
 expect dt_vol 12
 expect dt_tune 7
-# K1, K2 the same whichever drum
-spin K1 10
+# K2 (METRONOME), SELECT (MASTER) the same whichever drum
+spin K2 10
 expect dt_metro 100
-spin K2 -27
+spin SELECT -27
 expect dt_master 100
 # PRESET: the number, to 99
 spin PRESET 3

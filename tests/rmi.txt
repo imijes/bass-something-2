@@ -17,11 +17,17 @@ key 7 down 100
 wait 300
 key 7 up
 wait 300
-# its HOME's PRESET: the cursor's tone tablet (PIANO, at first) off and on, in on the panel's tablets
-turn PRESET -1
+# its HOME's ALGO: the cursor's tone tablet (PIANO, at first) off and on, in on the panel's tablets; PRESET along
+# them and back
+turn ALGO -1
 wait 30
 said PIANO OFF
+turn ALGO 1
+wait 30
+said PIANO ON
 turn PRESET 1
+wait 30
+turn PRESET -1
 wait 30
 said PIANO ON
 wait 3000
@@ -39,26 +45,26 @@ said ORGAN MODE ON
 turn K2 -1
 wait 30
 said ORGAN MODE OFF
-turn K4 -27
+turn SELECT -27
 wait 30
 said PIANO VOLUME 100
-turn K4 27
+turn SELECT 27
 wait 30
 said PIANO VOLUME 127
-# SEL there: the cursor on, the next tablet; PRESET switches it: PIANO and HARPSI layered
+# SEL there: the cursor on, the next tablet; ALGO switches it: PIANO and HARPSI layered
 tap SEL
 wait 30
 said PIANO PP OFF
 tap SEL
 wait 30
 said HARPSI OFF
-turn PRESET 1
+turn ALGO 1
 wait 30
 said HARPSI ON
-turn PRESET -1
+turn ALGO -1
 wait 30
 said HARPSI OFF
-# SEL on along the voices to ORGAN MODE and ACCENTER, PRESET switching them as it does the voices; then round
+# SEL on along the voices to ORGAN MODE and ACCENTER, ALGO switching them as it does the voices; then round
 tap SEL
 wait 30
 tap SEL
@@ -66,19 +72,19 @@ wait 30
 tap SEL
 wait 30
 said ORGAN MODE OFF
-turn PRESET 1
+turn ALGO 1
 wait 30
 said ORGAN MODE ON
-turn PRESET -1
+turn ALGO -1
 wait 30
 said ORGAN MODE OFF
 tap SEL
 wait 30
 said ACCENTER OFF
-turn PRESET 1
+turn ALGO 1
 wait 30
 said ACCENTER ON
-turn PRESET -1
+turn ALGO -1
 wait 30
 said ACCENTER OFF
 tap SEL

@@ -65,7 +65,7 @@ typedef struct {
     uint8_t dtrans_off;                  /* TRANSPORT (DRUM MODS) off: the drums' run and stop leave the bass alone (was spare,
                                           * 0: on, as MIDI's start and stop) */
     uint8_t droll;                       /* the drums' roll: its rate, DQ_ROLL's (older records: settings_defaults') */
-    uint8_t bvol_off;                    /* the bass's own volume (the MASTER page's Volume, K1), under full: 127 - it
+    uint8_t bvol_off;                    /* the bass's own volume (the MASTER page's Volume, SELECT), under full: 127 - it
                                           * (stored so: older records' spare 0, full) */
     uint8_t rvol_off;                    /* the RMI's own volume, as bvol_off (its faceplate's fader) */
     uint8_t usb_host;                    /* USB HOST (GLO CONNECT): the port a MIDI host; never kept on (off at every start:
@@ -88,7 +88,8 @@ typedef struct {
     uint8_t b3vol_off;                   /* the organ's own volume, upside down: 0 full (was spare, 0) */
     uint8_t se_voice[7];                 /* ECHO VOICE: the Space Echo's voicing, each 0..127 (64: as modelled), by
                                           * encoder: feedback, multi-head, saturation, wow, flutter, drip, decay */
-    uint8_t spare8;
+    uint8_t se_vol_off;                  /* the Space Echo's own volume (SELECT on its HOME and close-ups), its returns',
+                                          * upside down as bvol_off: 0 full (was spare, 0) */
     uint8_t droom[4];                    /* DRUM ROOM: the room's DECAY, TONE, INPUT TONE, LEVEL, each 0..127 (64: as
                                           * modelled), by K1..K4 */
     uint8_t prox_tgt;                    /* PROX (GLO CONNECT's PRESET): the knob the Bluetooth link's distance turns,
@@ -1396,6 +1397,7 @@ static void se_apply(void)
     se.bass = (float)set.se_bass * (1.0f / 127.0f), se.treble = (float)set.se_treb * (1.0f / 127.0f);
     se.input = (float)set.se_input * (1.0f / 127.0f), se.wow = (float)set.se_wow * (1.0f / 127.0f);
     se.ig = fm_exp2f(4.0f * se.input - 2.0f);
+    se_own = (float)(127u - set.se_vol_off) * (1.0f / 127.0f);
     se_v.fb = sv_val(EN_SELECT), se_v.multi = sv_val(EN_ALGO), se_v.sat = sv_val(EN_PRESET);   /* (ECHO VOICE's) */
     se_v.wow = sv_val(EN_K1), se_v.flut = sv_val(EN_K2), se_v.spa = sv_val(EN_K3), se_v.spg = SE_SP_G * sv_val(EN_K4);
     for (i = 0; i < 3u; i++) {
@@ -2647,23 +2649,27 @@ static const param_t PARAMS[NPAGES][NE] = {
     /* (K1 turned and shown as pop_d's: knob_turn, knob_text) */
     [PG_DMOD] = {[EN_K3] = {"SWING LOCK", SF(dswing_lock), 0, 1, OFF_ON},
                  [EN_K4] = {"TRANSPORT", SF(dtrans_off), 0, 1, ON_OFF}},
-    [PG_RSEL] = {[EN_PRESET] = {"TOGGLE", SF(rmi_tabs), 0, (1 << NRT) - 1, 0},   /* (its turn: the cursor's on or off) */ [EN_K1] = {"BASS", SF(rmi_bass), 0, 127, 0},
+    [PG_RSEL] = {[EN_PRESET] = {"TOGGLE", SF(rmi_tabs), 0, (1 << NRT) - 1, 0},   /* (its turn: along the toggles) */
+                 [EN_ALGO] = {"ON/OFF", SF(rmi_tabs), 0, (1 << NRT) - 1, 0},   /* (its turn: the cursor's on or off) */ [EN_K1] = {"BASS", SF(rmi_bass), 0, 127, 0},
                  [EN_K2] = {"ORGAN MODE", SF(rmi_organ), 0, 1, OFF_ON}, [EN_K3] = {"ACCENTER", SF(rmi_accent), 0, 1, OFF_ON},
-                 [EN_K4] = {"VOL", SF(rvol_off), 0, 127, 0}},   /* (VOL: rvol_off turned and shown upside down, knob_turn) */
-    [PG_RVIEW] = {[EN_PRESET] = {"TOGGLE", SF(rmi_tabs), 0, (1 << NRT) - 1, 0}, [EN_K1] = {"BASS", SF(rmi_bass), 0, 127, 0},
+                 [EN_SELECT] = {"VOL", SF(rvol_off), 0, 127, 0}},   /* (VOL: rvol_off turned and shown upside down, knob_turn) */
+    [PG_RVIEW] = {[EN_PRESET] = {"TOGGLE", SF(rmi_tabs), 0, (1 << NRT) - 1, 0}, [EN_ALGO] = {"ON/OFF", SF(rmi_tabs), 0, (1 << NRT) - 1, 0},
+                  [EN_K1] = {"BASS", SF(rmi_bass), 0, 127, 0},
                   [EN_K2] = {"ORGAN MODE", SF(rmi_organ), 0, 1, OFF_ON}, [EN_K3] = {"ACCENTER", SF(rmi_accent), 0, 1, OFF_ON},
-                  [EN_K4] = {"VOL", SF(rvol_off), 0, 127, 0}},   /* (PIANO PANEL's, the dive's: home_knob_turn) */
+                  [EN_SELECT] = {"VOL", SF(rvol_off), 0, 127, 0}},   /* (PIANO PANEL's, the dive's: home_knob_turn) */
     [PG_GDISP] = {[EN_PRESET] = {"KNOB ZOOM", SF(zoom_off), 0, 1, AUTO_OFF},
                   [EN_K1] = {"HINTS", SF(hints), 0, 1, OFF_ON}, [EN_K2] = {"POP-UPS", SF(pop), 0, NPOP - 1, 0}},
     /* the Space Echo: its HOME the knobs most played, each the same encoder on its close-up (HOME's dive: PRESET to
      * INPUT's MODE, K1-K4 to PANEL's); INPUT the left of its panel (INSTRUMENT VOLUME, MODE SELECTOR); PANEL the right
      * (the tone on SELECT and ALGO, the MODE on PRESET, the rest as HOME's); MODS what the RE-201 hasn't */
-    [PG_SHOME] = {[EN_PRESET] = {"MODE", SF(se_mode), 0, 11, SE_MODE_NAME}, [EN_K1] = {"REPEAT RATE", SF(se_rate), 0, 127, 0},
+    [PG_SHOME] = {[EN_SELECT] = {"VOLUME", SF(se_vol_off), 0, 127, 0}, [EN_ALGO] = {"INPUT", SF(se_input), 0, 127, 0},
+                  [EN_PRESET] = {"MODE", SF(se_mode), 0, 11, SE_MODE_NAME}, [EN_K1] = {"REPEAT RATE", SF(se_rate), 0, 127, 0},
                   [EN_K2] = {"INTENSITY", SF(se_int), 0, 127, 0}, [EN_K3] = {"ECHO VOLUME", SF(se_echo), 0, 127, 0},
                   [EN_K4] = {"REVERB VOLUME", SF(se_rev), 0, 127, 0}},
-    [PG_SIN] = {[EN_PRESET] = {"MODE", SF(se_mode), 0, 11, SE_MODE_NAME}, [EN_K1] = {"INPUT", SF(se_input), 0, 127, 0}},
-    [PG_SECHO] = {[EN_SELECT] = {"BASS", SF(se_bass), 0, 127, 0}, [EN_ALGO] = {"TREBLE", SF(se_treb), 0, 127, 0},
-                  [EN_PRESET] = {"MODE", SF(se_mode), 0, 11, SE_MODE_NAME},
+    [PG_SIN] = {[EN_SELECT] = {"VOLUME", SF(se_vol_off), 0, 127, 0}, [EN_PRESET] = {"MODE", SF(se_mode), 0, 11, SE_MODE_NAME},
+                [EN_ALGO] = {"INPUT", SF(se_input), 0, 127, 0}},
+    [PG_SECHO] = {[EN_SELECT] = {"VOLUME", SF(se_vol_off), 0, 127, 0}, [EN_PRESET] = {"BASS", SF(se_bass), 0, 127, 0},
+                  [EN_ALGO] = {"TREBLE", SF(se_treb), 0, 127, 0},
                   [EN_K1] = {"REPEAT RATE", SF(se_rate), 0, 127, 0}, [EN_K2] = {"INTENSITY", SF(se_int), 0, 127, 0},
                   [EN_K3] = {"ECHO VOLUME", SF(se_echo), 0, 127, 0}, [EN_K4] = {"REVERB VOLUME", SF(se_rev), 0, 127, 0}},
     /* the bass's AFTERTOUCH and WHEELS (FX's mods; the settings', not the patch's) */
@@ -3197,7 +3203,7 @@ static const uint8_t ENC_MAP[NPAGES] = {
     [PG_SEQ] = EMAP(EP_ROW, 0),                                /* SEQ, LENGTH, STEP */
     [PG_FMOD] = EMAP(EP_SAME, 3), [PG_EFX] = EMAP(EP_SAME, 2), [PG_XMOD] = EMAP(EP_SAME, 2), [PG_ATOUCH] = EMAP(EP_SAME, 1),
     [PG_AMOD] = EMAP(EP_SAME, 2), [PG_GDISP] = EMAP(EP_SAME, 2), [PG_RPAT] = EMAP(EP_SAME, 1),
-    [PG_SIN] = EMAP(EP_SAME, 3),
+    [PG_SIN] = EMAP(EP_SAME, 0),
     [PG_GMO] = EMAP(EP_SAME, 1),                               /* LENGTH, SPEED, SMOOTH on K2-K4 (K1's place: MEMORY) */                               /* MODE on PRESET, INPUT on K4 */
 };
 static uint32_t enc_logical(uint32_t p)       /* physical encoder p: what it is on this page (NE: nothing) */
@@ -3353,6 +3359,9 @@ static int dt_value(uint32_t k, int32_t e)
 }
 /* GLO CONTROLS' KNOBS on the drums' too, by the bass's rule (knob_accel): a control of 48 steps or more speeds up as it's spun; the
  * few-valued (K3, K4, Swing, a beat, Error Correct) a step a click */
+/* the drums' SELECT, K1 and K2 as every instrument's HOME has them: SELECT the volume (MASTER), K1 the tempo, K2 the
+ * METRONOME; dt_kmap: an encoder's old place (SELECT the tempo, K1 the metronome, K2 MASTER), the code's */
+static uint32_t dt_kmap(uint32_t k) { return k == EN_SELECT ? EN_K2 : k == EN_K1 ? EN_SELECT : k == EN_K2 ? EN_K1 : k; }
 static int dt_knob_wide(uint32_t k)
 {
     const uint32_t f = ui.dt_fn;
@@ -3388,6 +3397,7 @@ static int dt_turn(uint32_t k, int32_t e)
             set.dtrans_off = e < 0;
         return 1;
     }
+    k = dt_kmap(k);
     if (k == EN_SELECT) {
         dt_tempo_step(e);
         return 1;
@@ -3476,14 +3486,28 @@ static int knob_turn(uint32_t k, int32_t e)
             mo_respeed(was);
         return 1;
     }
-    if (ui.page == PG_RSEL && k == EN_PRESET) {   /* PIANO PANEL's PRESET: the cursor's tone tablet, right down, left
-                                              * up (SEL moves the cursor) */
-        const uint32_t c = rt_cur();
-        rt_set(c, e > 0);
+    if ((ui.page == PG_RSEL || ui.page == PG_RVIEW) && (k == EN_PRESET || k == EN_ALGO)) {   /* the piano's toggles:
+                                              * PRESET along them (as SEL on PIANO PANEL), ALGO the cursor's, right
+                                              * down (on), left up */
+        uint32_t c = rt_cur();
+        if (k == EN_PRESET)
+            ui.rmi_cur = (uint8_t)(c = (c + (e > 0 ? 1u : RT_NCUR - 1u)) % RT_NCUR);
+        else
+            rt_set(c, e > 0);
         app_say(rt_name(c), rt_on(c) ? "ON" : "OFF");
         return 0;
     }
-    if (((ui.page == PG_PATCH || ui.page == PG_HOME) && k == EN_K1) || (ui.page == PG_RSEL && k == EN_K4)) {   /* the
+    if ((ui.page == PG_SHOME || ui.page == PG_SIN || ui.page == PG_SECHO) && k == EN_SELECT) {   /* the echo's own
+                                              * volume, its returns' (kept with the GLO settings, under full) */
+        static const param_t VOL = {"VOLUME", 0, 0, 127, 0};
+        char t[8];
+        e = knob_accel(k, e, &VOL);
+        set.se_vol_off = (uint8_t)(127 - clamp(127 - (int32_t)set.se_vol_off + e, 0, 127));
+        int_text(127u - set.se_vol_off, t);
+        app_say("ECHO OWN VOLUME", t);
+        return 0;
+    }
+    if ((ui.page == PG_PATCH || ui.page == PG_RSEL) && k == EN_SELECT) {   /* the
                                               * MASTER's Volume (on HOME too): the bass's own; RMI PANEL's VOL: the RMI's
                                               * (both kept with the GLO settings, under full); the FM-1's MASTER knob is
                                               * the master over all */
@@ -3504,7 +3528,7 @@ static int knob_turn(uint32_t k, int32_t e)
         return r;
     }
     static const param_t RT_SPAN = {"RND", 0, 0, 127, 0};   /* (RND TRACKS' levels and sends: turned as a 0..127's) */
-    const param_t *q = DRUM_PAGE(ui.page) && dt_knob_wide(k) && k != EN_K1 && k != EN_K2 ? &DT_PICK
+    const param_t *q = DRUM_PAGE(ui.page) && dt_knob_wide(k) && dt_kmap(k) != EN_K1 && dt_kmap(k) != EN_K2 ? &DT_PICK
                        : (ui.page == PG_RTRK && k >= EN_K1 && rnd_row != RR_ENG) || (DRUM_PAGE(ui.page) && dt_knob_wide(k))
                        ? &RT_SPAN : knob_param(k);
     e = knob_accel(k, e, q);
@@ -3697,6 +3721,7 @@ static const char *knob_name(uint32_t k)
         static const char *const N[NE] = {[EN_K1] = "METRONOME", "MASTER", "VOLUME", "TUNING"};
         if (ui.page == PG_DMOD && (k == EN_K3 || k == EN_K4))
             return k == EN_K3 ? "SWING LOCK" : "TRANSPORT";
+        k = dt_kmap(k);
         if (k == EN_SELECT)
             return "TEMPO";
         if (ui.dt_fn >= DTF_BPAT && ui.dt_fn != DTF_BVOL && ui.dt_fn != DTF_BTEMPO && (k == EN_PRESET || ui.dt_fn == DTF_BPAT))
@@ -3785,12 +3810,18 @@ static void knob_text(uint32_t k, char *t)
         ui.page = PG_GCLK;
         return;
     }
-    if ((ui.page == PG_RSEL || ui.page == PG_RVIEW) && k == EN_PRESET) {   /* (the cursor's toggle: on or off) */
+    if ((ui.page == PG_RSEL || ui.page == PG_RVIEW) && (k == EN_PRESET || k == EN_ALGO)) {   /* (the cursor's toggle,
+                                              * on or off) */
         t[0] = 0;
         text_cat(t, rt_on(rt_cur()) ? "ON" : "OFF");
         return;
     }
-    if ((ui.page == PG_RSEL || ui.page == PG_RVIEW) && k == EN_K4) {   /* (VOL: the RMI's volume, rvol_off upside down) */
+    if ((ui.page == PG_SHOME || ui.page == PG_SIN || ui.page == PG_SECHO) && k == EN_SELECT) {   /* (the echo's own
+                                              * volume, upside down) */
+        int_text(127u - set.se_vol_off, t);
+        return;
+    }
+    if ((ui.page == PG_RSEL || ui.page == PG_RVIEW) && k == EN_SELECT) {   /* (VOL: the RMI's volume, rvol_off upside down) */
         int_text(127u - set.rvol_off, t);
         return;
     }
@@ -3810,7 +3841,8 @@ static void knob_text(uint32_t k, char *t)
             text_cat(t, OFF_ON[k == EN_K3 ? set.dswing_lock != 0u : !set.dtrans_off]);
             return;
         }
-        v = k == EN_SELECT ? arp_tempo() : k == EN_K1 ? dt.metro : k == EN_K2 ? dt.master : k == EN_K3 ? dt.vol[ui.dt_sel] : k == EN_K4 ? dt.tune[ui.dt_sel] : -1;
+        const uint32_t m = dt_kmap(k);
+        v = m == EN_SELECT ? arp_tempo() : m == EN_K1 ? dt.metro : m == EN_K2 ? dt.master : k == EN_K3 ? dt.vol[ui.dt_sel] : k == EN_K4 ? dt.tune[ui.dt_sel] : -1;
         if (v >= 0 && k >= EN_K3) {
             t[0] = (char)('0' + v / 10);
             t[1] = (char)('0' + v % 10);
@@ -4355,26 +4387,29 @@ static uint32_t notes_lit(uint32_t *below, uint32_t *above)
  * and back: Knob Zoom's dive, as for the knob's CC (zoom_cc_in); no zoom (KNOB ZOOM OFF): HOME's own knob moves. The
  * drums' HOME: K3 and K4, the selected drum's Volume and Tuning, the dive to its Channel page (zoom_dt_cc); no zoom: as
  * on their other pages */
-#define HOME_KNOB_PAGE(p) ((p) == EN_K1 ? PG_PATCH : (p) == EN_K2 ? PG_ARP : PG_TUNE)
-#define SE_DIVE_PG(p) ((p) == EN_PRESET ? PG_SIN : PG_SECHO)   /* ECHO HOME's knob p: the close-up it's on */
+#define HOME_KNOB_PAGE(p) ((p) == EN_SELECT ? PG_PATCH : (p) == EN_K1 || (p) == EN_K2 ? PG_ARP : PG_TUNE)
+#define SE_DIVE_PG(p) ((p) == EN_PRESET || (p) == EN_ALGO ? PG_SIN : PG_SECHO)   /* ECHO HOME's knob p: its close-up */
 static int home_knob(uint32_t p)
 {
     if (ui.b3)                               /* ORGAN HOME: its seven drawbars, DRAWBARS' (the same encoders there) */
-        return p != EN_PRESET                /* (PRESET: the preset, on HOME itself) */
+        return p != EN_PRESET && p != EN_SELECT   /* (PRESET the preset, SELECT the volume: on HOME itself) */
                && (ui.page == PG_OHOME || (zoom.home && zoom.hp == PG_OHOME && zoom.g == PG_OBARS && zoom.ke == p));
-    if (ui.se)                               /* ECHO HOME: PRESET INPUT's MODE, K1-K4 PANEL's (the same encoders there) */
-        return (p >= EN_K1 || p == EN_PRESET)
+    if (ui.se)                               /* ECHO HOME: PRESET and ALGO INPUT's MODE and INSTRUMENT VOLUME, K1-K4
+                                              * PANEL's (the same encoders there); SELECT its own volume, here */
+        return (p >= EN_K1 || p == EN_PRESET || p == EN_ALGO)
                && (ui.page == PG_SHOME || (zoom.home && zoom.hp == PG_SHOME && zoom.g == SE_DIVE_PG(p) && zoom.ke == p));
-    if (ui.rmi)                              /* RMI HOME: PRESET and K1-K4 RMI PANEL's (the voice, BASS, ORGAN MODE,
-                                              * ACCENTER, VOL) */
-        return (p >= EN_K1 || p == EN_PRESET) && (ui.page == PG_RHOME || ui.page == PG_RVIEW
-               || (zoom.home && (zoom.hp == PG_RHOME || zoom.hp == PG_RVIEW) && zoom.g == PG_RSEL && zoom.ke == p));
-    if (p != EN_K3 && p != EN_K4 && (ui.drum || (p != EN_K2 && p != EN_K1)))
-        return 0;
+    if (ui.rmi)                              /* RMI HOME: PRESET, SELECT and K1-K3 RMI PANEL's (the voice, VOL, BASS,
+                                              * ORGAN MODE, ACCENTER) */
+        return (p == EN_SELECT || p == EN_PRESET || p == EN_ALGO || (p >= EN_K1 && p <= EN_K3))
+               && (ui.page == PG_RHOME || ui.page == PG_RVIEW || (zoom.home && (zoom.hp == PG_RHOME || zoom.hp == PG_RVIEW)
+                                                                    && zoom.g == PG_RSEL && zoom.ke == p));
     if (ui.drum)
-        return !set.zoom_off
+        return (p == EN_K3 || p == EN_K4) && !set.zoom_off
                && (ui.page == PG_DHOME || (zoom.home && zoom.hp == PG_DHOME && DCH_PAGE(zoom.g) && zoom.ke == p));
-    return ui.page == PG_HOME || (zoom.home && zoom.hp == PG_HOME && zoom.g == HOME_KNOB_PAGE(p) && zoom.ke == p);
+    if (p == EN_PRESET || p == EN_ALGO)
+        return 0;
+    return ui.page == PG_HOME
+           || (zoom.home && zoom.hp == PG_HOME && zoom.g == HOME_KNOB_PAGE(p) && zoom.ke == p);
 }
 static void home_knob_turn(uint32_t p, int32_t e)
 {
@@ -4416,11 +4451,11 @@ static void home_knob_turn(uint32_t p, int32_t e)
     }
     if (!ui.drum)
         ui.page = HOME_KNOB_PAGE(p);
-    if (!ui.drum && p == EN_K1) {            /* the bass's volume (said as it turns): in on the MASTER's Volume */
+    if (!ui.drum && p == EN_SELECT) {        /* the bass's volume (said as it turns): in on the MASTER's Volume */
         knob_turn(p, e);
         ui.page = pg;
         if (!set.zoom_off)
-            zoom_cc_in(&PARAMS[PG_PATCH][EN_K1]);
+            zoom_cc_in(&PARAMS[PG_PATCH][EN_SELECT]);
         ui.redraw = 1;
         return;
     }
@@ -4446,8 +4481,9 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_EMOD] = {"Which envelope", [EN_K1] = "Touch response", "Loop the envelope", "How many loops", "Drum-style hold"},
     [PG_LFO1] = {"Glide time", "Speed or delay", [EN_K1] = "LFO 1 shape", "LFO 1 speed", "LFO 2 speed", "LFO 2 shape"},
     [PG_LFO2] = {"Which LFO", [EN_K1] = "Restart each note", "Follow the tempo", "Smooth its edges"},
-    [PG_PATCH] = {[EN_PRESET] = "Pick a patch", [EN_K1] = "Bass volume"},
-    [PG_HOME] = {[EN_PRESET] = "Pick a patch", [EN_K1] = "Bass volume"},
+    [PG_PATCH] = {[EN_SELECT] = "Bass volume", [EN_PRESET] = "Pick a patch"},
+    [PG_HOME] = {[EN_SELECT] = "Bass volume", [EN_PRESET] = "Pick a patch", [EN_K1] = "Speed, BPM", "Rhythm pattern",
+                 "Filter resonance", "Filter cutoff"},
     [PG_ARP] = {[EN_ALGO] = "Hold the notes", "Arp on or off", "Speed, BPM", "Rhythm pattern", "Note order",
                 "Octave span"},
     [PG_AMOD] = {[EN_K1] = "Restart every 2 bars", "Swing feel"},
@@ -4470,14 +4506,14 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_GAUD] = {[EN_K1] = "The speaker's sound, or off", "Master tune"},
     [PG_GCTL] = {[EN_K1] = "Touch curve", "Knob speed-up", "Keys play the synth", "Notes piano to bass, or back"},
     [PG_NAME] = {[EN_K1] = "Which letter", "Change it", "Clear to the end"},
-    [PG_RVIEW] = {[EN_PRESET] = "This toggle on or off", [EN_K1] = "Bass boost", "No decay, as an organ", "A sharper attack",
-                  "Its own volume"},
-    [PG_RSEL] = {[EN_PRESET] = "This toggle on or off", [EN_K1] = "Bass boost", "No decay, as an organ", "A sharper attack",
-                 "Its own volume"},
-    [PG_SHOME] = {[EN_PRESET] = "Heads and spring", [EN_K1] = "Tape speed: delay", "Repeats, feedback", "Echo level",
+    [PG_RVIEW] = {"Its own volume", "This toggle on or off", "Along the toggles", [EN_K1] = "Bass boost",
+                  "No decay, as an organ", "A sharper attack"},
+    [PG_RSEL] = {"Its own volume", "This toggle on or off", "Along the toggles", [EN_K1] = "Bass boost", "No decay, as an organ",
+                 "A sharper attack"},
+    [PG_SHOME] = {[EN_SELECT] = "Echo's own volume", "Drive into the tape", "Heads and spring", [EN_K1] = "Tape speed: delay", "Repeats, feedback", "Echo level",
                   "Spring level"},
-    [PG_SIN] = {[EN_PRESET] = "Heads and spring", [EN_K1] = "Drive into the tape"},
-    [PG_SECHO] = {[EN_SELECT] = "Echo's lows", "Echo's highs", "Heads and spring", "Tape speed: delay", "Repeats, feedback",
+    [PG_SIN] = {[EN_SELECT] = "Echo's own volume", "Drive into the tape", "Heads and spring"},
+    [PG_SECHO] = {[EN_SELECT] = "Echo's own volume", "Echo's highs", "Echo's lows", "Tape speed: delay", "Repeats, feedback",
                   "Echo level", "Spring level"},
     [PG_SVOICE] = {"Loop gain: runaway point", "Feedback with 2-3 heads", "Tape compression", "Slow pitch drift",
                    "Fast pitch warble", "Spring chirp", "Spring tail length"},
@@ -4502,7 +4538,7 @@ static const char *hint_of(uint32_t k)       /* encoder k's here (as its page's 
         [DTF_BTEMPO] = "Tempo change"};
     if (DRUM_PAGE(ui.page))
         return ui.page == PG_DMOD && k == EN_K3 ? "Bass follows Drums"
-               : ui.page == PG_DMOD && k == EN_K4 ? "Drums start/stop Bass" : k == EN_SELECT ? "Tempo" : k == EN_K3 || k == EN_K4 ? DT_NAME[ui.dt_sel] : k == EN_K1 ? "Click level" : k == EN_K2 ? "Drums' level"
+               : ui.page == PG_DMOD && k == EN_K4 ? "Drums start/stop Bass" : k == EN_K1 ? "Tempo" : k == EN_K3 || k == EN_K4 ? DT_NAME[ui.dt_sel] : k == EN_K2 ? "Click level" : k == EN_SELECT ? "Drums' level"
                : ui.dt_fn == DTF_TIME && k == EN_PRESET ? "Beats in a bar" : ui.dt_fn == DTF_TIME && k == EN_ALGO ? "The note that's a beat"
                : dt_knobs_split() && k == EN_PRESET ? "Pick the Step" : ui.dt_fn == DTF_BPAT && k == EN_ALGO ? "Pick the Pattern"
                : k == EN_PRESET || k == EN_ALGO ? DT_H[ui.dt_fn] : 0;
@@ -7001,7 +7037,7 @@ static void rsel_draw(void)
         }
     }
     rmi_slider(507, set.rmi_bass, "BASS", EN_K1);
-    rmi_slider(2028, 127 - set.rvol_off, "VOL", EN_K4);
+    rmi_slider(2028, 127 - set.rvol_off, "VOL", EN_SELECT);
     cv_rect(RPX(778), RPY(485), RPX(1752) - RPX(778), RPY(735) - RPY(485), RGB(12, 12, 12));   /* the toggles' black
                                               * frame, its ends the black blocks */
     cv_rect(RPX(780), RPY(489), RPX(875) - RPX(780), 1, grey(60));   /* (their gloss) */
@@ -7020,13 +7056,15 @@ static void rsel_draw(void)
         } else
             cv_text(x + w / 2 - text_w(&FONT_T, RT_LBL[i][0]) / 2, RPY(578) + 2 * d, &FONT_T, RT_LBL[i][0], RGB(10, 10, 10));
     }
-    {                                        /* the cursor: its toggle outlined (SEL moves it, PRESET switches it) */
+    {                                        /* the cursor: its toggle outlined (PRESET or SEL moves it, ALGO switches it) */
         const int32_t x = RPX(RT_X[c][0]), w = RPX(RT_X[c][1]) - x, y = RPY(487), h = RPY(732) - y;
         cv_rect(x - 2, y, w + 4, 2, P_CYAN);
         cv_rect(x - 2, y + h - 2, w + 4, 2, P_CYAN);
         cv_rect(x - 2, y, 2, h, P_CYAN);
         cv_rect(x + w, y, 2, h, P_CYAN);
         tag(x + w / 2, RPY(640), EN_PRESET);
+        tag_note("Turn: along the toggles");
+        tag(x + w / 2, RPY(560), EN_ALGO);
         tag_note("Turn: this toggle on or off");
     }
     tag((RPX(RT_X[5][0]) + RPX(RT_X[5][1])) / 2, RPY(660), EN_K2);
@@ -7078,8 +7116,10 @@ static void rview_draw(void)
         cv_rect(x + w - 2, RV_Y - 2, 2, RV_H + 4, P_CYAN);
     }
     rv_slider(12, set.rmi_bass, "BASS", EN_K1);
-    rv_slider(228, 127 - set.rvol_off, "VOL", EN_K4);
+    rv_slider(228, 127 - set.rvol_off, "VOL", EN_SELECT);
     tag(rv_tx(c), RV_Y + 64, EN_PRESET);
+    tag_note("Turn: along the toggles");
+    tag(rv_tx(c), RV_Y + 48, EN_ALGO);
     tag_note("Turn: this toggle on or off");
     tag(rv_tx(5), RV_Y + 80, EN_K2);
     tag(rv_tx(6), RV_Y + 80, EN_K3);
@@ -7206,7 +7246,7 @@ static void rhome_draw(void)
             cv_rect(RFX(501) + (int32_t)i * (RFX(576) - RFX(501)) / 7, RFY(216), 3, RFY(235) - RFY(216),
                     dn >> i & 1u ? P_CYAN : RGB(229, 228, 211));
         tag(RFX(538), RFY(225), EN_PRESET);
-        tag_note("Turn: this toggle on or off");
+        tag_note("Turn: along the toggles");
     }
 }
 /* RMI HOME's knob k (K1-K4) turned: RMI PANEL's, the camera in on it from the strip, as HOME's on the bass's pages */
@@ -7214,7 +7254,8 @@ static void zoom_rmi(uint32_t k)             /* (its box: the toggles on the fro
 {
     if (ui.page == PG_RVIEW || (zoom.home && zoom.hp == PG_RVIEW)) {
         const uint32_t c = rt_cur();
-        const int32_t x = k == EN_K1 ? 12 : k == EN_K4 ? 228 : rv_tx(k == EN_K2 ? 5u : k == EN_K3 ? 6u : c);
+        const int32_t x = k == EN_K1 ? 12 : k == EN_SELECT ? 228 : rv_tx(k == EN_K2 ? 5u : k == EN_K3 ? 6u : c);   /* (PRESET,
+                                              * ALGO: the cursor's) */
         zoom_dive(PG_RVIEW, PG_RSEL, k, 0, (int16_t)clamp(x, 52, 188), RV_Y + RV_H / 2, fm_log2f(240.0f / 104.0f));
         return;
     }
@@ -7368,8 +7409,8 @@ static void se_front(int whole)
     }
     se_knob(SPX(165), SPY(322), SPR(17), se_ang(0), NE, big);   /* MIC VOLUME, both: down (nothing on them) */
     se_knob(SPX(224), SPY(322), SPR(17), se_ang(0), NE, big);
-    se_knob(SPX(282), SPY(322), SPR(17), se_ang(set.se_input), ui.page == PG_SIN ? EN_K1 : NE, big);
-    se_knob(SPX(356), SPY(291), SPR(22), se_mode_ang(), ui.page == PG_SIN || ui.page == PG_SHOME || ui.page == PG_SECHO ? EN_PRESET : NE, 0);
+    se_knob(SPX(282), SPY(322), SPR(17), se_ang(set.se_input), ui.page == PG_SIN ? EN_ALGO : NE, big);
+    se_knob(SPX(356), SPY(291), SPR(22), se_mode_ang(), ui.page == PG_SIN || ui.page == PG_SHOME ? EN_PRESET : NE, 0);
     se_knob(SPX(437), SPY(267), SPR(17), se_ang(set.se_bass), ui.page == PG_SECHO ? EN_SELECT : NE, big);
     se_knob(SPX(490), SPY(267), SPR(17), se_ang(set.se_treb), ui.page == PG_SECHO ? EN_ALGO : NE, big);
     se_knob(SPX(548), SPY(267), SPR(17), se_ang(set.se_rev), ui.page == PG_SECHO || ui.page == PG_SHOME ? EN_K4 : NE, big);
@@ -7382,19 +7423,11 @@ static void se_front(int whole)
     disc(SPX(639), SPY(320), SPR(4), grey(200));
     cv_rect(SPX(638), SPY(306), SPR(3) > 0 ? SPR(3) : 1, SPY(320) - SPY(306), grey(220));
     cv_rect(SPX(122), SPY(343), SPX(678) - SPX(122), SPY(374) - SPY(343), SE_ALU);   /* the jack strip */
-    for (i = 0; i < 6; i++) {                /* its boxes, their print */
+    for (i = 0; i < 6; i++) {                /* its boxes (their print left off: nothing there plays) */
         cv_rect(SPX(BOX[i][0]), SPY(346), SPX(BOX[i][1]) - SPX(BOX[i][0]), 1, grey(70));
         cv_rect(SPX(BOX[i][0]), SPY(371), SPX(BOX[i][1]) - SPX(BOX[i][0]), 1, grey(70));
         cv_rect(SPX(BOX[i][0]), SPY(346), 1, SPY(371) - SPY(346), grey(70));
         cv_rect(SPX(BOX[i][1]), SPY(346), 1, SPY(371) - SPY(346), grey(70));
-    }
-    if (big) {
-        static const char *const JL[6] = {"MIC", "MIC", "INSTRUMENT", "FROM P.A.", "OUT PUT", "FOOT SW"};
-        static const int16_t JX[6] = {168, 228, 290, 400, 540, 600};
-        for (i = 0; i < 6; i++)
-            se_lbl(SPX(JX[i]), SPY(347), JL[i], RGB(30, 30, 30));
-        se_lbl(SPX(626), SPY(359), "ECHO CANCEL", RGB(30, 30, 30));
-        se_lbl(SPX(500), SPY(347), "H M L", RGB(30, 30, 30));
     }
     se_jack(168, grey(120)), se_jack(228, grey(120)), se_jack(282, grey(120));
     se_jack(400, RGB(40, 140, 80)), se_jack(540, RGB(190, 40, 40)), se_jack(591, grey(120));
@@ -7483,10 +7516,16 @@ static void shome_draw(void)
         cv_text(232 - text_w(&FONT_T, "TEMPO SYNC"), 38, &FONT_T, "TEMPO SYNC", P_SILK);
     tag(232 - text_w(&FONT_XS, t) / 2, 10, EN_PRESET);
     tag_note("Turn: echo mode");
+    t[0] = 0;                                /* its own volume (SELECT) */
+    text_cat(t, "VOLUME ");
+    int_text(127u - set.se_vol_off, t + 7);
+    cv_text(232 - text_w(&FONT_T, t), 48, &FONT_T, t, P_SILK);
+    tag(232 - text_w(&FONT_T, t) / 2, 52, EN_SELECT);
     se_view(PG_SHOME);
     se_front(1);
     tag(SPX(437), SPY(320), EN_K1), tag(SPX(489), SPY(320), EN_K2), tag(SPX(546), SPY(320), EN_K3);
     tag(SPX(548), SPY(267), EN_K4);
+    tag(SPX(282), SPY(322), EN_ALGO);        /* (INSTRUMENT VOLUME: INPUT's, its dive) */
 }
 /* ECHO INPUT and ECHO PANEL: the panel's halves up close */
 static void se_close_draw(void)
@@ -7495,10 +7534,17 @@ static void se_close_draw(void)
     se_view(ui.page);
     se_front(0);
     if (ui.page == PG_SIN)
-        tag(SPX(282), SPY(322), EN_K1), tag(SPX(356), SPY(291), EN_PRESET);
+        tag(SPX(282), SPY(322), EN_ALGO), tag(SPX(356), SPY(291), EN_PRESET);
     else {
         tag(SPX(437), SPY(267), EN_PRESET), tag(SPX(490), SPY(267), EN_ALGO), tag(SPX(548), SPY(267), EN_K4);
         tag(SPX(437), SPY(320), EN_K1), tag(SPX(489), SPY(320), EN_K2), tag(SPX(546), SPY(320), EN_K3);
+    }
+    {                                        /* its own volume (SELECT), over the case's top right */
+        char t[16] = "VOLUME ";
+        int_text(127u - set.se_vol_off, t + 7);
+        cv_rect(232 - text_w(&FONT_T, t) - 3, 2, text_w(&FONT_T, t) + 5, 12, RGB(30, 30, 30));
+        cv_text(232 - text_w(&FONT_T, t), 3, &FONT_T, t, P_SILK);
+        tag(232 - text_w(&FONT_T, t) / 2, 8, EN_SELECT);
     }
 }
 /* ECHO HOME's knob p turned: its close-up's, the camera in on it from the panel's half on HOME, as the other HOMEs' */
@@ -7623,6 +7669,33 @@ static void seg7(int32_t x, int32_t y, char c)
             cv_rect(x + r[0], y + r[1], r[2], r[3], RGB(34, 22, 26));
     }
 }
+static void seg7s(int32_t x, int32_t y, char c)   /* a digit as seg7's, smaller (10 x 18): the HOMEs' corner displays */
+{
+    static const int8_t R[7][4] = {{2, 0, 6, 2}, {8, 1, 2, 7}, {8, 10, 2, 7}, {2, 16, 6, 2},
+                                   {0, 10, 2, 7}, {0, 1, 2, 7}, {2, 8, 6, 2}};   /* a..g: x, y, w, h */
+    uint32_t m = seg_mask(c), i;
+    for (i = 0; i < 7u; i++) {
+        const int8_t *r = R[i];
+        if (m >> i & 1u) {
+            cv_rect(x + r[0] - 1, y + r[1] - 1, r[2] + 2, r[3] + 2, RGB(90, 18, 34));   /* (its glow) */
+            cv_rect(x + r[0], y + r[1], r[2], r[3], RGB(252, 78, 112));
+        } else
+            cv_rect(x + r[0], y + r[1], r[2], r[3], RGB(34, 22, 26));
+    }
+}
+/* a HOME's corner display: three small digits (seg7s), its right edge at r, its top y (SEG_SW x SEG_SH), the room under
+ * it the patch's name's */
+#define SEG_SW 52
+#define SEG_SH 30
+static void seg_small(int32_t r, int32_t y, const char *t)
+{
+    const int32_t x = r - SEG_SW;
+    uint32_t i;
+    cv_rect(x, y, SEG_SW, SEG_SH, RGB(4, 4, 4));
+    cv_rect(x + 3, y + 3, SEG_SW - 6, SEG_SH - 6, RGB(20, 16, 20));
+    for (i = 0; i < 3u; i++)
+        seg7s(x + 7 + 14 * (int32_t)i, y + 6, t[i]);
+}
 static void panel_button(int32_t x, int32_t y, int32_t w, int32_t h, const char *name, int lit, int turning);
 /* the Bass Station II's Org. Value arrows: the way the control last changed must turn to its value saved in the
  * patch, +1 right (up), -1 left (down); 0 when it is there, or none changed */
@@ -7655,9 +7728,9 @@ static void master_draw(void)
     char t[4];
     int32_t i;
     panel_head("MASTER");
-    bs2_knob(44, 56, 20, 127 - (int32_t)set.bvol_off, 127, knob_lit(EN_K1) ? KF_LIT : 0u);   /* Volume: the bass's own */
+    bs2_knob(44, 56, 20, 127 - (int32_t)set.bvol_off, 127, knob_lit(EN_SELECT) ? KF_LIT : 0u);   /* Volume: the bass's own */
     print_c(44, 80, "Volume", P_SILK);
-    tag(44, 56, EN_K1);
+    tag(44, 56, EN_SELECT);
     cv_text(8, 106, &FONT_B, "BASS", P_SILK);   /* the name, where a Bass Station II has its maker's */
     cv_text(cv_text(8, 122, &FONT_B, "SOMETHING", P_SILK) + 5, 122, &FONT_B, "2", P_BAR);
     cv_rect(96, 22, 136, 50, RGB(4, 4, 4));  /* the display: black, its window, three digits */
@@ -8625,11 +8698,14 @@ static void home_draw(void)
     slot_disp(d);
     if (ui.org_at)                           /* (a control just changed: its value) */
         seg_num(param_get(ui.org, &patch), d);
-    seg_display(240 - HOME_L - 84, 6, d, 3);   /* (its right edge the panel's: 84 wide) */
+    seg_small(240 - HOME_L, 8, d);           /* (its right edge the panel's) */
     if (set_dirty)
-        disc(240 - HOME_L - 10, 43, 2, RGB(252, 78, 112));
-    tag(240 - HOME_L - 42, 31, EN_PRESET);
+        disc(240 - HOME_L - 6, 8 + SEG_SH - 6, 2, RGB(252, 78, 112));
+    tag(240 - HOME_L - SEG_SW / 2, 8 + SEG_SH / 2, EN_PRESET);
     tag_note("Turn: pick a patch");
+    if (cur_name[0])                         /* the patch's name under the display, its right edge the display's (as the
+                                              * organ's HOME) */
+        cv_text(240 - HOME_L - text_w(&FONT_XS, cur_name), 8 + SEG_SH + 3, &FONT_XS, cur_name, P_CYAN);
     scope_paint();                           /* (what plays and its tempo: the footer's) */
     /* the panel: its face, round its ends, the blue bars (their gaps, the lines down from them), the
      * keys' strip */
@@ -8657,7 +8733,7 @@ static void home_draw(void)
     h_rect(70, 168, 105, 10, P_CYAN);
     /* the MASTER: Volume, the display, the Org. Value LEDs, Save and the Patch buttons */
     {
-        static const param_t VOL = {"VOLUME", 0, 0, 127, 0};   /* (the bass's own: K1) */
+        static const param_t VOL = {"VOLUME", 0, 0, 127, 0};   /* (the bass's own: SELECT) */
         h_knob(90, 65, 0, &VOL, 127 - (int32_t)set.bvol_off);
     }
     h_rect(175, 54, 135, 45, RGB(4, 4, 4));
@@ -9761,11 +9837,11 @@ static void dhome_draw(void)
     dt_bkey(289, 530, ui.drum && ui.keys >> BK[0] & 1u);
     for (i = 0; i < (int32_t)NDT; i++)
         dt_bkey(INST[i], 530, (int)(lit >> i & 1u));
-    tag(dt_px(1276), dt_py(120), EN_K1);          /* (the encoders on the panel, Knob Zoom's aims) */
-    tag(dt_px(1276), dt_py(260), EN_K2);
+    tag(dt_px(1276), dt_py(120), EN_K2);          /* (the encoders on the panel, Knob Zoom's aims: dt_kmap's) */
+    tag(dt_px(1276), dt_py(260), EN_SELECT);
     tag(dt_px(180), dt_py(453), EN_K3);
     tag(dt_px(309), dt_py(453), EN_K4);
-    tag(dt_px(242), dt_py(278), EN_SELECT);       /* TEMPO's box */
+    tag(dt_px(242), dt_py(278), EN_K1);           /* TEMPO's box */
     tag_note("Turn: tempo");
     dt_tag_preset();
 }
@@ -10590,6 +10666,12 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "rmi_tabs"))      /* the piano's tablets (RT_* bits), its volume and the bass's (as stored:
                                               * 127 - it) */
         *got = set.rmi_tabs;
+    else if (!strcmp(what, "se_vol_off"))     /* the echo's own volume, upside down */
+        *got = set.se_vol_off;
+    else if (!strcmp(what, "se_input"))
+        *got = set.se_input;
+    else if (!strcmp(what, "b3vol_off"))
+        *got = set.b3vol_off;
     else if (!strcmp(what, "rvol_off"))
         *got = set.rvol_off;
     else if (!strcmp(what, "bvol_off"))

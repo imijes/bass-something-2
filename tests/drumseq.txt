@@ -460,10 +460,10 @@ turn K3 -1
 wait 30
 expect dswing_lock 0
 # SELECT and ALGO leave them alone there: as on the drums' other pages
-turn SELECT 1
+turn K1 1
 wait 30
 expect dswing_lock 0
-turn SELECT -1
+turn K1 -1
 wait 30
 turn ALGO -1
 wait 30
@@ -622,24 +622,24 @@ tap REC
 wait 30
 expect rec_light 0
 # TEMPO: the manual's tempos (7-9): OCT and SELECT a step each: 105 up nine is 125, down twelve is 86 from 105
-spin SELECT -90
+spin K1 -90
 wait 30
 expect dt_tempo 40
-spin SELECT 57
+spin K1 57
 wait 30
 expect dt_tempo 105
-spin SELECT 9
+spin K1 9
 wait 30
 expect dt_tempo 125
-spin SELECT -9
+spin K1 -9
 wait 30
-spin SELECT -12
+spin K1 -12
 wait 30
 expect dt_tempo 86
-spin SELECT 90
+spin K1 90
 wait 30
 expect dt_tempo 250
-spin SELECT -26
+spin K1 -26
 wait 30
 expect dt_tempo 120
 # a song: the manual's AABA in song 45 (5-2): ARP to SONG, its number; BUILD MODE, ENTER; each pattern, ENTER; ENTER to leave

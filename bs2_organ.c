@@ -3,10 +3,11 @@
  * after the RMI's), its 32 presets as the bass's patches are (PRESET plays one at once; SAVE as a Bass Station II's: its
  * HOME, the slot blinking, PRESET picks, SAVE stores; PATCH NAME its name), its pages and its live buttons. Part of the
  * unity build, included by app.c after the panel's drawing:
- *   ORGAN HOME (PG_OHOME): the console as the photo has it, its drawbars and tabs as the sound has them; SELECT ALGO
- *     16' 5 1/3', K1-K4 8' 4' 2 2/3' 2' (a turn dives to DRAWBARS: zoom_organ); PRESET the preset (the display's)
- *   ORGAN DRAWBARS (PG_OBARS): the drawbars up close, the same six; SEL there its other view: K2-K4 1 3/5' 1 1/3' 1';
- *     PRESET the preset on both
+ *   ORGAN HOME (PG_OHOME): the console as the photo has it, its drawbars and tabs as the sound has them; ALGO 16', K1-K4
+ *     5 1/3' 8' 4' 2 2/3' (a turn dives to DRAWBARS: zoom_organ); PRESET the preset (the display's); SELECT its volume,
+ *     as every HOME's (here and on DRAWBARS)
+ *   ORGAN DRAWBARS (PG_OBARS): the drawbars up close, the same five; SEL there its other view: K1-K4 2' 1 3/5' 1 1/3'
+ *     1'; PRESET the preset on both
  *   ORGAN TABS (PG_OTABS): the percussion's tabs (K1 ON, K2 VOLUME SOFT, K3 DECAY FAST, K4 HARMONIC THIRD), the vibrato
  *     (SELECT on, ALGO its knob V1 V2 V3 C1 C2 C3)
  *   ORGAN LESLIE (PG_OLES): the cabinet turning; SELECT its speed, ALGO the brake, K1 WIDTH, K2 DRIVE, K3 CLICK, K4 VOL
@@ -164,10 +165,17 @@ static void o_flag(uint8_t *f, int32_t e, const char *name, const char *off, con
 static int o_turn(uint32_t k, int32_t e)
 {
     if (ui.page == PG_OHOME || ui.page == PG_OBARS) {
-        static const int8_t V0[NE] = {[EN_SELECT] = 0, [EN_ALGO] = 1, [EN_PRESET] = -1, [EN_K1] = 2, 3, 4, 5},
-                            V1[NE] = {[EN_SELECT] = -1, [EN_ALGO] = -1, [EN_PRESET] = -1, [EN_K1] = -1, 6, 7, 8};
+        static const int8_t V0[NE] = {[EN_SELECT] = -1, [EN_ALGO] = 0, [EN_PRESET] = -1, [EN_K1] = 1, 2, 3, 4},
+                            V1[NE] = {[EN_SELECT] = -1, [EN_ALGO] = -1, [EN_PRESET] = -1, [EN_K1] = 5, 6, 7, 8};
         const int view = ui.page == PG_OBARS && ui.oview;
         const int32_t b = view ? V1[k] : V0[k];
+        if (k == EN_SELECT) {                /* (its own volume, as every HOME's: upside down, b3vol_off) */
+            char t[8];
+            set.b3vol_off = (uint8_t)(127 - clamp(127 - (int32_t)set.b3vol_off + e, 0, 127));
+            int_text(127u - set.b3vol_off, t);
+            app_say("ORGAN VOLUME", t);
+            return 0;
+        }
         if (k == EN_PRESET) {                /* (the preset, on every view: its sound at once) */
             char t[8];
             organ_pick((uint32_t)clamp((int32_t)set.b3_slot + e, 0, ONSLOT - 1));
@@ -289,7 +297,7 @@ static void o_button(uint32_t k)
         if (ui.page == PG_OBARS && !ui.oview) {
             ui.oview = 1;
             ui.redraw = 1;
-            app_say("ORGAN DRAWBARS", "1 3/5' 1 1/3' 1'");
+            app_say("ORGAN DRAWBARS", "2' TO 1'");
         } else {
             const uint32_t g = ui.page == PG_OHOME ? PG_OBARS : ui.page == PG_OBARS ? PG_OTABS
                              : ui.page == PG_OTABS ? PG_OLES : ui.page == PG_OLES ? PG_NAME : PG_OHOME;
@@ -384,12 +392,17 @@ static void oh_head(const char *line2, const char *cyan)   /* the HOMEs' head: t
         d[0] = d[1] = d[2] = ' ', d[3] = 0;
     else
         slot_p_text(ui.osave_to ? ui.osave_to - 1u : set.b3_slot, d);
-    seg_display(240 - 8 - 84, 6, d, 3);
+    seg_small(232, 8, d);
     if (odirty)
-        disc(240 - 8 - 10, 43, 2, RGB(252, 78, 112));
-    cv_text(232 - (cv_text(-1000, 52, &FONT_XS, nm, P_CYAN) + 1000), 52, &FONT_XS, nm, P_CYAN);   /* (its right edge
-                                              * the display's) */
-    tag(240 - 8 - 42, 26, EN_PRESET);
+        disc(232 - 6, 8 + SEG_SH - 6, 2, RGB(252, 78, 112));
+    cv_text(232 - text_w(&FONT_XS, nm), 8 + SEG_SH + 3, &FONT_XS, nm, P_CYAN);   /* (its right edge the display's) */
+    tag(232 - SEG_SW / 2, 8 + SEG_SH / 2, EN_PRESET);
+    {                                        /* its own volume (SELECT), under the name */
+        char v[16] = "VOLUME ";
+        int_text(127u - set.b3vol_off, v + 7);
+        cv_text(232 - text_w(&FONT_T, v), 8 + SEG_SH + 16, &FONT_T, v, P_SILK);
+        tag(232 - text_w(&FONT_T, v) / 2, 8 + SEG_SH + 20, EN_SELECT);
+    }
     text_cat(st, ui.obrake ? "LESLIE BRAKE" : ui.ofast ? "LESLIE FAST" : "LESLIE SLOW");
     text_cat(st, "  ");
     text_cat(st, opatch.vib_on ? OVIB[opatch.vib] : "VIB OFF");
@@ -450,11 +463,11 @@ static void zoom_organ(uint32_t k)           /* ORGAN HOME's drawbar turned: the
 }
 static void obars_draw(void)                 /* ORGAN DRAWBARS: HOME's console twice as big; its other view the last three */
 {
-    static const uint8_t K0[9] = {EN_SELECT, EN_ALGO, EN_K1, EN_K2, EN_K3, EN_K4, NE, NE, NE},
-                         K1[9] = {NE, NE, NE, NE, NE, NE, EN_K2, EN_K3, EN_K4};
+    static const uint8_t K0[9] = {EN_ALGO, EN_K1, EN_K2, EN_K3, EN_K4, NE, NE, NE, NE},
+                         K1[9] = {NE, NE, NE, NE, NE, EN_K1, EN_K2, EN_K3, EN_K4};
     oz = 2, oz_y0 = OZ_Y0, oz_y = OZ_Y;
     cv_rect(0, 0, 240, TALL_H, P_BG);
-    oh_face(ui.oview ? 0 : 6, ui.oview ? 6 : 9, ui.oview ? K1 : K0);
+    oh_face(ui.oview ? 0 : 5, ui.oview ? 5 : 9, ui.oview ? K1 : K0);
     oz = 1, oz_y0 = 0, oz_y = 0;
     oh_head("DRAWBARS", ui.oview ? "2" : "1");
 }

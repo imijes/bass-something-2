@@ -38,9 +38,9 @@ expect dt_tempo 100
 tap OCT+
 wait 30
 expect dt_tempo >100
-turn SELECT -1 150
+turn K1 -1 150
 expect dt_tempo 100
 # a level: COARSE's two a click
 expect dt_metro 90
-turn K1 1 150
+turn K2 1 150
 expect dt_metro 92
