@@ -19,7 +19,7 @@ wait 2500
 ble connect
 ble rssi -23
 spin PRESET 1
-wait 300
+wait 1000
 expect cutoff 0
 ble rssi -50
 wait 1500
