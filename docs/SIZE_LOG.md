@@ -223,3 +223,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-10 | 172374f | TRANSPORT off: drums and piano part stop apart; ECHO PRESET on the Space Echo presets (v0.8.2) | 466,928 | +112 | 114,636 | 72,672 | +0 | 25,632 | 254,828 |
 | 2026-11-15 | a8ffcdf | GLOBAL MOTION: the motion recorder's mods (FOR, LANES, CLEAR, LENGTH, SPEED, SMOOTH, MEMORY) | 469,856 | +2,928 | 111,708 | 72,880 | +208 | 25,424 | 254,828 |
 | 2026-11-15 | 5947cea | SAVE as a Bass Station II's: to the MASTER, the slot blinking, PRESET picks, SAVE stores (another button cancels) | 470,612 | +756 | 110,952 | 72,864 | -16 | 25,440 | 254,828 |
+| 2026-11-15 | df82ad7 | Audio blocks of 128 frames (2.9 ms), not 256: a MIDI note to its sound 5.6 ms, was 10.2 | 470,596 | -16 | 110,968 | 69,280 | -3,584 | 29,024 | 248,172 |
