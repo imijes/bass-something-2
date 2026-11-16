@@ -117,6 +117,11 @@ turn K2 6
 expect org -1
 tap SAVE
 wait 30
+tap SAVE
+wait 30
+# (SAVE: on the MASTER; FX back to FILTERS)
+tap FX
+wait 30
 expect org 0
 # the display: a control's value for a moment after its change (on any page), then the patch again; a patch change,
 # the patch at once

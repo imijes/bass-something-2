@@ -29,6 +29,8 @@ said PATCH NAME DVB  B
 expect dirty 1
 tap SAVE
 wait 30
+tap SAVE
+wait 30
 expect dirty 0
 reboot
 wait 600
@@ -61,6 +63,8 @@ wait 30
 turn K3 -1
 wait 30
 said PATCH NAME INIT
+tap SAVE
+wait 30
 tap SAVE
 wait 30
 reboot

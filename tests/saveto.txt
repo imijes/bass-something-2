@@ -1,0 +1,56 @@
+# SAVE as a Bass Station II's: pressed on a bass page, the MASTER, its display blinking the slot it stores to; PRESET
+# picks another without loading it; SAVE again stores the sound and its name there, the sound's slot from then on.
+# Another button lets it go (and does nothing else)
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/saveto.txt bs2/build/host
+wait 600
+listen
+tap FX
+wait 500
+expect page 10
+expect cutoff 58
+turn K4 -8
+wait 30
+expect cutoff 50
+expect dirty 1
+tap SAVE
+wait 30
+said SAVE TO P01
+expect page 5
+shot saveto.png
+turn PRESET 31
+wait 30
+said SAVE TO P32
+expect slot 0
+expect cutoff 50
+tap SAVE
+wait 30
+said SAVED 32
+expect slot 31
+expect dirty 0
+# P01 as it was, P32 the sound saved
+turn PRESET -31
+wait 30
+expect slot 0
+expect cutoff 58
+turn PRESET 31
+wait 30
+expect slot 31
+expect cutoff 50
+# let go: another button; nothing saved, the button's own job not done
+tap SAVE
+wait 30
+said SAVE TO P32
+turn PRESET -5
+wait 30
+said SAVE TO P27
+tap FX
+wait 30
+said SAVE CANCELLED
+expect page 5
+expect slot 31
+# kept over a power cycle
+reboot
+wait 600
+expect slot 31
+expect cutoff 50

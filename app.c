@@ -2053,6 +2053,7 @@ static struct {
     int32_t last_key;                    /* the key pressed last: its numbers in the header */
     uint8_t looking;                     /* Bluetooth MIDI devices: REC pressed, the scan's list up (lib/btdev) */
     uint8_t hold_k, hold_live;           /* ARP, SEQ, GLO or REC down: which, and its tap or hold still to act */
+    uint8_t save_to;                     /* SAVE pressed, the slot it stores to picked (1 + its number; 0: not saving) */
     uint32_t hold_at;                    /* when it went down */
     int32_t turns[NE];                   /* detents since boot, per encoder */
     uint32_t turned_at[NE];              /* when each was last turned: it shows lit for a moment */
@@ -2983,15 +2984,25 @@ static void slot_n_text(uint32_t s, char *t)   /* 01 .. 99, 100 .. 128 */
     t[i] = 0;
 }
 static void slot_text(char *t) { slot_n_text(set.slot, t); }
-static void slot_disp(char *t)               /* the display's three digits: P01 .. P99, then 100 .. 128 (as a Bass
-                                              * Station II's) */
+static void slot_p_text(uint32_t s, char *t)   /* slot s as the display has it: P01 .. P99, 100 .. 128 */
 {
-    if (set.slot >= 99u) {
-        slot_text(t);
+    if (s >= 99u) {
+        slot_n_text(s, t);
         return;
     }
     t[0] = 'P';
-    slot_text(t + 1);
+    slot_n_text(s, t + 1);
+}
+#define SAVE_BLINK_MS 300u                   /* saving: the display's blink, on and off */
+static void slot_disp(char *t)               /* the display's three digits: P01 .. P99, then 100 .. 128 (as a Bass
+                                              * Station II's); saving, the slot SAVE stores to, blinking */
+{
+    if (ui.save_to && plat_ms() / SAVE_BLINK_MS & 1u) {
+        t[0] = t[1] = t[2] = ' ';
+        t[3] = 0;
+        return;
+    }
+    slot_p_text(ui.save_to ? ui.save_to - 1u : set.slot, t);
 }
 
 #include "bs2_rnd.c"                      /* RND seeds: the RND Synth's, captured, kept in their table, sent back */
@@ -3789,6 +3800,35 @@ static void page_go(uint32_t g)
     app_say(PAGE_NAME[g], PATCH_PAGE(g) ? t : "");
 }
 
+/* SAVE, as a Bass Station II's: pressed on a bass page, the MASTER, its display blinking the slot it stores to (the
+ * sound's own at first), and PRESET picks another without loading it; SAVE again stores the sound and its name there, and it's the sound's slot from then on.
+ * Any other button lets it go (save_button, save_pick) */
+static void save(void);
+static void save_say(void)
+{
+    char t[8];
+    slot_p_text(ui.save_to - 1u, t);
+    app_say("SAVE TO", t);
+    ui.msg_until = plat_ms() + 600000u;      /* (up till SAVE again, or another button) */
+}
+static void save_button(void)
+{
+    if (!ui.save_to) {
+        if (ui.page != PG_PATCH)
+            page_go(PG_PATCH);
+        ui.save_to = (uint8_t)(set.slot + 1u);
+        save_say();
+        return;
+    }
+    set.slot = (uint8_t)(ui.save_to - 1u);
+    ui.save_to = 0;
+    save();
+}
+static void save_pick(int32_t e)             /* PRESET turned while saving: the slot */
+{
+    ui.save_to = (uint8_t)(clamp((int32_t)ui.save_to - 1 + e, 0, NSLOTS - 1) + 1);
+    save_say();
+}
 static void save(void)                       /* the settings, and the sound into its slot */
 {
     uint32_t i;
@@ -4371,7 +4411,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [PG_RTRK] = "RND Tracks", [PG_GCONN] = "Connect"};
     static char tap[48];                     /* "GLO tap: System, hold: RND Synth Companion" */
     uint32_t g;
-    static const char *const H[NB] = {[B_HOME] = "The whole panel", "Save the patch", [B_PLAY] = "Play or stop", [B_OCTDN] = "Octave down",
+    static const char *const H[NB] = {[B_HOME] = "The whole panel", "Save: PRESET picks where", [B_PLAY] = "Play or stop", [B_OCTDN] = "Octave down",
                                       "Octave up"};
     static const char *const DH[NB] = {[B_HOME] = "The whole panel", [B_PLAY] = "Play or stop", [B_SAVE] = "Save the drums", [B_OCTDN] = "Tempo down",
                                        [B_OCTUP] = "Tempo up"};
@@ -5564,6 +5604,11 @@ static void input(void)
             mo_cmd(k == B_OCTUP);
             continue;
         }
+        if (ui.save_to && k != B_SAVE) {    /* (saving: another button lets it go, and does nothing else) */
+            ui.save_to = 0;
+            app_say("SAVE", "CANCELLED");
+            continue;
+        }
         hint_show(k);                        /* (Hints: what it does, from the page it's pressed on) */
         said = ui.hint;
         if (k == B_SEL && ui.page == PG_GCONN)   /* GLO CONNECT's, in any mode: PROX calibrated */
@@ -5606,7 +5651,7 @@ static void input(void)
         else if (k == B_SAVE && ui.page == PG_GRND)   /* the seed shown into its slot */
             rnd_store();
         else if (k == B_SAVE)
-            save();
+            save_button();
         else if (k == B_ENV || k == B_LFO || k == B_EDIT)   /* their section's next page (tap_page; Env Select
                                                   * stays as it is: SELECT's) */
             sect_open(tap_page(k), k);
@@ -5682,6 +5727,10 @@ static void input(void)
             page_go(zoom.g);
         }
         zoom_close_end();
+        if (ui.save_to && k == EN_PRESET) {  /* (saving: PRESET the slot it stores to, on any page) */
+            save_pick(e);
+            continue;
+        }
         if (home_knob(k)) {
             home_knob_turn(k, e);
             continue;
@@ -5704,6 +5753,14 @@ static void input(void)
         } else if (knob_turn(l, e)) {
             knob_text(l, t);
             app_say(knob_title(l), t);
+        }
+    }
+    {                                        /* saving: the display's blink (slot_disp) */
+        static uint8_t blink;
+        const uint8_t b = ui.save_to && plat_ms() / SAVE_BLINK_MS & 1u;
+        if (b != blink) {
+            blink = b;
+            ui.redraw = 1;
         }
     }
     if (patch.arp_mode != ui.mode) {         /* REC from its start: the next note a new sequence */
@@ -7373,7 +7430,8 @@ static void master_draw(void)
     cv_rect(96, 22, 136, 50, RGB(4, 4, 4));  /* the display: black, its window, three digits */
     cv_rect(100, 26, 72, 42, RGB(20, 16, 20));
     slot_disp(t);
-    if (ui.org_at) {                         /* (a control just changed: its value, as the Bass Station II's, -63..127) */
+    if (ui.org_at && !ui.save_to) {          /* (a control just changed: its value, as the Bass Station II's, -63..127;
+                                              * saving: the slot) */
         seg_num(param_get(ui.org, &patch), t);
     }
     seg7(104, 33, t[0]);

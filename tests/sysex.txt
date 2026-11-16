@@ -425,6 +425,8 @@ wait 30
 expect cutoff 77
 tap SAVE
 wait 30
+tap SAVE
+wait 30
 sysex_in bs2/build/host/bank_rt.syx
 wait 30
 said BANK IN P01 DUB PLATE

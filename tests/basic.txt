@@ -39,6 +39,8 @@ shot controls.png
 release EDIT
 tap SAVE
 wait 30
+tap SAVE
+wait 30
 expect dirty 0
 # (bank_init's four bank pages and the names; SAVE's settings and the slot's page)
 expect store_writes 7
@@ -297,6 +299,8 @@ expect dirty 1
 # saved into slot 1, kept over a power cycle; EDIT: PRESET picks slot 2 (the defaults), then back
 tap SAVE
 wait 30
+tap SAVE
+wait 30
 expect dirty 0
 reboot
 wait 600
@@ -328,6 +332,8 @@ wait 30
 expect cutoff 50
 tap SAVE
 wait 30
+tap SAVE
+wait 30
 reboot
 wait 600
 expect slot 1
@@ -339,6 +345,8 @@ expect cutoff 60
 # a failed save says so and stays unsaved
 flash_fail 1
 turn PRESET 1
+tap SAVE
+wait 30
 tap SAVE
 wait 30
 expect dirty 1
@@ -428,6 +436,8 @@ expect peak_db_max -0.5
 midi 80 24 00
 wait 300
 # kept: saved, then the power cycled
+tap SAVE
+wait 30
 tap SAVE
 wait 30
 expect dirty 0
@@ -790,6 +800,8 @@ tap PLAY
 wait 30
 tap SAVE
 wait 30
+tap SAVE
+wait 30
 expect dirty 0
 reboot
 wait 600
@@ -827,7 +839,12 @@ tap EDIT
 wait 30
 tap SAVE
 wait 30
+tap SAVE
+wait 30
 expect dirty 0
+# (SAVE: on the MASTER; EDIT back)
+tap EDIT
+wait 30
 expect page 0
 press EDIT
 wait 1100

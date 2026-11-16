@@ -34,6 +34,8 @@ wait 300
 # kept through power-off as they are (the bank written at the first SAVE, read back the same)
 tap SAVE
 wait 30
+tap SAVE
+wait 30
 reboot
 wait 600
 expect slot 31

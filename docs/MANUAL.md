@@ -144,7 +144,7 @@ the keys' reach lights OCT-, one above lights OCT+.
 | Hold ARP or SEQ | Held for a second: AFX mode on or off. A shorter press opens the page as usual. |
 | Hold GLO | Held for a second: the RND pages, for Cyma Forma's RND Synth; held again, back to GLOBAL. See RND Synth. |
 | PLAY | Plays the sequence at its own key (the arp on, in PLAY), or stops it. |
-| SAVE | Saves the sound into its patch, and the settings. |
+| SAVE | Saves the sound and the settings: press it, pick the patch with PRESET, press it again (see MASTER). |
 
 The keys sense how hard they're played, with no change to the FM-1. The 20 lowest keys (F3 to C5) give velocity and
 pressure; the top seven give velocity only. GLO KEYS' VELOCITY sets how the keys answer: SOFT (louder for a light
@@ -916,7 +916,7 @@ follow the control changed last, on whichever page. The display shows that contr
 | --- | --- |
 | K1 | Volume: the bass's own volume, 0 to 127 (127, full, is the default). It's kept with the GLO settings, not the patch, like a mixer's fader: the drums have their own (their MASTER VOLUME) and the FM-1's MASTER knob is the master over everything. |
 | PRESET | The Patch buttons: picks a patch, P01 to 128, and plays it at once; the button the way you turned lights. Changes you haven't saved to the patch you leave are lost. An arp or a sequence that is playing keeps playing, in the new sound. |
-| SAVE | Stores the sound into the patch shown. |
+| SAVE | Stores the sound into a patch you pick, as on a Bass Station II (below). |
 
 **PATCH NAME** (SEL again on the MASTER page; SEL once more goes back) is the patch's mod: a Bass Station II has no
 way to name a patch on the synth, so its name is set here. The page shows the name's 16 letters with the cursor's lit.
@@ -925,10 +925,19 @@ K2 (CURSOR) moves the cursor, K3 (LETTER) changes the letter under it (a space, 
 it changes. The name is part of the sound: SAVE keeps it with the patch, and a patch change without SAVE leaves it as
 it was. Names go out with SysEx dumps and come in with them.
 
-**SAVE** works on every page but RND SEED (where it keeps the RND Synth's patch). It stores the sound into its patch and keeps the
-settings: the octave and the patch you're on (the FM-1 starts on it next time). While something isn't saved, SAVE is
-lit and the patch shows * at the bottom of the screen (P01*). The screen says SAVED and the
-patch's number when it's done.
+**SAVE** works as a Bass Station II's, from every bass page but RND SEED (where it keeps the RND Synth's patch):
+
+1. Press SAVE. The MASTER page opens with the display blinking the patch the sound goes to, the one you're on to
+   begin with, and the screen says SAVE TO P01.
+2. To keep it somewhere else, turn PRESET: the blinking number changes (SAVE TO P32), but the sound you're playing
+   stays as it is, edits and all.
+3. Press SAVE again. The sound and its name go into that patch, and it becomes the patch you're on. The screen says
+   SAVED and the patch's number.
+
+So SAVE, SAVE stores the sound where it came from, and SAVE, PRESET, SAVE copies it to another patch, for example
+P01 changed and kept as P32 with P01 left as it was. Any other button lets it go without saving (SAVE CANCELLED) and
+does nothing else. SAVE also keeps the settings: the octave and the patch you're on (the FM-1 starts on it next
+time). While something isn't saved, SAVE is lit and the patch shows * at the bottom of the screen (P01*).
 
 ![After OCT+ and PRESET: WAVE SQUARE, OCT +1, P01 with *, SAVE waiting](img/screen-settings.png "Changed, not saved yet")
 
@@ -982,8 +991,8 @@ FM-1 with the pause between messages set for you.
 **From an editor to the FM-1:** choose the FM-1 as the editor's MIDI output and send the patch (in an editor, it's
 usually called Send or Send to synth). Any Bass Station II patch dump works, with a name (firmware 2.5 and later) or
 without one. A dump sent as the current sound loads into the sound you're playing now, and the screen says SYSEX
-LOADED and the patch's name, which it takes as its own. Press SAVE to keep it in the patch you're on. To keep it in another patch, pick that
-patch on the MASTER page first.
+LOADED and the patch's name, which it takes as its own. Press SAVE twice to keep it in the patch you're on, or SAVE, PRESET to another patch, SAVE to keep it
+there.
 
 **A whole bank:** a Bass Station II bank file (a `.syx` of up to 128 patches, each addressed to its patch number, as
 sound packs and librarians save them) loads straight into the FM-1's patches, names and all: patch 0 into P01, 1 into
