@@ -899,8 +899,8 @@ static struct {
 /* GLOBAL MOTION (the motion recorder's mods, live as it is: a reboot back to these): FOR the instrument its LANES and
  * CLEAR are of (0 all, then the bass's, the drums', the echo's); LANES what of it records (0 all; MO_INST's order);
  * LENGTH the loop's (0 AUTO: the first pass's; else 1, 2, 4, 8 or 16 bars); SPEED its playback's (½, 1, 2 times the
- * clock); SMOOTH a glide from move to move (0 off .. 10, about 0.8 s); CLEAR and MEMORY turned set nothing */
-static struct { uint8_t mfor, lane[3], clear, len, speed, smooth, mem; } mom = {.speed = 1};
+ * clock); SMOOTH a glide from move to move (0 off .. 10, about 0.8 s); CLEAR turned sets nothing */
+static struct { uint8_t mfor, lane[3], clear, len, speed, smooth; } mom = {.speed = 1};
 #define MO_NLEN 6u
 static const uint8_t MO_LEN_BARS[MO_NLEN] = {0, 1, 2, 4, 8, 16};
 static const float MO_SPD[3] = {0.5f, 1.0f, 2.0f};
@@ -2634,7 +2634,7 @@ static const char *const MO_LN_ECHO[1 + MO_NSE] = {"ALL", "INTENSITY", "REPEAT R
 static const param_t MO_P[NE] = {
     [EN_SELECT] = {"FOR", MF(mfor), 0, 3, MO_FOR_NAME}, [EN_PRESET] = {"CLEAR", MF(clear), 0, 0, 0},
     [EN_K1] = {"LENGTH", MF(len), 0, MO_NLEN - 1, MO_LEN_NAME}, [EN_K2] = {"SPEED", MF(speed), 0, 2, MO_SPD_NAME},
-    [EN_K3] = {"SMOOTH", MF(smooth), 0, 10, MO_SM_NAME}, [EN_K4] = {"MEMORY", MF(mem), 0, 100, 0}};
+    [EN_K3] = {"SMOOTH", MF(smooth), 0, 10, MO_SM_NAME}};   /* (on K2-K4: ENC_MAP; MEMORY a meter at K1's place) */
 static const param_t MO_LANE_P[4] = {{"LANES", MF(lane[0]), 0, 0, MO_LN_ALL},
                                      {"LANES", MF(lane[0]), 0, MO_DVOL, MO_LN_BASS},
                                      {"LANES", MF(lane[1]), 0, 4, MO_LN_DRUM},
@@ -3047,7 +3047,8 @@ static const uint8_t ENC_MAP[NPAGES] = {
     [PG_SEQ] = EMAP(EP_ROW, 0),                                /* SEQ, LENGTH, STEP */
     [PG_FMOD] = EMAP(EP_SAME, 3), [PG_EFX] = EMAP(EP_SAME, 2), [PG_XMOD] = EMAP(EP_SAME, 2), [PG_ATOUCH] = EMAP(EP_SAME, 1),
     [PG_AMOD] = EMAP(EP_SAME, 2), [PG_GDISP] = EMAP(EP_SAME, 2), [PG_RPAT] = EMAP(EP_SAME, 1),
-    [PG_SIN] = EMAP(EP_SAME, 3),                               /* MODE on PRESET, INPUT on K4 */
+    [PG_SIN] = EMAP(EP_SAME, 3),
+    [PG_GMO] = EMAP(EP_SAME, 1),                               /* LENGTH, SPEED, SMOOTH on K2-K4 (K1's place: MEMORY) */                               /* MODE on PRESET, INPUT on K4 */
 };
 static uint32_t enc_logical(uint32_t p)       /* physical encoder p: what it is on this page (NE: nothing) */
 {
@@ -3305,8 +3306,8 @@ static int knob_turn(uint32_t k, int32_t e)
     }
     if (ui.page == PG_NAME)
         return name_turn(k, e);
-    if (ui.page == PG_GMO) {                 /* GLOBAL MOTION's: CLEAR turned right clears, MEMORY only shows; LENGTH and
-                                              * SPEED act on the loop at once */
+    if (ui.page == PG_GMO) {                 /* GLOBAL MOTION's: CLEAR turned right clears; LENGTH and SPEED act on the
+                                              * loop at once */
         const param_t *q = knob_param(k);
         const uint32_t was = mom.speed;
         if (k == EN_PRESET) {
@@ -3314,7 +3315,7 @@ static int knob_turn(uint32_t k, int32_t e)
                 mo_clear(mom.mfor ? mom.mfor - 1u : 4u);
             return 0;
         }
-        if (k == EN_K4)
+        if (!q->name)
             return 0;
         param_put(q, &mom, param_get(q, &mom) + (e > 0 ? 1 : -1));
         if (k == EN_K1)
@@ -3743,13 +3744,8 @@ static void knob_text(uint32_t k, char *t)
         text_cat(t, POP_NAME[pop_d()]);
         return;
     }
-    if (ui.page == PG_GMO && (k == EN_PRESET || k == EN_K4)) {   /* (CLEAR: what it clears; MEMORY: the moves' room used) */
-        if (k == EN_PRESET)
-            text_cat(t, MO_FOR_NAME[mom.mfor]);
-        else {
-            int_text((int32_t)(mo.n * 100u / MO_N), t);
-            text_cat(t, "%");
-        }
+    if (ui.page == PG_GMO && k == EN_PRESET) {   /* (CLEAR: what it clears) */
+        text_cat(t, MO_FOR_NAME[mom.mfor]);
         return;
     }
     if (!q->name)
@@ -4281,8 +4277,7 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_SMOD] = {[EN_PRESET] = "Delay on the tempo", [EN_K1] = "Bass into the echo", "Drums into the echo",
                  "Piano into the echo", "Tape wobble"},
     [PG_GDISP] = {[EN_PRESET] = "Zoom on what turns", [EN_K1] = "These hints", "Pop-up time"},
-    [PG_GMO] = {"Whose loop", "What records", "Right: clear it", "Loop length", "Playback speed", "Glide moves",
-                "Moves' room used"},
+    [PG_GMO] = {"Whose loop", "What records", "Right: clear it", "Loop length", "Playback speed", "Glide moves"},
     [PG_GRND] = {[EN_PRESET] = "Pick a seed slot"},
     [PG_RPAT] = {"Lock patch type", "Lock track count", [EN_K1] = "Lock root note", "Lock root octave", "Lock scale"},
     [PG_RTRK] = {[EN_PRESET] = "Pick the knobs' row"},
@@ -7645,7 +7640,8 @@ static void glo_disp_draw(void)
 }
 /* GLOBAL MOTION: the motion recorder's mods, on a plate (the Bass Station II has none): FOR (SELECT), LANES (ALGO) and
  * CLEAR (PRESET) on tape along the top; the loop's bars under them, each one's moves (FOR's) as a level, the bar playing
- * lit, the bars past the loop's end dark; LENGTH, SPEED, SMOOTH and MEMORY (K1-K4) along the bottom */
+ * lit, the bars past the loop's end dark; along the bottom MEMORY, a ladder of five LEDs (the moves' room used, the top one
+ * red), then LENGTH, SPEED and SMOOTH */
 static void glo_motion_draw(void)
 {
     static const int16_t CX[3] = {40, 120, 196};
@@ -7678,11 +7674,19 @@ static void glo_motion_draw(void)
         if (i == now)
             cv_rect(x, 74, 11, 2, mo.rec ? RGB(230, 40, 40) : P_CYAN);
     }
-    for (i = 0; i < 4u; i++) {
+    {                                        /* MEMORY: a segment each fifth, lit from the bottom (one move: the first) */
+        const uint32_t on = mo.n ? 1u + (mo.n - 1u) * 5u / MO_N : 0u;
+        for (i = 0; i < 5u; i++)
+            cv_rect(31, 103 - 5 * (int32_t)i, 13, 3, i >= on ? grey(110) : i == 4u ? RGB(230, 40, 40) : P_CYAN);
+        dymo(37, 108, "MEMORY", RGB(235, 235, 235));
+        int_text((int32_t)(mo.n * 100u / MO_N), t);
+        text_cat(t, "%");
+        print_c(37, 124, t, grey(36));
+    }
+    for (i = 0; i < 3u; i++) {
         const param_t *q = knob_param(EN_K1 + i);
-        const int32_t cx = 10 + 220 * (2 * (int32_t)i + 1) / 8,
-                      v = i == 3u ? (int32_t)(mo.n * 100u / MO_N) : param_get(q, &mom) - q->lo;
-        bs2_knob(cx, 92, 13, v, q->hi - q->lo, KF_PLATE | (knob_lit(EN_K1 + i) ? KF_LIT : 0u));
+        const int32_t cx = 10 + 220 * (2 * (int32_t)i + 3) / 8;
+        bs2_knob(cx, 92, 13, param_get(q, &mom) - q->lo, q->hi - q->lo, KF_PLATE | (knob_lit(EN_K1 + i) ? KF_LIT : 0u));
         tag(cx, 92, EN_K1 + i);
         dymo(cx, 108, q->name, RGB(235, 235, 235));
         t[0] = 0;

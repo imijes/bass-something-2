@@ -1,6 +1,6 @@
 # GLOBAL MOTION (GLO after DISPLAY): the motion recorder's mods. FOR (SELECT) the bass, LANES (ALGO) its FREQUENCY
-# alone: the resonance's moves not recorded; LENGTH (K1) 2 bars from the start, then 4 (its bars repeated), then 1 (cut);
-# SPEED (K2), SMOOTH (K3); CLEAR (PRESET) turned right: the bass's moves gone. The arp's clock, 120 BPM: a bar 2 s
+# alone: the resonance's moves not recorded; LENGTH (K2) 2 bars from the start, then 4 (its bars repeated), then 1 (cut);
+# SPEED (K3), SMOOTH (K4); CLEAR (PRESET) turned right: the bass's moves gone. The arp's clock, 120 BPM: a bar 2 s
 # tools/build.py bs2 --host, then from the repository's root
 #   bs2/build/host/bass-something-2_host bs2/tests/motion_mods.txt bs2/build/host
 wait 600
@@ -25,7 +25,7 @@ said FOR BASS
 turn ALGO 1
 wait 30
 said LANES FREQUENCY
-turn K1 2
+turn K2 2
 wait 30
 said LENGTH 2 BARS
 press REC
@@ -56,17 +56,17 @@ said MOTION 2 BARS
 # the three FREQUENCY moves alone
 expect mo_n 3
 expect mo_len 192
-turn K1 1
+turn K2 1
 wait 30
 expect mo_len 384
 expect mo_n 6
-turn K1 -2
+turn K2 -2
 wait 30
 expect mo_len 96
-turn K2 1
+turn K3 1
 wait 30
 said SPEED DOUBLE
-turn K3 10
+turn K4 10
 wait 30
 said SMOOTH 10
 # gliding, not stepped: part way there after 0.3 s

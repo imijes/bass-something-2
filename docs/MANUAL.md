@@ -206,13 +206,14 @@ switching off puts them back to AUTO, 1X, OFF and ALL.
 | SELECT, FOR | Whose loop LANES and CLEAR work on: ALL, BASS, DRUMS or ECHO. |
 | ALGO, LANES | What of it records: ALL, or one part, for example the bass's FREQUENCY alone, the echo's INTENSITY alone, or the drums' VOLUMES, TUNINGS, ROLL or PATTERNS. Other knobs you turn while recording aren't recorded, and their moves already in the loop are kept, so you can overdub one lane. With FOR on ALL, every lane records. |
 | PRESET, CLEAR | Turned right: clears FOR's moves (all of them at ALL), as REC + OCT+ does on its pages. |
-| K1, LENGTH | AUTO: the first pass sets the length, as above. 1, 2, 4, 8 or 16 BARS: the loop is that long from the start of recording. Turned with a loop in it: a shorter length cuts it, a longer one repeats its bars to fill it. |
-| K2, SPEED | Plays the loop at HALF, 1X or DOUBLE the clock, for a slow sweep under a fast pattern. The loop carries on from where it was. |
-| K3, SMOOTH | OFF: each move jumps, as recorded. 1 to 10: the knob glides from move to move, up to about 0.8 s at 10. The arp's Rhythm and Octaves and the echo's MODE SELECTOR always jump. |
-| K4, MEMORY | Shows how full the loop's room is (2,048 moves); turning it does nothing. |
+| K2, LENGTH | AUTO: the first pass sets the length, as above. 1, 2, 4, 8 or 16 BARS: the loop is that long from the start of recording. Turned with a loop in it: a shorter length cuts it, a longer one repeats its bars to fill it. |
+| K3, SPEED | Plays the loop at HALF, 1X or DOUBLE the clock, for a slow sweep under a fast pattern. The loop carries on from where it was. |
+| K4, SMOOTH | OFF: each move jumps, as recorded. 1 to 10: the knob glides from move to move, up to about 0.8 s at 10. The arp's Rhythm and Octaves and the echo's MODE SELECTOR always jump. |
 
 The strip across the middle shows the loop's bars: each one's level is how many moves FOR's instrument has in it, the
-bar playing is lit (underlined red while recording), and bars past the loop's end are grey.
+bar playing is lit (underlined red while recording), and bars past the loop's end are grey. MEMORY, at the bottom left, is a
+ladder of five LEDs showing how full the loop's room is (2,048 moves), with the percentage under it; its top LED is
+red.
 
 ### AFX mode
 
