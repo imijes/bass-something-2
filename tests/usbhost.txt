@@ -8,6 +8,8 @@ tap GLO
 wait 30
 tap GLO
 wait 30
+tap GLO
+wait 30
 expect page 24
 said GLOBAL CONNECT
 expect usb_host 0

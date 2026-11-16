@@ -116,6 +116,8 @@ tap GLO
 wait 30
 tap GLO
 wait 30
+tap GLO
+wait 30
 expect page 24
 tap REC
 said BLE SCANNING
@@ -865,6 +867,8 @@ release REC
 wait 30
 expect rec 0
 # on GLO CONNECT too (where REC looks for Bluetooth devices): a random sound, no scanning, no switch of BLE
+tap GLO
+wait 30
 tap GLO
 wait 30
 tap GLO

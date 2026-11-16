@@ -225,3 +225,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-15 | 5947cea | SAVE as a Bass Station II's: to the MASTER, the slot blinking, PRESET picks, SAVE stores (another button cancels) | 470,612 | +756 | 110,952 | 72,864 | -16 | 25,440 | 254,828 |
 | 2026-11-15 | df82ad7 | Audio blocks of 128 frames (2.9 ms), not 256: a MIDI note to its sound 5.6 ms, was 10.2 | 470,596 | -16 | 110,968 | 69,280 | -3,584 | 29,024 | 248,172 |
 | 2026-11-16 | 9a9f22e | Overload guard: the second core past 88% of a block caps voices (RMI 8/6/5/4, B3 wheels), says OVERLOAD; B3 prototype targets only on change, its chain skipped while silent | 470,936 | +340 | 110,628 | 69,296 | +16 | 29,008 | 248,172 |
+| 2026-11-16 | d97b629+ | GLO: MIDI CHANNELS and CC CHANNELS apart, the organ's on K4 | 487,692 | +16,756 | 93,872 | 73,132 | +3,836 | 25,172 | 267,268 |

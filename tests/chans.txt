@@ -1,0 +1,35 @@
+# GLOBAL MIDI CHANNELS (GLO) the four instruments' note channels on K1-K4, GLOBAL CC CHANNELS (GLO again) their CCs'
+# channels: the organ's on K4 turned and shown as its channel (4 by default; stored swapped, o_ch)
+wait 600
+listen
+tap GLO
+wait 30
+expect page 17
+said GLOBAL MIDI CHANNELS
+expect b3_chan 4
+turn K4 1
+wait 30
+expect b3_chan 5
+said ORGAN CHANNEL 5
+turn K4 -5
+wait 30
+expect b3_chan 0
+said ORGAN CHANNEL OFF
+turn K3 1
+wait 30
+expect rmi_chan 4
+tap GLO
+wait 30
+expect page 55
+said GLOBAL CC CHANNELS
+expect b3_cc_chan 4
+turn K4 -1
+wait 30
+expect b3_cc_chan 3
+said ORGAN CC CHANNEL 3
+turn K1 1
+wait 30
+expect cc_chan 2
+tap GLO
+wait 30
+expect page 24

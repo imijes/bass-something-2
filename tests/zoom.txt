@@ -18,13 +18,16 @@ wait 600
 expect zoom 256
 wait 900
 expect zoom 0
-# HOME: a CC on CC CHAN (GLO MIDI's SELECT, on PRESET) dives to its control, one camera move: HOME in on its section
+# HOME: a CC on the bass's CC channel (GLO CC CHANNELS' K1) dives to its control, one camera move: HOME in on its section
 # (Frequency, CC 16: the FILTERS) till it fills the screen, that page from 1x on in to the control (2x), kept while
 # CCs come, then the same way out to HOME
 tap GLO
 wait 30
 expect page 17
-spin PRESET 2
+tap GLO
+wait 30
+expect page 55
+spin K1 2
 wait 30
 expect cc_chan 3
 tap HOME
@@ -260,6 +263,7 @@ tap GLO
 tap GLO
 tap GLO
 tap GLO
+tap GLO
 wait 30
 wait 30
 expect page 19
@@ -297,6 +301,7 @@ tap HOME
 wait 30
 expect page 16
 expect zoom 0
+tap GLO
 tap GLO
 tap GLO
 tap GLO

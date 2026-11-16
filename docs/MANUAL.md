@@ -98,7 +98,7 @@ GLOBAL KEYS' KNOBS sets how much they speed up, from FINE to COARSE.
 | ARP | ARPEGGIATOR: tempo, rhythm, mode, octaves, the On and Latch buttons (held a second: AFX mode) | the group's mods (Seq Retrig, swing), then back |
 | SEQ | SEQ: the sequencer (held a second: AFX mode) | recording on or off (the arp's REC) |
 | EDIT | OSCILLATORS: the pitch's view | the pulse width's view; then SUB OSC + MIXER, beside them on a Bass Station II. Held a second: [a random sound](#a-random-sound) |
-| GLO | GLOBAL MIDI CHANNELS (held a second: the RND pages) | GLOBAL CONNECT, then GLOBAL CLOCK, GLOBAL KEYS, GLOBAL AUDIO, GLOBAL DISPLAY, GLOBAL MOTION and GLOBAL DUMP |
+| GLO | GLOBAL MIDI CHANNELS (held a second: the RND pages) | GLOBAL CC CHANNELS, then GLOBAL CONNECT, GLOBAL CLOCK, GLOBAL KEYS, GLOBAL AUDIO, GLOBAL DISPLAY, GLOBAL MOTION and GLOBAL DUMP |
 
 SEL opens MASTER on every page except where it has a job of its own, printed
 on the page: GLOBAL DUMP, the RND pages, and SEQ while the sequencer records.
@@ -119,7 +119,7 @@ and ALGO, two one over the other on SELECT and ALGO, and three where they lie on
 **Hints** (GLOBAL DISPLAY, K3) add a few words on what each control does: under the value as you turn a
 knob ("Filter cutoff", "Fade-in time", "Note order"), and over the keys as you press a button ("Save the patch").
 A section's button (ENV, LFO, FX, EDIT, ARP, SEQ, GLO) names the page its next tap opens, from the page you're on,
-and what holding it does: on GLOBAL MIDI CHANNELS, "GLO tap: Connect, hold: RND Synth Companion"; on GLOBAL CLOCK, "GLO tap:
+and what holding it does: on GLOBAL MIDI CHANNELS, "GLO tap: CC Channels, hold: RND Synth Companion"; on GLOBAL CLOCK, "GLO tap:
 Keys, hold: RND Synth Companion"; on ARP, "ARP tap: Arp Mods, hold: AFX mode". They're on until you turn them off, and the FM-1 remembers the setting.
 
 ![Hints on the FILTERS: Frequency turned to 97, with Filter cutoff under its value](img/screen-hint.png "Hints: what a knob does")
@@ -692,8 +692,8 @@ FX again opens DRUM ROOM, the small room the drums ring in. Each knob starts at 
 
 ### MIDI
 
-Drum Something 400 is a MIDI device of its own. GLOBAL MIDI CHANNELS (GLO) sets its note channel and its CC channel, both 10
-by default, in its DRUMS column.
+Drum Something 400 is a MIDI device of its own. GLOBAL MIDI CHANNELS (GLO) sets its note channel (K2) and GLOBAL CC CHANNELS its CC channel (K2), both 10
+by default.
 
 | Control | What it does |
 | --- | --- |
@@ -732,13 +732,13 @@ On its HOME, PRESET and K1 to K4 do the same, the camera zooming in on the panel
 keys' touch (the 368X didn't): the softest note at about a third of the hardest, through GLO KEYS' Velocity
 curve. The panel keeps itself with the GLO settings, so SAVE has nothing to do here.
 
-It is a MIDI device of its own, as the drums are: its channels are in GLOBAL MIDI CHANNELS' PIANO column, ROUTE is on
+It is a MIDI device of its own, as the drums are: its channels are on K3 of GLOBAL MIDI CHANNELS and GLOBAL CC CHANNELS, ROUTE is on
 GLOBAL KEYS.
 
 | Control | What it does |
 | --- | --- |
-| SELECT · PIANO CC (GLOBAL MIDI CHANNELS) | The channel its CCs come in on, and the Space Echo's (section 10's numbers, its sends with them): OFF, 1 to 16 or ALL. 3 by default. |
-| K4 · PIANO (GLOBAL MIDI CHANNELS) | The channel its notes come in on and its keys' notes go out on. 3 by default. |
+| K3 · PIANO CC (GLOBAL CC CHANNELS) | The channel its CCs come in on, and the Space Echo's (section 10's numbers, its sends with them): OFF, 1 to 16 or ALL. 3 by default. |
+| K3 · PIANO (GLOBAL MIDI CHANNELS) | The channel its notes come in on and its keys' notes go out on. 3 by default. |
 | K4 · ROUTE (GLOBAL KEYS) | Notes from one instrument to the other, inside the FM-1: OFF, PIANO>BASS, BASS>PIANO or BOTH. |
 
 Its CCs: 11 its volume (MIDI's Expression; 7 is the bass's), 64 the sustain pedal, 61 PIANO, 62 HARPSI, 63 LUTE, 65
@@ -822,7 +822,7 @@ JAZZ (888000000, with the 3rd's percussion), FULL ORGAN (888888888), GOSPEL (888
 (886000000), BLUES (888600000), ROCK (888000000, driven hard), SHUFFLE (838000000), FLUTE (008000000), CLARINET
 (008080800), PERC SECOND (808000000) and ORGAN LICKER (207736358). The rest start as INIT.
 
-Its MIDI is its own, on channel 4 by default: notes in and out, and these CCs on the same channel. 12 to 20 the nine
+Its MIDI is its own, on channel 4 by default (ORGAN, K4 on GLOBAL MIDI CHANNELS and GLOBAL CC CHANNELS): notes in and out, and these CCs on the same channel. 12 to 20 the nine
 drawbars, 21 the percussion, 22 its THIRD, 23 SOFT, 24 FAST, 30 the vibrato, 25 its knob, 26 the drive, 28 the click,
 29 the width, 7 the volume; live, 1 (the mod wheel) the Leslie fast, 27 the brake, 11 the expression pedal. For an
 on or off, 64 and up is on.
@@ -1175,7 +1175,7 @@ Levels and sends go back to the middle with every new patch, as on the RND Synth
 
 ### Playing its tracks
 
-The RND Synth plays its tracks on MIDI channels 1 to 4. Set GLOBAL MIDI CHANNELS' BASS (K2) to one of them, and the FM-1
+The RND Synth plays its tracks on MIDI channels 1 to 4. Set GLOBAL MIDI CHANNELS' BASS (K1) to one of them, and the FM-1
 plays that track's notes with its own sound. On ALL, the four tracks share the FM-1's one voice, each new note cutting
 off the last.
 
@@ -1201,9 +1201,10 @@ The keys go out over USB and Bluetooth: their notes with velocity, and their pre
 GLO opens the global settings; press it again for the next page. They belong to the FM-1, not to a patch, and they
 save themselves: two seconds after you change one, once the FM-1 is quiet (see SEQ), it's kept through power-off,
 without SAVE (so a GLO change never
-writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar, one subject to a page: MIDI Channels, Connect, Clock, Keys, Audio, Display, Motion and
-BS2 SysEx Dump (GLOBAL MOTION's are the motion recorder's, live only as its loop is: see Motion recorder). GLOBAL MIDI CHANNELS has a column for each instrument (Bass, Drums, Piano): its CC channel on top, its
-note channel under it, each knob's channel printed beneath. A red display shows the main value where a page has one: GLOBAL CLOCK's the tempo (while MIDI clock leads, its tempo as measured over
+writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar, one subject to a page: MIDI Channels, CC Channels, Connect, Clock, Keys, Audio, Display, Motion and
+BS2 SysEx Dump (GLOBAL MOTION's are the motion recorder's, live only as its loop is: see Motion recorder). GLOBAL MIDI CHANNELS sets the channel each instrument plays and sends its notes on, K1 to K4: Bass (1 by default), Drums
+(10), Piano (3) and Organ (4); GLOBAL CC CHANNELS the channel each one's knobs answer MIDI CC on, on the same knobs
+(1, 10, 3 and 4). Each knob's channel is printed beneath it. A red display shows the main value where a page has one: GLOBAL CLOCK's the tempo (while MIDI clock leads, its tempo as measured over
 every two beats; dashes until then) with the clock's state beside it, GLOBAL DUMP's the patch. GLOBAL DISPLAY shows the
 firmware's version (VERSION v0.8.2). The on/off settings are slide switches.
 
@@ -1216,7 +1217,8 @@ a click), a count follows in cyan, for example **CPU0 97/100 !2**, and stays unt
 from something else. A write to memory (SAVE, a patch change, and the sequence and GLO settings keeping themselves) holds
 up the sound for a moment. In silence nothing is heard and it isn't counted; while something is sounding, it counts.
 
-![GLO MIDI CHANNELS: Bass, Drums and Piano columns, each a CC channel knob over a note channel knob](img/screen-glo-channels.png "GLO: MIDI CHANNELS")
+![GLO MIDI CHANNELS: the Bass, Drums, Piano and Organ note channel knobs](img/screen-glo-channels.png "GLO: MIDI CHANNELS")
+![GLO CC CHANNELS: the Bass, Drums, Piano and Organ CC channel knobs](img/screen-glo-cc.png "GLO, again: CC CHANNELS")
 ![GLO CONNECT: how Bluetooth and USB stand (a keyboard connected), then the USB Host, Bluetooth and AT Out switches](img/screen-glo-connect.png "GLO, again: CONNECT")
 ![GLO CLOCK: the tempo 120 on the display and what the clock is doing, then the Tempo knob, the Send Clk switch and the Sync knob](img/screen-glo-clock.png "GLO, again: CLOCK")
 ![GLO KEYS: what each does, then the Velocity and Knobs knobs, the Local switch and the Route knob](img/screen-glo-keys.png "GLO, again: KEYS")
@@ -1320,7 +1322,7 @@ Station II uses two CCs for one knob (cutoff 16 and 48, for example), the FM-1 r
 | 119 | ARP | RHYTHM, K2 |
 
 **Space Something 201:** its knobs and the three instruments' sends into it, on the same channel and on the piano's
-CC channel (PIANO CC, GLOBAL MIDI CHANNELS). On the piano's channel the bass's own CCs are left alone, so a controller
+CC channel (PIANO CC, GLOBAL CC CHANNELS). On the piano's channel the bass's own CCs are left alone, so a controller
 there works the echo without touching the patch. They set its settings, not the patch, so SAVE doesn't light. MODE
 takes 0 to 11 (11 is REVERB ONLY). BASS, TREBLE and TEMPO SYNC have no CC.
 

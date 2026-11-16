@@ -11,6 +11,8 @@ expect page 17
 said GLOBAL MIDI CHANNELS
 tap GLO
 wait 30
+tap GLO
+wait 30
 expect page 24
 said GLOBAL CONNECT
 tap GLO
@@ -56,7 +58,7 @@ wait 50
 expect_out USB 90 3C 64
 expect_out USB 80 3C 00
 # channel 5: the keys out on it, MIDI in on another not played
-spin K2 4
+spin K1 4
 wait 30
 expect chan 5
 said BASS CHANNEL 5
@@ -82,14 +84,16 @@ expect note -1
 out
 key 7 down
 wait 30
-spin K2 1
+spin K1 1
 wait 30
 key 7 up
 wait 50
 expect_out USB 84 3C 00
 expect_no_out USB 85 3C 00
-spin K2 -1
+spin K1 -1
 # KEYS' LOCAL (K3) off: the keys out alone, not played; MIDI in still plays
+tap GLO
+wait 30
 tap GLO
 wait 30
 tap GLO
@@ -127,7 +131,7 @@ tap GLO
 wait 30
 expect page 17
 # channel OFF: nothing out, nothing in
-spin K2 -10
+spin K1 -10
 wait 30
 expect chan 0
 out
@@ -140,18 +144,21 @@ midi 90 40 64
 wait 30
 expect note -1
 midi 80 40 00
-spin K2 40
+spin K1 40
 wait 30
 expect chan 17
-# BASS CC (PRESET): the sound's knobs by the BS2's CC numbers, on their own channel (1 by default), the notes apart;
+tap GLO
+wait 30
+expect page 55
+# BASS CC (CC CHANNELS' K1): the sound's knobs by the BS2's CC numbers, on their own channel (1 by default), the notes apart;
 # at OFF none
-spin PRESET -1
+spin K1 -1
 wait 30
 expect cc_chan 0
 midi B0 10 00
 wait 30
 expect cutoff >0
-spin PRESET 3
+spin K1 3
 wait 30
 expect cc_chan 3
 said BASS CC CHANNEL 3
@@ -204,14 +211,14 @@ expect note 64
 midi 82 40 00
 wait 30
 expect note -1
-spin PRESET 20
+spin K1 20
 wait 30
 expect cc_chan 17
 said BASS CC CHANNEL ALL
 midi B9 10 7F
 wait 30
 expect cutoff 127
-spin PRESET -14
+spin K1 -14
 wait 30
 expect cc_chan 3
 tap GLO
@@ -312,6 +319,8 @@ tap GLO
 tap GLO
 tap GLO
 tap GLO
+wait 30
+tap GLO
 tap GLO
 wait 30
 expect page 38
@@ -329,6 +338,8 @@ tap GLO
 tap GLO
 tap GLO
 tap GLO
+tap GLO
+wait 30
 tap GLO
 tap GLO
 wait 30
@@ -371,6 +382,8 @@ tap GLO
 wait 30
 tap GLO
 wait 30
+tap GLO
+wait 30
 expect page 18
 tap GLO
 wait 30
@@ -386,6 +399,8 @@ wait 30
 turn PRESET 1
 wait 30
 expect arp 1
+tap GLO
+wait 30
 tap GLO
 wait 30
 tap GLO
@@ -448,6 +463,8 @@ tap GLO
 wait 30
 tap GLO
 wait 30
+tap GLO
+wait 30
 expect page 18
 clock 30 25
 expect ext_bpm 0
@@ -458,6 +475,8 @@ turn PRESET -1
 wait 30
 expect arp 0
 # CONNECT's Bluetooth off and on again
+tap GLO
+wait 30
 tap GLO
 wait 30
 tap GLO
@@ -493,6 +512,8 @@ tap SAVE
 wait 30
 reboot
 wait 600
+tap GLO
+wait 30
 tap GLO
 wait 30
 tap GLO
@@ -539,11 +560,14 @@ wait 30
 tap GLO
 wait 30
 expect dirty 0
-spin PRESET 2
+spin K1 -10
+tap GLO
+wait 30
+expect page 55
+spin K1 2
 wait 30
 expect cc_chan 5
 expect dirty 0
-spin K2 -10
 wait 2500
 reboot
 wait 600

@@ -24,8 +24,8 @@ expect note -1
 midi 82 3C 00
 wait 50
 expect rmi_held 0
-# channel 4 (CHANNELS' K4): 3 plays it no more
-spin K4 1
+# channel 4 (CHANNELS' K3): 3 plays it no more
+spin K3 1
 wait 30
 expect rmi_chan 4
 midi 92 3C 64
@@ -38,6 +38,8 @@ expect rmi_held 1
 midi 83 3C 00
 wait 50
 # ROUTE RMI>BASS (KEYS' K4): its notes play the bass too
+tap GLO
+wait 30
 tap GLO
 wait 30
 tap GLO

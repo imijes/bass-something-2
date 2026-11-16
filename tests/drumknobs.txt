@@ -10,6 +10,7 @@ tap GLO
 tap GLO
 tap GLO
 tap GLO
+tap GLO
 wait 30
 expect page 38
 spin K2 2
