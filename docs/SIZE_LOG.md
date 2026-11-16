@@ -224,3 +224,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-15 | a8ffcdf | GLOBAL MOTION: the motion recorder's mods (FOR, LANES, CLEAR, LENGTH, SPEED, SMOOTH, MEMORY) | 469,856 | +2,928 | 111,708 | 72,880 | +208 | 25,424 | 254,828 |
 | 2026-11-15 | 5947cea | SAVE as a Bass Station II's: to the MASTER, the slot blinking, PRESET picks, SAVE stores (another button cancels) | 470,612 | +756 | 110,952 | 72,864 | -16 | 25,440 | 254,828 |
 | 2026-11-15 | df82ad7 | Audio blocks of 128 frames (2.9 ms), not 256: a MIDI note to its sound 5.6 ms, was 10.2 | 470,596 | -16 | 110,968 | 69,280 | -3,584 | 29,024 | 248,172 |
+| 2026-11-16 | 9a9f22e | Overload guard: the second core past 88% of a block caps voices (RMI 8/6/5/4, B3 wheels), says OVERLOAD; B3 prototype targets only on change, its chain skipped while silent | 470,936 | +340 | 110,628 | 69,296 | +16 | 29,008 | 248,172 |
