@@ -10,4 +10,5 @@ void b3_init(void);
 void b3_note(uint32_t note, uint32_t vel);   /* vel 0: up; 128 and over: every key up */
 void b3_cc(uint32_t c, uint32_t v);          /* its test controls (MIDI channel 16) */
 uint32_t b3_job(float *buf, uint32_t n);     /* the second core's: a block added into buf; 1 if it sounds */
+void b3_cap(uint32_t n);                     /* the wheels it may sound at most (an overload's; 91: all) */
 #endif

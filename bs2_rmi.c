@@ -73,6 +73,24 @@ static float rmi_env(const rmi_key_t *e, uint32_t t)
 }
 
 /* a key (MIDI note) down at vel (0: up), from MIDI in or the keys (audio interrupt) */
+static uint8_t rmi_cap = RMI_NV;             /* the voices it may sound at most (an overload's: rmi_limit) */
+static void rmi_limit(uint32_t cap)          /* an overload's cap: past it, the oldest let go (their release) */
+{
+    uint32_t i, n;
+    rmi_cap = (uint8_t)(cap > RMI_NV ? RMI_NV : cap);
+    for (;;) {
+        rmi_voice_t *o = 0;
+        for (n = 0, i = 0; i < RMI_NV; i++)
+            if (rmi.v[i].key != RMI_NK && rmi.v[i].held) {
+                n++;
+                if (!o || rmi.v[i].age < o->age)
+                    o = &rmi.v[i];
+            }
+        if (n <= rmi_cap || !o)
+            return;
+        o->held = 0;
+    }
+}
 static void rmi_note(uint32_t note, uint32_t vel)
 {
     uint32_t i, k = note - RMI_LO;
@@ -94,9 +112,14 @@ static void rmi_note(uint32_t note, uint32_t vel)
     for (i = 0; i < RMI_NV && !v; i++)       /* its own voice again, else a free one, else the oldest */
         if (rmi.v[i].key == k)
             v = &rmi.v[i];
-    for (i = 0; i < RMI_NV && !v; i++)
-        if (rmi.v[i].key == RMI_NK)
-            v = &rmi.v[i];
+    {                                        /* (an overload's cap: no free voice past it, the oldest instead) */
+        uint32_t n = 0;
+        for (i = 0; i < RMI_NV; i++)
+            n += rmi.v[i].key != RMI_NK;
+        for (i = 0; i < RMI_NV && !v && n < rmi_cap; i++)
+            if (rmi.v[i].key == RMI_NK)
+                v = &rmi.v[i];
+    }
     if (!v) {
         v = &rmi.v[0];
         for (i = 1; i < RMI_NV; i++)

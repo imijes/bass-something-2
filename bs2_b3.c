@@ -74,6 +74,9 @@ static struct {
     uint32_t lw;
     uint8_t fast, brake, awake;
     uint8_t tab;                             /* (test, CC 90: the wheels from the table, not the recurrence) */
+    uint8_t dirty;                           /* a key or a setting changed: the targets again (b3_step) */
+    uint8_t cap;                             /* the wheels it may sound at most (b3_cap: an overload's) */
+    uint32_t quiet;                          /* samples its input has been silent (past the lines: the chain skipped) */
 } b3;
 static float b3_lp_b[3], b3_lp_a[2];     /* the crossover's Butterworth, 800 Hz */
 
@@ -109,6 +112,7 @@ void b3_init(void)
     b3.expr = 1.0f, b3.drive = 0.3f;
     b3.hz[0] = b3.to[0] = 0.83f, b3.hz[1] = b3.to[1] = 0.67f;
     b3.rng = 22222u;
+    b3.cap = B3_NW;
     b3_levels();
 }
 
@@ -136,6 +140,7 @@ void b3_note(uint32_t note, uint32_t vel)   /* a key (vel 0: up; NOTE_ALL_OFF: e
         note -= 12u;
     k = note - B3_K0;
     b3.awake = 1;
+    b3.dirty = 1;
     if (vel && !b3_held(k)) {
         if (!b3.held[0] && !b3.held[1]) {    /* (none down: the percussion strikes again) */
             b3.pk[0] = b3.pk[1] = 0;
@@ -180,14 +185,38 @@ void b3_cc(uint32_t c, uint32_t v)           /* its test controls (MIDI channel 
     else if (c == 90u)
         b3.tab = v >= 64u;
     b3_levels();
+    b3.dirty = 1;
+}
+void b3_cap(uint32_t n)                      /* the wheels it may sound at most (an overload's: the quietest go first) */
+{
+    n = n > B3_NW ? B3_NW : n;
+    if (n != b3.cap)
+        b3.cap = (uint8_t)n, b3.dirty = 1;
 }
 
-static B3_HOT void b3_step(void)             /* a modulation step: each wheel's level to its target over B3_CH */
+static B3_HOT void b3_step(void)             /* a modulation step: each wheel's level to its target over B3_CH; the
+                                              * targets again only when a key or a setting changed (dirty) or the
+                                              * percussion falls */
 {
     static float tg[B3_NW], tp[B3_NW];
     const float *lv = b3.lv;
     float pl;
     uint32_t k, b, w;
+    const int perc = b3.perc_on && b3.perc > 1e-4f;
+    b3.perc *= b3.perc_k;                    /* (the percussion's fall, a step at a time) */
+    b3.perc_t += B3_CH;
+    if (!b3.dirty && !perc) {                /* (nothing changed: each wheel at its target, those silent let go) */
+        uint32_t n = 0;
+        for (k = 0; k < b3.nact; k++) {
+            w = b3.act[k];
+            b3.g[w] = tg[w], b3.pg[w] = tp[w], b3.dg[w] = b3.dpg[w] = 0.0f;
+            if (tg[w] > 0.0f || tp[w] > 0.0f)
+                b3.act[n++] = (uint8_t)w;
+        }
+        b3.nact = (uint8_t)n;
+        goto rotors;
+    }
+    b3.dirty = 0;
     for (w = 0; w < B3_NW; w++)              /* (a loop: memset is in the flash) */
         tg[w] = tp[w] = 0.0f;
     for (k = 0; k < B3_NK; k++)
@@ -202,13 +231,34 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
                         tg[w + 1u] += lv[b] * B3_LEAK;
                 }
         }
-    b3.perc *= b3.perc_k;                    /* (the percussion's fall, a step at a time) */
-    b3.perc_t += B3_CH;
     pl = b3.perc_on ? b3.perc : 0.0f;
     if (pl > 1e-4f)
         for (k = 0; k < B3_NK; k++)
             if (b3_bit(b3.pk, k) && b3_held(k))
                 tp[b3_wheel((int32_t)(B3_K0 + k) + (b3.perc_3rd ? 19 : 12))] += pl;
+    {                                        /* an overload's cap: past it, the quietest wheels' targets 0 (they fade) */
+        uint32_t n = 0;
+        for (w = 0; w < B3_NW; w++)
+            n += tg[w] > 0.0f;
+        if (n > b3.cap) {                    /* (the level the cap's loudest reach: halved, 8 times, from the top) */
+            float lo = 0.0f, hi = 0.0f, m;
+            uint32_t it, c;
+            for (w = 0; w < B3_NW; w++)
+                hi = tg[w] > hi ? tg[w] : hi;
+            for (it = 0; it < 8u; it++) {
+                m = 0.5f * (lo + hi);
+                for (c = 0, w = 0; w < B3_NW; w++)
+                    c += tg[w] > m;
+                if (c > b3.cap)
+                    lo = m;
+                else
+                    hi = m;
+            }
+            for (w = 0; w < B3_NW; w++)
+                if (tg[w] <= hi)
+                    tg[w] = 0.0f;
+        }
+    }
     b3.nact = 0;
     for (w = 0; w < B3_NW; w++) {
         b3.dg[w] = (tg[w] - b3.g[w]) * (1.0f / B3_CH);
@@ -216,6 +266,9 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
         if (tg[w] > 0.0f || b3.g[w] > 0.0f || tp[w] > 0.0f || b3.pg[w] > 0.0f)
             b3.act[b3.nact++] = (uint8_t)w;
     }
+    if (perc)                                /* (the percussion falling: its targets again next step) */
+        b3.dirty = 1;
+rotors:
     for (b = 0; b < 2u; b++) {               /* the rotors: chorale or tremolo, the brake; each its own run */
         static const float CHO[2] = {0.83f, 0.67f}, TRE[2] = {6.75f, 5.75f}, UP[2] = {0.6f, 3.5f},
                            DOWN[2] = {1.3f, 4.5f};
@@ -293,9 +346,10 @@ static B3_HOT void b3_chunk(float *o)
         b3.g[w] = g, b3.pg[w] = pg;
     }
     b3.t += B3_CH;
+    b3.quiet = b3.nact ? 0u : b3.quiet + B3_CH;
     for (k = 0; k < B3_NCL; k++)             /* the key clicks: noise, high passed by amt */
         if (b3.cl[k].e > 1e-4f)
-            for (i = 0; i < B3_CH; i++) {
+            for (b3.quiet = 0, i = 0; i < B3_CH; i++) {
                 float n;
                 b3.rng = b3.rng * 1664525u + 1013904223u;
                 n = (float)(int32_t)b3.rng * (1.0f / 2147483648.0f) * b3.cl[k].e;
@@ -304,6 +358,21 @@ static B3_HOT void b3_chunk(float *o)
                 bus[i] += b3.cl[k].y1 * 0.5f;
                 b3.cl[k].e *= b3.cl[k].k;
             }
+    if (b3.quiet > B3_LES_N + B3_SCAN_N + 4096u) {   /* (silent past the lines and the preamp's settling: the chain
+                                              * would make silence; the rotors and the scanner turn on alone) */
+        uint32_t r;
+        b3.sc_ph += 6.9f * B3_CH / B3_RATE;
+        b3.sc_ph -= b3.sc_ph >= 1.0f ? 1.0f : 0.0f;
+        for (r = 0; r < 2u; r++) {
+            b3.ang[r] += b3.hz[r] * B3_CH / B3_RATE;
+            b3.ang[r] -= b3.ang[r] >= 1.0f ? 1.0f : 0.0f;
+        }
+        b3.lw += B3_CH;
+        b3.sc_w += B3_CH;
+        for (i = 0; i < B3_CH; i++)
+            o[i] = 0.0f;
+        return;
+    }
     if (b3.scan) {                           /* the scanner: V1-3 the delay alone, C1-3 half dry; its sweep's ends */
         static const float DEPTH[3] = {0.30f, 0.55f, 0.85f};
         const uint32_t s = b3.scan - 1u, ch = s >= 3u;
@@ -383,6 +452,12 @@ B3_HOT uint32_t b3_job(float *buf, uint32_t n)
     uint32_t i, j;
     if (!b3.awake)
         return 0;
+    if (b3.quiet > B3_LES_N + B3_SCAN_N + 4096u && !b3.dirty && !b3.nact) {   /* (silent: the rotors turn on alone) */
+        float o2[B3_CH];
+        for (i = 0; i + B3_CH <= n; i += B3_CH)
+            b3_chunk(o2);
+        return 0;
+    }
     for (i = 0; i + B3_CH <= n; i += B3_CH) {
         b3_chunk(o);
         for (j = 0; j < B3_CH; j++)
