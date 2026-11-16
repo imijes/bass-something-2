@@ -1,0 +1,82 @@
+# GLOBAL MOTION (GLO after DISPLAY): the motion recorder's mods. FOR (SELECT) the bass, LANES (ALGO) its FREQUENCY
+# alone: the resonance's moves not recorded; LENGTH (K1) 2 bars from the start, then 4 (its bars repeated), then 1 (cut);
+# SPEED (K2), SMOOTH (K3); CLEAR (PRESET) turned right: the bass's moves gone. The arp's clock, 120 BPM: a bar 2 s
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/motion_mods.txt bs2/build/host
+wait 600
+listen
+midi B0 6C 7F
+midi 90 3C 64
+wait 100
+tap GLO
+tap GLO
+tap GLO
+tap GLO
+tap GLO
+tap GLO
+tap GLO
+wait 30
+expect page 51
+said GLOBAL MOTION
+shot motion-mods-empty.png
+turn SELECT 1
+wait 30
+said FOR BASS
+turn ALGO 1
+wait 30
+said LANES FREQUENCY
+turn K1 2
+wait 30
+said LENGTH 2 BARS
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+wait 100
+expect mo_len 192
+midi B0 10 20
+wait 400
+midi B0 52 30
+wait 400
+midi B0 10 50
+wait 400
+midi B0 52 60
+wait 400
+midi B0 10 70
+wait 400
+shot motion-mods-rec.png
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+wait 50
+said MOTION 2 BARS
+# the three FREQUENCY moves alone
+expect mo_n 3
+expect mo_len 192
+turn K1 1
+wait 30
+expect mo_len 384
+expect mo_n 6
+turn K1 -2
+wait 30
+expect mo_len 96
+turn K2 1
+wait 30
+said SPEED DOUBLE
+turn K3 10
+wait 30
+said SMOOTH 10
+# gliding, not stepped: part way there after 0.3 s
+wait 300
+expect cutoff >48
+expect cutoff <90
+wait 1700
+shot motion-mods-play.png
+turn PRESET 1
+wait 30
+said BASS MOTION CLEARED
+expect mo_n 0
+midi 80 3C 00

@@ -891,7 +891,37 @@ static struct {
     uint8_t roll_held;                       /* the roll key down */
     uint8_t pat0;                            /* the drums' pattern at the loop's top (its cues: back to it there) */
     uint8_t rq_n, rq[4][2];                  /* the roll key's presses and releases since the last step, to record */
+    uint64_t sm_on;                          /* SMOOTH: the values gliding to their loop's last move */
+    float sm_v[MO_ROLL];                     /* each one's way there */
+    uint8_t sm_to[MO_ROLL];
+    uint32_t sm_at;                          /* the glide's last step */
 } mo;
+/* GLOBAL MOTION (the motion recorder's mods, live as it is: a reboot back to these): FOR the instrument its LANES and
+ * CLEAR are of (0 all, then the bass's, the drums', the echo's); LANES what of it records (0 all; MO_INST's order);
+ * LENGTH the loop's (0 AUTO: the first pass's; else 1, 2, 4, 8 or 16 bars); SPEED its playback's (½, 1, 2 times the
+ * clock); SMOOTH a glide from move to move (0 off .. 10, about 0.8 s); CLEAR and MEMORY turned set nothing */
+static struct { uint8_t mfor, lane[3], clear, len, speed, smooth, mem; } mom = {.speed = 1};
+#define MO_NLEN 6u
+static const uint8_t MO_LEN_BARS[MO_NLEN] = {0, 1, 2, 4, 8, 16};
+static const float MO_SPD[3] = {0.5f, 1.0f, 2.0f};
+static float mo_t(float pos)                 /* pos (mo_pos's) as the loop's ticks from its top, at its SPEED */
+{
+    const float d = (pos - mo.org) * MO_SPD[mom.speed];
+    return d > 0.0f ? d : 0.0f;
+}
+static int mo_lane(uint32_t g)               /* move g's lane on (LANES) */
+{
+    const uint32_t w = MO_INST(g), l = mom.lane[w];
+    if (!l)
+        return 1;
+    if (w == 0u)
+        return g == l - 1u;
+    if (w == 2u)
+        return g - MO_SE == l - 1u;
+    return l == 1u ? g >= MO_DVOL && g < MO_DTUNE : l == 2u ? g >= MO_DTUNE && g < MO_SE
+         : l == 3u ? g >= MO_ROLL && g < MO_PAT : g == MO_PAT;   /* (the drums': volumes, tunings, the roll, cues) */
+}
+#define MO_STEPPED(g) ((g) == MO_RHY || (g) == MO_AOCT || (g) == MO_SE + 3u)   /* (no glide: choices, the MODE's) */
 static void mo_pat(uint32_t n);
 static void mo_clock(uint32_t m)             /* eng_run's: the clock's ticks in m samples */
 {
@@ -2343,7 +2373,7 @@ enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_A
        PG_GRND, PG_RPAT, PG_RTRK, PG_GCONN, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
        PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, PG_GAUD, PG_GCTL, PG_NAME, PG_RHOME, PG_RSEL,
        PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD, PG_RVIEW, PG_SVOICE, PG_DROOM, PG_ATOUCH, PG_WHEELS,
-       NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
+       PG_GMO, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI CHANNELS", "GLOBAL CLOCK",
                                               "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
@@ -2351,7 +2381,7 @@ static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRI
                                               "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL KEYS",
                                               "PATCH NAME", "PIANO HOME", "PIANO PANEL",
                                               "ECHO HOME", "ECHO INPUT", "ECHO PANEL", "ECHO MODS",
-                                              "PIANO PRESETS", "ECHO VOICE", "DRUM ROOM", "AFTERTOUCH", "WHEELS"};
+                                              "PIANO PRESETS", "ECHO VOICE", "DRUM ROOM", "AFTERTOUCH", "WHEELS", "GLOBAL MOTION"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME && (g) < PG_GAUD)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
@@ -2585,10 +2615,30 @@ static const char *const TITLE[NPAGES][NE] = {
     [PG_GCTL] = {[EN_K2] = "KNOB RESPONSE", [EN_K3] = "LOCAL CONTROL", [EN_K4] = "NOTE ROUTE"},
     [PG_GDISP] = {[EN_PRESET] = "KNOB ZOOM", [EN_K1] = "HINTS", [EN_K2] = "POP-UP TIME"},
 };
-static void *page_rec(uint32_t g)            /* what a page's encoders set: the sound, or the settings */
+static void *page_rec(uint32_t g)            /* what a page's encoders set: the sound, or the settings (GLOBAL MOTION's:
+                                              * the recorder's mods, mom) */
 {
-    return g >= PG_GMIDI ? (void *)&set : (void *)&patch;
+    return g == PG_GMO ? (void *)&mom : g >= PG_GMIDI ? (void *)&set : (void *)&patch;
 }
+/* GLOBAL MOTION's encoders (knob_param: in mom, page_rec); LANES the instrument FOR picks's */
+#define MF(f) (uint8_t)offsetof(__typeof__(mom), f)
+static const char *const MO_FOR_NAME[4] = {"ALL", "BASS", "DRUMS", "ECHO"};
+static const char *const MO_LEN_NAME[MO_NLEN] = {"AUTO", "1 BAR", "2 BARS", "4 BARS", "8 BARS", "16 BARS"};
+static const char *const MO_SPD_NAME[3] = {"HALF", "1X", "DOUBLE"};
+static const char *const MO_SM_NAME[11] = {"OFF", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
+static const char *const MO_LN_ALL[1] = {"ALL"};
+static const char *const MO_LN_BASS[1 + MO_DVOL] = {"ALL", "FREQUENCY", "RESONANCE", "ARP RHYTHM", "ARP OCTAVES"};
+static const char *const MO_LN_DRUM[5] = {"ALL", "VOLUMES", "TUNINGS", "ROLL", "PATTERNS"};
+static const char *const MO_LN_ECHO[1 + MO_NSE] = {"ALL", "INTENSITY", "REPEAT RATE", "INPUT", "MODE", "REVERB",
+                                                    "ECHO", "BASS SEND", "DRUM SEND", "PIANO SEND", "WOW"};   /* (MO_SE_AT's) */
+static const param_t MO_P[NE] = {
+    [EN_SELECT] = {"FOR", MF(mfor), 0, 3, MO_FOR_NAME}, [EN_PRESET] = {"CLEAR", MF(clear), 0, 0, 0},
+    [EN_K1] = {"LENGTH", MF(len), 0, MO_NLEN - 1, MO_LEN_NAME}, [EN_K2] = {"SPEED", MF(speed), 0, 2, MO_SPD_NAME},
+    [EN_K3] = {"SMOOTH", MF(smooth), 0, 10, MO_SM_NAME}, [EN_K4] = {"MEMORY", MF(mem), 0, 100, 0}};
+static const param_t MO_LANE_P[4] = {{"LANES", MF(lane[0]), 0, 0, MO_LN_ALL},
+                                     {"LANES", MF(lane[0]), 0, MO_DVOL, MO_LN_BASS},
+                                     {"LANES", MF(lane[1]), 0, 4, MO_LN_DRUM},
+                                     {"LANES", MF(lane[2]), 0, MO_NSE, MO_LN_ECHO}};
 
 static int32_t param_get(const param_t *q, const void *p)
 {
@@ -2956,6 +3006,8 @@ static const param_t *env_mod_p(void)        /* the ENV group's page's settings 
  * width's switch) */
 static const param_t *knob_param(uint32_t k)
 {
+    if (ui.page == PG_GMO)
+        return k == EN_ALGO ? &MO_LANE_P[mom.mfor] : &MO_P[k];
     if (ui.page == PG_FX && k == EN_K4)
         return &MIX_SRC[ui.mix_src];
     if (ui.page == PG_GCLK && k == EN_K1)    /* (the tempo: ARP's knob, the patch's: knob_turn, knob_text) */
@@ -3210,6 +3262,9 @@ static int dt_turn(uint32_t k, int32_t e)
     return 1;
 }
 static int name_turn(uint32_t k, int32_t e);
+static void mo_clear(uint32_t w);
+static void mo_resize(void);
+static void mo_respeed(uint32_t was);
 /* the piano's toggles, as SEL's cursor goes along them: the five voices, ORGAN MODE, ACCENTER (K2 and K3 too) */
 #define RT_NCUR (NRT + 2u)
 static uint32_t rt_cur(void) { return ui.rmi_cur < RT_NCUR ? ui.rmi_cur : 0u; }
@@ -3250,6 +3305,24 @@ static int knob_turn(uint32_t k, int32_t e)
     }
     if (ui.page == PG_NAME)
         return name_turn(k, e);
+    if (ui.page == PG_GMO) {                 /* GLOBAL MOTION's: CLEAR turned right clears, MEMORY only shows; LENGTH and
+                                              * SPEED act on the loop at once */
+        const param_t *q = knob_param(k);
+        const uint32_t was = mom.speed;
+        if (k == EN_PRESET) {
+            if (e > 0)
+                mo_clear(mom.mfor ? mom.mfor - 1u : 4u);
+            return 0;
+        }
+        if (k == EN_K4)
+            return 0;
+        param_put(q, &mom, param_get(q, &mom) + (e > 0 ? 1 : -1));
+        if (k == EN_K1)
+            mo_resize();
+        if (k == EN_K2 && mom.speed != was)
+            mo_respeed(was);
+        return 1;
+    }
     if (ui.page == PG_RSEL && k == EN_PRESET) {   /* PIANO PANEL's PRESET: the cursor's tone tablet, right down, left
                                               * up (SEL moves the cursor) */
         const uint32_t c = rt_cur();
@@ -3668,6 +3741,15 @@ static void knob_text(uint32_t k, char *t)
     }
     if (ui.page == PG_GDISP && k == EN_K2) {
         text_cat(t, POP_NAME[pop_d()]);
+        return;
+    }
+    if (ui.page == PG_GMO && (k == EN_PRESET || k == EN_K4)) {   /* (CLEAR: what it clears; MEMORY: the moves' room used) */
+        if (k == EN_PRESET)
+            text_cat(t, MO_FOR_NAME[mom.mfor]);
+        else {
+            int_text((int32_t)(mo.n * 100u / MO_N), t);
+            text_cat(t, "%");
+        }
         return;
     }
     if (!q->name)
@@ -4199,6 +4281,8 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_SMOD] = {[EN_PRESET] = "Delay on the tempo", [EN_K1] = "Bass into the echo", "Drums into the echo",
                  "Piano into the echo", "Tape wobble"},
     [PG_GDISP] = {[EN_PRESET] = "Zoom on what turns", [EN_K1] = "These hints", "Pop-up time"},
+    [PG_GMO] = {"Whose loop", "What records", "Right: clear it", "Loop length", "Playback speed", "Glide moves",
+                "Moves' room used"},
     [PG_GRND] = {[EN_PRESET] = "Pick a seed slot"},
     [PG_RPAT] = {"Lock patch type", "Lock track count", [EN_K1] = "Lock root note", "Lock root octave", "Lock scale"},
     [PG_RTRK] = {[EN_PRESET] = "Pick the knobs' row"},
@@ -4252,7 +4336,7 @@ static uint32_t tap_page(uint32_t k)
         if (RND_PAGE(g))
             return g == PG_GRND ? PG_RPAT : g == PG_RPAT ? PG_RTRK : PG_GRND;
         return g == PG_GMIDI ? PG_GCONN : g == PG_GCONN ? PG_GCLK : g == PG_GCLK ? PG_GCTL : g == PG_GCTL ? PG_GAUD
-               : g == PG_GAUD ? PG_GDISP : g == PG_GDISP ? PG_GDUMP : PG_GMIDI;
+               : g == PG_GAUD ? PG_GDISP : g == PG_GDISP ? PG_GMO : g == PG_GMO ? PG_GDUMP : PG_GMIDI;
     }
     return NPAGES;
 }
@@ -4277,7 +4361,7 @@ static uint32_t dt_arp_next(uint32_t f)
 static uint32_t dt_glo_next(uint32_t g)      /* the settings the two share, from the drums' own */
 {
     return g == PG_GMIDI ? PG_GCONN : g == PG_GCONN ? PG_GCLK : g == PG_GCLK ? PG_GCTL
-           : g == PG_GCTL ? PG_GAUD : g == PG_GAUD ? PG_GDISP : PG_GMIDI;
+           : g == PG_GCTL ? PG_GAUD : g == PG_GAUD ? PG_GDISP : g == PG_GDISP ? PG_GMO : PG_GMIDI;
 }
 static const char *const DT_SHORT[NDT] = {"BASS", "SNARE", "RIM", "TOM 1", "TOM 2", "CRASH", "RIDE", "CLOSE", "OPEN",
                                           "CLAPS", "TAMB", "COW", "CABA"};   /* (a key's width) */
@@ -4288,7 +4372,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [PG_MENV] = "Triggering", [PG_EMOD] = "Env Mods", [PG_LFO1] = "LFOs", [PG_LFO2] = "LFO Mods",
         [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods", [PG_ATOUCH] = "Aftertouch", [PG_WHEELS] = "Wheels",
         [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI Channels", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Keys", [PG_NAME] = "Patch Name", [PG_RSEL] = "Piano Panel", [PG_RVIEW] = "Piano Presets",
-        [PG_GDISP] = "Display", [PG_GDUMP] = "Dump", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
+        [PG_GDISP] = "Display", [PG_GMO] = "Motion", [PG_GDUMP] = "Dump", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
         [PG_RTRK] = "RND Tracks", [PG_GCONN] = "Connect"};
     static char tap[48];                     /* "GLO tap: System, hold: RND Synth Companion" */
     uint32_t g;
@@ -4589,6 +4673,7 @@ static void mo_step(void)                    /* each look at the buttons: the mo
             mo.lv[g] = mo.hv[g] = v;
             mo.at[g] = now;
             moved |= 1ull << g;
+            mo.sm_on &= ~(1ull << g);        /* (its glide the hand's now) */
         } else if (!mo.n && !mo.rec)
             mo.hv[g] = v;
     }
@@ -4600,10 +4685,11 @@ static void mo_step(void)                    /* each look at the buttons: the mo
         mo.go = 1;
         mo.org = (float)((uint32_t)pos / MO_BAR * MO_BAR);
         mo.pat0 = dq.cur;
+        mo.len = MO_LEN_BARS[mom.len] * MO_BAR;   /* (LENGTH set: so long from the start, its first pass overdubbed) */
     }
-    if (!mo.len && pos - mo.org >= (float)(MO_MAXBARS * MO_BAR))   /* (the longest: closed) */
+    if (!mo.len && mo_t(pos) >= (float)(MO_MAXBARS * MO_BAR))   /* (the longest: closed) */
         mo.len = MO_MAXBARS * MO_BAR;
-    a = mo.last - mo.org, p = pos - mo.org;
+    a = mo_t(mo.last), p = mo_t(pos);
     if (mo.len) {
         a -= (float)((uint32_t)a / mo.len * mo.len);
         p -= (float)((uint32_t)p / mo.len * mo.len);
@@ -4613,17 +4699,19 @@ static void mo_step(void)                    /* each look at the buttons: the mo
         mo.bar_shown = (uint8_t)mo_bar();
         ui.redraw = 1;
     }
-    if (mo.rec) {                            /* recording: what a hand holds, what it passes over replaced; its moves in */
+    if (mo.rec) {                            /* recording: what a hand holds, what it passes over replaced; its moves in
+                                              * (of the lanes on: GLOBAL MOTION's LANES) */
         for (i = mo.n; i-- > 0u;) {
             g = MO_HELD(mo_ev[i].tgt);
-            if (now - mo.at[g] < MO_TOUCH_MS && mo_in(mo_ev[i].t, a, p))
+            if (now - mo.at[g] < MO_TOUCH_MS && mo_in(mo_ev[i].t, a, p) && mo_lane(mo_ev[i].tgt))
                 mo_del(i);
         }
         for (g = 0; g < MO_ROLL; g++)
-            if (moved >> g & 1u)
+            if (moved >> g & 1u && mo_lane(g))
                 mo_put(p, g, *mo_ref(g));
         for (i = 0; i < rq; i++)
-            mo_put(p, mo.rq[i][0], mo.rq[i][1]);
+            if (mo_lane(mo.rq[i][0]))
+                mo_put(p, mo.rq[i][0], mo.rq[i][1]);
     }
     if (mo.len)                              /* playing: the moves it passed, of what no hand holds */
         for (i = 0; i < mo.n; i++) {
@@ -4636,6 +4724,11 @@ static void mo_step(void)                    /* each look at the buttons: the mo
                     ui.dt_pat = e.v & 0x7Fu;
                     dq_cmd(DQC_CUE, e.v & 0x7Fu, 0);
                 }
+            } else if (e.tgt < MO_ROLL && mom.smooth && !MO_STEPPED(e.tgt)) {   /* SMOOTH: glided there (below) */
+                if (!(mo.sm_on >> e.tgt & 1u))
+                    mo.sm_v[e.tgt] = (float)*mo_ref(e.tgt);
+                mo.sm_to[e.tgt] = e.v;
+                mo.sm_on |= 1ull << e.tgt;
             } else if (e.tgt < MO_ROLL)
                 *mo_ref(e.tgt) = mo.lv[e.tgt] = e.v;
             else if (e.tgt > MO_ROLL)        /* (its hits not recorded into the pattern: the loop's) */
@@ -4644,29 +4737,98 @@ static void mo_step(void)                    /* each look at the buttons: the mo
                 dq_cmd(DQC_ROLLOFF, 0, 0);
             ui.redraw = 1;
         }
+    if (mo.sm_on) {                          /* the glides, a step on: a one-pole, SMOOTH's square times 8 ms */
+        const float tau = (float)(mom.smooth * mom.smooth) * 8.0f, dt = (float)(now - mo.sm_at),
+                    k = tau > 0.0f ? dt / (tau + dt) : 1.0f;
+        for (g = 0; g < MO_ROLL; g++)
+            if (mo.sm_on >> g & 1u) {
+                float d = (float)mo.sm_to[g] - mo.sm_v[g];
+                mo.sm_v[g] += d * k;
+                d = (float)mo.sm_to[g] - mo.sm_v[g];
+                if (d < 0.5f && d > -0.5f) {
+                    mo.sm_v[g] = (float)mo.sm_to[g];
+                    mo.sm_on &= ~(1ull << g);
+                }
+                *mo_ref(g) = mo.lv[g] = (uint8_t)(mo.sm_v[g] + 0.5f);
+            }
+        ui.redraw = 1;
+    }
+    mo.sm_at = now;
+}
+static void mo_clear(uint32_t w)              /* instrument w's moves (MO_INST's; 3 the piano's, none; 4 all), its knobs as
+                                              * the hand left them; said cleared, or empty */
+{
+    static const char *const NAME[5] = {"BASS MOTION", "DRUM MOTION", "ECHO MOTION", "PIANO MOTION", "MOTION"};
+    uint32_t i, g, n = mo.n;
+    for (i = mo.n; i-- > 0u;)
+        if (w == 4u || MO_INST(mo_ev[i].tgt) == w)
+            mo_del(i);
+    if (mo.n != n) {
+        for (g = 0; g < MO_ROLL; g++)
+            if (w == 4u || MO_INST(g) == w) {
+                *mo_ref(g) = mo.lv[g] = mo.hv[g];
+                mo.sm_on &= ~(1ull << g);
+            }
+        if ((w == 1u || w == 4u) && dq.roll_mo)
+            dq_cmd(DQC_ROLLOFF, 0, 0);
+    }
+    if (!mo.n)
+        mo.len = mo.rec = mo.go = 0;
+    app_say(NAME[w], mo.n != n ? "CLEARED" : "EMPTY");
+}
+static void mo_cues(void)                    /* patterns cued: back to the top's for the loop's top, cued in its last
+                                              * half bar after any other (a cue plays at its pattern's end; bit 7: this
+                                              * one); 1: any */
+{
+    uint32_t i, any = 0, at = mo.len - MO_BAR / 2u;
+    for (i = mo.n; i-- > 0u;)
+        if (mo_ev[i].tgt == MO_PAT && mo_ev[i].v & 0x80u)
+            mo_del(i);
+    for (i = 0; i < mo.n; i++)
+        if (mo_ev[i].tgt == MO_PAT) {
+            any = 1;
+            at = mo_ev[i].t + 1u > at ? mo_ev[i].t + 1u : at;
+        }
+    if (any) {
+        mo_put((float)(at < mo.len ? at : mo.len - 1u), MO_PAT, mo.pat0 | 0x80u);
+        if ((uint32_t)mo_t(mo.last) % mo.len >= at && dq.run && dq.sel_song == DQ_NONE) {   /* (past it this pass:
+                                              * now, for this top) */
+            ui.dt_pat = mo.pat0;
+            dq_cmd(DQC_CUE, mo.pat0, 0);
+        }
+    }
+}
+static void mo_resize(void)                  /* LENGTH turned: a loop cut to it, or its bars repeated up to it (AUTO: as it
+                                              * is; the first pass: closed there) */
+{
+    const uint32_t l = MO_LEN_BARS[mom.len] * MO_BAR, len = mo.len;
+    uint32_t i, n;
+    if (!l || (!len && !mo.go))
+        return;
+    for (i = mo.n; i-- > 0u;)
+        if (mo_ev[i].t >= l)
+            mo_del(i);
+    if (len && l > len)
+        for (i = 0, n = mo.n; i < n; i++) {
+            uint32_t t;
+            for (t = mo_ev[i].t + len; t < l; t += len)
+                if (!(mo_ev[i].tgt == MO_PAT && mo_ev[i].v & 0x80u))
+                    mo_put((float)t, mo_ev[i].tgt, mo_ev[i].v);   /* (past every old one: they stay 0..n-1) */
+        }
+    mo.len = l;
+    if (mo.n)
+        mo_cues();
+}
+static void mo_respeed(uint32_t was)         /* SPEED turned: the loop where it was, on at the new */
+{
+    const float s0 = MO_SPD[was], s1 = MO_SPD[mom.speed], pos = mo_pos;
+    mo.org = pos - (pos - mo.org) * s0 / s1;
 }
 static void mo_cmd(int clear)                /* REC + OCT-: recording on or off; REC + OCT+: the loop cleared */
 {
     char t[12];
-    if (clear) {                             /* the instrument on screen's moves (the piano has none), its knobs as the
-                                              * hand left them; said cleared, or empty */
-        const int dr = ui.drum != 0u;
-        const uint32_t w = dr ? 1u : ui.se ? 2u : ui.rmi ? 3u : 0u;
-        uint32_t i, g, n = mo.n;
-        for (i = mo.n; i-- > 0u;)
-            if (MO_INST(mo_ev[i].tgt) == w)
-                mo_del(i);
-        if (mo.n != n) {
-            for (g = 0; g < MO_ROLL; g++)
-                if (MO_INST(g) == w)
-                    *mo_ref(g) = mo.lv[g] = mo.hv[g];
-            if (dr && dq.roll_mo)
-                dq_cmd(DQC_ROLLOFF, 0, 0);
-        }
-        if (!mo.n)
-            mo.len = mo.rec = mo.go = 0;
-        app_say(dr ? "DRUM MOTION" : ui.se ? "ECHO MOTION" : ui.rmi ? "PIANO MOTION" : "BASS MOTION",
-                mo.n != n ? "CLEARED" : "EMPTY");
+    if (clear) {                             /* the instrument on screen's */
+        mo_clear(ui.drum ? 1u : ui.se ? 2u : ui.rmi ? 3u : 0u);
         return;
     }
     if (!mo.rec) {
@@ -4677,30 +4839,12 @@ static void mo_cmd(int clear)                /* REC + OCT-: recording on or off;
     }
     mo.rec = 0;
     if (!mo.len && mo.go) {                  /* the first pass's end: its bars, rounded up */
-        float d = mo.last - mo.org;
+        float d = mo_t(mo.last);
         mo.len = ((uint32_t)d + MO_BAR - 1u) / MO_BAR * MO_BAR;
         mo.len = mo.len < MO_BAR ? MO_BAR : mo.len;
     }
-    if (mo.len) {                            /* patterns cued: back to the top's for the loop's top, cued in its last
-                                              * half bar after any other (a cue plays at its pattern's end; bit 7: this one) */
-        uint32_t i, any = 0, at = mo.len - MO_BAR / 2u;
-        for (i = mo.n; i-- > 0u;)
-            if (mo_ev[i].tgt == MO_PAT && mo_ev[i].v & 0x80u)
-                mo_del(i);
-        for (i = 0; i < mo.n; i++)
-            if (mo_ev[i].tgt == MO_PAT) {
-                any = 1;
-                at = mo_ev[i].t + 1u > at ? mo_ev[i].t + 1u : at;
-            }
-        if (any) {
-            mo_put((float)(at < mo.len ? at : mo.len - 1u), MO_PAT, mo.pat0 | 0x80u);
-            if ((uint32_t)(mo.last - mo.org) % mo.len >= at && dq.run && dq.sel_song == DQ_NONE) {   /* (past it this
-                                              * pass: now, for this top) */
-                ui.dt_pat = mo.pat0;
-                dq_cmd(DQC_CUE, mo.pat0, 0);
-            }
-        }
-    }
+    if (mo.len)
+        mo_cues();
     if (!mo.n)
         mo.len = 0;
     t[0] = 0;
@@ -4718,13 +4862,13 @@ static uint32_t mo_light(void)
         return mo_run ? b >= 4u : plat_ms() / 250u & 1u;
     if (!mo.len || !mo_run)
         return 0;
-    p = (uint32_t)(mo_pos - mo.org) % mo.len;
+    p = (uint32_t)mo_t(mo_pos) % mo.len;
     return p % MO_BAR < 3u || (p < 9u && p >= 6u);
 }
 static uint32_t mo_bar(void)                 /* the loop's bar playing (or recorded so far), from 1 */
 {
-    const float d = mo_pos - mo.org;
-    return 1u + (mo.len ? (uint32_t)d % mo.len : (uint32_t)(d > 0.0f ? d : 0.0f)) / MO_BAR;
+    const float d = mo_t(mo_pos);
+    return 1u + (mo.len ? (uint32_t)d % mo.len : (uint32_t)d) / MO_BAR;
 }
 
 /* PROX: the Bluetooth link's signal as a hand on one knob (GLO CONNECT: PRESET picks it, SEL calibrates), a controller's
@@ -5667,7 +5811,7 @@ static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDI
                                          [PG_ARP] = SEC_ARP, [PG_SEQ] = SEC_SEQ, [PG_AENV] = SEC_ENV, [PG_FX] = SEC_EDIT,
                                          [PG_TUNE] = SEC_FX, [PG_FMOD] = SEC_FX,
                                          [PG_EMOD] = SEC_ENV, [PG_EFX] = SEC_FX, [PG_XMOD] = SEC_FX, [PG_AMOD] = SEC_ARP, [PG_HOME] = NSEC,
-                                         [PG_GMIDI] = SEC_GLO, [PG_GCLK] = SEC_GLO, [PG_GAUD] = SEC_GLO, [PG_GCTL] = SEC_GLO, [PG_GDUMP] = SEC_GLO, [PG_GDISP] = SEC_GLO,
+                                         [PG_GMIDI] = SEC_GLO, [PG_GCLK] = SEC_GLO, [PG_GAUD] = SEC_GLO, [PG_GCTL] = SEC_GLO, [PG_GDUMP] = SEC_GLO, [PG_GDISP] = SEC_GLO, [PG_GMO] = SEC_GLO,
                                          [PG_GRND] = SEC_GLO, [PG_RPAT] = SEC_GLO,
                                          [PG_RTRK] = SEC_GLO, [PG_GCONN] = SEC_GLO, [PG_DHOME] = NSEC,
                                          [PG_DCH1] = SEC_EDIT, [PG_DCH2] = SEC_EDIT, [PG_DCH3] = SEC_EDIT,
@@ -7498,6 +7642,53 @@ static void glo_disp_draw(void)
     bs2_knob(208, GLO_ROW, 14, (int32_t)pop_d(), NPOP - 1, lit ? KF_LIT : 0u);
     tag(208, GLO_ROW, EN_K2);
     print_c(208, GLO_ROW + 18, "Pop-ups", P_SILK);
+}
+/* GLOBAL MOTION: the motion recorder's mods, on a plate (the Bass Station II has none): FOR (SELECT), LANES (ALGO) and
+ * CLEAR (PRESET) on tape along the top; the loop's bars under them, each one's moves (FOR's) as a level, the bar playing
+ * lit, the bars past the loop's end dark; LENGTH, SPEED, SMOOTH and MEMORY (K1-K4) along the bottom */
+static void glo_motion_draw(void)
+{
+    static const int16_t CX[3] = {40, 120, 196};
+    const uint32_t bars = mo.len ? mo.len / MO_BAR : mo.rec && mo.go ? mo_bar() : 0u,
+                   now = (mo.len || mo.rec) && mo_run ? mo_bar() - 1u : MO_MAXBARS;
+    uint8_t cnt[MO_MAXBARS] = {0};
+    uint32_t i;
+    char t[16];
+    plate("GLOBAL");
+    dymo(120, 26, "MOTION MODS", RGB(235, 235, 235));
+    for (i = 0; i < 3u; i++) {
+        t[0] = 0;
+        if (i == 2u)
+            text_cat(t, "CLEAR");
+        else
+            knob_text(EN_SELECT + i, t);
+        dymo(CX[i], 42, t, knob_lit(EN_SELECT + i) ? P_CYAN : RGB(235, 235, 235));
+        tag(CX[i], 48, EN_SELECT + i);
+    }
+    for (i = 0; i < mo.n; i++) {             /* (FOR's moves, by bar) */
+        const uint32_t b = mo_ev[i].t / MO_BAR;
+        if ((!mom.mfor || MO_INST(mo_ev[i].tgt) == mom.mfor - 1u) && b < MO_MAXBARS && cnt[b] < 255u)
+            cnt[b]++;
+    }
+    for (i = 0; i < MO_MAXBARS; i++) {
+        const int32_t x = 24 + 12 * (int32_t)i, h = !cnt[i] ? 0 : cnt[i] >= 44u ? 14 : 3 + cnt[i] / 4;   /* (one move: seen) */
+        cv_rect(x, 58, 11, 16, i < bars ? RGB(16, 16, 20) : grey(120));
+        if (i < bars && h)
+            cv_rect(x + 2, 73 - h, 7, h, i == now ? P_SILK : P_CYAN);
+        if (i == now)
+            cv_rect(x, 74, 11, 2, mo.rec ? RGB(230, 40, 40) : P_CYAN);
+    }
+    for (i = 0; i < 4u; i++) {
+        const param_t *q = knob_param(EN_K1 + i);
+        const int32_t cx = 10 + 220 * (2 * (int32_t)i + 1) / 8,
+                      v = i == 3u ? (int32_t)(mo.n * 100u / MO_N) : param_get(q, &mom) - q->lo;
+        bs2_knob(cx, 92, 13, v, q->hi - q->lo, KF_PLATE | (knob_lit(EN_K1 + i) ? KF_LIT : 0u));
+        tag(cx, 92, EN_K1 + i);
+        dymo(cx, 108, q->name, RGB(235, 235, 235));
+        t[0] = 0;
+        knob_text(EN_K1 + i, t);
+        print_c(cx, 124, t, grey(36));
+    }
 }
 /* GLOBAL DUMP: the patch on the display; SEL sends it, FX all 128, as the Bass Station II's SysEx (two buttons, as
  * the FM-1's are: FX at the left, SEL at the right) */
@@ -9449,6 +9640,8 @@ static void panel_draw(void)                 /* the page's section panel, from u
             glo_disp_draw();
         else if (ui.page == PG_GDUMP)
             glo_dump_draw();
+        else if (ui.page == PG_GMO)
+            glo_motion_draw();
         else if (ui.page == PG_GRND)
             rnd_seed_draw();
         else if (ui.page == PG_RPAT)

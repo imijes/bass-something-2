@@ -98,7 +98,7 @@ GLOBAL KEYS' KNOBS sets how much they speed up, from FINE to COARSE.
 | ARP | ARPEGGIATOR: tempo, rhythm, mode, octaves, the On and Latch buttons (held a second: AFX mode) | the group's mods (Seq Retrig, swing), then back |
 | SEQ | SEQ: the sequencer (held a second: AFX mode) | recording on or off (the arp's REC) |
 | EDIT | OSCILLATORS: the pitch's view | the pulse width's view; then SUB OSC + MIXER, beside them on a Bass Station II. Held a second: [a random sound](#a-random-sound) |
-| GLO | GLOBAL MIDI CHANNELS (held a second: the RND pages) | GLOBAL CONNECT, then GLOBAL CLOCK, GLOBAL KEYS, GLOBAL AUDIO, GLOBAL DISPLAY and GLOBAL DUMP |
+| GLO | GLOBAL MIDI CHANNELS (held a second: the RND pages) | GLOBAL CONNECT, then GLOBAL CLOCK, GLOBAL KEYS, GLOBAL AUDIO, GLOBAL DISPLAY, GLOBAL MOTION and GLOBAL DUMP |
 
 SEL opens MASTER on every page except where it has a job of its own, printed
 on the page: GLOBAL DUMP, the RND pages, and SEQ while the sequencer records.
@@ -197,6 +197,22 @@ pattern it began on in time for its top. Its cues wait while a song runs, or in 
   a clock); a loop playing, a short flash at each bar and a double one at the loop's top. The bottom right of the
   screen says MOTION REC and the bar so far in red, MOTION WAIT, or MOTION and the bar playing of the loop's bars
   (MOTION 3/5) in cyan.
+
+**Motion mods (GLOBAL MOTION, GLO after DISPLAY).** A plate of the recorder's extras. Like the loop, they're live only:
+switching off puts them back to AUTO, 1X, OFF and ALL.
+
+| Control | What it does |
+|---|---|
+| SELECT, FOR | Whose loop LANES and CLEAR work on: ALL, BASS, DRUMS or ECHO. |
+| ALGO, LANES | What of it records: ALL, or one part, for example the bass's FREQUENCY alone, the echo's INTENSITY alone, or the drums' VOLUMES, TUNINGS, ROLL or PATTERNS. Other knobs you turn while recording aren't recorded, and their moves already in the loop are kept, so you can overdub one lane. With FOR on ALL, every lane records. |
+| PRESET, CLEAR | Turned right: clears FOR's moves (all of them at ALL), as REC + OCT+ does on its pages. |
+| K1, LENGTH | AUTO: the first pass sets the length, as above. 1, 2, 4, 8 or 16 BARS: the loop is that long from the start of recording. Turned with a loop in it: a shorter length cuts it, a longer one repeats its bars to fill it. |
+| K2, SPEED | Plays the loop at HALF, 1X or DOUBLE the clock, for a slow sweep under a fast pattern. The loop carries on from where it was. |
+| K3, SMOOTH | OFF: each move jumps, as recorded. 1 to 10: the knob glides from move to move, up to about 0.8 s at 10. The arp's Rhythm and Octaves and the echo's MODE SELECTOR always jump. |
+| K4, MEMORY | Shows how full the loop's room is (2,048 moves); turning it does nothing. |
+
+The strip across the middle shows the loop's bars: each one's level is how many moves FOR's instrument has in it, the
+bar playing is lit (underlined red while recording), and bars past the loop's end are grey.
 
 ### AFX mode
 
@@ -951,10 +967,10 @@ FM-1 with the pause between messages set for you.
 
 **From the FM-1 to an editor:**
 
-- On GLOBAL DUMP (GLO four times), press SEL: the sound goes out as one dump, with its name (a patch with no name goes
+- On GLOBAL DUMP (the last GLO page), press SEL: the sound goes out as one dump, with its name (a patch with no name goes
   as Bass Smth 2 and its number, Bass Smth 2 01).
   The screen says SYSEX SENT.
-- On GLOBAL DUMP (GLO four times), press FX: all 128 patches go out as a bank, each with its name and addressed to its
+- On GLOBAL DUMP (the last GLO page), press FX: all 128 patches go out as a bank, each with its name and addressed to its
   own patch number (0 to 127), as a Bass Station II bank file is. Record them into one `.syx` file
   and it's a backup: sent back, each patch returns to its own slot. The patch you're on goes as it sounds now, with
   changes not yet saved.
@@ -1116,8 +1132,8 @@ The keys go out over USB and Bluetooth: their notes with velocity, and their pre
 GLO opens the global settings; press it again for the next page. They belong to the FM-1, not to a patch, and they
 save themselves: two seconds after you change one, once the FM-1 is quiet (see SEQ), it's kept through power-off,
 without SAVE (so a GLO change never
-writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar, one subject to a page: MIDI Channels, Connect, Clock, Keys, Audio, Display and
-BS2 SysEx Dump. GLOBAL MIDI CHANNELS has a column for each instrument (Bass, Drums, Piano): its CC channel on top, its
+writes over your patch), and SAVE doesn't light for them. Each page is a GLOBAL panel with its own bar, one subject to a page: MIDI Channels, Connect, Clock, Keys, Audio, Display, Motion and
+BS2 SysEx Dump (GLOBAL MOTION's are the motion recorder's, live only as its loop is: see Motion recorder). GLOBAL MIDI CHANNELS has a column for each instrument (Bass, Drums, Piano): its CC channel on top, its
 note channel under it, each knob's channel printed beneath. A red display shows the main value where a page has one: GLOBAL CLOCK's the tempo (while MIDI clock leads, its tempo as measured over
 every two beats; dashes until then) with the clock's state beside it, GLOBAL DUMP's the patch. GLOBAL DISPLAY shows the
 firmware's version (VERSION v0.8.2). The on/off settings are slide switches.

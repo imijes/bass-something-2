@@ -221,3 +221,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-09 | 780ce8b | Bluetooth audio trial (own stack, A2DP, GLO AUDIO), PROX on the own stack + headphones, FX bus on the second core (bt-audio-trial) | 466,304 | -47,676 | 115,260 | 72,656 | -15,460 | 25,648 | 254,824 |
 | 2026-11-10 | ac26505 | Bluetooth audio New search + Forget, PROX settle (v0.8.1) | 466,816 | +512 | 114,748 | 72,672 | +16 | 25,632 | 254,824 |
 | 2026-11-10 | 172374f | TRANSPORT off: drums and piano part stop apart; ECHO PRESET on the Space Echo presets (v0.8.2) | 466,928 | +112 | 114,636 | 72,672 | +0 | 25,632 | 254,828 |
+| 2026-11-15 | 1134daa+ | GLOBAL MOTION: the motion recorder's mods (FOR, LANES, CLEAR, LENGTH, SPEED, SMOOTH, MEMORY) | 469,856 | +2,928 | 111,708 | 72,880 | +208 | 25,424 | 254,828 |
