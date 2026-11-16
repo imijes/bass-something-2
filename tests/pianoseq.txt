@@ -91,6 +91,8 @@ tap HOME
 wait 1000
 tap HOME
 wait 1000
+tap HOME
+wait 1000
 said DRUM HOME
 # TRANSPORT off (DRUM MODS, K4): the drums' PLAY stops them alone, the piano's part playing on (their clock running,
 # hushed); again, they're back; the piano's PLAY then stops its part, and with the drums hushed the clock too, and
@@ -131,6 +133,8 @@ expect pq_mute 0
 tap PLAY
 wait 100
 expect dt_run 0
+tap HOME
+wait 1000
 tap HOME
 wait 1000
 tap HOME

@@ -10,6 +10,11 @@ press HOME
 wait 1100
 release HOME
 wait 600
+# (the organ's HOME, then the echo's)
+press HOME
+wait 1100
+release HOME
+wait 600
 press HOME
 wait 1100
 release HOME

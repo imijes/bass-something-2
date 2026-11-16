@@ -80,10 +80,12 @@ typedef struct {
     uint8_t se_bass, se_treb, se_input;  /* BASS, TREBLE, INSTRUMENT VOLUME (its input's drive), 0..127 */
     uint8_t se_wow, se_sync;             /* its mods: WOW 0..127; TEMPO SYNC, 0 off, 1 on */
     uint8_t se_send[3];                  /* the sends into it: the bass's, the drums', the RMI's, 0..127 */
-    uint8_t spare6[3];
+    uint8_t b3_chan, b3_cc_chan;         /* the organ's MIDI channel in and out, its CCs' in: as rmi_chan, but stored
+                                          * so that 0 is channel 4, its default (b3_ch: was spare, 0 in older records) */
+    uint8_t b3_slot;                     /* the organ's preset playing, 0..ONSLOT-1 (was spare) */
     uint8_t rmi_chan, rmi_cc_chan;       /* the RMI's MIDI channel in and out, its CCs' in (GLO RMI): as dchan, its own */
     uint8_t route;                       /* ROUTE (GLO RMI): ROUTE_*, notes from one instrument to the other, inside */
-    uint8_t spare7;
+    uint8_t b3vol_off;                   /* the organ's own volume, upside down: 0 full (was spare, 0) */
     uint8_t se_voice[7];                 /* ECHO VOICE: the Space Echo's voicing, each 0..127 (64: as modelled), by
                                           * encoder: feedback, multi-head, saturation, wow, flutter, drip, decay */
     uint8_t spare8;
@@ -604,13 +606,35 @@ static fifo_t ccq;                           /* audio -> main loop: MIDI in's CC
 static volatile uint8_t dt_cc_roll;          /* the roll held by CC 66 (MIDI in's) */
 #define NOTE_ALL_OFF 0xFFu
 #define KEYQ_RMI (1u << 16)                  /* (keyq: a key of the RMI's mode, rmi_note's) */
+#define KEYQ_B3 (1u << 17)                   /* (keyq: a key of the organ's mode, b3_note's) */
+#define CCQ_ORGAN (1u << 30)                 /* (ccq: one on the organ's CC channel, organ_cc's) */
+static uint32_t o_ch(uint32_t v) { return v == 0u ? 4u : v == 4u ? 0u : v; }   /* the organ's channels as stored
+                                              * (b3_chan, b3_cc_chan: 0 and 4 swapped, 0 its default 4) both ways */
 static int store_save(uint32_t obj, const void *src, uint32_t len);   /* plat_store_save, told if it is in silence */
 #include "bs2_se.c"                       /* the Space Echo, on the FX bus */
 #include "bs2_fx.c"                       /* the FX bus: one room every instrument sends into (fx_room_send, fx_take) */
 #include "bs2_drum.c"                     /* Drum Something: the drum voices (dt_hit, dt_note, dt_next) */
 #include "bs2_rmi.c"                      /* the RMI 368X, the third instrument (rmi_note, rmi_next) */
-#include "bs2_b3.h"                       /* the B3 organ's CPU prototype (BS2_B3_PROTO there): a unit of its own at -O2,
-                                              * its hot code in the second core's RAM */
+#include "bs2_b3.h"                       /* the organ's engine (bs2_b3.c, BS2_B3 there): a unit of its own at -O2, its hot
+                                              * code in the second core's RAM; its presets and pages: bs2_organ.c */
+#ifndef B3_TIMING
+#define B3_TIMING 0                          /* 1: the organ's and the RMI's share of the second core said every 2 s */
+#endif
+static void organ_cc(uint32_t c, uint32_t v);   /* (bs2_organ.c) */
+static void organ_load(void);
+static void organ_block(void);
+static void ohome_draw(void);
+static void otabs_draw(void);
+static void oles_draw(void);
+static int o_turn(uint32_t k, int32_t e);
+static void o_button(uint32_t k);
+static void o_save_pick(int32_t e);
+static void organ_leslie_tap(void);
+static void organ_brake(void);
+static char *name_cur(void);                 /* PATCH NAME's: the bass's name, or the organ's in its mode */
+static void name_changed(void);              /* (its SAVE lit) */
+static int organ_dirty(void);
+static uint32_t organ_lights(void);
 /* the clock's BPM: the drums', the master, while a pattern runs (the bass on the same clock, as on a 400 sending MIDI
  * clock to a Bass Station II); else the patch's */
 static float clock_bpm(void) { return dt_running ? (float)dt.tempo : (float)patch.tempo; }
@@ -1068,9 +1092,6 @@ static void rmi_route(uint32_t note, uint32_t vel)   /* an RMI note, its keys', 
 {
     uint32_t i, bit = 1u << (note & 31u);
     rmi_note(note, vel);
-#if BS2_B3_PROTO
-    b3_note(note, vel);                      /* (the B3 prototype: on the piano's keys and channel too) */
-#endif
     if (note == NOTE_ALL_OFF) {
         for (i = 0; i < 128u; i++)
             if (route_in[i >> 5] & 1u << (i & 31u))
@@ -1134,7 +1155,9 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
     if (plat_usb_lost())
         usb_lost();
     while (fifo_get(&keyq, &e))
-        if (e & KEYQ_RMI)
+        if (e & KEYQ_B3)
+            b3_note(e & 0xFFu, (e >> 8) & 0xFFu);
+        else if (e & KEYQ_RMI)
             rmi_play(e & 0xFFu, (e >> 8) & 0xFFu);
         else
             note_in(e & 0xFFu, e >> 8);
@@ -1158,12 +1181,13 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
                     fifo_put(&ccq, d1 | d2 << 8 | CCQ_DRUM);
                 }
             }
-#if BS2_B3_PROTO
-            if (ch == 16u && ((st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u))   /* (the B3 prototype alone) */
-                b3_note(d1, (st & 0xF0u) == 0x90u ? d2 : 0u);
-            else if (ch == 16u && (st & 0xF0u) == 0xB0u)
-                b3_cc(d1, d2);
-#endif
+            {                                /* the organ (GLO MIDI CHANNELS), a device of its own too */
+                const uint32_t oc = o_ch(set.b3_chan), occ = o_ch(set.b3_cc_chan);
+                if ((oc == CH_ALL || oc == ch) && ((st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u))
+                    b3_note(d1, (st & 0xF0u) == 0x90u ? d2 : 0u);
+                else if ((occ == CH_ALL || occ == ch) && (st & 0xF0u) == 0xB0u)
+                    fifo_put(&ccq, d1 | d2 << 8 | CCQ_ORGAN);
+            }
             if ((set.rmi_chan == CH_ALL || set.rmi_chan == ch) && ((st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u))
                 rmi_play(d1, (st & 0xF0u) == 0x90u ? d2 : 0u);   /* the RMI (GLO RMI), a device of its own too */
             else if ((set.rmi_cc_chan == CH_ALL || set.rmi_cc_chan == ch) && (st & 0xF0u) == 0xB0u)
@@ -1396,29 +1420,35 @@ static inline int16_t usb_s16(float s)       /* a sample, the master's scale, as
 }
 /* the second core's job: the RMI's block, then the FX bus's returns for the last block's sends (fx_job) */
 static volatile uint32_t c2_ticks;           /* how long it took (plat_ticks24's): the second core's load */
-#if BS2_B3_PROTO
-static float b3_side[APP_BLOCK] PLAT_POOL;   /* the B3's stereo sides (its Leslie's two microphones; its middle in
-                                              * rmi_buf): left plus, right minus */
-static volatile uint32_t b3_pk[2], b3_sum[2], b3_nb;   /* the B3 prototype's timing: the RMI's and the B3's share of a
-                                              * block, % (the most, the sum over b3_nb blocks; b3_say reads them) */
+#if BS2_B3
+static float b3_mid[APP_BLOCK] PLAT_POOL, b3_side[APP_BLOCK] PLAT_POOL;   /* the organ's block: its middle, its
+                                              * stereo sides (its Leslie's two microphones: left plus, right minus) */
+static volatile uint32_t b3_on;              /* it sounded in the last block (sounding()) */
+#if B3_TIMING
+static volatile uint32_t b3_pk[2], b3_sum[2], b3_nb;   /* its timing: the RMI's and the organ's share of a block, %
+                                              * (the most, the sum over b3_nb blocks: said every 2 s) */
+#endif
 #endif
 static void c2_job(uint32_t n)
 {
     const uint32_t t0 = plat_ticks24();
     rmi_job(n);
-#if BS2_B3_PROTO
+#if BS2_B3
     {
-        const uint32_t t1 = plat_ticks24(), blk = n * PLAT_TICKS_PER_US * 1000000u / 44100u;
-        uint32_t t2, p0, p1;
-        const uint32_t on = PLAT_FAR(b3_job)(rmi_buf, b3_side, n);   /* (the B3 prototype's, its middle into
-                                              * rmi_buf; in RAM: through a far pointer) */
-        t2 = plat_ticks24();
-        if (on) {                            /* (timed while it sounds) */
-            rmi_woke = 1;
-            p0 = ((t1 - t0) & 0xFFFFFFu) * 100u / blk, p1 = ((t2 - t1) & 0xFFFFFFu) * 100u / blk;
-            b3_pk[0] = p0 > b3_pk[0] ? p0 : b3_pk[0], b3_pk[1] = p1 > b3_pk[1] ? p1 : b3_pk[1];
-            b3_sum[0] += p0, b3_sum[1] += p1, b3_nb++;
+        const uint32_t on = PLAT_FAR(b3_job)(b3_mid, b3_side, n);   /* (in RAM: through a far pointer) */
+        b3_on = on;
+        if (on)
+            rmi_woke = 1;                    /* (the FX bus woken: its room) */
+#if B3_TIMING
+        {
+            const uint32_t t2 = plat_ticks24(), blk = n * PLAT_TICKS_PER_US * 1000000u / 44100u;
+            if (on) {
+                const uint32_t p1 = ((t2 - t0) & 0xFFFFFFu) * 100u / blk;
+                b3_pk[1] = p1 > b3_pk[1] ? p1 : b3_pk[1];
+                b3_sum[1] += p1, b3_nb++;
+            }
         }
+#endif
     }
 #endif
     fx_job();
@@ -1436,7 +1466,7 @@ static volatile uint8_t ovl, ovl_said;       /* the level; 1: say it */
 static void ovl_step(float p2, float p0, uint32_t n)   /* the render's, each block: each core's share of it */
 {
     static const uint8_t RMI_CAPS[4] = {8, 6, 5, 4};
-#if BS2_B3_PROTO
+#if BS2_B3
     static const uint8_t B3_CAPS[4] = {91, 40, 28, 18};
 #endif
     static uint32_t ok_n, wait_n;
@@ -1457,7 +1487,7 @@ static void ovl_step(float p2, float p0, uint32_t n)   /* the render's, each blo
     if (lv != ovl) {
         ovl = (uint8_t)lv;
         rmi_limit(RMI_CAPS[lv]);
-#if BS2_B3_PROTO
+#if BS2_B3
         b3_cap(B3_CAPS[lv]);
 #endif
     }
@@ -1507,6 +1537,9 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     pq_block();                              /* (the piano's part: its notes before the piano's block) */
     dt_block();
     rmi_block();
+#if BS2_B3
+    organ_block();                           /* (the organ's sound and its Leslie's speed, before its job) */
+#endif
     if (!(plat_cpu2_on() && plat_cpu2_run(c2_job, n)))   /* the RMI's block and the FX bus's: the second core's while
                                               * the bass and the drums are made here, else first, here */
         c2_job(n), c2 = 0;
@@ -1682,18 +1715,27 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                                               * across the block as it went); then the FX bus's returns (the last
                                               * block's: fx_take), on the master */
         const float rv = RMI_MIX * 0.3f * (float)(127u - set.rvol_off) * (1.0f / 127.0f), dg = (gain_now - g0) / (float)n;
+#if BS2_B3
+        const float ov = RMI_MIX * 0.3f * (float)(127u - set.b3vol_off) * (1.0f / 127.0f);   /* (the organ's volume) */
+#endif
         const uint32_t woke = rmi_woke;
         uint32_t ur = 0;                     /* the USB audio's own channels (fm1.toml usb_audio_channels): the bass, the
                                               * drums, the piano, the echo's return, after MASTER as the master's; NULL
                                               * while no computer records */
         int16_t *u = PLAT_USB_CH >= 4 ? plat_usb_ch(usb_off, &ur) : 0;
         for (i = 0; i < n; i++) {
+#if BS2_B3
+            const float gi = g0 + dg * (float)i, r = rmi_buf[i] * rv * gi + b3_mid[i] * ov * gi;   /* (the RMI's and
+                                              * the organ's middle: one part of the mix, the room and echo sends the
+                                              * RMI's) */
+#else
             const float r = rmi_buf[i] * rv * (g0 + dg * (float)i);
+#endif
             float s, e;
             s = mix_pre[i] + r + fx_take(i, mix_send[i] + r * RMI_SEND, mix_se[i] + r * se_send_g[2], &e);
-#if BS2_B3_PROTO
-            {                                /* (the B3's sides: its Leslie in stereo, the speaker's sum the middle) */
-                const float sd = b3_side[i] * rv * (g0 + dg * (float)i);
+#if BS2_B3
+            {                                /* (the organ's sides: its Leslie in stereo, the speaker's sum the middle) */
+                const float sd = b3_side[i] * ov * gi;
                 lr[2u * i] = (int32_t)out_soft(s + sd);
                 lr[2u * i + 1u] = (int32_t)out_soft(s - sd);
             }
@@ -2028,6 +2070,7 @@ static void bank_load(void)
 {
     uint32_t i;
     names_load();
+    organ_load();
     for (i = 0; i < NBANKP; i++)
         bank_page_load(i);
 }
@@ -2094,7 +2137,7 @@ void app_init(void)
     settings_defaults(&d);
     fx_init();
     rmi_init();
-#if BS2_B3_PROTO
+#if BS2_B3
     b3_init();
 #endif
     dt_init();
@@ -2162,6 +2205,10 @@ static struct {
     uint32_t lit;                        /* the keys whose notes are held (notes_lit): lit, on the keys and on screen */
     uint8_t drum;                        /* Drum Something's mode (HOME held): the keys its instruments, HOME its page */
     uint8_t rmi;                         /* the RMI's mode (HOME on the drums' HOME): the keys its, HOME its page */
+    uint8_t b3;                          /* the organ's (HOME on the RMI's HOME, bs2_organ.c): the keys its, HOME its page */
+    uint8_t oview, osave_to;             /* ORGAN HOME's view (1: 1 1/3', 1' and PRESET); saving it, the slot (+1) */
+    uint8_t ofast, obrake;               /* the Leslie: tremolo (else chorale), the brake (live: ARP) */
+    uint32_t okeys;                      /* the keys playing the organ, a bit each */
     uint8_t se;                          /* the Space Echo's (HOME on the RMI's): HOME its page, the keys the RMI's still
                                           * (rmi stays set: an effect has no keys of its own) */
     uint32_t rkeys;                      /* the keys sounding the RMI (their release its too) */
@@ -2185,7 +2232,8 @@ static struct {
     uint8_t dt_drop;                     /* a Channel page: the header's rows down over it, a knob turning (dt_drop_step) */
     uint32_t dt_drop_at;                 /* its last step */
     uint32_t mpan_at;                    /* the camera panning from one HOME down to the next since (mpan_band; 0: not) */
-    uint8_t mpan_from;                   /* the mode it pans from: 0 the synth's, 1 the drums', 2 the RMI's */
+    uint8_t mpan_from;                   /* the mode it pans from: 0 the synth's, 1 the drums', 2 the RMI's, 3 the
+                                          * Space Echo's, 4 the organ's */
 } ui PLAT_POOL;
 /* Knob Zoom's camera (below, zoom_step) */
 #define ZOOM_MAX 256                         /* Q8, over 1x: 2x (crisp once there: whole pixels) */
@@ -2314,7 +2362,7 @@ static void octave_step(int32_t d)
     char t[4];
     if (o == set.octave)
         return;
-    fifo_put(&keyq, NOTE_ALL_OFF | (ui.rmi ? KEYQ_RMI : 0u));   /* a key held across the change would not find its
+    fifo_put(&keyq, NOTE_ALL_OFF | (ui.b3 ? KEYQ_B3 : ui.rmi ? KEYQ_RMI : 0u));   /* a key held across the change would not find its
                                               * note off: the keys' instrument's (the RMI's leaves the bass's arp alone) */
     set.octave = (int8_t)o;
     set_dirty = 1;
@@ -2458,7 +2506,7 @@ enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_A
        PG_GRND, PG_RPAT, PG_RTRK, PG_GCONN, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
        PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, PG_GAUD, PG_GCTL, PG_NAME, PG_RHOME, PG_RSEL,
        PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD, PG_RVIEW, PG_SVOICE, PG_DROOM, PG_ATOUCH, PG_WHEELS,
-       PG_GMO, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
+       PG_GMO, PG_OHOME, PG_OTABS, PG_OLES, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI CHANNELS", "GLOBAL CLOCK",
                                               "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
@@ -2466,13 +2514,15 @@ static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRI
                                               "CHANNEL 4", "CHANNEL 5", "CHANNEL 6", "DRUM MODS", "PATTERN", "SONG", "PATTERN INFO", "SONG INFO", "GLOBAL AUDIO", "GLOBAL KEYS",
                                               "PATCH NAME", "PIANO HOME", "PIANO PANEL",
                                               "ECHO HOME", "ECHO INPUT", "ECHO PANEL", "ECHO MODS",
-                                              "PIANO PRESETS", "ECHO VOICE", "DRUM ROOM", "AFTERTOUCH", "WHEELS", "GLOBAL MOTION"};
+                                              "PIANO PRESETS", "ECHO VOICE", "DRUM ROOM", "AFTERTOUCH", "WHEELS", "GLOBAL MOTION", "ORGAN HOME",
+                                              "ORGAN TABS", "ORGAN LESLIE"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME && (g) < PG_GAUD)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
 #define DCH_PAGE(g) ((g) >= PG_DCH1 && (g) <= PG_DCH6)   /* its Channel pages */
 #define RMI_PAGE(g) (((g) >= PG_RHOME && (g) <= PG_RSEL) || (g) == PG_RVIEW)   /* the RMI's pages (HOME on the drums' HOME: its mode, ui.rmi) */
 #define SE_PAGE(g) (((g) >= PG_SHOME && (g) <= PG_SMOD) || (g) == PG_SVOICE)    /* the Space Echo's (HOME on the RMI's HOME: its mode, ui.se) */
+#define ORGAN_PAGE(g) ((g) >= PG_OHOME && (g) <= PG_OLES)   /* the organ's (HOME on the RMI's HOME: its mode, ui.b3) */
 static uint32_t mode_home(void);             /* the mode's HOME */
 static void zoom_rmi(uint32_t k);            /* RMI HOME's knob: in on RMI PANEL's */
 /* the 400's two LED lists, one number each: PATTERN's, then SONG's, BUILD MODE's own under it */
@@ -3401,6 +3451,8 @@ static int knob_turn(uint32_t k, int32_t e)
     }
     if (ui.page == PG_NAME)
         return name_turn(k, e);
+    if (ORGAN_PAGE(ui.page))                 /* (the organ's: said as they go) */
+        return o_turn(k, e);
     if (ui.page == PG_GMO) {                 /* GLOBAL MOTION's: CLEAR turned right clears; LENGTH and SPEED act on the
                                               * loop at once */
         const param_t *q = knob_param(k);
@@ -3731,7 +3783,7 @@ static void knob_text(uint32_t k, char *t)
         if (k == EN_K1)
             int_text(ui.name_at + 1u, t);
         else if (k == EN_K2)
-            t[0] = cur_name[ui.name_at] > ' ' ? cur_name[ui.name_at] : '_', t[1] = 0;
+            t[0] = name_cur()[ui.name_at] > ' ' ? name_cur()[ui.name_at] : '_', t[1] = 0;
         return;
     }
     q = knob_param(k);
@@ -3949,6 +4001,9 @@ static int sounding(void)                    /* anything playing or ringing out 
         drums |= dt.ch[i].drum != DT_NONE;
     for (i = 0; i < RMI_NV; i++)
         drums |= rmi.v[i].key != RMI_NK;
+#if BS2_B3
+    drums |= ui.okeys || b3_on;              /* (the organ's keys, its Leslie's tail) */
+#endif
     return drums || ui.rkeys || eng.src != SRC_NONE || seq_auto || voice_note >= 0 || voice.amp.stage != ENV_IDLE;
 }
 static void quiet_step(void)                 /* the main loop's (input), before the keepers */
@@ -4174,7 +4229,7 @@ void app_backup_hold(int on) { backup_held = (uint8_t)on; }
 void app_backup_restored(void)               /* as at power-on: HOME, on the synth */
 {
     app_init();
-    ui.drum = ui.rmi = 0;
+    ui.drum = ui.rmi = ui.b3 = ui.se = 0;
     zoom.home = ZH_NONE;
     zoom.z = 0;
     set_dirty = 0;
@@ -4491,7 +4546,8 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [PG_MENV] = "Triggering", [PG_EMOD] = "Env Mods", [PG_LFO1] = "LFOs", [PG_LFO2] = "LFO Mods",
         [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods", [PG_ATOUCH] = "Aftertouch", [PG_WHEELS] = "Wheels",
         [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI Channels", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Keys", [PG_NAME] = "Patch Name", [PG_RSEL] = "Piano Panel", [PG_RVIEW] = "Piano Presets",
-        [PG_GDISP] = "Display", [PG_GMO] = "Motion", [PG_GDUMP] = "Dump", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
+        [PG_GDISP] = "Display", [PG_GMO] = "Motion", [PG_GDUMP] = "Dump", [PG_OHOME] = "Organ", [PG_OTABS] = "Organ Tabs",
+        [PG_OLES] = "Leslie", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
         [PG_RTRK] = "RND Tracks", [PG_GCONN] = "Connect"};
     static char tap[48];                     /* "GLO tap: System, hold: RND Synth Companion" */
     uint32_t g;
@@ -4519,7 +4575,12 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         return prox_calibrating() ? "SEL tap: Keep PROX range" : "SEL tap: Calibrate PROX";
     if (k == B_HOME && ui.page == mode_home())   /* (on it: the next mode, mode_switch) */
         return ui.se ? "HOME tap: Bass Something 2" : ui.drum ? "HOME tap: Piano Something 368X"
-               : ui.rmi ? "HOME tap: Space Something 201" : "HOME tap: Drum Something 400";
+               : ui.b3 ? "HOME tap: Space Something 201" : ui.rmi ? "HOME tap: Organ Something B3"
+               : "HOME tap: Drum Something 400";
+    if (ui.b3 && (ORGAN_PAGE(ui.page) || ui.page == PG_NAME || ui.page < PG_HOME))   /* (the organ's: o_button) */
+        return k == B_SEL ? "SEL tap: Next panel" : k == B_ARP ? "ARP tap: Leslie, hold: brake"
+               : k == B_SEQ ? "SEQ tap: Perc harmonic" : k == B_FX ? "FX tap: Percussion" : k == B_EDIT ? "EDIT tap: Vibrato"
+               : k == B_SAVE ? "Save: PRESET picks where" : k == B_HOME ? "Organ Home" : 0;
     if (ui.se && (SE_PAGE(ui.page) || ui.page < PG_HOME))   /* (the Space Echo's: its panels, se_button) */
         return k == B_SEL ? "Next panel" : k == B_HOME ? "Echo Home" : 0;
     if (ui.rmi && (RMI_PAGE(ui.page) || ui.page < PG_HOME))   /* (the RMI's: its panel and mods, rmi_button) */
@@ -4647,8 +4708,10 @@ static void dt_bass_transport(int run)
 }
 static void mode_switch(void);
 static void sect_open(uint32_t g, uint32_t k);
-static uint32_t mode_home(void) { return ui.se ? PG_SHOME : ui.drum ? PG_DHOME : ui.rmi ? PG_RHOME : PG_HOME; }   /* the
-                                              * mode's HOME */
+static uint32_t mode_home(void)              /* the mode's HOME */
+{
+    return ui.se ? PG_SHOME : ui.drum ? PG_DHOME : ui.b3 ? PG_OHOME : ui.rmi ? PG_RHOME : PG_HOME;
+}
 /* the RMI's buttons (its mode, but HOME, REC, GLO and the octaves): SEL its panel, there the next tone tablet; SAVE:
  * nothing to (its panel keeps itself, with the GLO settings); the rest the bass's, not its */
 static void rmi_button(uint32_t k)
@@ -5116,6 +5179,8 @@ static void hold_tap(uint32_t k)
         dt_button(k);
     else if (k == B_REC && ui.drum && (ui.page != PG_GCONN || !FM1B_BLE_CENTRAL || set.ble_off))
         dt_rec_tap();
+    else if (k == B_ARP && ui.b3)            /* the organ's: its Leslie's speed */
+        organ_leslie_tap();
     else if (k == B_HOME && ui.page == mode_home())   /* HOME on it: the next mode's */
         mode_switch();
     else if (k == B_HOME)                         /* HOME: the whole panel (the first page), the mode's */
@@ -5140,19 +5205,22 @@ static void hold_tap(uint32_t k)
         hint_show(k);                        /* (its hint again from where it went: the next tap's) */
 }
 
-/* HOME tapped on HOME, or held: the next mode, the synth's, Drum Something's, the RMI's, the Space Echo's, round, on its HOME. From a
+/* HOME tapped on HOME, or held: the next mode, the synth's, Drum Something's, the RMI's, the organ's, the Space Echo's, round,
+ * on its HOME. From a
  * HOME, the whole panel, the camera pans down there (mpan_band: the next HOME's panel under this one's), its map after;
  * else at once */
 static void mode_switch(void)
 {
     const int pan = ui.page == mode_home() && !zoom.z && !zoom.home;
-    ui.mpan_from = (uint8_t)(ui.se ? 3u : ui.drum ? 1u : ui.rmi ? 2u : 0u);
+    ui.mpan_from = (uint8_t)(ui.se ? 3u : ui.drum ? 1u : ui.b3 ? 4u : ui.rmi ? 2u : 0u);
     if (ui.se)
         ui.se = ui.rmi = 0;
     else if (ui.drum)
         ui.drum = 0, ui.rmi = 1;
-    else if (ui.rmi)
-        ui.se = 1;
+    else if (ui.b3)                          /* (the organ's, then the Space Echo's: the RMI's keys again) */
+        ui.b3 = 0, ui.rmi = ui.se = 1;
+    else if (ui.rmi)                         /* (the RMI's, then the organ's: its keys) */
+        ui.rmi = 0, ui.b3 = 1;
     else
         ui.drum = 1;
     page_go(mode_home());
@@ -5561,6 +5629,8 @@ static void hold_step(uint32_t btn)
         }
         else if (ui.hold_k == B_EDIT)
             randomize();
+        else if (ui.hold_k == B_ARP && ui.b3)   /* (the organ's: its Leslie's brake) */
+            organ_brake();
         else if (ui.hold_k == B_REC && ui.rmi)
             pq_erase_hold();
         else if (ui.hold_k == B_SEQ && ui.rmi) {   /* (the piano's: the pattern's part, whole) */
@@ -5630,6 +5700,14 @@ static void input(void)
                 dt_key(k, v, keys);
                 continue;
             }
+            if (ui.b3) {                     /* the organ's: its notes (out on its channel) */
+                const uint32_t oc = o_ch(set.b3_chan);
+                ui.okeys |= bit;
+                fifo_put(&keyq, (uint32_t)note | v << 8 | KEYQ_B3);
+                ui.och[k] = (uint8_t)(oc == CH_ALL ? 1u : oc);
+                key_send(0x90u, (uint32_t)note, v, ui.och[k]);
+                continue;
+            }
             if (ui.rmi) {                    /* the RMI's: its notes (out on its channel, GLO RMI's) */
                 ui.rkeys |= bit;
                 fifo_put(&keyq, (uint32_t)note | v << 8 | KEYQ_RMI);
@@ -5649,9 +5727,11 @@ static void input(void)
                 dq_cmd(DQC_ROLLOFF, 0, 0);
                 mo_roll(MO_ROLL, 0);
             }
-            fifo_put(&keyq, (uint32_t)note | (ui.rkeys & bit ? KEYQ_RMI : 0u));   /* (LOCAL turned off while it was
-                                              * held: still let go; the RMI's, its: the mode may have changed) */
+            fifo_put(&keyq, (uint32_t)note | (ui.rkeys & bit ? KEYQ_RMI : 0u) | (ui.okeys & bit ? KEYQ_B3 : 0u));   /* (LOCAL
+                                              * turned off while it was held: still let go; the RMI's or the organ's,
+                                              * its: the mode may have changed) */
             ui.rkeys &= ~bit;
+            ui.okeys &= ~bit;
             key_send(0x80u, ui.dno[k] ? ui.dno[k] : (uint32_t)note, 0, ui.och[k]);
             ui.och[k] = ui.dno[k] = 0;
         } else if ((keys & bit) && touch_pressure(k) != ui.prs[k]) {   /* pressure: poly aftertouch */
@@ -5688,8 +5768,9 @@ static void input(void)
             mo_cmd(k == B_OCTUP);
             continue;
         }
-        if (ui.save_to && k != B_SAVE) {    /* (saving: another button lets it go, and does nothing else) */
-            ui.save_to = 0;
+        if ((ui.save_to || ui.osave_to) && k != B_SAVE) {   /* (saving: another button lets it go, and does
+                                              * nothing else) */
+            ui.save_to = ui.osave_to = 0;
             app_say("SAVE", "CANCELLED");
             continue;
         }
@@ -5705,6 +5786,9 @@ static void input(void)
         else if (ui.se && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && !RND_PAGE(ui.page)
                  && ui.page != PG_GDUMP)
             se_button(k);
+        else if (ui.b3 && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && k != B_ARP
+                 && !RND_PAGE(ui.page) && ui.page != PG_GDUMP)
+            o_button(k);
         else if (ui.rmi && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && k != B_PLAY
                  && k != B_SEQ && !RND_PAGE(ui.page) && ui.page != PG_GDUMP)
             rmi_button(k);
@@ -5815,6 +5899,10 @@ static void input(void)
             save_pick(e);
             continue;
         }
+        if (ui.osave_to && k == EN_PRESET) {  /* (the organ's, saving: the same) */
+            o_save_pick(e);
+            continue;
+        }
         if (home_knob(k)) {
             home_knob_turn(k, e);
             continue;
@@ -5843,30 +5931,32 @@ static void input(void)
         ovl_said = 0;
         app_say("OVERLOAD", "VOICES CUT");
     }
-#if BS2_B3_PROTO
-    {                                        /* the B3 prototype's timing, every 2 s while it plays: "B3 now/most EP
-                                              * now/most", % of a block on the second core */
+#if BS2_B3 && B3_TIMING
+    {                                        /* the organ's timing, every 2 s while it plays: "ORGAN now/most", % of a
+                                              * block on the second core (its job's, the RMI's in it) */
         static uint32_t at;
         if (plat_ms() - at >= 2000u && b3_nb) {
             char t[24];
-            const uint32_t nb = b3_nb;
             at = plat_ms();
             t[0] = 0;
-            int_text((int32_t)(b3_sum[1] / nb), t);
+            int_text((int32_t)(b3_sum[1] / b3_nb), t);
             text_cat(t, "/");
             int_text((int32_t)b3_pk[1], t + __builtin_strlen(t));
-            text_cat(t, " EP ");
-            int_text((int32_t)(b3_sum[0] / nb), t + __builtin_strlen(t));
-            text_cat(t, "/");
-            int_text((int32_t)b3_pk[0], t + __builtin_strlen(t));
-            b3_sum[0] = b3_sum[1] = b3_pk[0] = b3_pk[1] = b3_nb = 0;
-            app_say("B3", t);
+            b3_sum[1] = b3_pk[1] = b3_nb = 0;
+            app_say("ORGAN", t);
         }
     }
 #endif
+    if (ui.page == PG_OLES) {                /* (ORGAN LESLIE: its horn turning, 25 frames a second) */
+        static uint32_t at;
+        if (plat_ms() - at >= 40u) {
+            at = plat_ms();
+            ui.redraw = 1;
+        }
+    }
     {                                        /* saving: the display's blink (slot_disp) */
         static uint8_t blink;
-        const uint8_t b = ui.save_to && plat_ms() / SAVE_BLINK_MS & 1u;
+        const uint8_t b = (ui.save_to || ui.osave_to) && plat_ms() / SAVE_BLINK_MS & 1u;
         if (b != blink) {
             blink = b;
             ui.redraw = 1;
@@ -5882,7 +5972,9 @@ static void input(void)
         if (seq_rec)
             step_enter(k);
     while (fifo_get(&ccq, &k))               /* MIDI in's CCs on CC CHAN */
-        if (k & CCQ_DRUM)
+        if (k & CCQ_ORGAN)
+            organ_cc(k & 0x7Fu, k >> 8 & 0x7Fu);
+        else if (k & CCQ_DRUM)
             dt_roll_cc(k & 0x7Fu, k >> 8 & 0x7Fu, k >> 18);
         else
             cc_apply(k & 0x7Fu, k >> 8 & 0x7Fu, (k & CCQ_ECHO) != 0);
@@ -5922,7 +6014,10 @@ static void input(void)
         btn |= (uint32_t)(bt && ph == 2u) << B_GLO;
         mid_b = bt && (ph & 1u) ? 1u << B_GLO : 0u;
     }
-    if (ui.rmi && !ui.drum)                  /* (the piano's part: PLAY lit as it plays, REC as it records) */
+    if (ui.b3)                               /* (the organ's: SAVE while not saved, ARP its Leslie fast, FX its
+                                              * percussion, EDIT its vibrato) */
+        leds_out(btn | (organ_dirty() ? 1u << B_SAVE : 0u) | (uint32_t)ui.ofast << B_ARP | organ_lights(), keys | lit);
+    else if (ui.rmi && !ui.drum)             /* (the piano's part: PLAY lit as it plays, REC as it records) */
         leds_out(btn | (dq.dirty ? 1u << B_SAVE : 0u) | (uint32_t)(dq.run && !pq.mute) << B_PLAY
                   | (uint32_t)(pq.rec != 0u) << B_REC, keys | lit);
     else if (ui.drum)
@@ -5967,7 +6062,7 @@ static void ui_start(void) { ui.page = PG_HOME; }   /* the first page, after the
 enum { SEC_FX, SEC_SEL, SEC_ENV, SEC_LFO, SEC_ARP, SEC_SEQ, SEC_EDIT, SEC_GLO, NSEC };
 static const char *const SEC_NAME[NSEC] = {"FX", "SEL", "ENV", "LFO", "ARP", "SEQ", "EDIT", "GLO"};
 static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDIT, [PG_MENV] = SEC_ENV,
-                                         [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL, [PG_NAME] = SEC_SEL, [PG_RHOME] = NSEC, [PG_RSEL] = SEC_SEL, [PG_RVIEW] = SEC_SEL, [PG_SVOICE] = SEC_SEL,
+                                         [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL, [PG_NAME] = SEC_SEL, [PG_RHOME] = NSEC, [PG_OHOME] = NSEC, [PG_OTABS] = SEC_SEL, [PG_OLES] = SEC_SEL, [PG_RSEL] = SEC_SEL, [PG_RVIEW] = SEC_SEL, [PG_SVOICE] = SEC_SEL,
                                          [PG_SHOME] = NSEC, [PG_SIN] = SEC_SEL, [PG_SECHO] = SEC_SEL, [PG_SMOD] = SEC_SEL,
                                          [PG_ARP] = SEC_ARP, [PG_SEQ] = SEC_SEQ, [PG_AENV] = SEC_ENV, [PG_FX] = SEC_EDIT,
                                          [PG_TUNE] = SEC_FX, [PG_FMOD] = SEC_FX,
@@ -6735,42 +6830,42 @@ static void mod_draw(void)
  * sound. Said whole as it changes */
 static int name_turn(uint32_t k, int32_t e)
 {
-    char w[PNAME_N + 1u];
+    char w[PNAME_N + 1u], *nm = name_cur();
     uint32_t i;
     if (k == EN_K1)
         ui.name_at = (uint8_t)clamp((int32_t)ui.name_at + e, 0, PNAME_N - 1);
     else if (k == EN_K2) {
         for (i = 0; i < ui.name_at; i++)     /* (a letter past the end: spaces up to it) */
-            if (!cur_name[i])
-                cur_name[i] = ' ';
-        i = (uint32_t)(((int32_t)name_ch(cur_name[ui.name_at]) + e % (int32_t)NNAME_CH + (int32_t)NNAME_CH)
+            if (!nm[i])
+                nm[i] = ' ';
+        i = (uint32_t)(((int32_t)name_ch(nm[ui.name_at]) + e % (int32_t)NNAME_CH + (int32_t)NNAME_CH)
                        % (int32_t)NNAME_CH);
-        cur_name[ui.name_at] = NAME_CH[i];
-        set_dirty = 1;
+        nm[ui.name_at] = NAME_CH[i];
+        name_changed();
     } else if (k == EN_K3) {
         for (i = ui.name_at; i < PNAME_N; i++)
-            cur_name[i] = 0;
-        set_dirty = 1;
+            nm[i] = 0;
+        name_changed();
     } else
         return 0;
-    for (i = 0; i < PNAME_N && cur_name[i]; i++)
-        w[i] = cur_name[i];
+    for (i = 0; i < PNAME_N && nm[i]; i++)
+        w[i] = nm[i];
     w[i] = 0;
-    app_say("PATCH NAME", i ? w : "NO NAME");
+    app_say(ui.b3 ? "ORGAN NAME" : "PATCH NAME", i ? w : "NO NAME");
     return 0;
 }
 static void name_draw(void)
 {
     static const char *const LBL[3] = {"CURSOR", "LETTER", "CLEAR"};
-    char t[4] = {0};
+    char t[4] = {0}, *nm = name_cur();
     uint32_t i;
-    plate("PATCH");
-    dymo(120, 30, "PATCH NAME", RGB(235, 235, 235));
+    plate(ui.b3 ? "ORGAN" : "PATCH");
+    dymo(120, 30, ui.b3 ? "ORGAN NAME" : "PATCH NAME", RGB(235, 235, 235));
     for (i = 0; i < PNAME_N; i++) {          /* its letters, a cell each; the cursor's lit, underlined */
         const int32_t x = 24 + 12 * (int32_t)i;
         const int at = i == ui.name_at;
         cv_rect(x, 46, 11, 20, at ? P_CDIM : grey(28));
-        t[0] = cur_name[i] > ' ' ? cur_name[i] : 0;
+        t[0] = nm[i] > ' ' ? nm[i] : 0;
         t[1] = 0;
         if (t[0])
             print_c(x + 6, 50, t, at ? P_CYAN : RGB(235, 235, 235));
@@ -6779,7 +6874,7 @@ static void name_draw(void)
     }
     for (i = 0; i < 3u; i++) {               /* its knobs, each one's tape, what it sets under it */
         const int32_t cx = 10 + 220 * (2 * (int32_t)i + 1) / 6;
-        const int32_t v = i == 0u ? ui.name_at : i == 1u ? (int32_t)name_ch(cur_name[ui.name_at]) : 0;
+        const int32_t v = i == 0u ? ui.name_at : i == 1u ? (int32_t)name_ch(nm[ui.name_at]) : 0;
         const int32_t span = i == 0u ? PNAME_N - 1 : i == 1u ? (int32_t)NNAME_CH - 1 : 1;
         bs2_knob(cx, 96, 14, v, span, KF_PLATE | (knob_lit(EN_K1 + i) ? KF_LIT : 0u));
         tag(cx, 96, EN_K1 + i);
@@ -9694,12 +9789,15 @@ static void rfx_draw(void)
 #define MPAN_MS 450u
 static void mpan_home(uint32_t m)            /* mode m's HOME, drawn as though it were up */
 {
-    ui.drum = (uint8_t)(m == 1u), ui.rmi = (uint8_t)(m >= 2u), ui.se = (uint8_t)(m == 3u);
+    ui.drum = (uint8_t)(m == 1u), ui.rmi = (uint8_t)(m == 2u || m == 3u), ui.se = (uint8_t)(m == 3u);
+    ui.b3 = (uint8_t)(m == 4u);
     ui.page = (uint8_t)mode_home();
     if (m == 1u)
         dhome_draw();
     else if (m == 2u)
         rhome_draw();
+    else if (m == 4u)
+        ohome_draw();
     else if (m == 3u)
         shome_draw();
     else
@@ -9707,7 +9805,8 @@ static void mpan_home(uint32_t m)            /* mode m's HOME, drawn as though i
 }
 static void mpan_band(uint32_t i)
 {
-    const uint32_t page = ui.page, drum = ui.drum, rm = ui.rmi, se = ui.se, to = se ? 3u : drum ? 1u : rm ? 2u : 0u;
+    const uint32_t page = ui.page, drum = ui.drum, rm = ui.rmi, se = ui.se, b3 = ui.b3,
+                   to = se ? 3u : drum ? 1u : b3 ? 4u : rm ? 2u : 0u;
     const float u = fm_clampf((float)(plat_ms() - ui.mpan_at) / (float)MPAN_MS, 0.0f, 1.0f), e = u * u * (3.0f - 2.0f * u);
     const int32_t s = (int32_t)((float)TALL_H * e + 0.5f), top = (int32_t)i * (TALL_H / 2) + s;
     if (top < TALL_H) {
@@ -9719,9 +9818,11 @@ static void mpan_band(uint32_t i)
         cv_rect(0, 0, 240, TALL_H, P_BG);
         mpan_home(to);
     }
-    ui.page = (uint8_t)page, ui.drum = (uint8_t)drum, ui.rmi = (uint8_t)rm, ui.se = (uint8_t)se;
+    ui.page = (uint8_t)page, ui.drum = (uint8_t)drum, ui.rmi = (uint8_t)rm, ui.se = (uint8_t)se, ui.b3 = (uint8_t)b3;
     ntags = 0;                               /* (the controls' labels: when it lands) */
 }
+
+#include "bs2_organ.c"                    /* the organ's presets, pages and buttons */
 
 static void panel_draw(void)                 /* the page's section panel, from under the tabs: in two halves (the
                                               * canvas holds 144 rows); through Knob Zoom's camera (zoom_blow) */
@@ -9813,6 +9914,12 @@ static void panel_draw(void)                 /* the page's section panel, from u
             glo_dump_draw();
         else if (ui.page == PG_GMO)
             glo_motion_draw();
+        else if (ui.page == PG_OHOME)
+            ohome_draw();
+        else if (ui.page == PG_OTABS)
+            otabs_draw();
+        else if (ui.page == PG_OLES)
+            oles_draw();
         else if (ui.page == PG_GRND)
             rnd_seed_draw();
         else if (ui.page == PG_RPAT)
@@ -10734,6 +10841,27 @@ int app_expect(const char *what, int *got)
         *got = sag_now;
     else if (!strcmp(what, "dc_now"))
         *got = dc_now;
+#if BS2_B3
+    else if (!strcmp(what, "b3_on"))         /* the organ: sounding; its preset; a drawbar (obar0..obar8); not saved;
+                                              * its Leslie fast; the percussion's harmonic third; the vibrato on */
+        *got = (int32_t)b3_on;
+    else if (!strcmp(what, "b3_slot"))
+        *got = set.b3_slot;
+    else if (!strncmp(what, "obar", 4) && what[4] >= '0' && what[4] <= '8')
+        *got = opatch.bar[what[4] - '0'];
+    else if (!strcmp(what, "odirty"))
+        *got = odirty;
+    else if (!strcmp(what, "ofast"))
+        *got = ui.ofast;
+    else if (!strcmp(what, "obrake"))
+        *got = ui.obrake;
+    else if (!strcmp(what, "operc3"))
+        *got = opatch.perc_3rd;
+    else if (!strcmp(what, "operc"))
+        *got = opatch.perc_on;
+    else if (!strcmp(what, "ovib"))
+        *got = opatch.vib_on;
+#endif
     else if (!strcmp(what, "mo_n"))          /* the motion recorder's moves, its loop's ticks */
         *got = (int32_t)mo.n;
     else if (!strcmp(what, "mo_len"))

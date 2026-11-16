@@ -726,7 +726,7 @@ it, as on HOME. **PIANO PANEL** (SEL again; SEL there moves along the toggles) i
 | K1 · BASS | The bass boost, around 98 Hz: the middle is none, up boosts, down cuts. |
 | K2 · ORGAN MODE | Notes hold while their keys do, with a slow fade, instead of a piano's decay. |
 | K3 · ACCENTER | A thump at the start of each note, as the 368X's keying made it, under the harpsichord and lute voices (the low keys, to A#2, have their own). |
-| K4 · VOL | Its own volume. The FM-1's MASTER knob is the master over all three instruments. |
+| K4 · VOL | Its own volume. The FM-1's MASTER knob is the master over every instrument. |
 
 On its HOME, PRESET and K1 to K4 do the same, the camera zooming in on the panel as they turn. It answers the
 keys' touch (the 368X didn't): the softest note at about a third of the hardest, through GLO KEYS' Velocity
@@ -772,12 +772,71 @@ Its sound is synthesised, each key's tone and decay modelled on recordings of a 
 Drum Something 400 uses. LUTE is the harpsichord's tone through the 368X's lute filter (a low pass about 1.3 kHz),
 its level set by ear, as is how much softer a PP toggle is: the recordings can't measure those.
 
+<a id="organ"></a>
+### Organ Something B3
+
+The fourth instrument, Organ Something B3, is a tonewheel organ after the Hammond B-3 with its Leslie speaker. Tap HOME
+on Piano Something 368X's HOME to reach it; the FM-1's keys then play the organ. Its sound is made the way the organ
+makes it, nothing sampled:
+
+- **The tonewheels:** 91 wheels always turning, each a pure tone with a little of its pickup's colour. A key
+  plays the wheels nine drawbars pick for it, each the nearest wheel to its harmonic, folded back at the top and
+  bottom of the generator as the real wiring does. Two keys on one wheel add, as they do on the organ.
+- **The key click:** a short burst of noise as each key makes and breaks contact.
+- **Percussion:** the B-3's single trigger: the 2nd or 3rd harmonic strikes and dies away when a key is played with
+  none held, and stays silent through legato playing. While it's on, the 1' drawbar is silent, as on the organ.
+- **Vibrato and chorus:** the scanner, V1 to V3 (the pitch swept) and C1 to C3 (swept and dry together).
+- **The preamp's drive:** from clean to growling.
+- **The Leslie:** a horn and a drum rotor, split at 800 Hz, each speeding up and slowing down at its own rate:
+  chorale (slow), tremolo (fast) and the brake. Two microphones hear it in stereo, on headphones and USB; the speaker
+  plays both together.
+
+**ORGAN HOME** shows the drawbars as the organ's: brown for the 16' and 5⅓', white for the octaves and unisons,
+black for the rest, each pulled out to its setting, 0 to 8. Above them, the preset's number and name, the Leslie's
+speed, the vibrato and the percussion.
+
+| Control | What it does |
+| --- | --- |
+| K1 to K4 | The 16', 5⅓', 8' and 4' drawbars. |
+| SELECT, ALGO, PRESET | The 2⅔', 2' and 1⅗' drawbars. |
+| SEL | The other view: K1 and K2 the 1⅓' and 1' drawbars, PRESET the preset (it plays at once; changes not saved to the one you leave are lost). SEL again goes on through the organ's pages. |
+
+**ORGAN TABS** (SEL from the other view): K1 the percussion on or off, K2 its volume (SOFT or NORMAL), K3 its decay
+(FAST or SLOW), K4 its harmonic (SECOND or THIRD); SELECT the vibrato on or off, ALGO its knob, V1 V2 V3 C1 C2 C3.
+**ORGAN LESLIE** (SEL again): SELECT its speed, ALGO the brake, K1 its stereo WIDTH, K2 the DRIVE, K3 the key CLICK,
+K4 the organ's own VOLUME. **ORGAN NAME** (SEL again) is PATCH NAME for the organ's preset. SEL once more goes back
+to ORGAN HOME.
+
+The buttons play the organ live, from any of its pages:
+
+| Button | What it does |
+| --- | --- |
+| ARP | The Leslie, chorale or tremolo (ARP lit while fast). Held a second: the brake. |
+| SEQ | The percussion's harmonic, SECOND or THIRD, at once: flick it while a chord rings to flutter between the two. |
+| FX | The percussion on or off (FX lit while on). |
+| EDIT | The vibrato or chorus on or off (EDIT lit while on). |
+| SAVE | As the bass's SAVE: ORGAN HOME's other view opens with the preset's number blinking; turn PRESET for another slot, then SAVE again to store the sound and its name there. Any other button lets it go. |
+
+It has 32 presets. The first twelve are classic registrations, with the drawbars as organists write them, 16' first:
+JAZZ (888000000, with the 3rd's percussion), FULL ORGAN (888888888), GOSPEL (888800000), BALLAD (008800000), SOUL
+(886000000), BLUES (888600000), ROCK (888000000, driven hard), SHUFFLE (838000000), FLUTE (008000000), CLARINET
+(008080800), PERC SECOND (808000000) and ORGAN LICKER (207736358). The rest start as INIT.
+
+Its MIDI is its own, on channel 4 by default: notes in and out, and these CCs on the same channel. 12 to 20 the nine
+drawbars, 21 the percussion, 22 its THIRD, 23 SOFT, 24 FAST, 30 the vibrato, 25 its knob, 26 the drive, 28 the click,
+29 the width, 7 the volume; live, 1 (the mod wheel) the Leslie fast, 27 the brake, 11 the expression pedal. For an
+on or off, 64 and up is on.
+
+If the FM-1 runs short of time, for example the bass, the piano, the organ and the drums all playing big chords at
+once, it thins the organ's quietest tonewheels and the piano's oldest notes first, and says OVERLOAD VOICES CUT,
+rather than crackle.
+
 <a id="echo"></a>
 ### Space Something 201
 
 Space Something 201 is a tape echo and spring reverb after the Roland RE-201 Space Echo, the 1974 tape loop with
 three playback heads and a three-spring reverb tank. It isn't an instrument: the synth, the drums and the electric piano
-each send into it, and it plays back on the master. Tap HOME on Piano Something 368X's HOME to reach it; the keys go
+each send into it, and it plays back on the master. Tap HOME on Organ Something B3's HOME to reach it; the keys go
 on playing the electric piano there. Its HOME has its name, the mode (which heads, and the spring) and the whole front
 panel, its knobs as they're set, its VU meter and PEAK lamp live.
 

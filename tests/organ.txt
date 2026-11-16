@@ -1,0 +1,100 @@
+# The organ (bs2_organ.c, its engine bs2_b3.c): HOME's fourth mode, after the piano's. ORGAN HOME's drawbars (K1 the
+# 16'), SEL its other view (PRESET a preset, at once), the live buttons (SEQ the percussion's harmonic, FX the
+# percussion, EDIT the vibrato, ARP the Leslie, held its brake), its pages (TABS, LESLIE, its NAME), its keys sounding,
+# SAVE as the bass's (its HOME, the slot blinking, PRESET picks, SAVE stores), kept over a power cycle
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/organ.txt bs2/build/host
+wait 600
+listen
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+said ORGAN HOME
+expect page 52
+expect b3_slot 0
+expect obar0 8
+wait 2500
+shot organ-home.png
+# a key: it sounds
+key 7 down 100
+wait 300
+expect b3_on 1
+key 7 up
+turn K1 -1
+wait 30
+said 16' 7
+expect obar0 7
+expect odirty 1
+tap SEQ
+wait 30
+said PERC HARMONIC SECOND
+expect operc3 0
+tap FX
+wait 30
+said PERCUSSION OFF
+tap EDIT
+wait 30
+said VIBRATO OFF
+tap ARP
+wait 30
+said LESLIE FAST
+expect ofast 1
+press ARP
+wait 1100
+release ARP
+wait 30
+said LESLIE BRAKE
+expect obrake 1
+# SEL: the other view (PRESET the preset), then TABS, LESLIE, the NAME, round
+tap SEL
+wait 30
+said ORGAN HOME 1 1/3' 1' PRESET
+turn PRESET 1
+wait 30
+said P02 FULL ORGAN
+expect b3_slot 1
+expect obar8 8
+expect odirty 0
+tap SEL
+wait 600
+expect page 53
+wait 2500
+shot organ-tabs.png
+tap SEL
+wait 600
+expect page 54
+wait 2500
+shot organ-leslie.png
+tap SEL
+wait 600
+expect page 39
+wait 2500
+shot organ-name.png
+turn K3 1
+wait 30
+said ORGAN NAME
+tap SEL
+wait 600
+expect page 52
+# SAVE: its HOME's other view, the slot blinking; PRESET picks; SAVE stores there
+turn K1 -2
+wait 30
+tap SAVE
+wait 30
+said SAVE TO P02
+turn PRESET 5
+wait 30
+said SAVE TO P07
+expect b3_slot 1
+tap SAVE
+wait 30
+said ORGAN SAVED 07
+expect b3_slot 6
+expect odirty 0
+reboot
+wait 600
+expect b3_slot 6
+expect obar0 6

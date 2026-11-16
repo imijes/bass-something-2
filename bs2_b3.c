@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MPL-2.0 */
-/* A tonewheel organ after the Hammond B-3, and its Leslie 122: a CPU PROTOTYPE (BS2_B3_PROTO), no panel. Played by
- * the piano's keys and channel beside the RMI (rmi_route), and alone on MIDI channel 16 (b3_cc: its test controls);
- * made on the second core after the RMI's block, into its buffer (b3_job). Our own code, from how the organ works:
+/* The organ (the fourth instrument, after the Hammond B-3) and its Leslie 122: its sound from a preset (b3_set), its
+ * keys (b3_note), the Leslie's speed and the expression live; made on the second core after the RMI's block (b3_job),
+ * a unit of its own at -O2. Our own code, from how the organ works:
  *   the generator: 91 wheels always turning (C1 = 32.7 Hz up, equal tempered), a phase each, never reset; a wheel's
  *     wave a sine with a little 2nd and 3rd (its pickup's), the top wheels pure; only the wheels sounding are made
  *   the manual: 61 keys (C2..C7), 9 drawbars a key, each bar the wheel nearest its harmonic (16' 5 1/3' 8' 4' 2 2/3'
@@ -22,7 +22,7 @@
 #include "plat.h"
 #include "fastmath.h"
 #include "bs2_b3.h"
-#if BS2_B3_PROTO                             /* (off: nothing of it built) */
+#if BS2_B3                                   /* (off: nothing of it built) */
 #define B3_RATE 44100.0f
 #ifdef PLAT_HOST
 #define B3_HOT
@@ -74,7 +74,6 @@ static struct {
     float width;                             /* the stereo's: 0 mono .. 1 the two microphones as they are (CC 29) */
     uint32_t lw;
     uint8_t fast, brake, awake;
-    uint8_t tab;                             /* (test, CC 90: the wheels from the table, not the recurrence) */
     uint8_t dirty;                           /* a key or a setting changed: the targets again (b3_step) */
     uint8_t cap;                             /* the wheels it may sound at most (b3_cap: an overload's) */
     uint32_t quiet;                          /* samples its input has been silent (past the lines: the chain skipped) */
@@ -160,37 +159,22 @@ void b3_note(uint32_t note, uint32_t vel)   /* a key (vel 0: up; NOTE_ALL_OFF: e
     b3.cl[c].amt = 0.25f + 0.6f * (float)k / (float)B3_NK;   /* (its band: higher for a higher key) */
 }
 
-void b3_cc(uint32_t c, uint32_t v)           /* its test controls (MIDI channel 16) */
+void b3_set(const b3_patch_t *p)             /* a preset's sound (the organ's, app.c's: before the second core's job) */
 {
-    if (c >= 12u && c <= 20u)
-        b3.bar[c - 12u] = (uint8_t)((v * 8u + 63u) / 127u);
-    else if (c == 21u)
-        b3.perc_on = v >= 64u;
-    else if (c == 22u)
-        b3.perc_3rd = v >= 64u;
-    else if (c == 23u)
-        b3.perc_soft = v >= 64u;
-    else if (c == 24u)
-        b3.perc_fast = v >= 64u;
-    else if (c == 25u)                       /* off, V1 V2 V3, C1 C2 C3 */
-        b3.scan = (uint8_t)(v * 6u / 127u);
-    else if (c == 26u)
-        b3.drive = (float)v * (1.0f / 127.0f);
-    else if (c == 28u)
-        b3.click = (uint8_t)v;
-    else if (c == 1u)                        /* (the mod wheel: the Leslie fast) */
-        b3.fast = v >= 64u;
-    else if (c == 27u)
-        b3.brake = v >= 64u;
-    else if (c == 11u)
-        b3.expr = (float)v * (1.0f / 127.0f);
-    else if (c == 90u)
-        b3.tab = v >= 64u;
-    else if (c == 29u)
-        b3.width = (float)v * (1.0f / 127.0f);
+    uint32_t b;
+    for (b = 0; b < 9u; b++)
+        b3.bar[b] = p->bar[b] > 8u ? 8u : p->bar[b];
+    b3.perc_on = p->perc_on != 0u, b3.perc_3rd = p->perc_3rd != 0u;
+    b3.perc_soft = p->perc_soft != 0u, b3.perc_fast = p->perc_fast != 0u;
+    b3.scan = p->vib_on ? (uint8_t)(1u + (p->vib > 5u ? 5u : p->vib)) : 0u;   /* (off, V1 V2 V3, C1 C2 C3) */
+    b3.drive = (float)p->drive * (1.0f / 127.0f);
+    b3.click = p->click;
+    b3.width = (float)p->width * (1.0f / 127.0f);
     b3_levels();
     b3.dirty = 1;
 }
+void b3_leslie(uint32_t fast, uint32_t brake) { b3.fast = fast != 0u, b3.brake = brake != 0u; }   /* (live) */
+void b3_expr(uint32_t v) { b3.expr = (float)v * (1.0f / 127.0f); }   /* the expression pedal (CC 11), 0..127 (live) */
 void b3_cap(uint32_t n)                      /* the wheels it may sound at most (an overload's: the quietest go first) */
 {
     n = n > B3_NW ? B3_NW : n;
@@ -327,16 +311,7 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
         const float kc = b3.kc[w];
         float a = b3_tab(b3_wave[1], ph), b = b3_tab(b3_wave[1], ph + b3.inc[w]), nx;
         float g = b3.g[w], dg = b3.dg[w], pg = b3.pg[w], dpg = b3.dpg[w];
-        if (b3.tab) {                        /* (test: the table's way, a lookup a sample) */
-            const uint32_t inc = b3.inc[w];
-            const float *tb = b3_wave[w >= 60u];
-            uint32_t p = ph;
-            for (i = 0; i < B3_CH; i++, p += inc, g += dg, pg += dpg) {
-                const float v = b3_tab(tb, p);
-                bus[i] += g * v;
-                pbus[i] += pg * v;
-            }
-        } else if (pg == 0.0f && dpg == 0.0f)
+        if (pg == 0.0f && dpg == 0.0f)
             for (i = 0; i < B3_CH; i++, g += dg) {
                 bus[i] += g * a;
                 nx = kc * b - a, a = b, b = nx;
@@ -456,15 +431,15 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
     }
 }
 
-/* the organ's block, after the RMI's: its middle (left and right's mean) added into mid, its sides (half their
- * difference, by the width) written into side (the second core's job; b3_note and b3_cc before it, in the render; n a
- * multiple of B3_CH); 1 if it sounds */
+/* the organ's block, after the RMI's: its middle (left and right's mean) into mid, its sides (half their difference,
+ * by the width) into side (the second core's job; b3_note and b3_set before it, in the render; n a multiple of
+ * B3_CH); 1 if it sounds (else both silent) */
 B3_HOT uint32_t b3_job(float *mid, float *side, uint32_t n)
 {
     float ol[B3_CH], orr[B3_CH];
     uint32_t i, j;
     for (i = 0; i < n; i++)
-        side[i] = 0.0f;
+        mid[i] = side[i] = 0.0f;
     if (!b3.awake)
         return 0;
     if (b3.quiet > B3_LES_N + B3_SCAN_N + 4096u && !b3.dirty && !b3.nact) {   /* (silent: the rotors turn on alone) */
@@ -475,7 +450,7 @@ B3_HOT uint32_t b3_job(float *mid, float *side, uint32_t n)
     for (i = 0; i + B3_CH <= n; i += B3_CH) {
         b3_chunk(ol, orr);
         for (j = 0; j < B3_CH; j++) {
-            mid[i + j] += 0.5f * (ol[j] + orr[j]);
+            mid[i + j] = 0.5f * (ol[j] + orr[j]);
             side[i + j] = 0.5f * b3.width * (ol[j] - orr[j]);
         }
     }

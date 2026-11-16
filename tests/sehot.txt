@@ -20,6 +20,9 @@ wait 1500
 tap REC
 tap HOME
 wait 1000
+# (the organ's HOME, then the echo's)
+tap HOME
+wait 1000
 tap HOME
 wait 1000
 tap SEL
