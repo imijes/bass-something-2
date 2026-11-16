@@ -791,17 +791,22 @@ makes it, nothing sampled:
   chorale (slow), tremolo (fast) and the brake. Two microphones hear it in stereo, on headphones and USB; the speaker
   plays both together.
 
-**ORGAN HOME** shows the drawbars as the organ's: brown for the 16' and 5⅓', white for the octaves and unisons,
-black for the rest, each pulled out to its setting, 0 to 8. Above them, the preset's number and name, the Leslie's
-speed, the vibrato and the percussion.
+**ORGAN HOME** shows the console from the player's seat, as a B-3 looks: the music rack with the preset's number and
+name, the Leslie's speed, the vibrato and the percussion on it; under its ledge the drawbars, all four sets and the
+pedals' two, the upper manual's second set pulled out as the sound has them (brown for the 16' and 5⅓', white for the
+octaves and unisons, black for the rest, 0 to 8); the left cheek's vibrato knob (pointing at V1 to C3) and tabs (the
+first down while the vibrato is on), the right cheek's four percussion tabs (down when on); and the upper manual, a
+second row of keys over the FM-1's own, which play as the lower. Turning a drawbar's knob here dives into ORGAN
+DRAWBARS, as the other HOMEs do, and back out after.
 
 | Control | What it does |
 | --- | --- |
-| K1 to K4 | The 16', 5⅓', 8' and 4' drawbars. |
-| SELECT, ALGO, PRESET | The 2⅔', 2' and 1⅗' drawbars. |
-| SEL | The other view: K1 and K2 the 1⅓' and 1' drawbars, PRESET the preset (it plays at once; changes not saved to the one you leave are lost). SEL again goes on through the organ's pages. |
+| SELECT, ALGO | The 16' and 5⅓' drawbars. |
+| K1 to K4 | The 8', 4', 2⅔' and 2' drawbars. |
+| PRESET | The preset, here and on both ORGAN DRAWBARS views (it plays at once; changes not saved to the one you leave are lost). |
+| SEL | ORGAN DRAWBARS: the nine drawbars up close, the same controls. SEL there: its other view, K2 to K4 the 1⅗', 1⅓' and 1' drawbars. SEL again goes on through the organ's pages. |
 
-**ORGAN TABS** (SEL from the other view): K1 the percussion on or off, K2 its volume (SOFT or NORMAL), K3 its decay
+**ORGAN TABS** (SEL from ORGAN DRAWBARS' other view): K1 the percussion on or off, K2 its volume (SOFT or NORMAL), K3 its decay
 (FAST or SLOW), K4 its harmonic (SECOND or THIRD); SELECT the vibrato on or off, ALGO its knob, V1 V2 V3 C1 C2 C3.
 **ORGAN LESLIE** (SEL again): SELECT its speed, ALGO the brake, K1 its stereo WIDTH, K2 the DRIVE, K3 the key CLICK,
 K4 the organ's own VOLUME. **ORGAN NAME** (SEL again) is PATCH NAME for the organ's preset. SEL once more goes back

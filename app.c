@@ -2506,7 +2506,7 @@ enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_A
        PG_GRND, PG_RPAT, PG_RTRK, PG_GCONN, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
        PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, PG_GAUD, PG_GCTL, PG_NAME, PG_RHOME, PG_RSEL,
        PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD, PG_RVIEW, PG_SVOICE, PG_DROOM, PG_ATOUCH, PG_WHEELS,
-       PG_GMO, PG_OHOME, PG_OTABS, PG_OLES, PG_GCC, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
+       PG_GMO, PG_OHOME, PG_OTABS, PG_OLES, PG_GCC, PG_OBARS, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI CHANNELS", "GLOBAL CLOCK",
                                               "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
@@ -2515,16 +2515,17 @@ static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRI
                                               "PATCH NAME", "PIANO HOME", "PIANO PANEL",
                                               "ECHO HOME", "ECHO INPUT", "ECHO PANEL", "ECHO MODS",
                                               "PIANO PRESETS", "ECHO VOICE", "DRUM ROOM", "AFTERTOUCH", "WHEELS", "GLOBAL MOTION", "ORGAN HOME",
-                                              "ORGAN TABS", "ORGAN LESLIE", "GLOBAL CC CHANNELS"};
+                                              "ORGAN TABS", "ORGAN LESLIE", "GLOBAL CC CHANNELS", "ORGAN DRAWBARS"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME && (g) < PG_GAUD)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
 #define DCH_PAGE(g) ((g) >= PG_DCH1 && (g) <= PG_DCH6)   /* its Channel pages */
 #define RMI_PAGE(g) (((g) >= PG_RHOME && (g) <= PG_RSEL) || (g) == PG_RVIEW)   /* the RMI's pages (HOME on the drums' HOME: its mode, ui.rmi) */
 #define SE_PAGE(g) (((g) >= PG_SHOME && (g) <= PG_SMOD) || (g) == PG_SVOICE)    /* the Space Echo's (HOME on the RMI's HOME: its mode, ui.se) */
-#define ORGAN_PAGE(g) ((g) >= PG_OHOME && (g) <= PG_OLES)   /* the organ's (HOME on the RMI's HOME: its mode, ui.b3) */
+#define ORGAN_PAGE(g) (((g) >= PG_OHOME && (g) <= PG_OLES) || (g) == PG_OBARS)   /* the organ's (HOME on the RMI's HOME: its mode, ui.b3) */
 static uint32_t mode_home(void);             /* the mode's HOME */
 static void zoom_rmi(uint32_t k);            /* RMI HOME's knob: in on RMI PANEL's */
+static void zoom_organ(uint32_t k);          /* ORGAN HOME's: in on its DRAWBARS (bs2_organ.c) */
 /* the 400's two LED lists, one number each: PATTERN's, then SONG's, BUILD MODE's own under it */
 enum { DTF_PAT, DTF_REC, DTF_ERASEI, DTF_ERROR, DTF_SWING, DTF_TIME, DTF_MEAS, DTF_ERASEP, DTF_COPYP, DTF_ROLL,
        DTF_SONG, DTF_ERASES, DTF_COPYS, DTF_BUILD, DTF_BPAT, DTF_BVOL, DTF_BTEMPO, DTF_BINS, DTF_BDEL, NDTF };
@@ -4358,6 +4359,9 @@ static uint32_t notes_lit(uint32_t *below, uint32_t *above)
 #define SE_DIVE_PG(p) ((p) == EN_PRESET ? PG_SIN : PG_SECHO)   /* ECHO HOME's knob p: the close-up it's on */
 static int home_knob(uint32_t p)
 {
+    if (ui.b3)                               /* ORGAN HOME: its seven drawbars, DRAWBARS' (the same encoders there) */
+        return p != EN_PRESET                /* (PRESET: the preset, on HOME itself) */
+               && (ui.page == PG_OHOME || (zoom.home && zoom.hp == PG_OHOME && zoom.g == PG_OBARS && zoom.ke == p));
     if (ui.se)                               /* ECHO HOME: PRESET INPUT's MODE, K1-K4 PANEL's (the same encoders there) */
         return (p >= EN_K1 || p == EN_PRESET)
                && (ui.page == PG_SHOME || (zoom.home && zoom.hp == PG_SHOME && zoom.g == SE_DIVE_PG(p) && zoom.ke == p));
@@ -4376,6 +4380,16 @@ static void home_knob_turn(uint32_t p, int32_t e)
 {
     const uint8_t pg = ui.page;
     char t[12];
+    if (ui.b3) {                             /* (DRAWBARS', in on it: said as it turns, o_turn) */
+        ui.oview = 0;
+        ui.page = PG_OBARS;
+        (void)knob_turn(p, e);
+        ui.page = pg;
+        if (!set.zoom_off)
+            zoom_organ(p);
+        ui.redraw = 1;
+        return;
+    }
     if (ui.se) {                             /* (its close-up's, in on it) */
         ui.page = (uint8_t)SE_DIVE_PG(p);
         if (knob_turn(p, e)) {
@@ -4561,7 +4575,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [PG_MENV] = "Triggering", [PG_EMOD] = "Env Mods", [PG_LFO1] = "LFOs", [PG_LFO2] = "LFO Mods",
         [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods", [PG_ATOUCH] = "Aftertouch", [PG_WHEELS] = "Wheels",
         [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI Channels", [PG_GCC] = "CC Channels", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Keys", [PG_NAME] = "Patch Name", [PG_RSEL] = "Piano Panel", [PG_RVIEW] = "Piano Presets",
-        [PG_GDISP] = "Display", [PG_GMO] = "Motion", [PG_GDUMP] = "Dump", [PG_OHOME] = "Organ", [PG_OTABS] = "Organ Tabs",
+        [PG_GDISP] = "Display", [PG_GMO] = "Motion", [PG_GDUMP] = "Dump", [PG_OHOME] = "Organ", [PG_OBARS] = "Drawbars", [PG_OTABS] = "Organ Tabs",
         [PG_OLES] = "Leslie", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
         [PG_RTRK] = "RND Tracks", [PG_GCONN] = "Connect"};
     static char tap[48];                     /* "GLO tap: System, hold: RND Synth Companion" */
@@ -6077,7 +6091,7 @@ static void ui_start(void) { ui.page = PG_HOME; }   /* the first page, after the
 enum { SEC_FX, SEC_SEL, SEC_ENV, SEC_LFO, SEC_ARP, SEC_SEQ, SEC_EDIT, SEC_GLO, NSEC };
 static const char *const SEC_NAME[NSEC] = {"FX", "SEL", "ENV", "LFO", "ARP", "SEQ", "EDIT", "GLO"};
 static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDIT, [PG_MENV] = SEC_ENV,
-                                         [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL, [PG_NAME] = SEC_SEL, [PG_RHOME] = NSEC, [PG_OHOME] = NSEC, [PG_OTABS] = SEC_SEL, [PG_OLES] = SEC_SEL, [PG_RSEL] = SEC_SEL, [PG_RVIEW] = SEC_SEL, [PG_SVOICE] = SEC_SEL,
+                                         [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL, [PG_NAME] = SEC_SEL, [PG_RHOME] = NSEC, [PG_OHOME] = NSEC, [PG_OBARS] = SEC_SEL, [PG_OTABS] = SEC_SEL, [PG_OLES] = SEC_SEL, [PG_RSEL] = SEC_SEL, [PG_RVIEW] = SEC_SEL, [PG_SVOICE] = SEC_SEL,
                                          [PG_SHOME] = NSEC, [PG_SIN] = SEC_SEL, [PG_SECHO] = SEC_SEL, [PG_SMOD] = SEC_SEL,
                                          [PG_ARP] = SEC_ARP, [PG_SEQ] = SEC_SEQ, [PG_AENV] = SEC_ENV, [PG_FX] = SEC_EDIT,
                                          [PG_TUNE] = SEC_FX, [PG_FMOD] = SEC_FX,
@@ -9932,6 +9946,8 @@ static void panel_draw(void)                 /* the page's section panel, from u
             glo_motion_draw();
         else if (ui.page == PG_OHOME)
             ohome_draw();
+        else if (ui.page == PG_OBARS)
+            obars_draw();
         else if (ui.page == PG_OTABS)
             otabs_draw();
         else if (ui.page == PG_OLES)

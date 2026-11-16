@@ -3,12 +3,14 @@
  * after the RMI's), its 32 presets as the bass's patches are (PRESET plays one at once; SAVE as a Bass Station II's: its
  * HOME, the slot blinking, PRESET picks, SAVE stores; PATCH NAME its name), its pages and its live buttons. Part of the
  * unity build, included by app.c after the panel's drawing:
- *   ORGAN HOME (PG_OHOME): the drawbars as an organ's, all nine; K1-K4 16' 5 1/3' 8' 4', SELECT ALGO PRESET 2 2/3' 2'
- *     1 3/5'; SEL there its other view: K1 K2 1 1/3' 1', PRESET the preset (the display's)
+ *   ORGAN HOME (PG_OHOME): the console as the photo has it, its drawbars and tabs as the sound has them; SELECT ALGO
+ *     16' 5 1/3', K1-K4 8' 4' 2 2/3' 2' (a turn dives to DRAWBARS: zoom_organ); PRESET the preset (the display's)
+ *   ORGAN DRAWBARS (PG_OBARS): the drawbars up close, the same six; SEL there its other view: K2-K4 1 3/5' 1 1/3' 1';
+ *     PRESET the preset on both
  *   ORGAN TABS (PG_OTABS): the percussion's tabs (K1 ON, K2 VOLUME SOFT, K3 DECAY FAST, K4 HARMONIC THIRD), the vibrato
  *     (SELECT on, ALGO its knob V1 V2 V3 C1 C2 C3)
  *   ORGAN LESLIE (PG_OLES): the cabinet turning; SELECT its speed, ALGO the brake, K1 WIDTH, K2 DRIVE, K3 CLICK, K4 VOL
- *   SEL: HOME's view, its other, TABS, LESLIE, PATCH NAME, round. ARP the Leslie chorale or tremolo (held: the brake),
+ *   SEL: DRAWBARS, its other view, TABS, LESLIE, PATCH NAME, round. ARP the Leslie chorale or tremolo (held: the brake),
  *   SEQ the percussion's harmonic (at once: to flutter it), FX the percussion on or off, EDIT the vibrato on or off.
  * Its MIDI: notes on its channel (b3_chan), its CCs on its CC channel (organ_cc) */
 #define ONSLOT 32u
@@ -161,11 +163,12 @@ static void o_flag(uint8_t *f, int32_t e, const char *name, const char *off, con
 }
 static int o_turn(uint32_t k, int32_t e)
 {
-    if (ui.page == PG_OHOME) {
-        static const int8_t V0[NE] = {[EN_SELECT] = 4, [EN_ALGO] = 5, [EN_PRESET] = 6, [EN_K1] = 0, 1, 2, 3},
-                            V1[NE] = {[EN_SELECT] = -1, [EN_ALGO] = -1, [EN_PRESET] = -1, [EN_K1] = 7, 8, -1, -1};
-        const int32_t b = ui.oview ? V1[k] : V0[k];
-        if (ui.oview && k == EN_PRESET) {    /* (the preset: its sound at once) */
+    if (ui.page == PG_OHOME || ui.page == PG_OBARS) {
+        static const int8_t V0[NE] = {[EN_SELECT] = 0, [EN_ALGO] = 1, [EN_PRESET] = -1, [EN_K1] = 2, 3, 4, 5},
+                            V1[NE] = {[EN_SELECT] = -1, [EN_ALGO] = -1, [EN_PRESET] = -1, [EN_K1] = -1, 6, 7, 8};
+        const int view = ui.page == PG_OBARS && ui.oview;
+        const int32_t b = view ? V1[k] : V0[k];
+        if (k == EN_PRESET) {                /* (the preset, on every view: its sound at once) */
             char t[8];
             organ_pick((uint32_t)clamp((int32_t)set.b3_slot + e, 0, ONSLOT - 1));
             slot_p_text(set.b3_slot, t);
@@ -236,8 +239,8 @@ static void o_save_button(void)
     uint32_t s, i;
     if (!ui.osave_to) {
         ui.oview = 1;
-        if (ui.page != PG_OHOME)
-            page_go(PG_OHOME);
+        if (ui.page != PG_OBARS)
+            page_go(PG_OBARS);
         ui.osave_to = (uint8_t)(set.b3_slot + 1u);
         o_save_say();
         return;
@@ -281,13 +284,15 @@ static void organ_brake(void)                /* ARP held: the brake */
 static void o_button(uint32_t k)
 {
     if (k == B_SEL) {                        /* HOME's view, its other, TABS, LESLIE, PATCH NAME, round */
-        if (ui.page == PG_OHOME && !ui.oview) {
+        if (zoom.home && zoom.hp == PG_OHOME)   /* (on HOME's dive, or its way back: HOME's SEL) */
+            ui.page = PG_OHOME, ui.oview = 0;
+        if (ui.page == PG_OBARS && !ui.oview) {
             ui.oview = 1;
             ui.redraw = 1;
-            app_say("ORGAN HOME", "1 1/3' 1' PRESET");
+            app_say("ORGAN DRAWBARS", "1 3/5' 1 1/3' 1'");
         } else {
-            const uint32_t g = ui.page == PG_OHOME ? PG_OTABS : ui.page == PG_OTABS ? PG_OLES
-                             : ui.page == PG_OLES ? PG_NAME : PG_OHOME;
+            const uint32_t g = ui.page == PG_OHOME ? PG_OBARS : ui.page == PG_OBARS ? PG_OTABS
+                             : ui.page == PG_OTABS ? PG_OLES : ui.page == PG_OLES ? PG_NAME : PG_OHOME;
             ui.oview = 0;
             sect_open(g, k);
         }
@@ -309,57 +314,149 @@ static void o_button(uint32_t k)
         app_say("ORGAN", "SEL: ITS PANELS");
 }
 
-/* its pages: an organ's front, dark wood; the drawbars pulled out of their slots, each its colour (brown the 16' and
- * 5 1/3', white the octaves and unisons, black the rest), its numbers along it, its footage on its handle */
-#define O_WOOD RGB(56, 32, 18)
-static void o_wood(void)
+/* its pages: the walnut, ivory and gold of the console (b3-front-closeup.jpeg's) */
+#define O_WOOD RGB(106, 52, 24)
+#define O_IVORY RGB(240, 234, 220)
+#define O_GOLD RGB(200, 164, 84)
+static void o_wood(void)                     /* (TABS', LESLIE's) */
 {
     int32_t y;
-    for (y = 0; y < TALL_H; y++)             /* (the grain: a few rows darker, by a hash) */
-        cv_rect(0, y, 240, 1, (uint32_t)y * 2654435761u >> 29 == 0u ? RGB(44, 24, 14) : O_WOOD);
+    for (y = 0; y < TALL_H; y++)             /* (the grain: rows a shade darker or lighter, by a hash) */
+        cv_rect(0, y, 240, 1, ((uint32_t)y * 2654435761u >> 28) == 0u ? RGB(90, 42, 20)
+                              : ((uint32_t)y * 2654435761u >> 28) == 15u ? RGB(122, 62, 32) : O_WOOD);
 }
-static void o_drawbar(uint32_t b, int32_t cx, int dim, uint32_t k)
+/* ORGAN HOME: as the other HOMEs, its name, the display (the preset's name under it), what plays; then the console from
+ * the player's seat, as b3-front-closeup.jpeg (2560 x 1707) has it, its rows set out to fit: the rack's ledge, the rail
+ * with the drawbars (OB: from x 990, the B set first, the upper manual's A# set and the pedals' two left out, the
+ * lower's two sets closed up after it; the B set as the sound has it, each tip lower by its setting, its shaft over it;
+ * the rest in); at the keys' level the cheeks: the left's vibrato knob and tabs (the first the vibrato, down: on), the
+ * right's percussion tabs (down: on), the name board between; under them the upper manual, a second roll of keys over
+ * the footer's (the FM-1's: the lower manual). ORGAN DRAWBARS is HOME's own console twice as big (oz), its left half
+ * from the ledge down, under the same head: the dive in from HOME lands on what it showed */
+#define OB(x) (4 + ((int32_t)(x) - 990) * 3057 / 10000)
+#define OH_RAIL 78                           /* the rail's top; the tips at rest under it, a stop 4 px further */
+#define OH_ROLL (TALL_H - 29)                /* the upper manual's keys (as the footer's: blacks 13, whites 14 under) */
+#define OH_CHEEK (OH_ROLL - 11)              /* the cheeks' row */
+#define OZ_Y0 (OH_RAIL - 2)                  /* (DRAWBARS: HOME's row at its ledge's foot on the head's: a tip at
+                                              * 8 to the page's foot) */
+#define OZ_Y 72
+static int32_t oz = 1, oz_y0, oz_y;          /* the console's scale; HOME's row oz_y0 at the page's oz_y */
+#define OZX(x) ((x) * oz)
+#define OZY(y) (((y) - oz_y0) * oz + oz_y)
+static void oh_rect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c) { cv_rect(OZX(x), OZY(y), w * oz, h * oz, c); }
+static void oh_tab(int32_t cx, int on)       /* a cheek's tab, its middle at cx */
 {
-    static const uint8_t COL[9] = {0, 0, 1, 1, 2, 1, 2, 2, 1};   /* brown, white, black */
-    const uint16_t hc = COL[b] == 0u ? RGB(120, 60, 30) : COL[b] == 1u ? RGB(236, 232, 220) : RGB(24, 24, 24),
-                   tc = COL[b] == 1u ? RGB(20, 20, 20) : RGB(236, 232, 220);
-    const int32_t top = 62, len = 4 + 9 * opatch.bar[b];
+    oh_rect(cx - 4, OH_CHEEK, 9, 10, RGB(10, 10, 10));
+    oh_rect(cx - 4, OH_CHEEK + (on ? 3 : 0), 9, 7, on ? RGB(200, 196, 184) : RGB(237, 235, 222));
+    oh_rect(cx - 4, OH_CHEEK + (on ? 3 : 0), 9, 1, on ? grey(120) : RGB(255, 255, 255));
+}
+static void oh_bar(int32_t x, uint32_t v, uint32_t col, int dim, const char *ft, uint32_t k)
+{                                            /* a drawbar at the photo's x, pulled to v; dimmed; up close its footage, its
+                                              * encoder's tag */
+    static const uint16_t TIP[3] = {RGB(92, 44, 32), RGB(248, 244, 231), RGB(20, 18, 16)},
+                          TOP[3] = {RGB(150, 86, 70), RGB(255, 255, 255), RGB(100, 100, 100)},
+                          TC[3] = {O_IVORY, RGB(30, 24, 20), O_IVORY};
+    const int32_t cx = OB(x), y = OH_RAIL + 2 + 4 * (int32_t)v;
     int32_t i;
-    cv_rect(cx - 9, top - 3, 18, 4, RGB(8, 6, 4));   /* (its slot) */
-    cv_rect(cx - 4, top, 8, len, dim ? grey(80) : grey(200));   /* the shaft, its numbers' ticks */
-    for (i = 1; i <= (int32_t)opatch.bar[b]; i++)
-        cv_rect(cx - 4, top + 4 + 9 * (i - 1), 8, 1, grey(60));
-    cv_rect(cx - 10, top + len, 20, 16, dim ? grey(60) : hc);   /* the handle, its footage */
-    cv_rect(cx - 10, top + len + 15, 20, 1, RGB(0, 0, 0));
-    print_c(cx, top + len + 2, b == 1u ? "5" : b == 4u ? "2" : b == 6u ? "1" : b == 7u ? "1" : OBAR[b], dim ? grey(36) : tc);
-    if (k < NE)
-        tag(cx, top + len + 8, k);
+    if (v) {                                 /* its shaft, a line a stop */
+        oh_rect(cx - 1, OH_RAIL + 2, 3, y - OH_RAIL - 2, dim ? grey(70) : RGB(206, 202, 196));
+        for (i = 1; i <= (int32_t)v; i++)
+            oh_rect(cx - 1, y - 4 * i + 1, 3, 1, dim ? grey(40) : RGB(70, 66, 62));
+    }
+    oh_rect(cx - 3, y, 6, 8, dim ? grey(48) : TIP[col]);
+    oh_rect(cx - 3, y, 6, 1, dim ? grey(60) : TOP[col]);
+    if (oz > 1) {
+        print_c(OZX(cx), OZY(y) + 4, ft, dim ? grey(30) : TC[col]);
+        if (k < NE)
+            tag(OZX(cx), OZY(y + 4), k);
+    }
+}
+static void oh_head(const char *line2, const char *cyan)   /* the HOMEs' head: the name and its line, what plays; the
+                                              * display at the right, the preset's name under it */
+{
+    char d[4], st[40] = "";
+    const char *nm = oname[0] ? oname : "ORGAN";
+    cv_rect(0, 0, 240, OZ_Y, P_BG);
+    cv_text(10, 12, &FONT_B, "ORGAN", P_SILK);
+    cv_text(cv_text(10, 30, &FONT_B, line2, P_SILK) + 5, 30, &FONT_B, cyan, P_BAR);
+    cv_rect(10, 49, 116, 2, P_BAR);
+    if (ui.osave_to && plat_ms() / SAVE_BLINK_MS & 1u)   /* (saving: its slot blinking) */
+        d[0] = d[1] = d[2] = ' ', d[3] = 0;
+    else
+        slot_p_text(ui.osave_to ? ui.osave_to - 1u : set.b3_slot, d);
+    seg_display(240 - 8 - 84, 6, d, 3);
+    if (odirty)
+        disc(240 - 8 - 10, 43, 2, RGB(252, 78, 112));
+    cv_text(232 - (cv_text(-1000, 52, &FONT_XS, nm, P_CYAN) + 1000), 52, &FONT_XS, nm, P_CYAN);   /* (its right edge
+                                              * the display's) */
+    tag(240 - 8 - 42, 26, EN_PRESET);
+    text_cat(st, ui.obrake ? "LESLIE BRAKE" : ui.ofast ? "LESLIE FAST" : "LESLIE SLOW");
+    text_cat(st, "  ");
+    text_cat(st, opatch.vib_on ? OVIB[opatch.vib] : "VIB OFF");
+    if (opatch.perc_on)
+        text_cat(st, opatch.perc_3rd ? "  PERC 3RD" : "  PERC 2ND");
+    cv_text(10, 56, &FONT_T, st, P_SILK);
+}
+static void oh_face(int dim0, int dim1, const uint8_t *keys)   /* the console at oz: the B set's bars dim0..dim1-1
+                                                  * dimmed, keys their encoders (up close) */
+{
+    static const uint8_t COL[9] = {0, 0, 1, 1, 2, 1, 2, 2, 1};   /* the tips: brown, ivory, black */
+    static const char *const FT[9] = {"16'", "5'", "8'", "4'", "2'", "2'", "1'", "1'", "1'"};
+    static const int32_t SET[3] = {1005, 1266, 1526};   /* (the B set; the lower's two closed up on it) */
+    static const uint8_t AT[11] = {0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14};
+    int32_t i, b;
+    oh_rect(0, OH_RAIL - 4, 240, 3, RGB(120, 57, 34));   /* the rack's ledge, walnut */
+    oh_rect(0, OH_RAIL - 1, 240, 1, RGB(90, 31, 13));
+    oh_rect(0, OH_RAIL, 240, OH_ROLL - OH_RAIL, RGB(39, 36, 33));   /* the rail, the tips' slot */
+    oh_rect(0, OH_RAIL, 240, 2, RGB(12, 10, 8));
+    for (i = 0; i < 3; i++)
+        for (b = 0; b < 9; b++)
+            oh_bar(SET[i] + (int32_t)b * 2575 / 100, i == 0 ? opatch.bar[b] : 0u, COL[b], i == 0 && b >= dim0 && b < dim1,
+                   FT[b], i == 0 && keys ? keys[b] : NE);
+    oh_rect(0, OH_CHEEK - 2, 240, OH_ROLL - OH_CHEEK + 2, RGB(16, 14, 12));   /* the cheeks' row, the name board */
+    disc(OZX(10), OZY(OH_CHEEK + 4), 4 * oz, RGB(30, 28, 26));   /* the vibrato's knob, its pointer V1..C3 */
+    {
+        const float a = (0.75f + 0.3f * (float)opatch.vib) * FM_PI;
+        cv_line(OZX(10), OZY(OH_CHEEK + 4), OZX(10) + (int32_t)(fm_cosf(a) * 4.0f * (float)oz),
+                OZY(OH_CHEEK + 4) + (int32_t)(fm_sinf(a) * 4.0f * (float)oz), RGB(236, 232, 220));
+    }
+    oh_tab(26, opatch.vib_on);
+    oh_tab(38, 0);
+    oh_tab(50, 0);
+    if (oz == 1)
+        print_c(120, OH_CHEEK - 1, "ORGAN SOMETHING", O_GOLD);
+    oh_tab(190, opatch.perc_on);
+    oh_tab(202, opatch.perc_soft);
+    oh_tab(214, opatch.perc_fast);
+    oh_tab(226, opatch.perc_3rd);
+    for (i = 0; i < 16; i++)                 /* the upper manual: as the footer's keys */
+        oh_rect(8 + i * 14, OH_ROLL + 14, 13, 14, P_KEYW);
+    for (i = 0; i < 11; i++) {
+        oh_rect(8 + (int32_t)AT[i] * 14 + 7, OH_ROLL, 13, 13, P_EDGE);
+        oh_rect(8 + (int32_t)AT[i] * 14 + 8, OH_ROLL, 11, 12, P_KEYB);
+    }
 }
 static void ohome_draw(void)
 {
-    static const uint8_t K0[9] = {EN_K1, EN_K2, EN_K3, EN_K4, EN_SELECT, EN_ALGO, EN_PRESET, NE, NE},
-                         K1[9] = {NE, NE, NE, NE, NE, NE, NE, EN_K1, EN_K2};
-    char t[8];
-    uint32_t b;
-    o_wood();
-    cv_rect(0, 0, 240, 2, RGB(20, 12, 8));
-    if (ui.osave_to && plat_ms() / SAVE_BLINK_MS & 1u)   /* (saving: its slot blinking) */
-        t[0] = t[1] = t[2] = ' ', t[3] = 0;
-    else
-        slot_p_text(ui.osave_to ? ui.osave_to - 1u : set.b3_slot, t);
-    seg_display(6, 4, t, 3);
-    if (odirty)                              /* (changes not saved: its dot) */
-        disc(78, 48, 2, RGB(252, 78, 112));
-    if (ui.oview)
-        tag(42, 28, EN_PRESET);
-    cv_text(96, 6, &FONT_B, oname[0] ? oname : "ORGAN", RGB(236, 232, 220));
-    cv_text(96, 28, &FONT_T, ui.obrake ? "LESLIE BRAKE" : ui.ofast ? "LESLIE FAST" : "LESLIE SLOW", RGB(200, 170, 120));
-    cv_text(96, 42, &FONT_T, opatch.vib_on ? OVIB[opatch.vib] : "VIB OFF", RGB(200, 170, 120));
-    cv_text(140, 42, &FONT_T, opatch.perc_on ? (opatch.perc_3rd ? "PERC 3RD" : "PERC 2ND") : "", RGB(200, 170, 120));
-    for (b = 0; b < 9u; b++) {
-        const int dim = ui.oview ? b < 7u : b >= 7u;
-        o_drawbar(b, 16 + 26 * (int32_t)b, dim, ui.oview ? K1[b] : K0[b]);
-    }
+    oz = 1, oz_y0 = 0, oz_y = 0;
+    cv_rect(0, 0, 240, TALL_H, P_BG);
+    oh_face(9, 9, 0);
+    oh_head("SOMETHING", "B3");
+}
+static void zoom_organ(uint32_t k)           /* ORGAN HOME's drawbar turned: the camera in on DRAWBARS (its middle: HOME's
+                                              * x 60, the row under the page's 80) */
+{
+    zoom_dive(PG_OHOME, PG_OBARS, k, 0, 60, OZ_Y0 + (80 - OZ_Y) / 2, 1.0f);
+}
+static void obars_draw(void)                 /* ORGAN DRAWBARS: HOME's console twice as big; its other view the last three */
+{
+    static const uint8_t K0[9] = {EN_SELECT, EN_ALGO, EN_K1, EN_K2, EN_K3, EN_K4, NE, NE, NE},
+                         K1[9] = {NE, NE, NE, NE, NE, NE, EN_K2, EN_K3, EN_K4};
+    oz = 2, oz_y0 = OZ_Y0, oz_y = OZ_Y;
+    cv_rect(0, 0, 240, TALL_H, P_BG);
+    oh_face(ui.oview ? 0 : 6, ui.oview ? 6 : 9, ui.oview ? K1 : K0);
+    oz = 1, oz_y0 = 0, oz_y = 0;
+    oh_head("DRAWBARS", ui.oview ? "2" : "1");
 }
 static void o_tab(int32_t cx, int on, uint32_t k, const char *top, const char *bottom, int lit)   /* a rocker tab */
 {

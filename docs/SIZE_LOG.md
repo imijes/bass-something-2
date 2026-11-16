@@ -226,3 +226,6 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-15 | df82ad7 | Audio blocks of 128 frames (2.9 ms), not 256: a MIDI note to its sound 5.6 ms, was 10.2 | 470,596 | -16 | 110,968 | 69,280 | -3,584 | 29,024 | 248,172 |
 | 2026-11-16 | 9a9f22e | Overload guard: the second core past 88% of a block caps voices (RMI 8/6/5/4, B3 wheels), says OVERLOAD; B3 prototype targets only on change, its chain skipped while silent | 470,936 | +340 | 110,628 | 69,296 | +16 | 29,008 | 248,172 |
 | 2026-11-16 | d97b629+ | GLO: MIDI CHANNELS and CC CHANNELS apart, the organ's on K4 | 487,692 | +16,756 | 93,872 | 73,132 | +3,836 | 25,172 | 267,268 |
+| 2026-11-16 | e464274+ | ORGAN HOME the console from the B-3 photo, ORGAN DRAWBARS up close | 490,300 | +2,608 | 91,264 | 73,148 | +16 | 25,156 | 267,268 |
+| 2026-11-16 | e464274+ | ORGAN HOME as the other HOMEs, from the front photo; PRESET the organ's preset on its pages | 491,180 | +880 | 90,384 | 73,148 | +0 | 25,156 | 267,268 |
+| 2026-11-16 | e464274+ | ORGAN DRAWBARS: HOME's console twice as big under HOME's head | 489,372 | -1,808 | 92,192 | 73,148 | +0 | 25,156 | 267,268 |
