@@ -609,6 +609,8 @@ static int store_save(uint32_t obj, const void *src, uint32_t len);   /* plat_st
 #include "bs2_fx.c"                       /* the FX bus: one room every instrument sends into (fx_room_send, fx_take) */
 #include "bs2_drum.c"                     /* Drum Something: the drum voices (dt_hit, dt_note, dt_next) */
 #include "bs2_rmi.c"                      /* the RMI 368X, the third instrument (rmi_note, rmi_next) */
+#include "bs2_b3.h"                       /* the B3 organ's CPU prototype (BS2_B3_PROTO there): a unit of its own at -O2,
+                                              * its hot code in the second core's RAM */
 /* the clock's BPM: the drums', the master, while a pattern runs (the bass on the same clock, as on a 400 sending MIDI
  * clock to a Bass Station II); else the patch's */
 static float clock_bpm(void) { return dt_running ? (float)dt.tempo : (float)patch.tempo; }
@@ -1066,6 +1068,9 @@ static void rmi_route(uint32_t note, uint32_t vel)   /* an RMI note, its keys', 
 {
     uint32_t i, bit = 1u << (note & 31u);
     rmi_note(note, vel);
+#if BS2_B3_PROTO
+    b3_note(note, vel);                      /* (the B3 prototype: on the piano's keys and channel too) */
+#endif
     if (note == NOTE_ALL_OFF) {
         for (i = 0; i < 128u; i++)
             if (route_in[i >> 5] & 1u << (i & 31u))
@@ -1153,6 +1158,12 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
                     fifo_put(&ccq, d1 | d2 << 8 | CCQ_DRUM);
                 }
             }
+#if BS2_B3_PROTO
+            if (ch == 16u && ((st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u))   /* (the B3 prototype alone) */
+                b3_note(d1, (st & 0xF0u) == 0x90u ? d2 : 0u);
+            else if (ch == 16u && (st & 0xF0u) == 0xB0u)
+                b3_cc(d1, d2);
+#endif
             if ((set.rmi_chan == CH_ALL || set.rmi_chan == ch) && ((st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u))
                 rmi_play(d1, (st & 0xF0u) == 0x90u ? d2 : 0u);   /* the RMI (GLO RMI), a device of its own too */
             else if ((set.rmi_cc_chan == CH_ALL || set.rmi_cc_chan == ch) && (st & 0xF0u) == 0xB0u)
@@ -1385,10 +1396,26 @@ static inline int16_t usb_s16(float s)       /* a sample, the master's scale, as
 }
 /* the second core's job: the RMI's block, then the FX bus's returns for the last block's sends (fx_job) */
 static volatile uint32_t c2_ticks;           /* how long it took (plat_ticks24's): the second core's load */
+#if BS2_B3_PROTO
+static volatile uint32_t b3_pk[2], b3_sum[2], b3_nb;   /* the B3 prototype's timing: the RMI's and the B3's share of a
+                                              * block, % (the most, the sum over b3_nb blocks; b3_say reads them) */
+#endif
 static void c2_job(uint32_t n)
 {
     const uint32_t t0 = plat_ticks24();
     rmi_job(n);
+#if BS2_B3_PROTO
+    {
+        const uint32_t t1 = plat_ticks24(), blk = n * PLAT_TICKS_PER_US * 1000000u / 44100u;
+        uint32_t t2, p0, p1;
+        if (PLAT_FAR(b3_job)(rmi_buf, n))    /* (the B3 prototype's, into rmi_buf; in RAM: through a far pointer) */
+            rmi_woke = 1;
+        t2 = plat_ticks24();
+        p0 = ((t1 - t0) & 0xFFFFFFu) * 100u / blk, p1 = ((t2 - t1) & 0xFFFFFFu) * 100u / blk;
+        b3_pk[0] = p0 > b3_pk[0] ? p0 : b3_pk[0], b3_pk[1] = p1 > b3_pk[1] ? p1 : b3_pk[1];
+        b3_sum[0] += p0, b3_sum[1] += p1, b3_nb++;
+    }
+#endif
     fx_job();
     c2_ticks = plat_ticks24() - t0;
 }
@@ -2013,6 +2040,9 @@ void app_init(void)
     settings_defaults(&d);
     fx_init();
     rmi_init();
+#if BS2_B3_PROTO
+    b3_init();
+#endif
     dt_init();
     dq_init();
     (void)plat_cpu2_set(1);                  /* the second core, for the RMI's block (rmi_job): at power-on, before the
@@ -5755,6 +5785,27 @@ static void input(void)
             app_say(knob_title(l), t);
         }
     }
+#if BS2_B3_PROTO
+    {                                        /* the B3 prototype's timing, every 2 s while it plays: "B3 now/most EP
+                                              * now/most", % of a block on the second core */
+        static uint32_t at;
+        if (plat_ms() - at >= 2000u && b3_nb) {
+            char t[24];
+            const uint32_t nb = b3_nb;
+            at = plat_ms();
+            t[0] = 0;
+            int_text((int32_t)(b3_sum[1] / nb), t);
+            text_cat(t, "/");
+            int_text((int32_t)b3_pk[1], t + __builtin_strlen(t));
+            text_cat(t, " EP ");
+            int_text((int32_t)(b3_sum[0] / nb), t + __builtin_strlen(t));
+            text_cat(t, "/");
+            int_text((int32_t)b3_pk[0], t + __builtin_strlen(t));
+            b3_sum[0] = b3_sum[1] = b3_pk[0] = b3_pk[1] = b3_nb = 0;
+            app_say("B3", t);
+        }
+    }
+#endif
     {                                        /* saving: the display's blink (slot_disp) */
         static uint8_t blink;
         const uint8_t b = ui.save_to && plat_ms() / SAVE_BLINK_MS & 1u;
