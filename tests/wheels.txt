@@ -18,7 +18,7 @@ expect cents 0
 expect cut_now 92
 midi D0 7F
 wait 100
-expect cut_now 101
+expect cut_now 102
 midi D0 00
 wait 100
 midi 80 3C 00

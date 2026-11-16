@@ -14,7 +14,10 @@ void app_splash(void);
 #define APP_BOOT                         /* the splash held as long again, an oscillator sweeping on it (app.c) */
 void app_boot(void);
 #define APP_SYS_TEXT                     /* the platform's screens in the app's own fonts (app.c): FONT_S not linked */
-#define APP_BLOCK 256u                   /* frames per audio block: 5.8 ms at 44.1 kHz */
+#define APP_BLOCK 128u                   /* frames per audio block: 2.9 ms at 44.1 kHz (fm1-base's 256: 5.8 ms). Measured
+                                          * 2026-11-15, a MIDI note to its sound at the computer: 256 10.2 ms, 128 5.6 ms,
+                                          * 64 5.2 ms (the USB's floor ~4.4 ms); the heavy mix's CPU0 peak 50 -> 54-58, no
+                                          * dropouts (64 dropped one) */
 #define APP_TOUCH                        /* velocity and pressure from the keys (lib/touch.h) */
 #define APP_BTDEV                        /* Bluetooth MIDI devices (lib/btdev.h) */
 #define APP_USB_HOST_NAME                /* the USB host's device by its name (GLO CONNECT) */
