@@ -577,7 +577,7 @@ static void pq_sound(uint32_t k, uint32_t v)   /* a note on its instrument: the 
 {
 #if BS2_B3
     if (pq_p) {
-        b3_note(k, v);
+        o_note(k, v);
         return;
     }
 #endif

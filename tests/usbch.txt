@@ -1,0 +1,48 @@
+# The USB audio's eight channels (fm1.toml usb_audio_channels): the master on 1 and 2, the bass on 3, the drums on 4, the
+# piano on 5, the Space Echo's return on 6, the organ's Leslie on 7 and 8; each instrument on its own alone
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/usbch.txt bs2/build/host
+wait 600
+expect usbpk0 0
+wait 100
+key 7 down 100
+wait 300
+key 7 up
+wait 50
+expect usbpk1 >500
+expect usbpk2 >500
+expect usbpk3 >500
+expect usbpk4 <50
+expect usbpk5 <50
+expect usbpk6 <50
+expect usbpk7 <50
+expect usbpk8 <50
+wait 1500
+expect usbpk0 0
+midi 99 26 7F
+wait 200
+expect usbpk3 <50
+expect usbpk4 >500
+expect usbpk5 <50
+expect usbpk7 <50
+wait 1500
+expect usbpk0 0
+midi 92 3C 64
+wait 300
+midi 82 3C 00
+expect usbpk3 <50
+expect usbpk4 <50
+expect usbpk5 >500
+expect usbpk7 <50
+wait 1500
+expect usbpk0 0
+midi 93 3C 64
+wait 300
+midi 83 3C 00
+expect usbpk1 >500
+expect usbpk3 <50
+expect usbpk4 <50
+expect usbpk5 <50
+expect usbpk6 <50
+expect usbpk7 >500
+expect usbpk8 >500

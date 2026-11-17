@@ -18,6 +18,22 @@ expect b3_slot 0
 expect obar0 8
 wait 2500
 shot organ-home.png
+# the keys lit for the organ's notes, not the piano's: its upper manual's (channel 4) on its roll here, the lower's
+# (channel 5) on the footer's; the piano's (channel 3) none
+midi 93 3C 64
+midi 92 3E 64
+wait 100
+expect olit 128
+expect lit 0
+midi 83 3C 00
+midi 82 3E 00
+midi 94 3C 64
+wait 100
+expect olit 0
+expect lit 128
+midi 84 3C 00
+wait 100
+expect lit 0
 # a key: it sounds, lit on the upper manual's roll over the footer's (the footer's the lower's)
 key 7 down 100
 wait 300

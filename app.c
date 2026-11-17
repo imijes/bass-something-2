@@ -1107,6 +1107,27 @@ static const char *midi_in_text(char *h)     /* the last message in as hex, "90 
     }
     return midi_last_port < NPORTS ? PORT[midi_last_port] : "";
 }
+static volatile uint32_t rmi_dn[4];          /* the notes the RMI sounds, a bit each (the keys' lights in its mode) */
+static volatile uint32_t b3_dn[2][4];        /* the organ's, its upper manual's and its lower's */
+static void dn_set(volatile uint32_t *dn, uint32_t note, uint32_t vel)
+{
+    if (note > 127u)
+        dn[0] = dn[1] = dn[2] = dn[3] = 0;
+    else if (vel)
+        dn[note >> 5] |= 1u << (note & 31u);
+    else
+        dn[note >> 5] &= ~(1u << (note & 31u));
+}
+static void o_note(uint32_t code, uint32_t vel)   /* an organ key (b3_note's), its note's light too */
+{
+    uint32_t lower = 0;
+    const uint32_t n = code > 127u ? code : b3_unkey(code, &lower);
+    if (n > 127u)
+        dn_set(b3_dn[0], n, 0), dn_set(b3_dn[1], n, 0);
+    else
+        dn_set(b3_dn[lower], n, vel);
+    b3_note(code, vel);
+}
 static uint32_t route_in[4];                 /* the bass's notes held from the RMI (ROUTE), a bit each: let go as its are */
 static int32_t route_note = -1;              /* the bass's note sounding on the RMI (ROUTE), -1 none */
 static uint32_t route_trig;
@@ -1115,6 +1136,7 @@ static void rmi_route(uint32_t note, uint32_t vel)   /* an RMI note, its keys', 
 {
     uint32_t i, bit = 1u << (note & 31u);
     rmi_note(note, vel);
+    dn_set(rmi_dn, note, vel);
     if (note == NOTE_ALL_OFF) {
         for (i = 0; i < 128u; i++)
             if (route_in[i >> 5] & 1u << (i & 31u))
@@ -1147,7 +1169,7 @@ static void b3_play(uint32_t note, uint32_t vel)   /* the organ's keys' or its c
     const uint32_t was = pq_p;
     pq_p = 1;
     if (pq_key(note, vel))
-        b3_note(note, vel);
+        o_note(note, vel);
     pq_p = was;
 }
 static void route_follow(void)               /* what the bass plays (its keys, arp, sequencer) on the RMI too (ROUTE):
@@ -1459,6 +1481,9 @@ static void se_apply(void)
         se.sync_ms = ms;
     }
 }
+#ifdef PLAT_HOST
+static int32_t usb_pk[10];                   /* (the USB audio's channels' peaks since the tests' last look, 1..N) */
+#endif
 static uint32_t usb_off;                     /* the frames already rendered of the platform's block (app_render's halves) */
 static inline int16_t usb_s16(float s)       /* a sample, the master's scale, as the USB audio's 16 bits (the master's >> 8) */
 {
@@ -1796,6 +1821,15 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 #if BS2_B3
                 if (PLAT_USB_CH >= 6)        /* (the organ's, its Leslie's two sides) */
                     u[4] = usb_s16(o + b3_side[i] * ov * gi), u[5] = usb_s16(o - b3_side[i] * ov * gi);
+#endif
+#ifdef PLAT_HOST
+                {                            /* (each channel's peak, the master's too: the tests' usbpk) */
+                    uint32_t c;
+                    for (c = 0; c < 2u + (uint32_t)PLAT_USB_CH; c++) {
+                        const int32_t a = c < 2u ? lr[2u * i + c] / 256 : u[c - 2u] < 0 ? -u[c - 2u] : u[c - 2u];
+                        usb_pk[c] = a > usb_pk[c] ? a : usb_pk[c];
+                    }
+                }
 #endif
                 u += PLAT_USB_CH_STRIDE, ur--;
             }
@@ -2264,6 +2298,7 @@ static struct {
     uint8_t oexpr_off;                   /* the organ's swell pedal from MIDI (CC 11), upside down: 0 open */
     uint32_t okeys;                      /* the keys playing the organ, a bit each */
     uint32_t olow;                       /* those of them on its lower manual */
+    uint32_t olit;                       /* the notes its upper manual sounds lit on its roll (o_up_roll's) */
     uint8_t osel2;                       /* (SEL on DRAWBARS: the other manual's views, its two after the first's) */
     uint8_t olower;                      /* the organ's manual the FM-1's keys play and its pages edit: 1 the lower
                                           * (SEL held) */
@@ -4437,13 +4472,14 @@ static void key_send(uint32_t st, uint32_t note, uint32_t v, uint32_t ch)   /* a
 
 /* the notes held now (the keys' and MIDI in's, eng.down) as the keys that play them at this octave, so a note stuck on
  * (its note-off lost) is found and let go by pressing its key; *below, *above: one held under or over the keys */
-static uint32_t notes_lit(uint32_t *below, uint32_t *above)
+static uint32_t notes_lit(const volatile uint32_t *dn, uint32_t *below, uint32_t *above)   /* the notes held in dn on
+                                              * the keys, a bit each; some under them, some over */
 {
     int32_t lo = 53 + 12 * set.octave, n;
     uint32_t m = 0;
     *below = *above = 0;
     for (n = 0; n < 128; n++)
-        if (eng.down[n >> 5] >> (n & 31) & 1u) {
+        if (dn[n >> 5] >> (n & 31) & 1u) {
             if (n < lo)
                 *below = 1;
             else if (n >= lo + (int32_t)NKEYS)
@@ -6180,7 +6216,16 @@ static void input(void)
     if (!backup_held)
         glo_keep();
     rnd_step();
-    lit = notes_lit(&below, &above);
+    {                                        /* the mode's instrument's notes sounding (MIDI in, its part): the
+                                              * organ's, on ORGAN HOME and DRAWBARS its upper manual's on its own roll
+                                              * and the lower's on these; elsewhere the manual played's */
+        const int roll = ui.b3 && (ui.page == PG_OHOME || ui.page == PG_OBARS);
+        uint32_t b, a, ol = roll ? notes_lit(b3_dn[0], &b, &a) : 0u;
+        if (ol != ui.olit)
+            ui.redraw = 1;
+        ui.olit = ol;
+        lit = notes_lit(ui.b3 ? b3_dn[roll || ui.olower] : ui.rmi ? rmi_dn : eng.down, &below, &above);
+    }
     mid = 0;
     if (ui.drum)
         lit = dt_keys_lit(&mid);
@@ -11024,6 +11069,14 @@ int app_expect(const char *what, int *got)
         *got = eng.ext_shown;
     else if (!strcmp(what, "tempo"))         /* the patch's TEMPO */
         *got = patch.tempo;
+    else if (!strncmp(what, "usbpk", 5) && what[5] >= '1' && what[5] <= '9') {   /* (a USB audio channel's peak since the
+                                              * last look, 0..32767; then again from 0) */
+        *got = usb_pk[what[5] - '1'];
+        usb_pk[what[5] - '1'] = 0;
+    } else if (!strcmp(what, "usbpk0"))      /* (every channel's from 0) */
+        __builtin_memset(usb_pk, 0, sizeof usb_pk), *got = 0;
+    else if (!strcmp(what, "olit"))          /* (the organ's upper manual's, on its roll) */
+        *got = (int32_t)ui.olit;
     else if (!strcmp(what, "lit"))           /* the keys lit for the notes held (bit 0: F3 at octave 0) */
         *got = (int)ui.lit;
     else if (!strcmp(what, "seed_hi"))       /* the slot's seed, in halves (RND_EMPTY: 65535 65535) */

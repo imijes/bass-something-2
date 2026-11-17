@@ -703,6 +703,8 @@ static void oh_face(int dim0, int dim1, const uint8_t *keys)   /* the console at
             oh_rect(8 + i * 14, OH_ROLL + 14, 13, 14, P_KEYW);
             if (up >> WK[i] & 1u)
                 oh_rect(8 + i * 14, OH_ROLL + 28 - (ui.vel[WK[i]] * 14 + 126) / 127, 13, (ui.vel[WK[i]] * 14 + 126) / 127, P_CYAN);
+            else if (ui.olit >> WK[i] & 1u)  /* (a note it sounds from MIDI in or its part: all lit) */
+                oh_rect(8 + i * 14, OH_ROLL + 14, 13, 14, P_CYAN);
         }
         for (i = 0; i < 11; i++) {
             oh_rect(8 + (int32_t)AT[i] * 14 + 7, OH_ROLL, 13, 13, P_EDGE);
@@ -710,6 +712,8 @@ static void oh_face(int dim0, int dim1, const uint8_t *keys)   /* the console at
             if (up >> BK[i] & 1u)
                 oh_rect(8 + (int32_t)AT[i] * 14 + 8, OH_ROLL + 12 - (ui.vel[BK[i]] * 12 + 126) / 127, 11,
                         (ui.vel[BK[i]] * 12 + 126) / 127, P_CYAN);
+            else if (ui.olit >> BK[i] & 1u)
+                oh_rect(8 + (int32_t)AT[i] * 14 + 8, OH_ROLL, 11, 12, P_CYAN);
         }
     }
 }
