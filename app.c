@@ -648,6 +648,8 @@ static void organ_leslie_tap(void);
 static void organ_brake(void);
 static void organ_ab(void);
 static uint32_t o_up_roll(void);
+static void organ_both(void);                /* (bs2_organ.c) */
+static void o_manual_say(void);
 static void organ_manual(void);
 static char *name_cur(void);                 /* PATCH NAME's: the bass's name, or the organ's in its mode */
 static void name_changed(void);              /* (its SAVE lit) */
@@ -2315,6 +2317,7 @@ static struct {
     uint8_t oview, save_who;             /* ORGAN HOME's view (1: 1 1/3', 1' and PRESET); who save_to's is (1: the
                                           * organ's, else the bass's) */
     uint8_t ofast, obrake;               /* the Leslie: tremolo (else chorale), the brake (live: ARP) */
+    uint8_t ocan;                        /* the organ's CANCEL held (EDIT + OCT-): bit 0 the upper's, 1 the lower's */
     uint8_t oles;                        /* ORGAN LESLIE's view (LFO there): CABINET, ROTORS, HORN, LOW ROTOR, AMP */
     uint8_t oexpr_off;                   /* the organ's swell pedal from MIDI (CC 11), upside down: 0 open */
     uint32_t okeys;                      /* the keys playing the organ, a bit each */
@@ -6039,6 +6042,12 @@ static void input(void)
         m = mr > m ? mr : m;
         at_keys = ki == KI_DRUM || !set.local ? 0u : mo > m ? mo : m;
     }
+    {                                        /* the organ's CANCEL: while EDIT and OCT- are held, the manual's keys none */
+        const uint32_t c = ui.b3 && ORGAN_PAGE(ui.page) && (btn >> B_EDIT & 1u) && (btn >> B_OCTDN & 1u) ? 1u << ui.olower : 0u;
+        if (c != ui.ocan)
+            ui.redraw = 1;
+        ui.ocan = (uint8_t)c;
+    }
     ui.btn_in = btn;
     for (k = 0; k < NB; k++) {               /* a button pressed: its name, and what it does here */
         uint32_t bit = 1u << k;
@@ -6053,6 +6062,17 @@ static void input(void)
         }
         zoom_close_end();
         zoom.settle = 0;
+        if (ui.b3 && ORGAN_PAGE(ui.page) && (btn >> B_EDIT & 1u) && (k == B_OCTDN || k == B_OCTUP)) {   /* EDIT +
+                                              * OCT: the organ's preset keys, OCT+ A#+B, OCT- CANCEL while held (EDIT's
+                                              * own tap and hold let go) */
+            if (ui.hold_live && ui.hold_k == B_EDIT)
+                ui.hold_live = 0;
+            if (k == B_OCTUP)
+                organ_both();
+            else
+                o_manual_say();
+            continue;
+        }
         if (ui.hold_live && ui.hold_k == B_REC && (k == B_OCTDN || k == B_OCTUP)) {   /* REC + OCT-/+: the motion
                                               * recorder, REC's own tap and hold let go (no hint: the motion's said) */
             ui.hold_live = 0;
@@ -11287,6 +11307,8 @@ int app_expect(const char *what, int *got)
         *got = opatch.les[what[4] - '0'];
     else if (!strcmp(what, "ofast"))
         *got = ui.ofast;
+    else if (!strcmp(what, "ocan"))          /* (the organ's CANCEL held: bit 0 the upper's) */
+        *got = ui.ocan;
     else if (!strcmp(what, "obrake"))
         *got = ui.obrake;
     else if (!strcmp(what, "oswell"))

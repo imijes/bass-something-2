@@ -125,9 +125,13 @@ static void organ_load(void)                 /* (app_init: its bank, else the fa
 }
 static void organ_block(void)                /* the render's, before the second core's job: the sound, the Leslie */
 {
-    if (o_sent) {
+    static uint8_t can;                      /* (the CANCEL held last time) */
+    if (o_sent || ui.ocan != can) {          /* (CANCEL held: the manual's keys none, on a copy) */
+        b3_patch_t p = opatch;
         o_sent = 0;
-        b3_set(&opatch);
+        can = ui.ocan;
+        p.ub = (uint8_t)(p.ub | (can & 1u) << 2), p.lb = (uint8_t)(p.lb | (can & 2u) << 1);
+        b3_set(&p);
     }
     b3_leslie(ui.ofast, ui.obrake);
     b3_rotor(opatch.les);
@@ -151,7 +155,7 @@ static void name_changed(void)
 static int organ_dirty(void) { return odirty; }
 static uint32_t organ_lights(void)           /* FX and EDIT lit while its vibrato is on, ENV while its percussion is */
 {
-    return (uint32_t)opatch.vib_on << B_FX | (uint32_t)(opatch.perc_on && opatch.ub) << B_ENV
+    return (uint32_t)opatch.vib_on << B_FX | (uint32_t)(opatch.perc_on && (opatch.ub & 3u)) << B_ENV
          | (uint32_t)(ui.olower ? opatch.vib_lower : opatch.vib_on) << B_EDIT;
 }
 static void organ_changed(void)
@@ -167,7 +171,7 @@ static void organ_changed(void)
 static void organ_cc(uint32_t c, uint32_t v)
 {
     if (c >= 12u && c <= 20u)
-        (opatch.ub ? opatch.bar : opatch.ua)[c - 12u] = (uint8_t)((v * 8u + 63u) / 127u);   /* (the upper's set
+        (opatch.ub & 1u ? opatch.bar : opatch.ua)[c - 12u] = (uint8_t)((v * 8u + 63u) / 127u);   /* (the upper's set
                                               * sounding) */
     else if (c == 21u)
         opatch.perc_on = v >= 64u;
@@ -207,9 +211,15 @@ static void organ_cc(uint32_t c, uint32_t v)
 }
 
 static const char *const OMAN[2] = {"UPPER", "LOWER"};
-static uint8_t *o_bars(void)                 /* the drawbars the pages edit: the set the manual played sounds */
+static uint32_t o_key(void) { return ui.olower ? opatch.lb : opatch.ub; }   /* the manual played's preset keys */
+static const char *o_key_name(void)          /* its preset keys as said: A#, B, A#+B, CANCEL (held) */
 {
-    return ui.olower ? (opatch.lb ? opatch.lbar : opatch.la) : opatch.ub ? opatch.bar : opatch.ua;
+    return ui.ocan >> ui.olower & 1u ? "CANCEL" : o_key() & 2u ? "A#+B" : o_key() & 1u ? "B" : "A#";
+}
+static uint8_t *o_bars(void)                 /* the drawbars the pages edit: the set the manual played sounds (A#+B:
+                                              * the one EDIT held chose) */
+{
+    return ui.olower ? (opatch.lb & 1u ? opatch.lbar : opatch.la) : opatch.ub & 1u ? opatch.bar : opatch.ua;
 }
 /* the knobs: each page's (knob_turn's for the organ's pages), said as they go */
 static void o_say_bar(uint32_t b)
@@ -369,7 +379,8 @@ static const char *o_hint(uint32_t k)
             return 0;
         t[0] = 0;
         text_cat(t, ui.olower ? "Lower " : "Upper ");
-        text_cat(t, (ui.olower ? opatch.lb : opatch.ub) ? "B " : "A# ");
+        text_cat(t, o_key_name());
+        text_cat(t, " ");
         text_cat(t, FT[b]);
         text_cat(t, " drawbar");
         return t;
@@ -429,7 +440,7 @@ static void organ_leslie_tap(void)           /* ARP: chorale or tremolo (the bra
 }
 static void o_manual_say(void)               /* the manual, its preset key: "UPPER B", "LOWER A#" */
 {
-    app_say(OMAN[ui.olower], (ui.olower ? opatch.lb : opatch.ub) ? "B" : "A#");
+    app_say(OMAN[ui.olower], o_key_name());
 }
 static void organ_manual(void)               /* SEL held: the other manual, the keys' and the pages' */
 {
@@ -437,10 +448,18 @@ static void organ_manual(void)               /* SEL held: the other manual, the 
     ui.redraw = 1;
     o_manual_say();
 }
-static void organ_ab(void)                   /* EDIT held: the manual's other preset key, A# or B */
+static void organ_ab(void)                   /* EDIT held: the manual's other preset key, A# or B (A#+B: the other
+                                              * one edited) */
 {
     uint8_t *const f = ui.olower ? &opatch.lb : &opatch.ub;
-    *f = (uint8_t)!*f;
+    *f = (uint8_t)(*f ^ 1u);
+    organ_changed();
+    o_manual_say();
+}
+static void organ_both(void)                 /* EDIT held, OCT+: A#+B, the manual's two preset keys down at once */
+{
+    uint8_t *const f = ui.olower ? &opatch.lb : &opatch.ub;
+    *f = (uint8_t)(*f ^ 2u);
     organ_changed();
     o_manual_say();
 }
@@ -618,12 +637,13 @@ static void oh_head(const char *line2, const char *cyan)   /* the HOMEs' head: t
         char mk[12] = "";
         int32_t x;
         text_cat(mk, OMAN[ui.olower]);
-        text_cat(mk, (ui.olower ? opatch.lb : opatch.ub) ? " B" : " A#");
+        text_cat(mk, " ");
+        text_cat(mk, o_key_name());
         x = cv_text(10, 56, &FONT_T, mk, P_CYAN);
         text_cat(st, ui.obrake ? "  LESLIE BRAKE" : ui.ofast ? "  LESLIE FAST" : "  LESLIE SLOW");
         text_cat(st, "  ");
         text_cat(st, (ui.olower ? opatch.vib_lower : opatch.vib_on) ? OVIB[opatch.vib] : "VIB OFF");
-        if (opatch.perc_on && opatch.ub)
+        if (opatch.perc_on && (opatch.ub & 3u))
             text_cat(st, opatch.perc_3rd ? "  PERC 3RD" : "  PERC 2ND");
         cv_text(x, 56, &FONT_T, st, P_SILK);
     }
@@ -636,7 +656,11 @@ static const uint8_t *o_set(uint32_t i)      /* set i's drawbars: the upper's A#
 {
     return i == 0u ? opatch.ua : i == 1u ? opatch.bar : i == 2u ? opatch.la : opatch.lbar;
 }
-static int o_sounds(uint32_t i) { return (i & 1u) == ((i >> 1) ? opatch.lb : opatch.ub); }   /* its preset key down */
+static int o_sounds(uint32_t i)              /* set i's preset key down (A#+B: both; CANCEL held: neither) */
+{
+    const uint32_t key = (i >> 1) ? opatch.lb : opatch.ub;
+    return !(ui.ocan >> (i >> 1) & 1u) && ((key & 2u) || (i & 1u) == (key & 1u));
+}
 static void oh_keys(int32_t z, int32_t x0)   /* over each set its preset key, A# or B, lit while down (HOME's scale z,
                                               * its column x0 at the page's left) */
 {
@@ -742,7 +766,7 @@ static void obars_draw(void)                 /* ORGAN DRAWBARS: HOME's console t
     cv_rect(0, 0, 240, TALL_H, P_BG);
     oh_face(ui.oview ? 0 : 5, ui.oview ? 5 : 9, ui.oview ? K1 : K0);
     oz = 1, oz_x0 = oz_y0 = oz_y = 0;
-    oh_head(OMAN[ui.olower], (ui.olower ? opatch.lb : opatch.ub) ? "B" : "A#");
+    oh_head(OMAN[ui.olower], o_key_name());
     oh_keys(2, ui.olower ? 120 : 0);
 }
 /* the sections of ORGAN HOME its pages show up close (SEL's open from HOME, HOME's back to it, the live buttons' dives):

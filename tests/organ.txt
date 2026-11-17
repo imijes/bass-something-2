@@ -293,3 +293,26 @@ expect page 54
 tap LFO
 wait 30
 said LESLIE ROTORS
+# EDIT + OCT: the preset keys' tricks; OCT+ A#+B (both down, each drawbar the more), OCT- CANCEL while held (the
+# manual silent), OCT+ again its one key; EDIT's own hold not fired
+press EDIT
+wait 30
+tap OCT+
+wait 30
+said UPPER A#+B
+expect oub 3
+press OCT-
+wait 30
+said UPPER CANCEL
+expect ocan 1
+release OCT-
+wait 30
+expect ocan 0
+tap OCT+
+wait 30
+said UPPER B
+expect oub 1
+wait 1200
+release EDIT
+wait 30
+expect oub 1

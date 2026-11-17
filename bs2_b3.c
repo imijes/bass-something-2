@@ -187,14 +187,18 @@ void b3_note(uint32_t code, uint32_t vel)   /* a key (its code, b3_key's; vel 0:
     b3.cl[c].amt = 0.25f + 0.6f * (float)k / (float)B3_NK;   /* (its band: higher for a higher key) */
 }
 
+static uint8_t b3_key_bar(uint32_t key, uint32_t a, uint32_t b)   /* a drawbar as the preset keys down have it */
+{
+    const uint32_t v = key & 4u ? 0u : key & 2u ? (a > b ? a : b) : key & 1u ? b : a;
+    return (uint8_t)(v > 8u ? 8u : v);
+}
 void b3_set(const b3_patch_t *p)             /* a preset's sound (the organ's, app.c's: before the second core's job) */
 {
     uint32_t b;
-    for (b = 0; b < 9u; b++)                 /* (each manual's set: its B preset key's or its A#'s) */
-        b3.bar[0][b] = (p->ub ? p->bar[b] : p->ua[b]) > 8u ? 8u : p->ub ? p->bar[b] : p->ua[b],
-        b3.bar[1][b] = (p->lb ? p->lbar[b] : p->la[b]) > 8u ? 8u : p->lb ? p->lbar[b] : p->la[b];
+    for (b = 0; b < 9u; b++)                 /* (each manual's set: its B preset key's, its A#'s, both's, CANCEL's none) */
+        b3.bar[0][b] = b3_key_bar(p->ub, p->ua[b], p->bar[b]), b3.bar[1][b] = b3_key_bar(p->lb, p->la[b], p->lbar[b]);
     b3.vib[0] = p->vib_on != 0u, b3.vib[1] = p->vib_lower != 0u;
-    b3.perc_on = p->perc_on && p->ub, b3.perc_3rd = p->perc_3rd != 0u;
+    b3.perc_on = p->perc_on && (p->ub & 3u) && !(p->ub & 4u), b3.perc_3rd = p->perc_3rd != 0u;
     b3.perc_soft = p->perc_soft != 0u, b3.perc_fast = p->perc_fast != 0u;
     b3.scan = p->vib_on || p->vib_lower ? (uint8_t)(1u + (p->vib > 5u ? 5u : p->vib)) : 0u;   /* (off, V1 V2 V3, C1
                                               * C2 C3) */
