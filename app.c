@@ -3374,6 +3374,9 @@ static int32_t knob_accel(uint32_t k, int32_t e, const param_t *q)
     return e * ((q->hi - q->lo + 1) / 128 > 1 ? (q->hi - q->lo + 1) / 128 : 1) *
            MUL[set.knobs < NKN ? set.knobs : KN_NORMAL][gap < 20u ? 0 : gap < 35u ? 1 : gap < 60u ? 2 : gap < 100u ? 3 : 4];
 }
+/* a 0..127 control a page turns itself (a volume, DRUM ROOM's, ECHO VOICE's, the organ's): knob_accel's as any */
+static const param_t SPAN127 = {"SPAN", 0, 0, 127, 0};
+static int32_t knob_wide(uint32_t k, int32_t e) { return knob_accel(k, e, &SPAN127); }
 /* Drum Something's knobs, on every one of its pages: the 400's four on K1-K4 (K3, K4 the drum last tapped's, shown on
  * the left display), PRESET the number its list's first function shows */
 static void dt_show(uint32_t what)
@@ -3572,6 +3575,7 @@ static int knob_turn(uint32_t k, int32_t e)
         char t[12];
         if (k < EN_K1)
             return 0;
+        e = knob_wide(k, e);
         set.droom[k - EN_K1] = (uint8_t)clamp((int32_t)set.droom[k - EN_K1] + e, 0, 127);   /* (kept as the GLO
                                               * settings are: glo_keep) */
         dr_text(k, t);
@@ -3581,6 +3585,7 @@ static int knob_turn(uint32_t k, int32_t e)
     }
     if (ui.page == PG_SVOICE) {              /* (ECHO VOICE's: the voicing's scales, svoice_draw) */
         char t[12];
+        e = knob_wide(k, e);
         set.se_voice[k] = (uint8_t)clamp((int32_t)set.se_voice[k] + e, 0, 127);   /* (kept as the GLO settings
                                               * are: glo_keep) */
         sv_text(k, t);
@@ -3623,9 +3628,8 @@ static int knob_turn(uint32_t k, int32_t e)
     }
     if ((ui.page == PG_SHOME || ui.page == PG_SIN || ui.page == PG_SECHO) && k == EN_SELECT) {   /* the echo's own
                                               * volume, its returns' (kept with the GLO settings, under full) */
-        static const param_t VOL = {"VOLUME", 0, 0, 127, 0};
         char t[8];
-        e = knob_accel(k, e, &VOL);
+        e = knob_wide(k, e);
         set.se_vol_off = (uint8_t)(127 - clamp(127 - (int32_t)set.se_vol_off + e, 0, 127));
         int_text(127u - set.se_vol_off, t);
         app_say("ECHO OWN VOLUME", t);
@@ -3636,10 +3640,9 @@ static int knob_turn(uint32_t k, int32_t e)
                                               * MASTER's Volume (on HOME too): the bass's own; RMI PANEL's VOL: the RMI's
                                               * (both kept with the GLO settings, under full); the FM-1's MASTER knob is
                                               * the master over all */
-        static const param_t VOL = {"VOLUME", 0, 0, 127, 0};
         uint8_t *off = ui.page == PG_RSEL ? &set.rvol_off : &set.bvol_off;
         char t[8];
-        e = knob_accel(k, e, &VOL);          /* (GLO CONTROLS' Knobs: its speed-up, as every knob's) */
+        e = knob_wide(k, e);                 /* (GLO CONTROLS' Knobs: its speed-up, as every knob's) */
         *off = (uint8_t)(127 - clamp(127 - (int32_t)*off + e, 0, 127));
         int_text(127u - *off, t);
         app_say(ui.page == PG_RSEL ? "PIANO VOLUME" : "BASS VOLUME", t);
@@ -3652,10 +3655,9 @@ static int knob_turn(uint32_t k, int32_t e)
         ui.page = PG_GCLK;
         return r;
     }
-    static const param_t RT_SPAN = {"RND", 0, 0, 127, 0};   /* (RND TRACKS' levels and sends: turned as a 0..127's) */
     const param_t *q = DRUM_PAGE(ui.page) && dt_knob_wide(k) && dt_kmap(k) != EN_K1 && dt_kmap(k) != EN_K2 ? &DT_PICK
                        : (ui.page == PG_RTRK && k >= EN_K1 && rnd_row != RR_ENG) || (DRUM_PAGE(ui.page) && dt_knob_wide(k))
-                       ? &RT_SPAN : knob_param(k);
+                       ? &SPAN127 : knob_param(k);   /* (RND TRACKS' levels and sends: as a 0..127's) */
     e = knob_accel(k, e, q);
     if (DRUM_PAGE(ui.page))                  /* Drum Something's, the same on each of its pages (said there) */
         return dt_turn(k, e);

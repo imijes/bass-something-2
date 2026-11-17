@@ -274,6 +274,7 @@ static int o_turn(uint32_t k, int32_t e)
         const int32_t b = view ? V1[k] : V0[k];
         if (k == EN_SELECT) {                /* (its own volume, as every HOME's: upside down, b3vol_off) */
             char t[8];
+            e = knob_wide(k, e);
             set.b3vol_off = (uint8_t)(127 - clamp(127 - (int32_t)set.b3vol_off + e, 0, 127));
             int_text(127u - set.b3vol_off, t);
             app_say("ORGAN VOLUME", t);
@@ -315,7 +316,7 @@ static int o_turn(uint32_t k, int32_t e)
         } else if (k >= EN_K1 && (ui.oles == 1u || ui.oles == 2u || ui.oles == 3u)) {   /* the trimmers (the preset's, as
                                               * GLO settings are) */
             const uint32_t j = ui.oles == 1u ? VT[0][k - EN_K1] : VT[1][k - EN_K1] + (ui.oles == 3u ? 4u : 0u);
-            opatch.les[j] = (uint8_t)clamp((int32_t)opatch.les[j] + e, 0, 127);
+            opatch.les[j] = (uint8_t)clamp((int32_t)opatch.les[j] + knob_wide(k, e), 0, 127);
             organ_changed();
             o_trim_text(j, t);
             app_say(OTRIM[j], t);
@@ -324,20 +325,20 @@ static int o_turn(uint32_t k, int32_t e)
             organ_changed();
             app_say("KEY SWELL", OFF_ON[opatch.swell]);
         } else if (ui.oles == 4u && k == EN_K3) {
-            opatch.swell_rest = (uint8_t)clamp((int32_t)opatch.swell_rest + e, 0, 127);
+            opatch.swell_rest = (uint8_t)clamp((int32_t)opatch.swell_rest + knob_wide(k, e), 0, 127);
             int_text((int32_t)opatch.swell_rest * 100 / 127, t);
             text_cat(t, "%");
             organ_changed();
             app_say("SWELL REST", t);
         } else if (k == EN_K4) {             /* (its volume: a setting, kept with GLO's; SAVE stays dark) */
-            set.b3vol_off = (uint8_t)(127 - clamp(127 - (int32_t)set.b3vol_off + e, 0, 127));
+            set.b3vol_off = (uint8_t)(127 - clamp(127 - (int32_t)set.b3vol_off + knob_wide(k, e), 0, 127));
             int_text(127 - (int32_t)set.b3vol_off, t);
             ui.redraw = 1;
             app_say("ORGAN VOLUME", t);
         } else if (k == EN_K1 || (ui.oles == 0u && (k == EN_K2 || k == EN_K3))) {   /* the CABINET's WIDTH, DRIVE,
                                               * CLICK; the AMP's DRIVE */
             uint8_t *v = ui.oles == 4u || k == EN_K2 ? &opatch.drive : k == EN_K1 ? &opatch.width : &opatch.click;
-            *v = (uint8_t)clamp((int32_t)*v + e, 0, 127);
+            *v = (uint8_t)clamp((int32_t)*v + knob_wide(k, e), 0, 127);
             organ_changed();
             int_text(*v, t);
             app_say(v == &opatch.width ? "LESLIE WIDTH" : v == &opatch.drive ? "DRIVE" : "KEY CLICK", t);
