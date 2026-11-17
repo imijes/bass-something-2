@@ -235,3 +235,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-16 | 3c76702+ | Organ swell pedal: Hammond taper, KEY SWELL (key pressure), CC 11; amp valves glow by signal and drive | 502,828 | +1,168 | 78,736 | 75,324 | +48 | 22,980 | 284,744 |
 | 2026-11-16 | 7eec678+ | Organ lower manual: four drawbar sets, A#/B preset keys, its own channel | 502,804 | -24 | 78,760 | 76,492 | +1,168 | 21,812 | 285,676 |
 | 2026-11-16 | 7eec678+ | Organ hints for the two manuals; the upper manual's notes lit on its own roll | 504,748 | +1,944 | 76,816 | 76,524 | +32 | 21,780 | 285,676 |
+| 2026-11-16 | 9441972+ | Organ motion: all four drawbar sets, LANES by set | 505,372 | +624 | 76,192 | 76,876 | +352 | 21,428 | 285,680 |

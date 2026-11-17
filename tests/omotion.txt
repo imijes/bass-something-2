@@ -44,4 +44,39 @@ wait 50
 said ORGAN MOTION CLEARED
 expect mo_n 0
 expect obar0 8
+# the lower manual's drawbars too (SEL held: the lower): its 16' recorded and played back, the upper's left be
+press SEL
+wait 1100
+release SEL
+wait 30
+expect olower 1
+expect olbar0 0
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+wait 500
+turn ALGO 6
+wait 1000
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+wait 50
+expect mo_n >1
+wait 2500
+turn ALGO -6
+wait 4400
+expect olbar0 >1
+expect obar0 8
+press REC
+wait 50
+tap OCT+
+wait 50
+release REC
+wait 50
+expect mo_n 0
+expect olbar0 0
 midi 80 3C 00

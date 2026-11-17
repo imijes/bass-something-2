@@ -888,10 +888,14 @@ static void seq_beat(void)                   /* a 16th of the arp's rhythm, the 
 #define MO_TOUCH_MS 300u                     /* a hand on it holds the loop's moves off so long after its last */
 #define MO_NSE 10u                           /* the Space Echo's (MO_SE_AT) */
 enum { MO_CUTOFF, MO_RESO, MO_RHY, MO_AOCT, MO_DVOL, MO_DTUNE = MO_DVOL + NDT, MO_SE = MO_DTUNE + NDT, MO_ORG = MO_SE + MO_NSE,
-       MO_ROLL = MO_ORG + 9, MO_PAT = MO_ROLL + 1 + NDT };   /* (MO_ORG: the organ's nine drawbars) */         /* its
+       MO_ROLL = MO_ORG + 36, MO_PAT = MO_ROLL + 1 + NDT };   /* (MO_ORG: the organ's drawbars, its four sets' nine) */         /* its
                                               * values (mo_ref), then the roll: MO_ROLL off, MO_ROLL + 1 + the drum on (its
                                               * velocity, the accent's bit 7); a drum pattern cued (its number) */
 #define MO_NT (MO_ROLL + 2)                  /* what a hand holds: the values, the roll, the patterns */
+#define MO_NW ((MO_ROLL + 31u) / 32u)    /* a bit each value: a mask's words */
+#define MO_BIT(m, g) ((m)[(g) >> 5] >> ((g) & 31u) & 1u)
+#define MO_SET(m, g) ((m)[(g) >> 5] |= 1u << ((g) & 31u))
+#define MO_CLR(m, g) ((m)[(g) >> 5] &= ~(1u << ((g) & 31u)))
 #define MO_HELD(g) ((g) < MO_ROLL ? (g) : (g) == MO_PAT ? MO_ROLL + 1u : MO_ROLL)   /* a move's in mo.at */
 /* PROX's targets (set.prox_tgt) in its list's order, the PRESET's and CC 4's: off, the bass's, the drums' tunings
  * (across the middle), the Space Echo's (REPEAT RATE last); PROX_MO each one's motion value (MO_*: the drums' volumes
@@ -918,6 +922,10 @@ static int prox_calibrating(void);
                                               * drums', the echo's, the organ's */
 static b3_patch_t opatch;                    /* (bs2_organ.c's: the organ's drawbars the loop moves) */
 static volatile uint8_t o_sent;
+static uint8_t *o_bars_of(b3_patch_t *p, uint32_t i)   /* p's set i: the upper's A#, B, the lower's A#, B */
+{
+    return i == 0u ? p->ua : i == 1u ? p->bar : i == 2u ? p->la : p->lbar;
+}
 static const uint8_t MO_BASS_AT[MO_DVOL] = {offsetof(patch_t, cutoff), offsetof(patch_t, reso), offsetof(patch_t, rhythm),
                                            offsetof(patch_t, arp_oct)};
 static const uint8_t MO_SE_AT[MO_NSE] = {offsetof(settings_t, se_int), offsetof(settings_t, se_rate),
@@ -938,7 +946,7 @@ static struct {
     uint8_t roll_held;                       /* the roll key down */
     uint8_t pat0;                            /* the drums' pattern at the loop's top (its cues: back to it there) */
     uint8_t rq_n, rq[4][2];                  /* the roll key's presses and releases since the last step, to record */
-    uint64_t sm_on;                          /* SMOOTH: the values gliding to their loop's last move */
+    uint32_t sm_on[MO_NW];                   /* SMOOTH: the values gliding to their loop's last move */
     float sm_v[MO_ROLL];                     /* each one's way there */
     uint8_t sm_to[MO_ROLL];
     uint32_t sm_at;                          /* the glide's last step */
@@ -966,7 +974,8 @@ static int mo_lane(uint32_t g)               /* move g's lane on (LANES) */
     if (w == 2u)
         return g - MO_SE == l - 1u;
     if (w == 3u)
-        return g - MO_ORG == l - 1u;
+        return l <= 4u ? (g - MO_ORG) / 9u == l - 1u : (g - MO_ORG) % 9u == l - 5u;   /* (a set; a footage, in
+                                              * each set) */
     return l == 1u ? g >= MO_DVOL && g < MO_DTUNE : l == 2u ? g >= MO_DTUNE && g < MO_SE
          : l == 3u ? g >= MO_ROLL && g < MO_PAT : g == MO_PAT;   /* (the drums': volumes, tunings, the roll, cues) */
 }
@@ -2874,7 +2883,7 @@ static const char *const MO_LN_BASS[1 + MO_DVOL] = {"ALL", "FREQUENCY", "RESONAN
 static const char *const MO_LN_DRUM[5] = {"ALL", "VOLUMES", "TUNINGS", "ROLL", "PATTERNS"};
 static const char *const MO_LN_ECHO[1 + MO_NSE] = {"ALL", "INTENSITY", "REPEAT RATE", "INPUT", "MODE", "REVERB",
                                                     "ECHO", "BASS SEND", "DRUM SEND", "PIANO SEND", "WOW"};   /* (MO_SE_AT's) */
-static const char *const MO_LN_ORG[10] = {"ALL", "16'", "5 1/3'", "8'", "4'", "2 2/3'", "2'", "1 3/5'", "1 1/3'", "1'"};
+static const char *const MO_LN_ORG[14] = {"ALL", "UPPER A#", "UPPER B", "LOWER A#", "LOWER B", "16'", "5 1/3'", "8'", "4'", "2 2/3'", "2'", "1 3/5'", "1 1/3'", "1'"};
 static const param_t MO_P[NE] = {
     [EN_SELECT] = {"FOR", MF(mfor), 0, 4, MO_FOR_NAME}, [EN_PRESET] = {"CLEAR", MF(clear), 0, 0, 0},
     [EN_K1] = {"LENGTH", MF(len), 0, MO_NLEN - 1, MO_LEN_NAME}, [EN_K2] = {"SPEED", MF(speed), 0, 2, MO_SPD_NAME},
@@ -2883,7 +2892,7 @@ static const param_t MO_LANE_P[5] = {{"LANES", MF(lane[0]), 0, 0, MO_LN_ALL},
                                      {"LANES", MF(lane[0]), 0, MO_DVOL, MO_LN_BASS},
                                      {"LANES", MF(lane[1]), 0, 4, MO_LN_DRUM},
                                      {"LANES", MF(lane[2]), 0, MO_NSE, MO_LN_ECHO},
-                                     {"LANES", MF(lane[3]), 0, 9, MO_LN_ORG}};
+                                     {"LANES", MF(lane[3]), 0, 13, MO_LN_ORG}};
 
 static int32_t param_get(const param_t *q, const void *p)
 {
@@ -5002,7 +5011,7 @@ static uint8_t *mo_ref(uint32_t g)           /* value g's */
 {
     return g < MO_DVOL ? (uint8_t *)&patch + MO_BASS_AT[g] : g < MO_DTUNE ? &dt.vol[g - MO_DVOL]
          : g < MO_SE   ? &dt.tune[g - MO_DTUNE] : g < MO_ORG ? (uint8_t *)&set + MO_SE_AT[g - MO_SE]
-         : &(opatch.ub ? opatch.bar : opatch.ua)[g - MO_ORG];   /* (the upper manual's set sounding) */
+         : &o_bars_of(&opatch, (g - MO_ORG) / 9u)[(g - MO_ORG) % 9u];
 }
 static int mo_in(uint32_t t, float a, float p) { return p >= a ? t > a && t <= p : t > a || t <= p; }   /* in (a, p] */
 static void mo_put(float p, uint32_t g, uint32_t v)   /* a move in, in time's order */
@@ -5028,12 +5037,19 @@ static void mo_pat(uint32_t n)               /* a pattern cued as the drums run 
     if (mo.rec && mo.rq_n < 4u)
         mo.rq[mo.rq_n][0] = MO_PAT, mo.rq[mo.rq_n++][1] = (uint8_t)n;
 }
+static int mo_any(const uint32_t *m)
+{
+    uint32_t i, a = 0;
+    for (i = 0; i < MO_NW; i++)
+        a |= m[i];
+    return a != 0u;
+}
 static void mo_step(void)                    /* each look at the buttons: the motion loop recorded and played */
 {
     const uint32_t now = plat_ms();
     const float pos = mo_pos;
     uint32_t i, g, rq = mo.rq_n;
-    uint64_t moved = 0;
+    uint32_t moved[MO_NW] = {0};
     float p, a;
     mo.rq_n = 0;
     if (mo.roll_held)                        /* (the roll key held: the hand's) */
@@ -5043,8 +5059,8 @@ static void mo_step(void)                    /* each look at the buttons: the mo
         if (v != mo.lv[g]) {
             mo.lv[g] = mo.hv[g] = v;
             mo.at[g] = now;
-            moved |= 1ull << g;
-            mo.sm_on &= ~(1ull << g);        /* (its glide the hand's now) */
+            MO_SET(moved, g);
+            MO_CLR(mo.sm_on, g);        /* (its glide the hand's now) */
         } else if (!mo.n && !mo.rec)
             mo.hv[g] = v;
     }
@@ -5078,7 +5094,7 @@ static void mo_step(void)                    /* each look at the buttons: the mo
                 mo_del(i);
         }
         for (g = 0; g < MO_ROLL; g++)
-            if (moved >> g & 1u && mo_lane(g))
+            if (MO_BIT(moved, g) && mo_lane(g))
                 mo_put(p, g, *mo_ref(g));
         for (i = 0; i < rq; i++)
             if (mo_lane(mo.rq[i][0]))
@@ -5096,10 +5112,10 @@ static void mo_step(void)                    /* each look at the buttons: the mo
                     dq_cmd(DQC_CUE, e.v & 0x7Fu, 0);
                 }
             } else if (e.tgt < MO_ROLL && mom.smooth && !MO_STEPPED(e.tgt)) {   /* SMOOTH: glided there (below) */
-                if (!(mo.sm_on >> e.tgt & 1u))
+                if (!MO_BIT(mo.sm_on, e.tgt))
                     mo.sm_v[e.tgt] = (float)*mo_ref(e.tgt);
                 mo.sm_to[e.tgt] = e.v;
-                mo.sm_on |= 1ull << e.tgt;
+                MO_SET(mo.sm_on, e.tgt);
             } else if (e.tgt < MO_ROLL) {
                 *mo_ref(e.tgt) = mo.lv[e.tgt] = e.v;
                 o_sent |= e.tgt >= MO_ORG;       /* (a drawbar: to the organ) */
@@ -5110,17 +5126,17 @@ static void mo_step(void)                    /* each look at the buttons: the mo
                 dq_cmd(DQC_ROLLOFF, 0, 0);
             ui.redraw = 1;
         }
-    if (mo.sm_on) {                          /* the glides, a step on: a one-pole, SMOOTH's square times 8 ms */
+    if (mo_any(mo.sm_on)) {                  /* the glides, a step on: a one-pole, SMOOTH's square times 8 ms */
         const float tau = (float)(mom.smooth * mom.smooth) * 8.0f, dt = (float)(now - mo.sm_at),
                     k = tau > 0.0f ? dt / (tau + dt) : 1.0f;
         for (g = 0; g < MO_ROLL; g++)
-            if (mo.sm_on >> g & 1u) {
+            if (MO_BIT(mo.sm_on, g)) {
                 float d = (float)mo.sm_to[g] - mo.sm_v[g];
                 mo.sm_v[g] += d * k;
                 d = (float)mo.sm_to[g] - mo.sm_v[g];
                 if (d < 0.5f && d > -0.5f) {
                     mo.sm_v[g] = (float)mo.sm_to[g];
-                    mo.sm_on &= ~(1ull << g);
+                    MO_CLR(mo.sm_on, g);
                 }
                 *mo_ref(g) = mo.lv[g] = (uint8_t)(mo.sm_v[g] + 0.5f);
                 o_sent |= g >= MO_ORG;
@@ -5143,7 +5159,7 @@ static void mo_clear(uint32_t w)              /* instrument w's moves (MO_INST's
             if (w == 4u || MO_INST(g) == w) {
                 *mo_ref(g) = mo.lv[g] = mo.hv[g];
                 o_sent |= g >= MO_ORG;
-                mo.sm_on &= ~(1ull << g);
+                MO_CLR(mo.sm_on, g);
             }
         if ((w == 1u || w == 4u) && dq.roll_mo)
             dq_cmd(DQC_ROLLOFF, 0, 0);

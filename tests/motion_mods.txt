@@ -81,3 +81,13 @@ wait 30
 said BASS MOTION CLEARED
 expect mo_n 0
 midi 80 3C 00
+# the organ's LANES: ALL, its four sets, then each footage across them
+turn SELECT 3
+wait 30
+said FOR ORGAN
+turn ALGO 4
+wait 30
+said LANES LOWER B
+turn ALGO 1
+wait 30
+said LANES 16'

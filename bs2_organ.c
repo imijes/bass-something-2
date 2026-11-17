@@ -397,8 +397,8 @@ static void o_save_button(void)
         oname[i - 1u] = 0;
     obank.p[s] = opatch;
     if (mo.n)                                /* (the drawbars as the hand left them, under the motion loop's) */
-        for (i = 0; i < 9u; i++)
-            (obank.p[s].ub ? obank.p[s].bar : obank.p[s].ua)[i] = mo.hv[MO_ORG + i];
+        for (i = 0; i < 36u; i++)
+            o_bars_of(&obank.p[s], i / 9u)[i % 9u] = mo.hv[MO_ORG + i];
     memcpy(obank.name[s], oname, PNAME_N);
     set.b3_slot = (uint8_t)s;
     if (set_store() == 0 && store_save(OBJ_ORGAN, &obank, sizeof obank) == 0) {   /* (the settings too: the slot
