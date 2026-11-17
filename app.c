@@ -884,14 +884,15 @@ static void seq_beat(void)                   /* a 16th of the arp's rhythm, the 
  * sequencer's), from its top each time that starts; nothing playing, it waits. Live only (a reboot clears it). The
  * bass's filter frequency, resonance, arp rhythm and octaves; each drum's volume and tuning, and the roll key; the Space Echo's
  * knobs and sends (its own clear: on an echo page) */
-#define MO_N 2048u                           /* its moves */
+#define MO_N 4096u                           /* its moves */
 #define MO_BAR 96u                           /* a bar's ticks (24 a quarter note) */
-#define MO_MAXBARS 16u
+#define MO_MAXBARS 64u
+#define MO_CELLS 16u                         /* GLOBAL MOTION's bars drawn: a cell each, past 16 a few bars each */
 #define MO_TOUCH_MS 300u                     /* a hand on it holds the loop's moves off so long after its last */
 #define MO_NSE 10u                           /* the Space Echo's (MO_SE_AT) */
 enum { MO_CUTOFF, MO_RESO, MO_RHY, MO_AOCT, MO_DVOL, MO_DTUNE = MO_DVOL + NDT, MO_SE = MO_DTUNE + NDT, MO_ORG = MO_SE + MO_NSE,
-       MO_OVOL = MO_ORG + 36, MO_ROLL, MO_PAT = MO_ROLL + 1 + NDT };   /* (MO_ORG: the organ's drawbars, its four sets'
-                                              * nine; MO_OVOL its volume) */         /* its
+       MO_OVOL = MO_ORG + 36, MO_OCAN, MO_ROLL, MO_PAT = MO_ROLL + 1 + NDT };   /* (MO_ORG: the organ's drawbars, its four sets'
+                                              * nine; MO_OVOL its volume, MO_OCAN its CANCEL held) */         /* its
                                               * values (mo_ref), then the roll: MO_ROLL off, MO_ROLL + 1 + the drum on (its
                                               * velocity, the accent's bit 7); a drum pattern cued (its number) */
 #define MO_NT (MO_ROLL + 2)                  /* what a hand holds: the values, the roll, the patterns */
@@ -956,11 +957,11 @@ static struct {
 } mo;
 /* GLOBAL MOTION (the motion recorder's mods, live as it is: a reboot back to these): FOR the instrument its LANES and
  * CLEAR are of (0 all, then the bass's, the drums', the echo's); LANES what of it records (0 all; MO_INST's order);
- * LENGTH the loop's (0 AUTO: the first pass's; else 1, 2, 4, 8 or 16 bars); SPEED its playback's (½, 1, 2 times the
+ * LENGTH the loop's (0 AUTO: the first pass's; else 1, 2, 4, 8, 16, 32 or 64 bars); SPEED its playback's (½, 1, 2 times the
  * clock); SMOOTH a glide from move to move (0 off .. 10, about 0.8 s); CLEAR turned sets nothing */
 static struct { uint8_t mfor, lane[4], clear, len, speed, smooth; } mom = {.speed = 1};
-#define MO_NLEN 6u
-static const uint8_t MO_LEN_BARS[MO_NLEN] = {0, 1, 2, 4, 8, 16};
+#define MO_NLEN 8u
+static const uint8_t MO_LEN_BARS[MO_NLEN] = {0, 1, 2, 4, 8, 16, 32, 64};
 static const float MO_SPD[3] = {0.5f, 1.0f, 2.0f};
 static float mo_t(float pos)                 /* pos (mo_pos's) as the loop's ticks from its top, at its SPEED */
 {
@@ -977,12 +978,13 @@ static int mo_lane(uint32_t g)               /* move g's lane on (LANES) */
     if (w == 2u)
         return g - MO_SE == l - 1u;
     if (w == 3u)
-        return g == MO_OVOL ? l == 14u : l <= 4u ? (g - MO_ORG) / 9u == l - 1u : l < 14u && (g - MO_ORG) % 9u == l - 5u;   /* (a set; a footage, in
+        return g == MO_OVOL ? l == 14u : g == MO_OCAN ? l == 15u : l <= 4u ? (g - MO_ORG) / 9u == l - 1u : l < 14u && (g - MO_ORG) % 9u == l - 5u;   /* (a set; a footage, in
                                               * each set) */
     return l == 1u ? g >= MO_DVOL && g < MO_DTUNE : l == 2u ? g >= MO_DTUNE && g < MO_SE
          : l == 3u ? g >= MO_ROLL && g < MO_PAT : g == MO_PAT;   /* (the drums': volumes, tunings, the roll, cues) */
 }
-#define MO_STEPPED(g) ((g) == MO_RHY || (g) == MO_AOCT || (g) == MO_SE + 3u)   /* (no glide: choices, the MODE's) */
+#define MO_STEPPED(g) ((g) == MO_RHY || (g) == MO_AOCT || (g) == MO_SE + 3u || (g) == MO_OCAN)   /* (no glide: choices, the
+                                              * MODE's, CANCEL's) */
 static void mo_pat(uint32_t n);
 static void mo_clock(uint32_t m)             /* eng_run's: the clock's ticks in m samples */
 {
@@ -2893,7 +2895,7 @@ static void *page_rec(uint32_t g)            /* what a page's encoders set: the 
 /* GLOBAL MOTION's encoders (knob_param: in mom, page_rec); LANES the instrument FOR picks's */
 #define MF(f) (uint8_t)offsetof(__typeof__(mom), f)
 static const char *const MO_FOR_NAME[5] = {"ALL", "BASS", "DRUMS", "ECHO", "ORGAN"};
-static const char *const MO_LEN_NAME[MO_NLEN] = {"AUTO", "1 BAR", "2 BARS", "4 BARS", "8 BARS", "16 BARS"};
+static const char *const MO_LEN_NAME[MO_NLEN] = {"AUTO", "1 BAR", "2 BARS", "4 BARS", "8 BARS", "16 BARS", "32 BARS", "64 BARS"};
 static const char *const MO_SPD_NAME[3] = {"HALF", "1X", "DOUBLE"};
 static const char *const MO_SM_NAME[11] = {"OFF", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
 static const char *const MO_LN_ALL[1] = {"ALL"};
@@ -2901,7 +2903,7 @@ static const char *const MO_LN_BASS[1 + MO_DVOL] = {"ALL", "FREQUENCY", "RESONAN
 static const char *const MO_LN_DRUM[5] = {"ALL", "VOLUMES", "TUNINGS", "ROLL", "PATTERNS"};
 static const char *const MO_LN_ECHO[1 + MO_NSE] = {"ALL", "INTENSITY", "REPEAT RATE", "INPUT", "MODE", "REVERB",
                                                     "ECHO", "BASS SEND", "DRUM SEND", "PIANO SEND", "WOW"};   /* (MO_SE_AT's) */
-static const char *const MO_LN_ORG[15] = {"ALL", "UPPER A#", "UPPER B", "LOWER A#", "LOWER B", "16'", "5 1/3'", "8'", "4'", "2 2/3'", "2'", "1 3/5'", "1 1/3'", "1'", "VOLUME"};
+static const char *const MO_LN_ORG[16] = {"ALL", "UPPER A#", "UPPER B", "LOWER A#", "LOWER B", "16'", "5 1/3'", "8'", "4'", "2 2/3'", "2'", "1 3/5'", "1 1/3'", "1'", "VOLUME", "CANCEL"};
 static const param_t MO_P[NE] = {
     [EN_SELECT] = {"FOR", MF(mfor), 0, 4, MO_FOR_NAME}, [EN_PRESET] = {"CLEAR", MF(clear), 0, 0, 0},
     [EN_K1] = {"LENGTH", MF(len), 0, MO_NLEN - 1, MO_LEN_NAME}, [EN_K2] = {"SPEED", MF(speed), 0, 2, MO_SPD_NAME},
@@ -2910,7 +2912,7 @@ static const param_t MO_LANE_P[5] = {{"LANES", MF(lane[0]), 0, 0, MO_LN_ALL},
                                      {"LANES", MF(lane[0]), 0, MO_DVOL, MO_LN_BASS},
                                      {"LANES", MF(lane[1]), 0, 4, MO_LN_DRUM},
                                      {"LANES", MF(lane[2]), 0, MO_NSE, MO_LN_ECHO},
-                                     {"LANES", MF(lane[3]), 0, 14, MO_LN_ORG}};
+                                     {"LANES", MF(lane[3]), 0, 15, MO_LN_ORG}};
 
 static int32_t param_get(const param_t *q, const void *p)
 {
@@ -5071,7 +5073,7 @@ static uint8_t *mo_ref(uint32_t g)           /* value g's */
 {
     return g < MO_DVOL ? (uint8_t *)&patch + MO_BASS_AT[g] : g < MO_DTUNE ? &dt.vol[g - MO_DVOL]
          : g < MO_SE   ? &dt.tune[g - MO_DTUNE] : g < MO_ORG ? (uint8_t *)&set + MO_SE_AT[g - MO_SE]
-         : g == MO_OVOL ? &set.b3vol_off : &o_bars_of(&opatch, (g - MO_ORG) / 9u)[(g - MO_ORG) % 9u];
+         : g == MO_OVOL ? &set.b3vol_off : g == MO_OCAN ? &ui.ocan : &o_bars_of(&opatch, (g - MO_ORG) / 9u)[(g - MO_ORG) % 9u];
 }
 static int mo_in(uint32_t t, float a, float p) { return p >= a ? t > a && t <= p : t > a || t <= p; }   /* in (a, p] */
 static void mo_put(float p, uint32_t g, uint32_t v)   /* a move in, in time's order */
@@ -6042,11 +6044,16 @@ static void input(void)
         m = mr > m ? mr : m;
         at_keys = ki == KI_DRUM || !set.local ? 0u : mo > m ? mo : m;
     }
-    {                                        /* the organ's CANCEL: while EDIT and OCT- are held, the manual's keys none */
-        const uint32_t c = ui.b3 && ORGAN_PAGE(ui.page) && (btn >> B_EDIT & 1u) && (btn >> B_OCTDN & 1u) ? 1u << ui.olower : 0u;
-        if (c != ui.ocan)
+    {                                        /* the organ's CANCEL: while EDIT and OCT- are held, the manual's keys none;
+                                              * a motion loop playing moves it too (MO_OCAN), so the hand's at its
+                                              * edges alone then */
+        static uint8_t was;
+        const uint32_t c = ui.b3 && ORGAN_PAGE(ui.page) && (btn >> B_EDIT & 1u) && (btn >> B_OCTDN & 1u) ? 1u << ui.olower : 0u,
+                       o = mo_run && mo.len ? (c != was ? (ui.ocan & ~was) | c : ui.ocan) : c;
+        was = (uint8_t)c;
+        if (o != ui.ocan)
             ui.redraw = 1;
-        ui.ocan = (uint8_t)c;
+        ui.ocan = (uint8_t)o;
     }
     ui.btn_in = btn;
     for (k = 0; k < NB; k++) {               /* a button pressed: its name, and what it does here */
@@ -8285,8 +8292,9 @@ static void glo_motion_draw(void)
 {
     static const int16_t CX[3] = {40, 120, 196};
     const uint32_t bars = mo.len ? mo.len / MO_BAR : mo.rec && mo.go ? mo_bar() : 0u,
-                   now = (mo.len || mo.rec) && mo_run ? mo_bar() - 1u : MO_MAXBARS;
-    uint8_t cnt[MO_MAXBARS] = {0};
+                   per = bars > MO_CELLS ? (bars + MO_CELLS - 1u) / MO_CELLS : 1u,   /* (a cell's bars) */
+                   now = (mo.len || mo.rec) && mo_run ? (mo_bar() - 1u) / per : MO_CELLS;
+    uint8_t cnt[MO_CELLS] = {0};
     uint32_t i;
     char t[16];
     plate("GLOBAL");
@@ -8301,14 +8309,14 @@ static void glo_motion_draw(void)
         tag(CX[i], 48, EN_SELECT + i);
     }
     for (i = 0; i < mo.n; i++) {             /* (FOR's moves, by bar) */
-        const uint32_t b = mo_ev[i].t / MO_BAR;
-        if ((!mom.mfor || MO_INST(mo_ev[i].tgt) == mom.mfor - 1u) && b < MO_MAXBARS && cnt[b] < 255u)
+        const uint32_t b = mo_ev[i].t / MO_BAR / per;
+        if ((!mom.mfor || MO_INST(mo_ev[i].tgt) == mom.mfor - 1u) && b < MO_CELLS && cnt[b] < 255u)
             cnt[b]++;
     }
-    for (i = 0; i < MO_MAXBARS; i++) {
+    for (i = 0; i < MO_CELLS; i++) {
         const int32_t x = 24 + 12 * (int32_t)i, h = !cnt[i] ? 0 : cnt[i] >= 44u ? 14 : 3 + cnt[i] / 4;   /* (one move: seen) */
-        cv_rect(x, 58, 11, 16, i < bars ? RGB(16, 16, 20) : grey(120));
-        if (i < bars && h)
+        cv_rect(x, 58, 11, 16, i * per < bars ? RGB(16, 16, 20) : grey(120));
+        if (i * per < bars && h)
             cv_rect(x + 2, 73 - h, 7, h, i == now ? P_SILK : P_CYAN);
         if (i == now)
             cv_rect(x, 74, 11, 2, mo.rec ? RGB(230, 40, 40) : P_CYAN);

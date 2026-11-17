@@ -108,4 +108,37 @@ release REC
 wait 50
 expect mo_n 0
 expect b3vol_off 0
+# the organ's CANCEL (EDIT + OCT- held, the lower manual's here: 2) too: its silence recorded, played back, gone with the moves cleared
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+wait 200
+press EDIT
+wait 30
+press OCT-
+wait 30
+expect ocan 2
+wait 1200
+release OCT-
+release EDIT
+wait 30
+expect ocan 0
+expect mo_n >1
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+wait 1000
+expect ocan 2
+press REC
+wait 50
+tap OCT+
+wait 50
+release REC
+wait 50
+expect mo_n 0
+expect ocan 0
 midi 80 3C 00

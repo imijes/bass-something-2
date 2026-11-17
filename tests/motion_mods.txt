@@ -26,7 +26,13 @@ said FOR BASS
 turn ALGO 1
 wait 30
 said LANES FREQUENCY
-turn K2 2
+turn K2 9
+wait 30
+said LENGTH 64 BARS
+turn K2 -1
+wait 30
+said LENGTH 32 BARS
+turn K2 -4
 wait 30
 said LENGTH 2 BARS
 press REC

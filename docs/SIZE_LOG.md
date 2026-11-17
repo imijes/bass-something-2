@@ -243,3 +243,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-16 | aaf5181+ | AFTERTOUCH knobs K1-K4 in order | 505,772 | +0 | 75,792 | 76,924 | +0 | 21,380 | 286,064 |
 | 2026-11-16 | 78906d7+ | knob speed on every wide knob (knob_wide) | 505,804 | +32 | 75,760 | 76,924 | +0 | 21,380 | 286,064 |
 | 2026-11-17 | dd194ff+ | organ preset-key tricks: A#+B, CANCEL (EDIT+OCT) | 505,884 | +80 | 75,680 | 76,924 | +0 | 21,380 | 286,064 |
+| 2026-11-17 | 77105aa+ | motion: organ CANCEL lane, 64 bars, 4096 moves | 506,044 | +160 | 75,520 | 76,924 | +0 | 21,380 | 294,256 |
