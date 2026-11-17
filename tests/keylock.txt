@@ -1,0 +1,54 @@
+# KEYBOARD LOCK: HOME held locks the keys (and their roll) to the instrument they play now; HOME pages can then change
+# while the keys still play it, LOCK and its name in the footer; HOME held again lets go
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/keylock.txt bs2/build/host
+wait 600
+listen
+# the bass's HOME: locked to the bass
+press HOME
+wait 1100
+release HOME
+wait 30
+said KEYS LOCKED BASS
+expect klock 1
+expect page 16
+# round to ORGAN HOME: its keys still the bass's
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+expect page 52
+key 7 down 100
+wait 300
+expect b3_on 0
+expect lit 128
+wait 1500
+shot keylock-organ.png
+key 7 up
+wait 300
+# let go: the organ's keys again; locked to the organ, then on to the echo's HOME, the organ's still
+press HOME
+wait 1100
+release HOME
+wait 30
+expect klock 0
+key 7 down 100
+wait 300
+expect b3_on 1
+key 7 up
+wait 300
+press HOME
+wait 1100
+release HOME
+wait 30
+said KEYS LOCKED ORGAN
+expect klock 4
+tap HOME
+wait 1000
+expect page 42
+key 9 down 100
+wait 300
+expect b3_on 1
+key 9 up

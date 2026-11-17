@@ -16,22 +16,18 @@ midi B0 03 7F
 wait 50
 expect se_mode 11
 # on ECHO HOME: REVERB VOLUME's CC dives to ECHO PANEL, back out after
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 600
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 600
 # (the organ's HOME, then the echo's)
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 600
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 2500
 expect page 42
 midi B0 08 40

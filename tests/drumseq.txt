@@ -3,9 +3,8 @@
 # cues; erase, copy, append; saved. tools/build.py bs2 --host, then from the repository's root
 #   bs2/build/host/bass-something-2_host bs2/tests/drumseq.txt bs2/build/host
 wait 600
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 2000
 expect drum 1
 # the drums' tempo, their own: the manual's 100 at first (here 120, for the timings below)

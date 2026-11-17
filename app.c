@@ -2311,6 +2311,7 @@ static struct {
     uint8_t drum;                        /* Drum Something's mode (HOME held): the keys its instruments, HOME its page */
     uint8_t rmi;                         /* the RMI's mode (HOME on the drums' HOME): the keys its, HOME its page */
     uint8_t b3;                          /* the organ's (HOME on the RMI's HOME, bs2_organ.c): the keys its, HOME its page */
+    uint8_t klock;                       /* the keys locked to an instrument (HOME held), KI_* + 1; 0: the mode's */
     uint8_t oview, save_who;             /* ORGAN HOME's view (1: 1 1/3', 1' and PRESET); who save_to's is (1: the
                                           * organ's, else the bass's) */
     uint8_t ofast, obrake;               /* the Leslie: tremolo (else chorale), the brake (live: ARP) */
@@ -4943,6 +4944,21 @@ static void dt_bass_transport(int run)
 }
 static void mode_switch(void);
 static void sect_open(uint32_t g, uint32_t k);
+/* who the keys play (and their roll shows): the instrument HOME held locked them to, else the mode's (the Space
+ * Echo's: the piano's) */
+enum { KI_BASS, KI_DRUM, KI_PIANO, KI_ORGAN, NKI };
+static const char *const KI_NAME[NKI] = {"BASS", "DRUMS", "PIANO", "ORGAN"};
+static uint32_t key_inst(void)
+{
+    return ui.klock ? ui.klock - 1u : ui.drum ? KI_DRUM : ui.b3 ? KI_ORGAN : ui.rmi ? KI_PIANO : KI_BASS;
+}
+/* HOME held: the keys locked to the instrument they play now, or let go (each mode's own again) */
+static void key_lock(void)
+{
+    ui.klock = (uint8_t)(ui.klock ? 0u : key_inst() + 1u);
+    app_say(ui.klock ? "KEYS LOCKED" : "KEYS UNLOCKED", ui.klock ? KI_NAME[ui.klock - 1u] : "");
+    ui.redraw = 1;
+}
 static uint32_t mode_home(void)              /* the mode's HOME */
 {
     return ui.se ? PG_SHOME : ui.drum ? PG_DHOME : ui.b3 ? PG_OHOME : ui.rmi ? PG_RHOME : PG_HOME;
@@ -5873,7 +5889,7 @@ static void hold_step(uint32_t btn)
     } else if (plat_ms() - ui.hold_at >= HOLD_MS) {
         ui.hold_live = 0;
         if (ui.hold_k == B_HOME)
-            mode_switch();
+            key_lock();
         else if (ui.hold_k == B_REC && ui.drum) {
             dt_rec_erase();
             if (dq.rec == DQR_ERASE)
@@ -5942,6 +5958,7 @@ static void input(void)
 {
     pq_part(ui.b3);                          /* (the part REC and PLAY act on: the organ's in its mode, else the piano's) */
     uint32_t keys, btn = plat_buttons(), k, lit, below, above, mid, mid_b;
+    const uint32_t ki = key_inst();          /* (who the keys play) */
     static uint8_t mid_was;                  /* (the lights' middle level set last time: let go once) */
     int32_t e;
     touch_poll();                            /* the sensed keys' presses, velocities and pressure */
@@ -5954,11 +5971,11 @@ static void input(void)
             ui.vel[k] = (uint8_t)v;
             ui.prs[k] = 0;
             ui.last_key = (int32_t)k;
-            if (ui.drum) {                   /* Drum Something's: its instruments (dt_key) */
+            if (ki == KI_DRUM) {             /* Drum Something's: its instruments (dt_key) */
                 dt_key(k, v, keys);
                 continue;
             }
-            if (ui.b3) {                     /* the organ's: its notes (out on its channel) */
+            if (ki == KI_ORGAN) {            /* the organ's: its notes (out on its channel) */
                 const uint32_t oc = ui.olower ? l_ch(set.b3_lchan) : o_ch(set.b3_chan);   /* (the manual SEL held
                                               * chose) */
                 ui.okeys |= bit;
@@ -5968,7 +5985,7 @@ static void input(void)
                 key_send(0x90u, (uint32_t)note, v, ui.och[k]);
                 continue;
             }
-            if (ui.rmi) {                    /* the RMI's: its notes (out on its channel, GLO RMI's) */
+            if (ki == KI_PIANO) {            /* the RMI's: its notes (out on its channel, GLO RMI's) */
                 ui.rkeys |= bit;
                 fifo_put(&keyq, (uint32_t)note | v << 8 | KEYQ_RMI);
                 ui.och[k] = (uint8_t)(set.rmi_chan == CH_ALL ? 1u : set.rmi_chan);
@@ -6018,7 +6035,7 @@ static void input(void)
         mo = set.at_from & AT_ORGAN ? mo : 0u;
         mr = set.at_from & AT_PIANO ? mr : 0u;
         m = mr > m ? mr : m;
-        at_keys = ui.drum || !set.local ? 0u : mo > m ? mo : m;
+        at_keys = ki == KI_DRUM || !set.local ? 0u : mo > m ? mo : m;
     }
     ui.btn_in = btn;
     for (k = 0; k < NB; k++) {               /* a button pressed: its name, and what it does here */
@@ -6281,15 +6298,16 @@ static void input(void)
     {                                        /* the mode's instrument's notes sounding (MIDI in, its part): the
                                               * organ's, on ORGAN HOME and DRAWBARS its upper manual's on its own roll
                                               * and the lower's on these; elsewhere the manual played's */
-        const int roll = ui.b3 && (ui.page == PG_OHOME || ui.page == PG_OBARS);
+        const int roll = key_inst() == KI_ORGAN && ui.b3 && (ui.page == PG_OHOME || ui.page == PG_OBARS);
         uint32_t b, a, ol = roll ? notes_lit(b3_dn[0], &b, &a) : 0u;
         if (ol != ui.olit)
             ui.redraw = 1;
         ui.olit = ol;
-        lit = notes_lit(ui.b3 ? b3_dn[roll || ui.olower] : ui.rmi ? rmi_dn : eng.down, &below, &above);
+        lit = notes_lit(key_inst() == KI_ORGAN ? b3_dn[roll || ui.olower] : key_inst() == KI_PIANO ? rmi_dn : eng.down,
+                        &below, &above);
     }
     mid = 0;
-    if (ui.drum)
+    if (key_inst() == KI_DRUM)
         lit = dt_keys_lit(&mid);
     if (lit != ui.lit)
         ui.redraw = 1;
@@ -10291,7 +10309,8 @@ static uint32_t o_up_roll(void)              /* the keys the organ's upper manua
                                               * footer's (ORGAN HOME's and DRAWBARS'), not on the footer's: the
                                               * footer's the lower manual's */
 {
-    return ui.b3 && (ui.page == PG_OHOME || ui.page == PG_OBARS) ? ui.okeys & ~ui.olow & ui.keys : 0u;
+    return key_inst() == KI_ORGAN && ui.b3 && (ui.page == PG_OHOME || ui.page == PG_OBARS) ? ui.okeys & ~ui.olow & ui.keys
+                                                                                          : 0u;
 }
 static void key_cell(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t k, uint16_t off)
 {
@@ -10394,6 +10413,11 @@ static void keys_draw(void)                  /* the keys; the octave, the slot, 
         text_cat(t, "/32");
     } else if (patch.arp_on && !seq_playing() && !ui.drum)
         text_cat(t, ARP_NAME[patch.arp_mode]);
+    if (ui.klock) {                          /* the keys locked (HOME held): to whom, over it */
+        t[0] = 0;
+        text_cat(t, "LOCK ");
+        text_cat(t, KI_NAME[ui.klock - 1u]);
+    }
     if (mo.rec || mo.len) {                  /* the motion recorder, over it: recording (red) or its loop playing, the bar */
         t[0] = 0;
         text_cat(t, mo.rec && !mo_run ? "MOTION WAIT" : mo.rec ? "MOTION REC " : "MOTION ");
@@ -11154,6 +11178,10 @@ int app_expect(const char *what, int *got)
         __builtin_memset(usb_pk, 0, sizeof usb_pk), __builtin_memset(usb_ms, 0, sizeof usb_ms), usb_msn = 0, *got = 0;
     else if (!strncmp(what, "usbrms", 6) && what[6] >= '1' && what[6] <= '9')   /* (its RMS since usbpk0, 0..32767) */
         *got = usb_msn ? (int32_t)__builtin_sqrt(usb_ms[what[6] - '1'] / usb_msn) : 0;
+    else if (!strcmp(what, "klock"))         /* the keys' lock: KI_* + 1, 0 none */
+        *got = ui.klock;
+    else if (!strcmp(what, "modesw"))        /* (the next mode, as HOME tapped on its HOME: tests' way round) */
+        mode_switch(), *got = 0;
     else if (!strcmp(what, "olit"))          /* (the organ's upper manual's, on its roll) */
         *got = (int32_t)ui.olit;
     else if (!strcmp(what, "lit"))           /* the keys lit for the notes held (bit 0: F3 at octave 0) */

@@ -3,9 +3,8 @@
 # tools/build.py bs2 --host, then from the repository's root
 #   bs2/build/host/bass-something-2_host bs2/tests/drumui.txt bs2/build/host
 wait 600
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 2000
 expect drum 1
 expect page 25
@@ -248,21 +247,17 @@ wait 2000
 expect page 25
 expect dt_sel 12
 # back to the synth (the RMI's and the organ's modes on the way): its buttons its own
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 600
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 600
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 600
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 2000
 expect drum 0
 expect page 16
@@ -270,9 +265,8 @@ tap SEL
 wait 500
 expect page 5
 # (for the eye: recording, erasing, the length's functions)
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 2000
 tap REC
 wait 30

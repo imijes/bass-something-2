@@ -3,9 +3,8 @@
 # tools/build.py bs2 --host, then from the repository's root
 #   bs2/build/host/bass-something-2_host bs2/tests/drumsongcopy.txt bs2/build/host
 wait 600
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 2000
 expect drum 1
 # patterns 01 and 02, a hit each

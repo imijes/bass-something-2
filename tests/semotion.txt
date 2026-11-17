@@ -5,22 +5,18 @@ listen
 midi B0 6C 7F
 midi 90 3C 64
 wait 100
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 600
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 600
 # (the organ's HOME, then the echo's)
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 600
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 2500
 expect page 42
 expect se_rate 64

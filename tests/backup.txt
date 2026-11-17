@@ -22,9 +22,8 @@ wait 30
 expect chan 4
 tap HOME
 wait 1500
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 2000
 expect drum 1
 tap REC
@@ -77,21 +76,17 @@ wait 100
 expect dt_used 2
 tap SAVE
 wait 30
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 600
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 600
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 600
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 2000
 expect drum 0
 turn K4 3
@@ -127,9 +122,8 @@ expect cutoff 63
 expect chan 7
 expect dt_used 2
 # the good one: all of it back, on HOME, nothing waiting to save
-press HOME
+expect modesw 0
 wait 1100
-release HOME
 wait 2000
 expect drum 1
 restore out:saved.bs2
