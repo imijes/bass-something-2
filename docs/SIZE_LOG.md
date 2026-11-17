@@ -240,3 +240,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-16 | cbbb6e9+ | Organ knob hints shown, shared seg7/save_say/pool_shift | 505,388 | -240 | 76,176 | 76,908 | +0 | 21,396 | 286,064 |
 | 2026-11-16 | ac13169+ | save merge, aftertouch KEYS FROM | 505,452 | +64 | 76,112 | 76,924 | +16 | 21,380 | 286,064 |
 | 2026-11-16 | 0b3f42e+ | keyboard lock (HOME held) | 505,772 | +320 | 75,792 | 76,924 | +0 | 21,380 | 286,064 |
+| 2026-11-16 | aaf5181+ | AFTERTOUCH knobs K1-K4 in order | 505,772 | +0 | 75,792 | 76,924 | +0 | 21,380 | 286,064 |

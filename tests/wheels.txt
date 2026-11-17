@@ -34,9 +34,14 @@ wait 500
 tap FX
 wait 500
 said AFTERTOUCH
-turn K2 53
+turn K1 53
 wait 30
 said AFTERTOUCH FILTER +63
+turn K4 1
+wait 30
+said AFTERTOUCH KEYS FROM BASS+PIANO
+turn K4 -1
+wait 30
 tap FX
 wait 500
 said WHEELS

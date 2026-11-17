@@ -3325,7 +3325,7 @@ static const uint8_t ENC_MAP[NPAGES] = {
     [PG_GCONN] = EMAP(EP_SAME, 1),
     [PG_GCLK] = EMAP(EP_SAME, 0), [PG_GAUD] = EMAP(EP_SAME, 2), [PG_GCTL] = EMAP(EP_SAME, 0), [PG_NAME] = EMAP(EP_SAME, 1),
     [PG_SEQ] = EMAP(EP_ROW, 0),                                /* SEQ, LENGTH, STEP */
-    [PG_FMOD] = EMAP(EP_SAME, 3), [PG_EFX] = EMAP(EP_SAME, 2), [PG_XMOD] = EMAP(EP_SAME, 2), [PG_ATOUCH] = EMAP(EP_SAME, 1),
+    [PG_FMOD] = EMAP(EP_SAME, 3), [PG_EFX] = EMAP(EP_SAME, 2), [PG_XMOD] = EMAP(EP_SAME, 2), [PG_ATOUCH] = EMAP(EP_SAME, 0),
     [PG_AMOD] = EMAP(EP_SAME, 2), [PG_GDISP] = EMAP(EP_SAME, 2), [PG_RPAT] = EMAP(EP_SAME, 1),
     [PG_SIN] = EMAP(EP_SAME, 0), [PG_STAPE] = EMAP(EP_SAME, 3),   /* (ECHO TAPE's WOW on K4, where ECHO MODS had it) */
     [PG_GMO] = EMAP(EP_SAME, 1),                               /* LENGTH, SPEED, SMOOTH on K2-K4 (K1's place: MEMORY) */                               /* MODE on PRESET, INPUT on K4 */
