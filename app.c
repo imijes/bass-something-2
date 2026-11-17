@@ -2683,11 +2683,13 @@ static const param_t PARAMS[NPAGES][NE] = {
     [PG_RSEL] = {[EN_PRESET] = {"TOGGLE", SF(rmi_tabs), 0, (1 << NRT) - 1, 0},   /* (its turn: along the toggles) */
                  [EN_ALGO] = {"ON/OFF", SF(rmi_tabs), 0, (1 << NRT) - 1, 0},   /* (its turn: the cursor's on or off) */ [EN_K1] = {"BASS", SF(rmi_bass), 0, 127, 0},
                  [EN_K2] = {"ORGAN MODE", SF(rmi_organ), 0, 1, OFF_ON}, [EN_K3] = {"ACCENTER", SF(rmi_accent), 0, 1, OFF_ON},
-                 [EN_SELECT] = {"VOL", SF(rvol_off), 0, 127, 0}},   /* (VOL: rvol_off turned and shown upside down, knob_turn) */
+                 [EN_SELECT] = {"VOL", SF(rvol_off), 0, 127, 0}, [EN_K4] = {"VOL", SF(rvol_off), 0, 127, 0}},   /* (VOL:
+                                              * rvol_off turned and shown upside down, knob_turn) */
     [PG_RVIEW] = {[EN_PRESET] = {"TOGGLE", SF(rmi_tabs), 0, (1 << NRT) - 1, 0}, [EN_ALGO] = {"ON/OFF", SF(rmi_tabs), 0, (1 << NRT) - 1, 0},
                   [EN_K1] = {"BASS", SF(rmi_bass), 0, 127, 0},
                   [EN_K2] = {"ORGAN MODE", SF(rmi_organ), 0, 1, OFF_ON}, [EN_K3] = {"ACCENTER", SF(rmi_accent), 0, 1, OFF_ON},
-                  [EN_SELECT] = {"VOL", SF(rvol_off), 0, 127, 0}},   /* (PIANO PANEL's, the dive's: home_knob_turn) */
+                  [EN_SELECT] = {"VOL", SF(rvol_off), 0, 127, 0}, [EN_K4] = {"VOL", SF(rvol_off), 0, 127, 0}},   /* (PIANO
+                                              * PANEL's, the dive's: home_knob_turn) */
     [PG_GDISP] = {[EN_PRESET] = {"KNOB ZOOM", SF(zoom_off), 0, 1, AUTO_OFF},
                   [EN_K1] = {"HINTS", SF(hints), 0, 1, OFF_ON}, [EN_K2] = {"POP-UPS", SF(pop), 0, NPOP - 1, 0}},
     /* the Space Echo: its HOME the knobs most played, each the same encoder on its close-up (HOME's dive: PRESET to
@@ -3541,7 +3543,8 @@ static int knob_turn(uint32_t k, int32_t e)
         app_say("ECHO OWN VOLUME", t);
         return 0;
     }
-    if ((ui.page == PG_PATCH || ui.page == PG_RSEL) && k == EN_SELECT) {   /* the
+    if ((ui.page == PG_PATCH && k == EN_SELECT) || (ui.page == PG_RSEL && (k == EN_SELECT || k == EN_K4))) {   /* (the
+                                              * piano's VOL: SELECT, as every instrument's, and K4, its fader's place) */   /* the
                                               * MASTER's Volume (on HOME too): the bass's own; RMI PANEL's VOL: the RMI's
                                               * (both kept with the GLO settings, under full); the FM-1's MASTER knob is
                                               * the master over all */
@@ -3855,7 +3858,8 @@ static void knob_text(uint32_t k, char *t)
         int_text(127u - set.se_vol_off, t);
         return;
     }
-    if ((ui.page == PG_RSEL || ui.page == PG_RVIEW) && k == EN_SELECT) {   /* (VOL: the RMI's volume, rvol_off upside down) */
+    if ((ui.page == PG_RSEL || ui.page == PG_RVIEW) && (k == EN_SELECT || k == EN_K4)) {   /* (VOL: the RMI's volume,
+                                              * rvol_off upside down) */
         int_text(127u - set.rvol_off, t);
         return;
     }
@@ -4434,7 +4438,7 @@ static int home_knob(uint32_t p)
                && (ui.page == PG_SHOME || (zoom.home && zoom.hp == PG_SHOME && zoom.g == SE_DIVE_PG(p) && zoom.ke == p));
     if (ui.rmi)                              /* RMI HOME: PRESET, SELECT and K1-K3 RMI PANEL's (the voice, VOL, BASS,
                                               * ORGAN MODE, ACCENTER) */
-        return (p == EN_SELECT || p == EN_PRESET || p == EN_ALGO || (p >= EN_K1 && p <= EN_K3))
+        return (p == EN_SELECT || p == EN_PRESET || p == EN_ALGO || p >= EN_K1)
                && (ui.page == PG_RHOME || ui.page == PG_RVIEW || (zoom.home && (zoom.hp == PG_RHOME || zoom.hp == PG_RVIEW)
                                                                     && zoom.g == PG_RSEL && zoom.ke == p));
     if (ui.drum)
@@ -4541,9 +4545,9 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_GCTL] = {[EN_K1] = "Touch curve", "Knob speed-up", "Keys play the synth", "Notes piano to bass, or back"},
     [PG_NAME] = {[EN_K1] = "Which letter", "Change it", "Clear to the end"},
     [PG_RVIEW] = {"Its own volume", "This toggle on or off", "Along the toggles", [EN_K1] = "Bass boost",
-                  "No decay, as an organ", "A sharper attack"},
+                  "No decay, as an organ", "A sharper attack", "Its own volume"},
     [PG_RSEL] = {"Its own volume", "This toggle on or off", "Along the toggles", [EN_K1] = "Bass boost", "No decay, as an organ",
-                 "A sharper attack"},
+                 "A sharper attack", "Its own volume"},
     [PG_SHOME] = {[EN_SELECT] = "Echo's own volume", "Drive into the tape", "Heads and spring", [EN_K1] = "Tape speed: delay", "Repeats, feedback", "Echo level",
                   "Spring level"},
     [PG_SIN] = {[EN_SELECT] = "Echo's own volume", "Drive into the tape", "Heads and spring"},
@@ -7057,13 +7061,15 @@ static void rmi_slider(int32_t sx, int32_t v, const char *name, uint32_t k)   /*
     cv_rect(x + 20, y - h / 2 + 3, 1, h - 6, c);
     cv_text(x - text_w(&FONT_T, name) / 2, y - 5, &FONT_T, name, c);
     tag(x, y + h / 2 + 6, k);
+    if (k == EN_SELECT)                      /* (the VOL fader's: K4 too) */
+        tag(x, y + h / 2 + 20, EN_K4);
 }
 static void rsel_draw(void)
 {
     const uint32_t dn = rmi_down(), k = ui.last_enc, c = rt_cur();
     int32_t i, f;
     float to;
-    f = k == EN_K1 ? 507 : k == EN_K4 ? 2028 : k == EN_K2 ? (RT_X[5][0] + RT_X[5][1]) / 2
+    f = k == EN_K1 ? 507 : k == EN_K4 || k == EN_SELECT ? 2028 : k == EN_K2 ? (RT_X[5][0] + RT_X[5][1]) / 2
         : k == EN_K3 ? (RT_X[6][0] + RT_X[6][1]) / 2 : (RT_X[c][0] + RT_X[c][1]) / 2;   /* (else the cursor's tablet) */
     to = fm_clampf((float)((f - 380) / 2 - 120), 0.0f, (float)((2150 - 380) / 2 - 240));
     rp_vx = rp_vx < 0.0f ? to : rp_vx + (to - rp_vx) * 0.35f;   /* (eased: a third of the way a frame) */
@@ -7134,6 +7140,8 @@ static void rv_slider(int32_t x, int32_t v, const char *name, uint32_t k)
     cv_rect(x + 7, y - h / 2 + 2, 1, h - 4, c);
     se_lbl(x, y1 + 6, name, P_SILK);
     tag(x, y + 12, k);
+    if (k == EN_SELECT)
+        tag(x, y + 26, EN_K4);
 }
 static void rview_draw(void)
 {
@@ -7299,7 +7307,7 @@ static void zoom_rmi(uint32_t k)             /* (its box: the toggles on the fro
 {
     if (ui.page == PG_RVIEW || (zoom.home && zoom.hp == PG_RVIEW)) {
         const uint32_t c = rt_cur();
-        const int32_t x = k == EN_K1 ? 12 : k == EN_SELECT ? 228 : rv_tx(k == EN_K2 ? 5u : k == EN_K3 ? 6u : c);   /* (PRESET,
+        const int32_t x = k == EN_K1 ? 12 : k == EN_SELECT || k == EN_K4 ? 228 : rv_tx(k == EN_K2 ? 5u : k == EN_K3 ? 6u : c);   /* (PRESET,
                                               * ALGO: the cursor's) */
         zoom_dive(PG_RVIEW, PG_RSEL, k, 0, (int16_t)clamp(x, 52, 188), RV_Y + RV_H / 2, fm_log2f(240.0f / 104.0f));
         return;
