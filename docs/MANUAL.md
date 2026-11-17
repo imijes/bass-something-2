@@ -176,7 +176,7 @@ it.
 
 Records your knob moves as a loop and plays them back, apart from the notes. It records the bass's filter
 Frequency, Resonance, arp Rhythm and arp Octaves; on the Space Echo its INTENSITY, REPEAT RATE, INSTRUMENT VOLUME, MODE SELECTOR,
-REVERB VOLUME, ECHO VOLUME, the three sends and WOW; and on the drums each drum's VOLUME and TUNING and the roll key (which drum, how hard, when it starts and
+REVERB VOLUME, ECHO VOLUME, the bass, drum and piano sends and WOW; on the organ its nine drawbars; and on the drums each drum's VOLUME and TUNING and the roll key (which drum, how hard, when it starts and
 stops). A roll the loop plays isn't recorded into the pattern, even in RECORD MODE; one you play is, as always. It records the
 patterns you cue as the drums run, too, an improvised song: the loop cues them again at the same places, and cues the
 pattern it began on in time for its top. Its cues wait while a song runs, or in RECORD MODE.
@@ -776,7 +776,10 @@ its level set by ear, as is how much softer a PP toggle is: the recordings can't
 ### Organ Something B3
 
 The fourth instrument, Organ Something B3, is a tonewheel organ after the Hammond B-3 with its Leslie speaker. Tap HOME
-on Piano Something 368X's HOME to reach it; the FM-1's keys then play the organ. Its sound is made the way the organ
+on Piano Something 368X's HOME to reach it; the FM-1's keys then play the organ. It's an instrument of its own: its
+own volume (SELECT), its own send into the Space Echo (ECHO MODS' ORGAN SEND), its own MIDI channels, its own USB
+audio channels, and its own part of each drum pattern, recorded and played as the piano's (REC records it, PLAY turns it
+off and on, REC held erases the keys you hold, PLAY held takes the last pass back). Its sound is made the way the organ
 makes it, nothing sampled:
 
 - **The tonewheels:** 91 wheels always turning, each a pure tone with a little of its pickup's colour. A key
@@ -807,9 +810,13 @@ DRAWBARS, as the other HOMEs do, and back out after.
 | PRESET | The preset, here and on both ORGAN DRAWBARS views (it plays at once; changes not saved to the one you leave are lost). |
 | SEL | ORGAN DRAWBARS: the nine drawbars up close, the same controls. SEL there: its other view, K1 to K4 the 2', 1⅗', 1⅓' and 1' drawbars. SEL again goes on through the organ's pages. |
 
-**ORGAN TABS** (SEL from ORGAN DRAWBARS' other view): K1 the percussion on or off, K2 its volume (SOFT or NORMAL), K3 its decay
-(FAST or SLOW), K4 its harmonic (SECOND or THIRD); SELECT the vibrato on or off, ALGO its knob, V1 V2 V3 C1 C2 C3.
-**ORGAN LESLIE** (SEL again): SELECT its speed, ALGO the brake, K1 its stereo WIDTH, K2 the DRIVE, K3 the key CLICK,
+**ORGAN VIBRATO** (FX) is the console's left cheek up close, as the B-3 has it: K1
+the VOLUME tab (NORMAL, or SOFT: the organ 6 dB down), K2 VIBRATO LOWER (kept for the lower manual to come), K3
+VIBRATO UPPER (the vibrato on the keys you play), K4 the VIBRATO AND CHORUS knob round its positions, V1 C1 V2 C2 V3 C3.
+**ORGAN PERCUSSION** (ENV) is the right cheek: K1 PERCUSSION on or off, K2 its VOLUME (SOFT or NORMAL), K3 its
+DECAY (FAST or SLOW), K4 its HARMONIC SELECTOR (THIRD or SECOND). On both, SELECT is the organ's volume and PRESET its
+preset, as on HOME. SEL from HOME zooms in on the drawbars, and HOME from these pages zooms back out from their part of
+the console. **ORGAN LESLIE** (LFO): SELECT its speed, ALGO the brake, K1 its stereo WIDTH, K2 the DRIVE, K3 the key CLICK,
 K4 the organ's own VOLUME. **ORGAN NAME** (SEL again) is PATCH NAME for the organ's preset. SEL once more goes back
 to ORGAN HOME.
 
@@ -818,9 +825,11 @@ The buttons play the organ live, from any of its pages:
 | Button | What it does |
 | --- | --- |
 | ARP | The Leslie, chorale or tremolo (ARP lit while fast). Held a second: the brake. |
-| SEQ | The percussion's harmonic, SECOND or THIRD, at once: flick it while a chord rings to flutter between the two. |
-| FX | The percussion on or off (FX lit while on). |
-| EDIT | The vibrato or chorus on or off (EDIT lit while on). |
+| FX | Opens ORGAN VIBRATO, as the bass's buttons open their sections (from HOME the camera dives in on the left cheek). FX again there: VIBRATO UPPER on or off (FX lit while on). |
+| ENV | Opens ORGAN PERCUSSION (from HOME, in on the right cheek). ENV again there: the percussion on or off (ENV lit while on). Its K4, the HARMONIC SELECTOR, flips at one click: flick it while a chord rings to flutter between SECOND and THIRD. |
+| LFO | Opens ORGAN LESLIE. LFO again there: chorale or tremolo, as ARP. |
+| SEQ (held) | Clears the organ's part of the pattern, whole, as the piano's. |
+| EDIT | The vibrato or chorus on or off, from any page (EDIT lit while on). |
 | SAVE | As the bass's SAVE: ORGAN HOME's other view opens with the preset's number blinking; turn PRESET for another slot, then SAVE again to store the sound and its name there. Any other button lets it go. |
 
 It has 32 presets. The first twelve are classic registrations, with the drawbars as organists write them, 16' first:
@@ -888,8 +897,8 @@ the knob as it turns.
 | ECHO PANEL | PRESET · BASS, ALGO · TREBLE | The echo's lows and highs, about 10 dB either way |
 | ECHO PANEL | K1 to K4 | As on HOME |
 | ECHO MODS | PRESET · TEMPO SYNC | REPEAT RATE picks a note at the tempo instead (an 8th, an 8th triplet, a 16th, a 16th triplet or a 32nd, slow to fast), halved or doubled to stay in the RE-201's range |
-| ECHO MODS | K1 to K3 · BASS, DRUM, PIANO SEND | How much of each instrument goes into it, after its own volume. All three are off at first |
-| ECHO MODS | K4 · WOW | The tape's wobble, from none to a worn machine's; 13, the default, a well-kept one's |
+| ECHO MODS | K1 to K4 · BASS, DRUM, PIANO, ORGAN SEND | How much of each instrument goes into it, after its own volume. All are off at first |
+| ECHO TAPE | K4 · WOW | The tape's wobble, from none to a worn machine's; 13, the default, a well-kept one's (SEL after ECHO MODS) |
 | ECHO VOICE | SELECT · FEEDBACK | INTENSITY's loop gain, x0.5 to x1.5: where the repeats run away |
 | ECHO VOICE | ALGO · MULTI-HEAD | The feedback again when two or three heads play (modes 4, 8 to 11), x0.5 to x1.5: below x1, a mode with more heads runs away no sooner than one head |
 | ECHO VOICE | PRESET · SATURATION | Where the tape compresses, x0.25 (early, thick) to x4 (late, clean) |
@@ -899,7 +908,7 @@ the knob as it turns.
 
 ![ECHO PANEL: the right of the RE-201's panel up close, BASS, TREBLE and REVERB VOLUME over REPEAT RATE, INTENSITY and ECHO VOLUME](img/screen-echo-panel.png "ECHO PANEL")
 
-**ECHO VOICE** (SEL after ECHO MODS) voices the model to taste; every value at 64 (x1.00) is the sound as modelled.
+**ECHO VOICE** (SEL after ECHO TAPE) voices the model to taste; every value at 64 (x1.00) is the sound as modelled.
 
 Its knobs keep themselves with the GLO settings, so SAVE has nothing to do here, and MIDI CCs set them too (see
 [Control changes](#cc)). Its sound is modelled on measurements of a software RE-201, AudioThing's Outer Space 2, and

@@ -11,8 +11,9 @@
  *   ORGAN TABS (PG_OTABS): the percussion's tabs (K1 ON, K2 VOLUME SOFT, K3 DECAY FAST, K4 HARMONIC THIRD), the vibrato
  *     (SELECT on, ALGO its knob V1 V2 V3 C1 C2 C3)
  *   ORGAN LESLIE (PG_OLES): the cabinet turning; SELECT its speed, ALGO the brake, K1 WIDTH, K2 DRIVE, K3 CLICK, K4 VOL
- *   SEL: DRAWBARS, its other view, TABS, LESLIE, PATCH NAME, round. ARP the Leslie chorale or tremolo (held: the brake),
- *   SEQ the percussion's harmonic (at once: to flutter it), FX the percussion on or off, EDIT the vibrato on or off.
+ *   SEL: DRAWBARS, its other view, PATCH NAME, round (VIBRATO, PERCUSSION, LESLIE: FX, ENV, LFO). ARP the Leslie chorale or tremolo (held: the brake),
+ *   FX ORGAN VIBRATO, ENV ORGAN PERCUSSION, LFO ORGAN LESLIE (again there: its main switch), EDIT the vibrato on or off;
+ *   REC, PLAY and SEQ (held: cleared) its part of the pattern, as the piano's.
  * Its MIDI: notes on its channel (b3_chan), its CCs on its CC channel (organ_cc) */
 #define ONSLOT 32u
 #define ORG_MAGIC 0x31334F42u                /* "BO31" */
@@ -28,6 +29,8 @@ static uint8_t odirty;                       /* changes not saved (SAVE lit) */
 static volatile uint8_t o_sent;              /* opatch changed: to the engine at the render's start (organ_block) */
 static const char *const OBAR[9] = {"16'", "5 1/3'", "8'", "4'", "2 2/3'", "2'", "1 3/5'", "1 1/3'", "1'"};
 static const char *const OVIB[6] = {"V1", "V2", "V3", "C1", "C2", "C3"};
+#define O_VPOS(v) ((v) < 3u ? 2u * (v) : 2u * ((v) - 3u) + 1u)   /* (its knob's position, V1 C1 V2 C2 V3 C3 round it) */
+#define O_VAT(p) ((p) & 1u ? 3u + (p) / 2u : (p) / 2u)            /* (the setting at position p) */
 
 /* the factory's: a classic registration each, named (drawbars as an organist writes them, 16' first), the rest INIT */
 static const struct {
@@ -94,9 +97,9 @@ static void name_changed(void)
         set_dirty = 1;
 }
 static int organ_dirty(void) { return odirty; }
-static uint32_t organ_lights(void)           /* FX lit while its percussion is on, EDIT while its vibrato is */
+static uint32_t organ_lights(void)           /* FX and EDIT lit while its vibrato is on, ENV while its percussion is */
 {
-    return (uint32_t)opatch.perc_on << B_FX | (uint32_t)opatch.vib_on << B_EDIT;
+    return (uint32_t)opatch.vib_on << B_FX | (uint32_t)opatch.perc_on << B_ENV | (uint32_t)opatch.vib_on << B_EDIT;
 }
 static void organ_changed(void)
 {
@@ -164,6 +167,28 @@ static void o_flag(uint8_t *f, int32_t e, const char *name, const char *off, con
 }
 static int o_turn(uint32_t k, int32_t e)
 {
+    if ((ui.page == PG_OTABS || ui.page == PG_OVIB) && (k == EN_SELECT || k == EN_PRESET)) {   /* (the cheeks': its
+                                              * volume and its preset, as HOME's) */
+        const uint8_t pg = ui.page;
+        ui.page = PG_OHOME;
+        o_turn(k, e);
+        ui.page = pg;
+        return 0;
+    }
+    if (ui.page == PG_OVIB) {                /* the left cheek: VOLUME, VIBRATO LOWER, VIBRATO UPPER, VIBRATO & CHORUS */
+        if (k == EN_K1)
+            o_flag(&opatch.vol_soft, e, "ORGAN VOLUME TAB", "NORMAL", "SOFT");
+        else if (k == EN_K2)
+            o_flag(&opatch.vib_lower, e, "VIBRATO LOWER", "OFF", "ON");
+        else if (k == EN_K3)
+            o_flag(&opatch.vib_on, e, "VIBRATO UPPER", "OFF", "ON");
+        else if (k == EN_K4) {               /* (round its positions, V1 C1 V2 C2 V3 C3) */
+            opatch.vib = (uint8_t)O_VAT((uint32_t)clamp((int32_t)O_VPOS(opatch.vib) + (e > 0 ? 1 : -1), 0, 5));
+            organ_changed();
+            app_say("VIBRATO CHORUS", OVIB[opatch.vib]);
+        }
+        return 0;
+    }
     if (ui.page == PG_OHOME || ui.page == PG_OBARS) {
         static const int8_t V0[NE] = {[EN_SELECT] = -1, [EN_ALGO] = 0, [EN_PRESET] = -1, [EN_K1] = 1, 2, 3, 4},
                             V1[NE] = {[EN_SELECT] = -1, [EN_ALGO] = -1, [EN_PRESET] = -1, [EN_K1] = 5, 6, 7, 8};
@@ -190,14 +215,8 @@ static int o_turn(uint32_t k, int32_t e)
         o_say_bar((uint32_t)b);
         return 0;
     }
-    if (ui.page == PG_OTABS) {
-        if (k == EN_SELECT)
-            o_flag(&opatch.vib_on, e, "VIBRATO", "OFF", "ON");
-        else if (k == EN_ALGO) {
-            opatch.vib = (uint8_t)clamp((int32_t)opatch.vib + (e > 0 ? 1 : -1), 0, 5);
-            organ_changed();
-            app_say("VIBRATO", OVIB[opatch.vib]);
-        } else if (k == EN_K1)
+    if (ui.page == PG_OTABS) {               /* the right cheek: the percussion's four */
+        if (k == EN_K1)
             o_flag(&opatch.perc_on, e, "PERCUSSION", "OFF", "ON");
         else if (k == EN_K2)
             o_flag(&opatch.perc_soft, e, "PERC VOLUME", "NORMAL", "SOFT");
@@ -258,6 +277,9 @@ static void o_save_button(void)
     for (i = PNAME_N; i && oname[i - 1u] <= ' '; i--)   /* (its spaces at the end left off) */
         oname[i - 1u] = 0;
     obank.p[s] = opatch;
+    if (mo.n)                                /* (the drawbars as the hand left them, under the motion loop's) */
+        for (i = 0; i < 9u; i++)
+            obank.p[s].bar[i] = mo.hv[MO_ORG + i];
     memcpy(obank.name[s], oname, PNAME_N);
     set.b3_slot = (uint8_t)s;
     if (set_store() == 0 && store_save(OBJ_ORGAN, &obank, sizeof obank) == 0) {   /* (the settings too: the slot
@@ -289,6 +311,7 @@ static void organ_brake(void)                /* ARP held: the brake */
     ui.redraw = 1;
     app_say("LESLIE", "BRAKE");
 }
+static void o_tab_dive(uint32_t g, uint32_t k);
 static void o_button(uint32_t k)
 {
     if (k == B_SEL) {                        /* HOME's view, its other, TABS, LESLIE, PATCH NAME, round */
@@ -299,25 +322,37 @@ static void o_button(uint32_t k)
             ui.redraw = 1;
             app_say("ORGAN DRAWBARS", "2' TO 1'");
         } else {
-            const uint32_t g = ui.page == PG_OHOME ? PG_OBARS : ui.page == PG_OBARS ? PG_OTABS
-                             : ui.page == PG_OTABS ? PG_OLES : ui.page == PG_OLES ? PG_NAME : PG_OHOME;
+            const uint32_t g = ui.page == PG_OHOME ? PG_OBARS : ui.page == PG_OBARS ? PG_NAME   /* (VIBRATO, PERCUSSION
+                                              * and the LESLIE: FX's, ENV's and LFO's, not SEL's) */
+                             : PG_OHOME;
             ui.oview = 0;
             sect_open(g, k);
         }
     } else if (k == B_SAVE)
         o_save_button();
-    else if (k == B_SEQ) {                   /* (at once, to flutter it) */
-        opatch.perc_3rd = (uint8_t)!opatch.perc_3rd;
-        organ_changed();
-        app_say("PERC HARMONIC", opatch.perc_3rd ? "THIRD" : "SECOND");
-    } else if (k == B_FX) {
+    else if (k == B_FX && ui.page != PG_OVIB)   /* the sections, as the bass's, left to right as the console's: FX
+                                              * VIBRATO (an effect), ENV PERCUSSION, LFO the LESLIE (from HOME: the
+                                              * camera in on its cheek); again there, its main switch */
+        sect_open(PG_OVIB, k);
+    else if (k == B_ENV && ui.page != PG_OTABS)
+        sect_open(PG_OTABS, k);
+    else if (k == B_LFO && ui.page != PG_OLES)
+        sect_open(PG_OLES, k);
+    else if (k == B_LFO)
+        organ_leslie_tap();
+    else if (k == B_ENV) {
         opatch.perc_on = (uint8_t)!opatch.perc_on;
         organ_changed();
         app_say("PERCUSSION", OFF_ON[opatch.perc_on]);
+    } else if (k == B_FX) {
+        opatch.vib_on = (uint8_t)!opatch.vib_on;
+        organ_changed();
+        app_say("VIBRATO UPPER", OFF_ON[opatch.vib_on]);
     } else if (k == B_EDIT) {
         opatch.vib_on = (uint8_t)!opatch.vib_on;
         organ_changed();
         app_say("VIBRATO", OFF_ON[opatch.vib_on]);
+        o_tab_dive(PG_OVIB, EN_K3);
     } else
         app_say("ORGAN", "SEL: ITS PANELS");
 }
@@ -342,21 +377,36 @@ static void o_wood(void)                     /* (TABS', LESLIE's) */
  * the footer's (the FM-1's: the lower manual). ORGAN DRAWBARS is HOME's own console twice as big (oz), its left half
  * from the ledge down, under the same head: the dive in from HOME lands on what it showed */
 #define OB(x) (4 + ((int32_t)(x) - 990) * 3057 / 10000)
-#define OH_RAIL 78                           /* the rail's top; the tips at rest under it, a stop 4 px further */
+#define OH_RAIL 75                           /* the rail's top; the tips at rest under it, a stop 3 px further */
 #define OH_ROLL (TALL_H - 29)                /* the upper manual's keys (as the footer's: blacks 13, whites 14 under) */
-#define OH_CHEEK (OH_ROLL - 11)              /* the cheeks' row */
+#define OH_CHEEK (OH_ROLL - 22)              /* the cheeks' row (its top 2 over), the drawbars' tips all over it */
+#define O_KNOB_X 52                          /* the VIBRATO AND CHORUS knob, right of the left cheek's three tabs (as the
+                                              * mk2's photo has it) */
 #define OZ_Y0 (OH_RAIL - 2)                  /* (DRAWBARS: HOME's row at its ledge's foot on the head's: a tip at
                                               * 8 to the page's foot) */
 #define OZ_Y 72
-static int32_t oz = 1, oz_y0, oz_y;          /* the console's scale; HOME's row oz_y0 at the page's oz_y */
-#define OZX(x) ((x) * oz)
+static int32_t oz = 1, oz_x0, oz_y0, oz_y;   /* the console's scale; HOME's column oz_x0 at the page's left, its row
+                                              * oz_y0 at the page's oz_y */
+#define OZX(x) (((x) - oz_x0) * oz)
 #define OZY(y) (((y) - oz_y0) * oz + oz_y)
 static void oh_rect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c) { cv_rect(OZX(x), OZY(y), w * oz, h * oz, c); }
-static void oh_tab(int32_t cx, int on)       /* a cheek's tab, its middle at cx */
-{
-    oh_rect(cx - 4, OH_CHEEK, 9, 10, RGB(10, 10, 10));
-    oh_rect(cx - 4, OH_CHEEK + (on ? 3 : 0), 9, 7, on ? RGB(200, 196, 184) : RGB(237, 235, 222));
-    oh_rect(cx - 4, OH_CHEEK + (on ? 3 : 0), 9, 1, on ? grey(120) : RGB(255, 255, 255));
+static void oh_tab(int32_t cx, int on, const char *top, const char *bot, const char *n1, const char *n2, uint32_t k)
+{                                            /* a cheek's rocker tab, its middle at cx: its top pressed (on) or its
+                                              * bottom; up close its print (top, bottom, its name over it) and its tag */
+    oh_rect(cx - 4, OH_CHEEK + 6, 9, 16, RGB(10, 10, 10));
+    oh_rect(cx - 4, OH_CHEEK + 6 + (on ? 3 : 0), 9, 13, on ? RGB(200, 196, 184) : RGB(237, 235, 222));
+    oh_rect(cx - 4, OH_CHEEK + 6 + (on ? 3 : 0), 9, 1, on ? grey(120) : RGB(255, 255, 255));
+    if (oz >= 3) {                           /* (the cheeks' pages alone: DRAWBARS shows none of their print) */
+        const int32_t x = OZX(cx), y = OZY(OH_CHEEK + 6 + (on ? 3 : 0));
+        cv_rect(x - 13, on ? y + 1 : y + 13 * oz - 10, 26, 9, P_CYAN);   /* (its setting: its word lit) */
+        se_lbl(x, y + 3, top, on ? RGB(10, 10, 10) : RGB(150, 146, 138));
+        se_lbl(x, y + 13 * oz - 8, bot, on ? RGB(150, 146, 138) : RGB(10, 10, 10));
+        se_lbl(x, OZY(OH_CHEEK + 6) - 14, n1, O_GOLD);
+        if (n2)
+            se_lbl(x, OZY(OH_CHEEK + 6) - 7, n2, O_GOLD);
+        if (x >= 0 && x < 240)              /* (the other cheek's, off the page: not tagged over this one's) */
+            tag(x, OZY(OH_CHEEK + 13), k);
+    }
 }
 static void oh_bar(int32_t x, uint32_t v, uint32_t col, int dim, const char *ft, uint32_t k)
 {                                            /* a drawbar at the photo's x, pulled to v; dimmed; up close its footage, its
@@ -364,14 +414,14 @@ static void oh_bar(int32_t x, uint32_t v, uint32_t col, int dim, const char *ft,
     static const uint16_t TIP[3] = {RGB(92, 44, 32), RGB(248, 244, 231), RGB(20, 18, 16)},
                           TOP[3] = {RGB(150, 86, 70), RGB(255, 255, 255), RGB(100, 100, 100)},
                           TC[3] = {O_IVORY, RGB(30, 24, 20), O_IVORY};
-    const int32_t cx = OB(x), y = OH_RAIL + 2 + 4 * (int32_t)v;
+    const int32_t cx = OB(x), y = OH_RAIL + 2 + 3 * (int32_t)v;
     int32_t i;
     if (v) {                                 /* its shaft, a line a stop */
         oh_rect(cx - 1, OH_RAIL + 2, 3, y - OH_RAIL - 2, dim ? grey(70) : RGB(206, 202, 196));
         for (i = 1; i <= (int32_t)v; i++)
-            oh_rect(cx - 1, y - 4 * i + 1, 3, 1, dim ? grey(40) : RGB(70, 66, 62));
+            oh_rect(cx - 1, y - 3 * i + 1, 3, 1, dim ? grey(40) : RGB(70, 66, 62));
     }
-    oh_rect(cx - 3, y, 6, 8, dim ? grey(48) : TIP[col]);
+    oh_rect(cx - 3, y, 6, 6, dim ? grey(48) : TIP[col]);
     oh_rect(cx - 3, y, 6, 1, dim ? grey(60) : TOP[col]);
     if (oz > 1) {
         print_c(OZX(cx), OZY(y) + 4, ft, dim ? grey(30) : TC[col]);
@@ -418,6 +468,7 @@ static void oh_face(int dim0, int dim1, const uint8_t *keys)   /* the console at
     static const int32_t SET[3] = {1005, 1266, 1526};   /* (the B set; the lower's two closed up on it) */
     static const uint8_t AT[11] = {0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14};
     int32_t i, b;
+    if (oz < 3) {                            /* (the cheeks up close: their row alone) */
     oh_rect(0, OH_RAIL - 4, 240, 3, RGB(120, 57, 34));   /* the rack's ledge, walnut */
     oh_rect(0, OH_RAIL - 1, 240, 1, RGB(90, 31, 13));
     oh_rect(0, OH_RAIL, 240, OH_ROLL - OH_RAIL, RGB(39, 36, 33));   /* the rail, the tips' slot */
@@ -426,32 +477,48 @@ static void oh_face(int dim0, int dim1, const uint8_t *keys)   /* the console at
         for (b = 0; b < 9; b++)
             oh_bar(SET[i] + (int32_t)b * 2575 / 100, i == 0 ? opatch.bar[b] : 0u, COL[b], i == 0 && b >= dim0 && b < dim1,
                    FT[b], i == 0 && keys ? keys[b] : NE);
-    oh_rect(0, OH_CHEEK - 2, 240, OH_ROLL - OH_CHEEK + 2, RGB(16, 14, 12));   /* the cheeks' row, the name board */
-    disc(OZX(10), OZY(OH_CHEEK + 4), 4 * oz, RGB(30, 28, 26));   /* the vibrato's knob, its pointer V1..C3 */
-    {
-        const float a = (0.75f + 0.3f * (float)opatch.vib) * FM_PI;
-        cv_line(OZX(10), OZY(OH_CHEEK + 4), OZX(10) + (int32_t)(fm_cosf(a) * 4.0f * (float)oz),
-                OZY(OH_CHEEK + 4) + (int32_t)(fm_sinf(a) * 4.0f * (float)oz), RGB(236, 232, 220));
     }
-    oh_tab(26, opatch.vib_on);
-    oh_tab(38, 0);
-    oh_tab(50, 0);
+    oh_rect(0, OH_CHEEK - 2, 240, OH_ROLL - OH_CHEEK + 2, RGB(16, 14, 12));   /* the cheeks' row, the name board */
+    disc(OZX(O_KNOB_X), OZY(OH_CHEEK + 12), 6 * oz, RGB(30, 28, 26));   /* the vibrato's knob, its pointer V1..C3 */
+    {
+        const float a = (0.75f + 0.3f * (float)O_VPOS(opatch.vib)) * FM_PI;
+        cv_line(OZX(O_KNOB_X), OZY(OH_CHEEK + 12), OZX(O_KNOB_X) + (int32_t)(fm_cosf(a) * 6.0f * (float)oz),
+                OZY(OH_CHEEK + 12) + (int32_t)(fm_sinf(a) * 6.0f * (float)oz), RGB(236, 232, 220));
+    }
+    if (oz >= 3) {                           /* (up close: the knob's print round it, its tag) */
+        static const char *const VC[6] = {"V1", "C1", "V2", "C2", "V3", "C3"};
+        uint32_t i;
+        for (i = 0; i < 6u; i++) {
+            const float a = (0.75f + 0.3f * (float)i) * FM_PI;
+            const uint32_t v = O_VAT(i);
+            se_lbl(OZX(O_KNOB_X) + (int32_t)(fm_cosf(a) * 9.0f * (float)oz), OZY(OH_CHEEK + 12) + (int32_t)(fm_sinf(a) * 9.0f * (float)oz) - 2,
+                   VC[i], v == opatch.vib ? P_CYAN : O_IVORY);
+        }
+        se_lbl(OZX(O_KNOB_X), OZY(OH_CHEEK + 12) - 9 * oz - 14, "VIBRATO", O_GOLD);
+        se_lbl(OZX(O_KNOB_X), OZY(OH_CHEEK + 12) - 9 * oz - 7, "AND CHORUS", O_GOLD);
+        if (OZX(O_KNOB_X) >= 0 && OZX(O_KNOB_X) < 240)   /* (on the page: not the right cheek's) */
+            tag(OZX(O_KNOB_X), OZY(OH_CHEEK + 12), EN_K4);
+    }
+    oh_tab(7, !opatch.vol_soft, "NORMAL", "SOFT", "VOLUME", 0, EN_K1);
+    oh_tab(21, !opatch.vib_lower, "OFF", "ON", "VIBRATO", "LOWER", EN_K2);
+    oh_tab(35, !opatch.vib_on, "OFF", "ON", "VIBRATO", "UPPER", EN_K3);
     if (oz == 1)
-        print_c(120, OH_CHEEK - 1, "ORGAN SOMETHING", O_GOLD);
-    oh_tab(190, opatch.perc_on);
-    oh_tab(202, opatch.perc_soft);
-    oh_tab(214, opatch.perc_fast);
-    oh_tab(226, opatch.perc_3rd);
+        print_c(120, OH_CHEEK + 5, "ORGAN SOMETHING", O_GOLD);
+    oh_tab(184, opatch.perc_on, "ON", "OFF", "PERCUSSION", 0, EN_K1);
+    oh_tab(199, opatch.perc_soft, "SOFT", "NORMAL", "PERCUSSION", "VOLUME", EN_K2);
+    oh_tab(214, opatch.perc_fast, "FAST", "SLOW", "PERCUSSION", "DECAY", EN_K3);
+    oh_tab(229, opatch.perc_3rd, "THIRD", "SECOND", "HARMONIC", "SELECTOR", EN_K4);
+    if (oz < 3)
     for (i = 0; i < 16; i++)                 /* the upper manual: as the footer's keys */
         oh_rect(8 + i * 14, OH_ROLL + 14, 13, 14, P_KEYW);
-    for (i = 0; i < 11; i++) {
+    for (i = 0; i < 11 && oz < 3; i++) {
         oh_rect(8 + (int32_t)AT[i] * 14 + 7, OH_ROLL, 13, 13, P_EDGE);
         oh_rect(8 + (int32_t)AT[i] * 14 + 8, OH_ROLL, 11, 12, P_KEYB);
     }
 }
 static void ohome_draw(void)
 {
-    oz = 1, oz_y0 = 0, oz_y = 0;
+    oz = 1, oz_x0 = oz_y0 = oz_y = 0;
     cv_rect(0, 0, 240, TALL_H, P_BG);
     oh_face(9, 9, 0);
     oh_head("SOMETHING", "B3");
@@ -465,36 +532,38 @@ static void obars_draw(void)                 /* ORGAN DRAWBARS: HOME's console t
 {
     static const uint8_t K0[9] = {EN_ALGO, EN_K1, EN_K2, EN_K3, EN_K4, NE, NE, NE, NE},
                          K1[9] = {NE, NE, NE, NE, NE, EN_K1, EN_K2, EN_K3, EN_K4};
-    oz = 2, oz_y0 = OZ_Y0, oz_y = OZ_Y;
+    oz = 2, oz_x0 = 0, oz_y0 = OZ_Y0, oz_y = OZ_Y;
     cv_rect(0, 0, 240, TALL_H, P_BG);
     oh_face(ui.oview ? 0 : 5, ui.oview ? 5 : 9, ui.oview ? K1 : K0);
-    oz = 1, oz_y0 = 0, oz_y = 0;
+    oz = 1, oz_x0 = oz_y0 = oz_y = 0;
     oh_head("DRAWBARS", ui.oview ? "2" : "1");
 }
-static void o_tab(int32_t cx, int on, uint32_t k, const char *top, const char *bottom, int lit)   /* a rocker tab */
+/* the sections of ORGAN HOME its pages show up close (SEL's open from HOME, HOME's back to it, the live buttons' dives):
+ * DRAWBARS its rail's left, VIBRATO and PERCUSSION its cheeks; the middle on HOME, the scale (log2) it fills the screen at */
+static void o_sect(uint32_t g, int16_t *x, int16_t *y, float *lc)
 {
-    cv_rect(cx - 13, 58, 26, 46, RGB(16, 10, 6));
-    cv_rect(cx - 11, on ? 64 : 60, 22, 38, lit ? RGB(250, 246, 230) : RGB(226, 218, 196));
-    cv_rect(cx - 11, on ? 64 : 60, 22, 2, on ? grey(150) : RGB(255, 255, 255));
-    tag(cx, 80, k);
-    print_c(cx, 108, top, RGB(236, 232, 220));
-    print_c(cx, 120, bottom, RGB(200, 170, 120));
+    *x = g == PG_OBARS ? 60 : g == PG_OVIB ? 35 : 207;
+    *y = g == PG_OBARS ? OZ_Y0 + (80 - OZ_Y) / 2 : OH_CHEEK - 2 + (80 - 72) / 3;
+    *lc = g == PG_OBARS ? 1.0f : 1.585f;
 }
-static void otabs_draw(void)
+static void o_tab_dive(uint32_t g, uint32_t k)   /* a live button's tab on HOME: the camera in on its cheek and back */
 {
-    uint32_t i;
-    o_wood();
-    panel_head("PERCUSSION + VIBRATO");
-    o_tab(28, opatch.perc_on, EN_K1, "PERC", opatch.perc_on ? "ON" : "OFF", knob_lit(EN_K1));
-    o_tab(64, opatch.perc_soft, EN_K2, "VOLUME", opatch.perc_soft ? "SOFT" : "NORMAL", knob_lit(EN_K2));
-    o_tab(100, opatch.perc_fast, EN_K3, "DECAY", opatch.perc_fast ? "FAST" : "SLOW", knob_lit(EN_K3));
-    o_tab(136, opatch.perc_3rd, EN_K4, "HARMONIC", opatch.perc_3rd ? "THIRD" : "SECOND", knob_lit(EN_K4));
-    o_tab(176, opatch.vib_on, EN_SELECT, "VIBRATO", opatch.vib_on ? "ON" : "OFF", knob_lit(EN_SELECT));
-    bs2_knob(214, 80, 14, opatch.vib, 5, knob_lit(EN_ALGO) ? KF_LIT : 0u);   /* the vibrato's knob, its six round it */
-    tag(214, 80, EN_ALGO);
-    for (i = 0; i < 6u; i++)
-        cv_text(198 + (int32_t)(i % 3u) * 12, i < 3u ? 54 : 100, &FONT_T, OVIB[i], i == opatch.vib ? P_CYAN : grey(150));
-    print_c(214, 120, OVIB[opatch.vib], RGB(200, 170, 120));
+    int16_t x, y;
+    float lc;
+    if (ui.page != PG_OHOME || set.zoom_off)
+        return;
+    o_sect(g, &x, &y, &lc);
+    zoom_dive(PG_OHOME, g, k, 0, x, y, lc);
+}
+/* ORGAN VIBRATO and ORGAN PERCUSSION: HOME's cheeks four times as big, the left's (VOLUME, VIBRATO LOWER and UPPER,
+ * VIBRATO AND CHORUS) and the right's (the percussion's four), as the B-3's are printed; under HOME's head */
+static void ocheek_draw(int right)
+{
+    oz = 3, oz_x0 = right ? 167 : -5, oz_y0 = OH_CHEEK - 2, oz_y = 72;
+    cv_rect(0, 0, 240, TALL_H, RGB(16, 14, 12));   /* (the cheek's black, round its row) */
+    oh_face(9, 9, 0);
+    oz = 1, oz_x0 = oz_y0 = oz_y = 0;
+    oh_head(right ? "PERCUSSION" : "VIBRATO", "");
 }
 static void o_switch(int32_t cx, int32_t cy, uint32_t k, int on, const char *n0, const char *n1, const char *name)
 {                                            /* a two-way switch lying down: its name over it, its setting under it */

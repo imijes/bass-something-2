@@ -1,0 +1,50 @@
+# The organ's part of the drums' patterns, as the piano's (bs2_dseq.c's pq, part 1): REC in its mode records its keys
+# into the pattern (the drums started); the next pass plays them on the organ; the piano's part apart; PLAY its part
+# off and on
+wait 600
+listen
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+said ORGAN HOME
+expect dt_run 0
+tap REC
+wait 100
+said ORGAN REC PATTERN 00
+expect dt_run 1
+expect pq_rec 1
+key 7 down 100
+wait 200
+key 7 up
+wait 50
+expect pq_n 2
+expect b3_down 0
+# the next pass: it plays on the organ, held as it was
+wait 2200
+expect b3_down 1
+wait 300
+expect b3_down 0
+# SEQ held: the organ's part of the pattern cleared whole
+press SEQ
+wait 1100
+release SEQ
+wait 50
+said ORGAN PART CLEARED
+expect pq_n 0
+# the piano's part: empty still
+tap REC
+wait 30
+said ORGAN REC OFF
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+said PIANO HOME
+expect pq_n 0

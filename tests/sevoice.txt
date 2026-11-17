@@ -19,6 +19,9 @@ tap SEL
 wait 300
 tap SEL
 wait 300
+said ECHO TAPE
+tap SEL
+wait 300
 said ECHO VOICE
 expect se_voice0 64
 expect se_voice6 64

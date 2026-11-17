@@ -74,7 +74,9 @@ typedef struct {
                                           * tablet, PRESET it on or off; older records: settings_defaults', PIANO) */
     uint8_t rmi_organ, rmi_accent;       /* its ORGAN MODE and ACCENTER tablets: 0 up, 1 down */
     uint8_t rmi_bass;                    /* its BASS slider: the bass boost, 0..127 (64, the middle: none) */
-    uint8_t spare5[8];                   /* (the first: once the RMI's own velocity; its touch is GLO CONTROLS' now) */
+    uint8_t spare5[1];                   /* (once the RMI's own velocity; its touch is GLO CONTROLS' now) */
+    uint8_t se_send_b3;                  /* the organ's send into the Space Echo, 0..127 (was spare, 0) */
+    uint8_t spare5b[6];
     uint8_t se_mode;                     /* the Space Echo (its HOME mode's pages): MODE SELECTOR, 0..11 (modes 1..12) */
     uint8_t se_rate, se_int, se_echo, se_rev;   /* REPEAT RATE, INTENSITY, ECHO VOLUME, REVERB VOLUME, 0..127 */
     uint8_t se_bass, se_treb, se_input;  /* BASS, TREBLE, INSTRUMENT VOLUME (its input's drive), 0..127 */
@@ -870,8 +872,8 @@ static void seq_beat(void)                   /* a 16th of the arp's rhythm, the 
 #define MO_MAXBARS 16u
 #define MO_TOUCH_MS 300u                     /* a hand on it holds the loop's moves off so long after its last */
 #define MO_NSE 10u                           /* the Space Echo's (MO_SE_AT) */
-enum { MO_CUTOFF, MO_RESO, MO_RHY, MO_AOCT, MO_DVOL, MO_DTUNE = MO_DVOL + NDT, MO_SE = MO_DTUNE + NDT, MO_ROLL = MO_SE + MO_NSE,
-       MO_PAT = MO_ROLL + 1 + NDT };         /* its
+enum { MO_CUTOFF, MO_RESO, MO_RHY, MO_AOCT, MO_DVOL, MO_DTUNE = MO_DVOL + NDT, MO_SE = MO_DTUNE + NDT, MO_ORG = MO_SE + MO_NSE,
+       MO_ROLL = MO_ORG + 9, MO_PAT = MO_ROLL + 1 + NDT };   /* (MO_ORG: the organ's nine drawbars) */         /* its
                                               * values (mo_ref), then the roll: MO_ROLL off, MO_ROLL + 1 + the drum on (its
                                               * velocity, the accent's bit 7); a drum pattern cued (its number) */
 #define MO_NT (MO_ROLL + 2)                  /* what a hand holds: the values, the roll, the patterns */
@@ -897,7 +899,10 @@ static const uint8_t PROX_CCW[PROX_N] = {3, 8, 7, 3, 3, 5, 5, 5, 5, 5, 5, 5, 5, 
                                         6};
 _Static_assert(sizeof PROX_CCW == PROX_N, "a span each");
 static int prox_calibrating(void);
-#define MO_INST(g) ((g) < MO_DVOL ? 0u : (g) < MO_SE || (g) >= MO_ROLL ? 1u : 2u)   /* the bass's, the drums', the echo's */
+#define MO_INST(g) ((g) < MO_DVOL ? 0u : (g) < MO_SE || (g) >= MO_ROLL ? 1u : (g) < MO_ORG ? 2u : 3u)   /* the bass's, the
+                                              * drums', the echo's, the organ's */
+static b3_patch_t opatch;                    /* (bs2_organ.c's: the organ's drawbars the loop moves) */
+static volatile uint8_t o_sent;
 static const uint8_t MO_BASS_AT[MO_DVOL] = {offsetof(patch_t, cutoff), offsetof(patch_t, reso), offsetof(patch_t, rhythm),
                                            offsetof(patch_t, arp_oct)};
 static const uint8_t MO_SE_AT[MO_NSE] = {offsetof(settings_t, se_int), offsetof(settings_t, se_rate),
@@ -927,7 +932,7 @@ static struct {
  * CLEAR are of (0 all, then the bass's, the drums', the echo's); LANES what of it records (0 all; MO_INST's order);
  * LENGTH the loop's (0 AUTO: the first pass's; else 1, 2, 4, 8 or 16 bars); SPEED its playback's (½, 1, 2 times the
  * clock); SMOOTH a glide from move to move (0 off .. 10, about 0.8 s); CLEAR turned sets nothing */
-static struct { uint8_t mfor, lane[3], clear, len, speed, smooth; } mom = {.speed = 1};
+static struct { uint8_t mfor, lane[4], clear, len, speed, smooth; } mom = {.speed = 1};
 #define MO_NLEN 6u
 static const uint8_t MO_LEN_BARS[MO_NLEN] = {0, 1, 2, 4, 8, 16};
 static const float MO_SPD[3] = {0.5f, 1.0f, 2.0f};
@@ -945,6 +950,8 @@ static int mo_lane(uint32_t g)               /* move g's lane on (LANES) */
         return g == l - 1u;
     if (w == 2u)
         return g - MO_SE == l - 1u;
+    if (w == 3u)
+        return g - MO_ORG == l - 1u;
     return l == 1u ? g >= MO_DVOL && g < MO_DTUNE : l == 2u ? g >= MO_DTUNE && g < MO_SE
          : l == 3u ? g >= MO_ROLL && g < MO_PAT : g == MO_PAT;   /* (the drums': volumes, tunings, the roll, cues) */
 }
@@ -1109,12 +1116,25 @@ static void rmi_route(uint32_t note, uint32_t vel)   /* an RMI note, its keys', 
     }
 }
 static int pq_key(uint32_t note, uint32_t vel);   /* (bs2_dseq.c: the piano's part recording it; 0: not sounded) */
-static void rmi_play(uint32_t note, uint32_t vel)   /* its keys' or its channel's: recorded into the part as it's on */
+#include "bs2_dseq.c"                     /* Drum Something: its sequencer (dq_block, dq_sample, dq_click_next) */
+static void rmi_play(uint32_t note, uint32_t vel)   /* its keys' or its channel's: recorded into the part as it's on
+                                              * (audio interrupt: pq_p as it found it) */
 {
+    const uint32_t was = pq_p;
+    pq_p = 0;
     if (pq_key(note, vel))
         rmi_route(note, vel);
+    pq_p = was;
 }
-#include "bs2_dseq.c"                     /* Drum Something: its sequencer (dq_block, dq_sample, dq_click_next) */
+static void b3_play(uint32_t note, uint32_t vel)   /* the organ's keys' or its channel's: into its own part, as the
+                                              * piano's */
+{
+    const uint32_t was = pq_p;
+    pq_p = 1;
+    if (pq_key(note, vel))
+        b3_note(note, vel);
+    pq_p = was;
+}
 static void route_follow(void)               /* what the bass plays (its keys, arp, sequencer) on the RMI too (ROUTE):
                                               * not while the RMI plays the bass, so a note goes one way, once */
 {
@@ -1157,7 +1177,7 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
         usb_lost();
     while (fifo_get(&keyq, &e))
         if (e & KEYQ_B3)
-            b3_note(e & 0xFFu, (e >> 8) & 0xFFu);
+            b3_play(e & 0xFFu, (e >> 8) & 0xFFu);
         else if (e & KEYQ_RMI)
             rmi_play(e & 0xFFu, (e >> 8) & 0xFFu);
         else
@@ -1185,7 +1205,7 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
             {                                /* the organ (GLO MIDI CHANNELS), a device of its own too */
                 const uint32_t oc = o_ch(set.b3_chan), occ = o_ch(set.b3_cc_chan);
                 if ((oc == CH_ALL || oc == ch) && ((st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u))
-                    b3_note(d1, (st & 0xF0u) == 0x90u ? d2 : 0u);
+                    b3_play(d1, (st & 0xF0u) == 0x90u ? d2 : 0u);
                 else if ((occ == CH_ALL || occ == ch) && (st & 0xF0u) == 0xB0u)
                     fifo_put(&ccq, d1 | d2 << 8 | CCQ_ORGAN);
             }
@@ -1197,7 +1217,12 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
                 if (!cc)                         /* the Space Echo's knobs and sends too, by CC_MAP's numbers (on CC
                                               * CHAN as well, once if both are the one channel) */
                     fifo_put(&ccq, d1 | d2 << 8 | CCQ_ECHO);
-                pq_cc(d1, d2);                   /* (the sustain pedal into the piano's part, recording) */
+            {
+                const uint32_t was = pq_p;   /* (the sustain pedal into the piano's part, recording) */
+                pq_p = 0;
+                pq_cc(d1, d2);
+                pq_p = was;
+            }
             }
         }
         if (st != 0xF8u && st != 0xFEu) {    /* (clock and active sensing would flood the screen) */
@@ -1354,7 +1379,7 @@ static float mix_pre[APP_BLOCK] PLAT_POOL, mix_send[APP_BLOCK] PLAT_POOL;   /* a
 /* the Space Echo's knobs (the settings' bytes) onto it, a block at a time, and its sends' gains (each squared, as a
  * fader's); TEMPO SYNC: REPEAT RATE picks a note, an 8th to a 32nd (slow to fast), head 1 its time at the tempo,
  * halved or doubled into the RE-201's 60..175 ms */
-static float se_send_g[3];
+static float se_send_g[4];                   /* (the bass's, the drums', the RMI's, the organ's) */
 /* ECHO VOICE: the engine's voicing to taste, each encoder a constant's scale, 64 as modelled; kept with the GLO
  * settings (set.se_voice) */
 static const char *const SV_NAME[NE] = {"FEEDBACK", "MULTI-HEAD", "SATURATION", "WOW DEPTH", "FLUTTER", "SPRING DRIP",
@@ -1404,6 +1429,7 @@ static void se_apply(void)
         const float v = (float)set.se_send[i] * (1.0f / 127.0f);
         se_send_g[i] = v * v;
     }
+    se_send_g[3] = (float)set.se_send_b3 * (float)set.se_send_b3 * (1.0f / 16129.0f);
     se.sync_ms = 0.0f;
     if (set.se_sync) {
         const float bpm = ext_clock() && eng.ext_bpm > 0.0f ? eng.ext_bpm : clock_bpm();
@@ -1718,23 +1744,23 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                                               * block's: fx_take), on the master */
         const float rv = RMI_MIX * 0.3f * (float)(127u - set.rvol_off) * (1.0f / 127.0f), dg = (gain_now - g0) / (float)n;
 #if BS2_B3
-        const float ov = RMI_MIX * 0.3f * (float)(127u - set.b3vol_off) * (1.0f / 127.0f);   /* (the organ's volume) */
+        const float ov = RMI_MIX * 0.3f * (float)(127u - set.b3vol_off) * (1.0f / 127.0f)
+                         * (opatch.vol_soft ? 0.5f : 1.0f);   /* (the organ's volume; its VOLUME tab SOFT: 6 dB down) */
 #endif
         const uint32_t woke = rmi_woke;
         uint32_t ur = 0;                     /* the USB audio's own channels (fm1.toml usb_audio_channels): the bass, the
-                                              * drums, the piano, the echo's return, after MASTER as the master's; NULL
-                                              * while no computer records */
+                                              * drums, the piano, the echo's return, the organ's left and right, after
+                                              * MASTER as the master's; NULL while no computer records */
         int16_t *u = PLAT_USB_CH >= 4 ? plat_usb_ch(usb_off, &ur) : 0;
         for (i = 0; i < n; i++) {
 #if BS2_B3
-            const float gi = g0 + dg * (float)i, r = rmi_buf[i] * rv * gi + b3_mid[i] * ov * gi;   /* (the RMI's and
-                                              * the organ's middle: one part of the mix, the room and echo sends the
-                                              * RMI's) */
+            const float gi = g0 + dg * (float)i, r = rmi_buf[i] * rv * gi, o = b3_mid[i] * ov * gi;   /* (the RMI's; the
+                                              * organ's middle, its own part: its own sends) */
 #else
-            const float r = rmi_buf[i] * rv * (g0 + dg * (float)i);
+            const float r = rmi_buf[i] * rv * (g0 + dg * (float)i), o = 0.0f;
 #endif
             float s, e;
-            s = mix_pre[i] + r + fx_take(i, mix_send[i] + r * RMI_SEND, mix_se[i] + r * se_send_g[2], &e);
+            s = mix_pre[i] + r + o + fx_take(i, mix_send[i] + (r + o) * RMI_SEND, mix_se[i] + r * se_send_g[2] + o * se_send_g[3], &e);
 #if BS2_B3
             {                                /* (the organ's sides: its Leslie in stereo, the speaker's sum the middle) */
                 const float sd = b3_side[i] * ov * gi;
@@ -1749,6 +1775,10 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             if (u) {
                 u[0] = usb_s16(mix_bass[i]), u[1] = usb_s16(mix_pre[i] - mix_bass[i]);
                 u[2] = usb_s16(r), u[3] = usb_s16(e);
+#if BS2_B3
+                if (PLAT_USB_CH >= 6)        /* (the organ's, its Leslie's two sides) */
+                    u[4] = usb_s16(o + b3_side[i] * ov * gi), u[5] = usb_s16(o - b3_side[i] * ov * gi);
+#endif
                 u += PLAT_USB_CH_STRIDE, ur--;
             }
         }
@@ -2508,7 +2538,7 @@ enum { PG_OSC, PG_MIX, PG_MENV, PG_LFO1, PG_LFO2, PG_PATCH, PG_ARP, PG_SEQ, PG_A
        PG_GRND, PG_RPAT, PG_RTRK, PG_GCONN, PG_DHOME, PG_DCH1, PG_DCH2, PG_DCH3, PG_DCH4, PG_DCH5, PG_DCH6,
        PG_DMOD, PG_DPAT, PG_DSONG, PG_DPINFO, PG_DSINFO, PG_GAUD, PG_GCTL, PG_NAME, PG_RHOME, PG_RSEL,
        PG_SHOME, PG_SIN, PG_SECHO, PG_SMOD, PG_RVIEW, PG_SVOICE, PG_DROOM, PG_ATOUCH, PG_WHEELS,
-       PG_GMO, PG_OHOME, PG_OTABS, PG_OLES, PG_GCC, PG_OBARS, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
+       PG_GMO, PG_OHOME, PG_OTABS, PG_OLES, PG_GCC, PG_OBARS, PG_STAPE, PG_OVIB, NPAGES };                             /* (each new page last: the pages' numbers before it kept) */
 static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRIGGERING", "LFOS", "LFO MODS", "PATCH", "ARP",
                                               "SEQ", "ENVELOPES", "SUB OSC + MIXER", "FILTERS", "FILTERS LFO 2", "ENV MODS", "EFFECTS", "FX MODS", "ARP MODS", "HOME", "GLOBAL MIDI CHANNELS", "GLOBAL CLOCK",
                                               "GLOBAL DISPLAY", "GLOBAL DUMP", "RND SEED", "RND PATCH", "RND TRACKS",
@@ -2517,17 +2547,18 @@ static const char *const PAGE_NAME[NPAGES] = {"OSCILLATORS", "PULSE WIDTH", "TRI
                                               "PATCH NAME", "PIANO HOME", "PIANO PANEL",
                                               "ECHO HOME", "ECHO INPUT", "ECHO PANEL", "ECHO MODS",
                                               "PIANO PRESETS", "ECHO VOICE", "DRUM ROOM", "AFTERTOUCH", "WHEELS", "GLOBAL MOTION", "ORGAN HOME",
-                                              "ORGAN TABS", "ORGAN LESLIE", "GLOBAL CC CHANNELS", "ORGAN DRAWBARS"};
+                                              "ORGAN PERCUSSION", "ORGAN LESLIE", "GLOBAL CC CHANNELS", "ORGAN DRAWBARS", "ECHO TAPE", "ORGAN VIBRATO"};
 #define RND_PAGE(g) ((g) >= PG_GRND && (g) <= PG_RTRK)   /* the RND pages */
 #define PATCH_PAGE(g) ((g) == PG_PATCH || (g) == PG_HOME)   /* (PRESET picks the patch: the MASTER, HOME) */
 #define DRUM_PAGE(g) ((g) >= PG_DHOME && (g) < PG_GAUD)        /* Drum Something's pages (HOME held: its mode, ui.drum) */
 #define DCH_PAGE(g) ((g) >= PG_DCH1 && (g) <= PG_DCH6)   /* its Channel pages */
 #define RMI_PAGE(g) (((g) >= PG_RHOME && (g) <= PG_RSEL) || (g) == PG_RVIEW)   /* the RMI's pages (HOME on the drums' HOME: its mode, ui.rmi) */
 #define SE_PAGE(g) (((g) >= PG_SHOME && (g) <= PG_SMOD) || (g) == PG_SVOICE)    /* the Space Echo's (HOME on the RMI's HOME: its mode, ui.se) */
-#define ORGAN_PAGE(g) (((g) >= PG_OHOME && (g) <= PG_OLES) || (g) == PG_OBARS)   /* the organ's (HOME on the RMI's HOME: its mode, ui.b3) */
+#define ORGAN_PAGE(g) (((g) >= PG_OHOME && (g) <= PG_OLES) || (g) == PG_OBARS || (g) == PG_OVIB)   /* the organ's (HOME on the RMI's HOME: its mode, ui.b3) */
 static uint32_t mode_home(void);             /* the mode's HOME */
 static void zoom_rmi(uint32_t k);            /* RMI HOME's knob: in on RMI PANEL's */
 static void zoom_organ(uint32_t k);          /* ORGAN HOME's: in on its DRAWBARS (bs2_organ.c) */
+static void o_sect(uint32_t g, int16_t *x, int16_t *y, float *lc);   /* (its pages' sections on its HOME) */
 /* the 400's two LED lists, one number each: PATTERN's, then SONG's, BUILD MODE's own under it */
 enum { DTF_PAT, DTF_REC, DTF_ERASEI, DTF_ERROR, DTF_SWING, DTF_TIME, DTF_MEAS, DTF_ERASEP, DTF_COPYP, DTF_ROLL,
        DTF_SONG, DTF_ERASES, DTF_COPYS, DTF_BUILD, DTF_BPAT, DTF_BVOL, DTF_BTEMPO, DTF_BINS, DTF_BDEL, NDTF };
@@ -2680,7 +2711,8 @@ static const param_t PARAMS[NPAGES][NE] = {
                    [EN_K4] = {"MW OSC2", SF(mw_amt[3]), -63, 63, 0}},
     [PG_SMOD] = {[EN_PRESET] = {"TEMPO SYNC", SF(se_sync), 0, 1, OFF_ON}, [EN_K1] = {"BASS SEND", SF(se_send[0]), 0, 127, 0},
                  [EN_K2] = {"DRUM SEND", SF(se_send[1]), 0, 127, 0}, [EN_K3] = {"PIANO SEND", SF(se_send[2]), 0, 127, 0},
-                 [EN_K4] = {"WOW", SF(se_wow), 0, 127, 0}},
+                 [EN_K4] = {"ORGAN SEND", SF(se_send_b3), 0, 127, 0}},
+    [PG_STAPE] = {[EN_K1] = {"WOW", SF(se_wow), 0, 127, 0}},   /* (the tape's: on K4 as it was, ENC_MAP) */
 };
 /* SUB OSC + MIXER's switch, as the Bass Station II's: what its K4 sets, from the switch's bottom (NOISE, the start) up; EXT, the
  * external input's level: the computer's USB audio (plat_usb_audio_route) */
@@ -2768,7 +2800,7 @@ static void *page_rec(uint32_t g)            /* what a page's encoders set: the 
 }
 /* GLOBAL MOTION's encoders (knob_param: in mom, page_rec); LANES the instrument FOR picks's */
 #define MF(f) (uint8_t)offsetof(__typeof__(mom), f)
-static const char *const MO_FOR_NAME[4] = {"ALL", "BASS", "DRUMS", "ECHO"};
+static const char *const MO_FOR_NAME[5] = {"ALL", "BASS", "DRUMS", "ECHO", "ORGAN"};
 static const char *const MO_LEN_NAME[MO_NLEN] = {"AUTO", "1 BAR", "2 BARS", "4 BARS", "8 BARS", "16 BARS"};
 static const char *const MO_SPD_NAME[3] = {"HALF", "1X", "DOUBLE"};
 static const char *const MO_SM_NAME[11] = {"OFF", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
@@ -2777,14 +2809,16 @@ static const char *const MO_LN_BASS[1 + MO_DVOL] = {"ALL", "FREQUENCY", "RESONAN
 static const char *const MO_LN_DRUM[5] = {"ALL", "VOLUMES", "TUNINGS", "ROLL", "PATTERNS"};
 static const char *const MO_LN_ECHO[1 + MO_NSE] = {"ALL", "INTENSITY", "REPEAT RATE", "INPUT", "MODE", "REVERB",
                                                     "ECHO", "BASS SEND", "DRUM SEND", "PIANO SEND", "WOW"};   /* (MO_SE_AT's) */
+static const char *const MO_LN_ORG[10] = {"ALL", "16'", "5 1/3'", "8'", "4'", "2 2/3'", "2'", "1 3/5'", "1 1/3'", "1'"};
 static const param_t MO_P[NE] = {
-    [EN_SELECT] = {"FOR", MF(mfor), 0, 3, MO_FOR_NAME}, [EN_PRESET] = {"CLEAR", MF(clear), 0, 0, 0},
+    [EN_SELECT] = {"FOR", MF(mfor), 0, 4, MO_FOR_NAME}, [EN_PRESET] = {"CLEAR", MF(clear), 0, 0, 0},
     [EN_K1] = {"LENGTH", MF(len), 0, MO_NLEN - 1, MO_LEN_NAME}, [EN_K2] = {"SPEED", MF(speed), 0, 2, MO_SPD_NAME},
     [EN_K3] = {"SMOOTH", MF(smooth), 0, 10, MO_SM_NAME}};   /* (on K2-K4: ENC_MAP; MEMORY a meter at K1's place) */
-static const param_t MO_LANE_P[4] = {{"LANES", MF(lane[0]), 0, 0, MO_LN_ALL},
+static const param_t MO_LANE_P[5] = {{"LANES", MF(lane[0]), 0, 0, MO_LN_ALL},
                                      {"LANES", MF(lane[0]), 0, MO_DVOL, MO_LN_BASS},
                                      {"LANES", MF(lane[1]), 0, 4, MO_LN_DRUM},
-                                     {"LANES", MF(lane[2]), 0, MO_NSE, MO_LN_ECHO}};
+                                     {"LANES", MF(lane[2]), 0, MO_NSE, MO_LN_ECHO},
+                                     {"LANES", MF(lane[3]), 0, 9, MO_LN_ORG}};
 
 static int32_t param_get(const param_t *q, const void *p)
 {
@@ -3203,7 +3237,7 @@ static const uint8_t ENC_MAP[NPAGES] = {
     [PG_SEQ] = EMAP(EP_ROW, 0),                                /* SEQ, LENGTH, STEP */
     [PG_FMOD] = EMAP(EP_SAME, 3), [PG_EFX] = EMAP(EP_SAME, 2), [PG_XMOD] = EMAP(EP_SAME, 2), [PG_ATOUCH] = EMAP(EP_SAME, 1),
     [PG_AMOD] = EMAP(EP_SAME, 2), [PG_GDISP] = EMAP(EP_SAME, 2), [PG_RPAT] = EMAP(EP_SAME, 1),
-    [PG_SIN] = EMAP(EP_SAME, 0),
+    [PG_SIN] = EMAP(EP_SAME, 0), [PG_STAPE] = EMAP(EP_SAME, 3),   /* (ECHO TAPE's WOW on K4, where ECHO MODS had it) */
     [PG_GMO] = EMAP(EP_SAME, 1),                               /* LENGTH, SPEED, SMOOTH on K2-K4 (K1's place: MEMORY) */                               /* MODE on PRESET, INPUT on K4 */
 };
 static uint32_t enc_logical(uint32_t p)       /* physical encoder p: what it is on this page (NE: nothing) */
@@ -4519,7 +4553,8 @@ static const char *const HINT[NPAGES][NE] = {
                    "Fast pitch warble", "Spring chirp", "Spring tail length"},
     [PG_DROOM] = {[EN_K1] = "Room's tail length", "Tail's brightness", "Hits' brightness in", "Room's level"},
     [PG_SMOD] = {[EN_PRESET] = "Delay on the tempo", [EN_K1] = "Bass into the echo", "Drums into the echo",
-                 "Piano into the echo", "Tape wobble"},
+                 "Piano into the echo", "Organ into the echo"},
+    [PG_STAPE] = {[EN_K1] = "Tape wobble"},
     [PG_GDISP] = {[EN_PRESET] = "Zoom on what turns", [EN_K1] = "These hints", "Pop-up time"},
     [PG_GMO] = {"Whose loop", "What records", "Right: clear it", "Loop length", "Playback speed", "Glide moves"},
     [PG_GRND] = {[EN_PRESET] = "Pick a seed slot"},
@@ -4611,7 +4646,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         [PG_MENV] = "Triggering", [PG_EMOD] = "Env Mods", [PG_LFO1] = "LFOs", [PG_LFO2] = "LFO Mods",
         [PG_TUNE] = "Filters", [PG_FMOD] = "Filter LFO 2", [PG_EFX] = "Effects", [PG_XMOD] = "FX Mods", [PG_ATOUCH] = "Aftertouch", [PG_WHEELS] = "Wheels",
         [PG_ARP] = "Arp", [PG_AMOD] = "Arp Mods", [PG_SEQ] = "Sequencer", [PG_GMIDI] = "MIDI Channels", [PG_GCC] = "CC Channels", [PG_GCLK] = "Clock", [PG_GAUD] = "Audio", [PG_GCTL] = "Keys", [PG_NAME] = "Patch Name", [PG_RSEL] = "Piano Panel", [PG_RVIEW] = "Piano Presets",
-        [PG_GDISP] = "Display", [PG_GMO] = "Motion", [PG_GDUMP] = "Dump", [PG_OHOME] = "Organ", [PG_OBARS] = "Drawbars", [PG_OTABS] = "Organ Tabs",
+        [PG_GDISP] = "Display", [PG_GMO] = "Motion", [PG_GDUMP] = "Dump", [PG_OHOME] = "Organ", [PG_OBARS] = "Drawbars", [PG_OVIB] = "Vibrato", [PG_OTABS] = "Percussion",
         [PG_OLES] = "Leslie", [PG_GRND] = "RND Seed", [PG_RPAT] = "RND Patch",
         [PG_RTRK] = "RND Tracks", [PG_GCONN] = "Connect"};
     static char tap[48];                     /* "GLO tap: System, hold: RND Synth Companion" */
@@ -4803,7 +4838,8 @@ static void rmi_button(uint32_t k)
 static void se_button(uint32_t k)
 {
     if (k == B_SEL)
-        sect_open(ui.page == PG_SIN ? PG_SECHO : ui.page == PG_SECHO ? PG_SMOD : ui.page == PG_SMOD ? PG_SVOICE : PG_SIN, k);
+        sect_open(ui.page == PG_SIN ? PG_SECHO : ui.page == PG_SECHO ? PG_SMOD : ui.page == PG_SMOD ? PG_STAPE
+                  : ui.page == PG_STAPE ? PG_SVOICE : PG_SIN, k);
     else if (k == B_SAVE)
         app_say("SPACE SOMETHING", "KEEPS ITSELF");
     else
@@ -4828,7 +4864,7 @@ static void pq_rec_tap(void)
     char t[16] = "PATTERN ";
     if (pq.rec == PQR_REC) {
         pq_cmd(PQC_REC, PQR_OFF);
-        app_say("PIANO REC", "OFF");
+        app_say(pq_p ? "ORGAN REC" : "PIANO REC", "OFF");
         return;
     }
     if (!pq_go())
@@ -4836,20 +4872,20 @@ static void pq_rec_tap(void)
     pq_cmd(PQC_MUTE, 0);
     pq_cmd(PQC_REC, PQR_REC);
     t[8] = (char)('0' + pq_target() / 10u), t[9] = (char)('0' + pq_target() % 10u), t[10] = 0;
-    app_say("PIANO REC", t);
+    app_say(pq_p ? "ORGAN REC" : "PIANO REC", t);
 }
 static void pq_erase_hold(void)
 {
     if (!pq_go())
         return;
     pq_cmd(PQC_REC, PQR_ERASE);
-    app_say("PIANO ERASE", "HOLD KEYS");
+    app_say(pq_p ? "ORGAN ERASE" : "PIANO ERASE", "HOLD KEYS");
 }
 static void pq_play_tap(void)
 {
     if (dq.run && dq.hush) {
         dq_cmd(DQC_STOP, 0, 0);
-        app_say("PIANO PART", "STOPPED");
+        app_say(pq_p ? "ORGAN PART" : "PIANO PART", "STOPPED");
         return;
     }
     if (!dq.run) {
@@ -4857,17 +4893,17 @@ static void pq_play_tap(void)
             pq_cmd(PQC_MUTE, 0);
             dq_cmd(DQC_RUN, ui.dt_pat, 0);
             dq_cmd(DQC_HUSH, 1, 0);
-            app_say("PIANO PART", "PLAYING");
+            app_say(pq_p ? "ORGAN PART" : "PIANO PART", "PLAYING");
         } else if (ui.dt_pat < DQ_NPAT && !set.dtrans_off && (pqm.n[ui.dt_pat] || dqm.pat[ui.dt_pat].n)) {
             pq_cmd(PQC_MUTE, 0);
             dq_cmd(DQC_RUN, ui.dt_pat, 0);
-            app_say("PIANO PART", "PLAYING");
+            app_say(pq_p ? "ORGAN PART" : "PIANO PART", "PLAYING");
         } else
-            app_say("PIANO PART", "EMPTY");
+            app_say(pq_p ? "ORGAN PART" : "PIANO PART", "EMPTY");
         return;
     }
     pq_cmd(PQC_MUTE, !pq.mute);
-    app_say("PIANO PART", pq.mute ? "ON" : "OFF");
+    app_say(pq_p ? "ORGAN PART" : "PIANO PART", pq.mute ? "ON" : "OFF");
 }
 static void mo_del(uint32_t i)               /* the motion's move i out */
 {
@@ -4878,7 +4914,7 @@ static uint32_t mo_bar(void);
 static uint8_t *mo_ref(uint32_t g)           /* value g's */
 {
     return g < MO_DVOL ? (uint8_t *)&patch + MO_BASS_AT[g] : g < MO_DTUNE ? &dt.vol[g - MO_DVOL]
-         : g < MO_SE   ? &dt.tune[g - MO_DTUNE] : (uint8_t *)&set + MO_SE_AT[g - MO_SE];
+         : g < MO_SE   ? &dt.tune[g - MO_DTUNE] : g < MO_ORG ? (uint8_t *)&set + MO_SE_AT[g - MO_SE] : &opatch.bar[g - MO_ORG];
 }
 static int mo_in(uint32_t t, float a, float p) { return p >= a ? t > a && t <= p : t > a || t <= p; }   /* in (a, p] */
 static void mo_put(float p, uint32_t g, uint32_t v)   /* a move in, in time's order */
@@ -4976,8 +5012,10 @@ static void mo_step(void)                    /* each look at the buttons: the mo
                     mo.sm_v[e.tgt] = (float)*mo_ref(e.tgt);
                 mo.sm_to[e.tgt] = e.v;
                 mo.sm_on |= 1ull << e.tgt;
-            } else if (e.tgt < MO_ROLL)
+            } else if (e.tgt < MO_ROLL) {
                 *mo_ref(e.tgt) = mo.lv[e.tgt] = e.v;
+                o_sent |= e.tgt >= MO_ORG;       /* (a drawbar: to the organ) */
+            }
             else if (e.tgt > MO_ROLL)        /* (its hits not recorded into the pattern: the loop's) */
                 dq_cmd(DQC_ROLL, e.tgt - MO_ROLL - 1u, e.v | 1u << 8);
             else
@@ -4997,15 +5035,17 @@ static void mo_step(void)                    /* each look at the buttons: the mo
                     mo.sm_on &= ~(1ull << g);
                 }
                 *mo_ref(g) = mo.lv[g] = (uint8_t)(mo.sm_v[g] + 0.5f);
+                o_sent |= g >= MO_ORG;
             }
         ui.redraw = 1;
     }
     mo.sm_at = now;
 }
-static void mo_clear(uint32_t w)              /* instrument w's moves (MO_INST's; 3 the piano's, none; 4 all), its knobs as
+static void mo_clear(uint32_t w)              /* instrument w's moves (MO_INST's; 4 all; 5 the piano's, none), its knobs as
                                               * the hand left them; said cleared, or empty */
 {
-    static const char *const NAME[5] = {"BASS MOTION", "DRUM MOTION", "ECHO MOTION", "PIANO MOTION", "MOTION"};
+    static const char *const NAME[6] = {"BASS MOTION", "DRUM MOTION", "ECHO MOTION", "ORGAN MOTION", "MOTION",
+                                        "PIANO MOTION"};
     uint32_t i, g, n = mo.n;
     for (i = mo.n; i-- > 0u;)
         if (w == 4u || MO_INST(mo_ev[i].tgt) == w)
@@ -5014,6 +5054,7 @@ static void mo_clear(uint32_t w)              /* instrument w's moves (MO_INST's
         for (g = 0; g < MO_ROLL; g++)
             if (w == 4u || MO_INST(g) == w) {
                 *mo_ref(g) = mo.lv[g] = mo.hv[g];
+                o_sent |= g >= MO_ORG;
                 mo.sm_on &= ~(1ull << g);
             }
         if ((w == 1u || w == 4u) && dq.roll_mo)
@@ -5075,7 +5116,7 @@ static void mo_cmd(int clear)                /* REC + OCT-: recording on or off;
 {
     char t[12];
     if (clear) {                             /* the instrument on screen's */
-        mo_clear(ui.drum ? 1u : ui.se ? 2u : ui.rmi ? 3u : 0u);
+        mo_clear(ui.drum ? 1u : ui.se ? 2u : ui.b3 ? 3u : ui.rmi ? 5u : 0u);
         return;
     }
     if (!mo.rec) {
@@ -5250,11 +5291,11 @@ static void hold_tap(uint32_t k)
         mode_switch();
     else if (k == B_HOME)                         /* HOME: the whole panel (the first page), the mode's */
         home_back();
-    else if (k == B_REC && ui.rmi && ui.page != PG_GCONN)   /* the piano's: its part */
+    else if (k == B_REC && (ui.rmi || ui.b3) && ui.page != PG_GCONN)   /* the piano's or the organ's: its part */
         pq_rec_tap();
-    else if (k == B_PLAY && ui.rmi)
+    else if (k == B_PLAY && (ui.rmi || ui.b3))
         pq_play_tap();
-    else if (k == B_SEQ && ui.rmi)            /* (its tap: what its hold does) */
+    else if (k == B_SEQ && (ui.rmi || ui.b3))   /* (its tap: what its hold does) */
         app_say("SEQ HOLD", "CLEARS THE PART");
     else if (k == B_REC && ui.page != PG_GCONN)   /* recording, on any page (GLO CONNECT's: a Bluetooth device) */
         rec_toggle();
@@ -5590,7 +5631,8 @@ static void dt_button(uint32_t k)
         if (dq.run && dq.hush) {
             dq_cmd(DQC_HUSH, 0, 0);
             app_say("DRUMS", "PLAYING");
-        } else if (dq.run && set.dtrans_off && !pq.mute && dq.cur < DQ_NPAT && pqm.n[dq.cur]) {
+        } else if (dq.run && set.dtrans_off && dq.cur < DQ_NPAT && ((!pq_[0].mute && pqm_[0].n[dq.cur])
+                                                                   || (!pq_[1].mute && pqm_[1].n[dq.cur]))) {
             dq_cmd(DQC_HUSH, 1, 0);
             app_say("DRUMS", "STOPPED");
         } else if (dq.run)
@@ -5604,7 +5646,7 @@ static void dt_button(uint32_t k)
                 ui.dt_fn = DTF_SONG;
                 dq_cmd(DQC_SONG, ui.dt_song, 0);
             }
-        } else if (ui.dt_pat < DQ_NPAT && (dq.rec || dqm.pat[ui.dt_pat].n || pqm.n[ui.dt_pat])) {
+        } else if (ui.dt_pat < DQ_NPAT && (dq.rec || dqm.pat[ui.dt_pat].n || pq_n(ui.dt_pat))) {
             if (f > DTF_SWING && f < DTF_ROLL)
                 ui.dt_fn = DTF_PAT;
             dq_cmd(DQC_RUN, ui.dt_pat, 0);
@@ -5696,16 +5738,16 @@ static void hold_step(uint32_t btn)
             randomize();
         else if (ui.hold_k == B_ARP && ui.b3)   /* (the organ's: its Leslie's brake) */
             organ_brake();
-        else if (ui.hold_k == B_REC && ui.rmi)
+        else if (ui.hold_k == B_REC && (ui.rmi || ui.b3))
             pq_erase_hold();
-        else if (ui.hold_k == B_SEQ && ui.rmi) {   /* (the piano's: the pattern's part, whole) */
+        else if (ui.hold_k == B_SEQ && (ui.rmi || ui.b3)) {   /* (the piano's or the organ's: the pattern's part, whole) */
             if (pq_target() < DQ_NPAT) {
                 pq_cmd(PQC_CLEAR, pq_target());
-                app_say("PIANO PART", "CLEARED");
+                app_say(pq_p ? "ORGAN PART" : "PIANO PART", "CLEARED");
             }
-        } else if (ui.hold_k == B_PLAY) {      /* (the piano's: its last pass taken back) */
+        } else if (ui.hold_k == B_PLAY) {      /* (the piano's or the organ's: its last pass taken back) */
             pq_cmd(PQC_UNDO, 0);
-            app_say("PIANO", "LAST PASS UNDONE");
+            app_say(pq_p ? "ORGAN" : "PIANO", "LAST PASS UNDONE");
         }
         else if (ui.hold_k == B_REC)         /* (the drums' alone: the synth's REC acts on release) */
             ;
@@ -5739,7 +5781,7 @@ static void leds_out(uint32_t buttons, uint32_t keys)
 {
     const uint32_t play = 1u << B_PLAY;
     uint32_t b = buttons, dim = btn_live() & ~buttons;
-    if (!((ui.drum && dq.rec) || (ui.rmi && pq.rec))) {
+    if (!((ui.drum && dq.rec) || ((ui.rmi || ui.b3) && pq.rec))) {
         b = (b & ~play) | (buttons & play ? LED_PLAY_GREEN : 0u);
         dim = (dim & ~play) | (dim & play ? LED_PLAY_GREEN : 0u);
     }
@@ -5748,6 +5790,7 @@ static void leds_out(uint32_t buttons, uint32_t keys)
 
 static void input(void)
 {
+    pq_part(ui.b3);                          /* (the part REC and PLAY act on: the organ's in its mode, else the piano's) */
     uint32_t keys, btn = plat_buttons(), k, lit, below, above, mid, mid_b;
     static uint8_t mid_was;                  /* (the lights' middle level set last time: let go once) */
     int32_t e;
@@ -5851,7 +5894,7 @@ static void input(void)
         else if (ui.se && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && !RND_PAGE(ui.page)
                  && ui.page != PG_GDUMP)
             se_button(k);
-        else if (ui.b3 && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && k != B_ARP
+        else if (ui.b3 && k != B_HOME && k != B_REC && k != B_PLAY && k != B_SEQ && k != B_GLO && k != B_OCTDN && k != B_OCTUP && k != B_ARP
                  && !RND_PAGE(ui.page) && ui.page != PG_GDUMP)
             o_button(k);
         else if (ui.rmi && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && k != B_PLAY
@@ -6081,7 +6124,9 @@ static void input(void)
     }
     if (ui.b3)                               /* (the organ's: SAVE while not saved, ARP its Leslie fast, FX its
                                               * percussion, EDIT its vibrato) */
-        leds_out(btn | (organ_dirty() ? 1u << B_SAVE : 0u) | (uint32_t)ui.ofast << B_ARP | organ_lights(), keys | lit);
+        leds_out(btn | (organ_dirty() ? 1u << B_SAVE : 0u) | (uint32_t)ui.ofast << B_ARP | organ_lights()
+                 | (uint32_t)(dq.run && !pq.mute) << B_PLAY | (uint32_t)(pq.rec != 0u) << B_REC, keys | lit);   /* (its
+                                              * part's PLAY and REC, as the piano's) */
     else if (ui.rmi && !ui.drum)             /* (the piano's part: PLAY lit as it plays, REC as it records) */
         leds_out(btn | (dq.dirty ? 1u << B_SAVE : 0u) | (uint32_t)(dq.run && !pq.mute) << B_PLAY
                   | (uint32_t)(pq.rec != 0u) << B_REC, keys | lit);
@@ -6127,8 +6172,8 @@ static void ui_start(void) { ui.page = PG_HOME; }   /* the first page, after the
 enum { SEC_FX, SEC_SEL, SEC_ENV, SEC_LFO, SEC_ARP, SEC_SEQ, SEC_EDIT, SEC_GLO, NSEC };
 static const char *const SEC_NAME[NSEC] = {"FX", "SEL", "ENV", "LFO", "ARP", "SEQ", "EDIT", "GLO"};
 static const uint8_t PAGE_SEC[NPAGES] = {[PG_OSC] = SEC_EDIT, [PG_MIX] = SEC_EDIT, [PG_MENV] = SEC_ENV,
-                                         [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL, [PG_NAME] = SEC_SEL, [PG_RHOME] = NSEC, [PG_OHOME] = NSEC, [PG_OBARS] = SEC_SEL, [PG_OTABS] = SEC_SEL, [PG_OLES] = SEC_SEL, [PG_RSEL] = SEC_SEL, [PG_RVIEW] = SEC_SEL, [PG_SVOICE] = SEC_SEL,
-                                         [PG_SHOME] = NSEC, [PG_SIN] = SEC_SEL, [PG_SECHO] = SEC_SEL, [PG_SMOD] = SEC_SEL,
+                                         [PG_LFO1] = SEC_LFO, [PG_LFO2] = SEC_LFO, [PG_PATCH] = SEC_SEL, [PG_NAME] = SEC_SEL, [PG_RHOME] = NSEC, [PG_OHOME] = NSEC, [PG_OBARS] = SEC_SEL, [PG_OVIB] = SEC_SEL, [PG_OTABS] = SEC_SEL, [PG_OLES] = SEC_SEL, [PG_RSEL] = SEC_SEL, [PG_RVIEW] = SEC_SEL, [PG_SVOICE] = SEC_SEL,
+                                         [PG_SHOME] = NSEC, [PG_SIN] = SEC_SEL, [PG_SECHO] = SEC_SEL, [PG_SMOD] = SEC_SEL, [PG_STAPE] = SEC_SEL,
                                          [PG_ARP] = SEC_ARP, [PG_SEQ] = SEC_SEQ, [PG_AENV] = SEC_ENV, [PG_FX] = SEC_EDIT,
                                          [PG_TUNE] = SEC_FX, [PG_FMOD] = SEC_FX,
                                          [PG_EMOD] = SEC_ENV, [PG_EFX] = SEC_FX, [PG_XMOD] = SEC_FX, [PG_AMOD] = SEC_ARP, [PG_HOME] = NSEC,
@@ -6851,16 +6896,16 @@ static void plate(const char *grp)          /* a group's bar, the plate under it
 }
 static void mod_draw(void)
 {
-    static const char *const LBL[7][4] = {{"KEY TRACK", "LIMITER"}, {"VELOCITY", "RETRIGGER", "COUNT", "FIXED SUS"},
+    static const char *const LBL[8][4] = {{"KEY TRACK", "LIMITER"}, {"VELOCITY", "RETRIGGER", "COUNT", "FIXED SUS"},
                                           {"KEYSYNC", "SPEED/SYNC", "SLEW"}, {"SEQ RETRIG", "SWING"},
-                                          {"BASS SEND", "DRUM SEND", "PIANO SEND", "WOW"},
+                                          {"BASS SEND", "DRUM SEND", "PIANO SEND", "ORGAN SEND"},
                                           {"FILTER", "LFO1 PITCH", "LFO2 SPEED"},
-                                          {"FILTER", "LFO1 PITCH", "LFO2 FILT", "OSC2 PITCH"}};
+                                          {"FILTER", "LFO1 PITCH", "LFO2 FILT", "OSC2 PITCH"}, {"WOW"}};
     static const char *const ENV_T[3] = {"ENV MOD: AMP ENV", "ENV MOD: MOD ENV", "ENV MOD: AMP+MOD"};
     const int env = ui.page == PG_EMOD ? 1 : ui.page == PG_LFO2 ? 2 : ui.page == PG_AMOD ? 3 : ui.page == PG_SMOD ? 4
-                    : ui.page == PG_ATOUCH ? 5 : ui.page == PG_WHEELS ? 6 : 0;
+                    : ui.page == PG_ATOUCH ? 5 : ui.page == PG_WHEELS ? 6 : ui.page == PG_STAPE ? 7 : 0;
     char bt[16];
-    const char *grp = env == 4 ? "SPACE SOMETHING" : env == 1 ? "ENVELOPES" : env == 2 ? "LFOS" : env == 3 ? "ARPEGGIATOR"
+    const char *grp = env == 4 || env == 7 ? "SPACE SOMETHING" : env == 1 ? "ENVELOPES" : env == 2 ? "LFOS" : env == 3 ? "ARPEGGIATOR"
                       : "FILTERS + EFFECTS";   /* (0: PG_XMOD, 5 AFTERTOUCH, 6 WHEELS) */
     uint32_t i, n = 0;
     char t[12];
@@ -6869,7 +6914,7 @@ static void mod_draw(void)
     bt[0] = 0;                               /* (WHEELS': its bend's range, on PRESET) */
     text_cat(bt, "BEND: ");
     knob_text(EN_PRESET, bt + 6);
-    dymo(120, 30, env == 6 ? bt : env == 5 ? "AFTERTOUCH" : env == 4 ? (set.se_sync ? "TEMPO SYNC: ON" : "TEMPO SYNC: OFF") : env == 1 ? ENV_T[ui.env_sel]
+    dymo(120, 30, env == 7 ? "TAPE" : env == 6 ? bt : env == 5 ? "AFTERTOUCH" : env == 4 ? (set.se_sync ? "TEMPO SYNC: ON" : "TEMPO SYNC: OFF") : env == 1 ? ENV_T[ui.env_sel]
                   : env == 2 ? (ui.lfo_sel ? "LFO MOD: LFO 2" : "LFO MOD: LFO 1") : env ? "ARP MODS" : "FX MODS",
          ((env == 1 || env == 2) && knob_lit(EN_SELECT)) || ((env == 4 || env == 6) && knob_lit(EN_PRESET)) ? P_CYAN : RGB(235, 235, 235));
     if (env == 1 || env == 2)                /* (its title: which envelope, which LFO; the echo's, its sync) */
@@ -8418,11 +8463,11 @@ static void osc_draw(void)
     static const char *const FT[NRANGE] = {"16'", "8'", "4'", "2'"};
     const int pw = ui.page == PG_MIX;
     const param_t *q[5];
-    const param_t *op = ui.osc_sel ? OSC2_P : PARAMS[PG_OSC], *pq = &PW_P[ui.osc_sel][ui.pw_src];
+    const param_t *op = ui.osc_sel ? OSC2_P : PARAMS[PG_OSC], *pwq = &PW_P[ui.osc_sel][ui.pw_src];
     uint32_t i, range = (uint32_t)param_get(&op[EN_SELECT], &patch), wave = (uint32_t)param_get(&op[EN_ALGO], &patch);
     uint16_t on = pw ? P_DIM : P_SILK, wo = pw ? P_SILK : P_DIM;   /* the pitch's print, the width's */
     panel_head("OSCILLATORS");
-    q[0] = &op[EN_K1], q[1] = &op[EN_K2], q[2] = &op[EN_K3], q[3] = &op[EN_K4], q[4] = pq;
+    q[0] = &op[EN_K1], q[1] = &op[EN_K2], q[2] = &op[EN_K3], q[3] = &op[EN_K4], q[4] = pwq;
     for (i = 0; i < 5u; i++) {               /* the knobs: K1 to K4 (the pitch's view), the width's K4 */
         int32_t cx = 29 + 46 * (int32_t)i, v = param_get(q[i], &patch);
         uint32_t k = i < 4u ? EN_K1 + i : EN_K4, mine = (i == 4u) == pw, lit = mine && knob_lit(k);
@@ -8865,12 +8910,16 @@ static void home_sect(uint32_t g, int16_t *x, int16_t *y, float *lc)   /* page g
  * button's hint after, from there (the next tap's) */
 static void sect_open(uint32_t g, uint32_t k)
 {
-    if (set.zoom_off || ui.page != PG_HOME || zoom.home || PAGE_SEC[g] == SEC_GLO) {
+    const int org = ui.page == PG_OHOME && (g == PG_OBARS || g == PG_OVIB || g == PG_OTABS);   /* (the organ's HOME too) */
+    if (set.zoom_off || (ui.page != PG_HOME && !org) || zoom.home || PAGE_SEC[g] == SEC_GLO) {
         page_go(g);
         return;
     }
-    zoom_keep(PG_HOME);
-    home_sect(g, &zoom.hx, &zoom.hy, &zoom.lc);
+    zoom_keep(ui.page);
+    if (org)
+        o_sect(g, &zoom.hx, &zoom.hy, &zoom.lc);
+    else
+        home_sect(g, &zoom.hx, &zoom.hy, &zoom.lc);
     zoom.g = (uint8_t)g;
     zoom.bk = (uint8_t)k;
     zoom.u = 0.0f;
@@ -9733,12 +9782,15 @@ static void home_back(void)
         zoom.home = ZH_RISE;
         return;
     }
-    if (set.zoom_off || ui.rmi || !(ui.drum ? DCH_PAGE(g) || g == PG_DPAT || g == PG_DSONG : PAGE_SEC[g] != SEC_GLO)) {
+    if (set.zoom_off || ui.rmi || (ui.b3 && g != PG_OBARS && g != PG_OVIB && g != PG_OTABS)
+        || !(ui.drum ? DCH_PAGE(g) || g == PG_DPAT || g == PG_DSONG : PAGE_SEC[g] != SEC_GLO)) {
         page_go(h);
         return;
     }
     if (ui.drum)
         dt_box(g);
+    else if (ui.b3)                          /* (the organ's: its page's section on its HOME) */
+        o_sect(g, &zoom.hx, &zoom.hy, &zoom.lc);
     else
         home_sect(g, &zoom.hx, &zoom.hy, &zoom.lc);
     zoom_keep(h);
@@ -9974,7 +10026,7 @@ static void panel_draw(void)                 /* the page's section panel, from u
             se_close_draw();
         else if (ui.page == PG_SVOICE)
             svoice_draw();
-        else if (ui.page == PG_SMOD)
+        else if (ui.page == PG_SMOD || ui.page == PG_STAPE)
             mod_draw();
         else if (ui.page == PG_ARP)
             arp_draw();
@@ -10024,8 +10076,8 @@ static void panel_draw(void)                 /* the page's section panel, from u
             ohome_draw();
         else if (ui.page == PG_OBARS)
             obars_draw();
-        else if (ui.page == PG_OTABS)
-            otabs_draw();
+        else if (ui.page == PG_OTABS || ui.page == PG_OVIB)
+            ocheek_draw(ui.page == PG_OTABS);
         else if (ui.page == PG_OLES)
             oles_draw();
         else if (ui.page == PG_GRND)
@@ -10963,6 +11015,8 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "b3_on"))         /* the organ: sounding; its preset; a drawbar (obar0..obar8); not saved;
                                               * its Leslie fast; the percussion's harmonic third; the vibrato on */
         *got = (int32_t)b3_on;
+    else if (!strcmp(what, "b3_down"))       /* (a key of the organ's held) */
+        *got = (int32_t)b3_down();
     else if (!strcmp(what, "b3_slot"))
         *got = set.b3_slot;
     else if (!strncmp(what, "obar", 4) && what[4] >= '0' && what[4] <= '8')

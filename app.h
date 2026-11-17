@@ -30,11 +30,14 @@ int bs2_ble_off(void);
  * bs2_dseq.c), under that; OBJ_DS*, its songs (ds_mem_t), under those; OBJ_PATCHES1..3, the bank's slots 33..128
  * (OBJ_PATCHES its 1..32), OBJ_NAMES, the slots' names (names_t, app.c), and OBJ_PQ*, the piano's parts of the
  * patterns (pq_mem_t, bs2_dseq.c), under those; OBJ_ORGAN, the organ's presets and their names (organ_bank_t,
- * bs2_organ.c), under those (each new one last: the numbers before it kept) */
+ * bs2_organ.c), under those; OBJ_OQ*, the organ's parts of the patterns (pq_mem_t), under that (each new one last: the
+ * numbers before it kept) */
 enum { OBJ_SETTINGS, OBJ_PANEL, OBJ_BLE, OBJ_PATCHES, OBJ_SEEDS, OBJ_DQ0, OBJ_DQ1, OBJ_DQ2, OBJ_DQ3, OBJ_DQ4, OBJ_DS0, OBJ_DS1, OBJ_DS2, OBJ_PATCHES1, OBJ_PATCHES2,
-       OBJ_PATCHES3, OBJ_NAMES, OBJ_PQ0, OBJ_PQ1, OBJ_PQ2, OBJ_PQ3, OBJ_ORGAN, OBJ_NOBJ };
+       OBJ_PATCHES3, OBJ_NAMES, OBJ_PQ0, OBJ_PQ1, OBJ_PQ2, OBJ_PQ3, OBJ_ORGAN, OBJ_OQ0, OBJ_OQ1, OBJ_OQ2,
+       OBJ_OQ3, OBJ_NOBJ };
 #define APP_STORE_MAP {0xFC000u, 0xDC000u, 0xDE000u, 0xDA000u, 0xD8000u, 0xD6000u, 0xD4000u, 0xD2000u, 0xD0000u, 0xCE000u, 0xCC000u, 0xCA000u, 0xC8000u, \
-                       0xC6000u, 0xC4000u, 0xC2000u, 0xC0000u, 0xBE000u, 0xBC000u, 0xBA000u, 0xB8000u, 0xB6000u}
+                       0xC6000u, 0xC4000u, 0xC2000u, 0xC0000u, 0xBE000u, 0xBC000u, 0xBA000u, 0xB8000u, 0xB6000u, \
+                       0xB4000u, 0xB2000u, 0xB0000u, 0xAE000u}
 
 /* the voice (app.c): two oscillators (saw, square, sine, triangle or a pulse of its own width, each at its own
  * footage, 2 hard-synced to 1 if asked), a sub (a sine, a narrow pulse or a square) and noise, mixed at their levels (1
@@ -203,7 +206,7 @@ void app_say(const char *a, const char *b);   /* a short message on the screen a
 int app_sysex(const uint8_t *p, uint32_t n);
 /* backup and restore over USB (fm1.toml backup = true: device/backup.c, tools/fm1_backup.py --magic BS2B, web/backup): all
  * that's saved but the panel's calibration and the Bluetooth pairings, the unit's */
-#define APP_BACKUP_OBJS {OBJ_SETTINGS, OBJ_PATCHES, OBJ_SEEDS, OBJ_DQ0, OBJ_DQ1, OBJ_DQ2, OBJ_DQ3, OBJ_DQ4, OBJ_DS0, OBJ_DS1, OBJ_DS2, OBJ_PATCHES1, OBJ_PATCHES2, OBJ_PATCHES3, OBJ_NAMES, OBJ_PQ0, OBJ_PQ1, OBJ_PQ2, OBJ_PQ3}
+#define APP_BACKUP_OBJS {OBJ_SETTINGS, OBJ_PATCHES, OBJ_SEEDS, OBJ_DQ0, OBJ_DQ1, OBJ_DQ2, OBJ_DQ3, OBJ_DQ4, OBJ_DS0, OBJ_DS1, OBJ_DS2, OBJ_PATCHES1, OBJ_PATCHES2, OBJ_PATCHES3, OBJ_NAMES, OBJ_PQ0, OBJ_PQ1, OBJ_PQ2, OBJ_PQ3, OBJ_ORGAN, OBJ_OQ0, OBJ_OQ1, OBJ_OQ2, OBJ_OQ3}
 #define APP_BACKUP_MAGIC 0x42325342u     /* "BS2B" */
 #define APP_BACKUP_VERSION 1u
 #define APP_BACKUP_WHAT "replaces all saved work"

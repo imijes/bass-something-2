@@ -28,13 +28,20 @@ wait 30
 said 16' 7
 expect obar0 7
 expect odirty 1
-tap SEQ
+# ENV: ORGAN PERCUSSION, the camera in on its cheek; ENV again its switch, K4 its harmonic; HOME back out
+tap ENV
+wait 800
+expect page 53
+tap ENV
+wait 30
+said PERCUSSION OFF
+turn K4 -1
 wait 30
 said PERC HARMONIC SECOND
 expect operc3 0
-tap FX
-wait 30
-said PERCUSSION OFF
+tap HOME
+wait 2000
+expect page 52
 tap EDIT
 wait 30
 said VIBRATO OFF
@@ -62,16 +69,36 @@ said P02 FULL ORGAN
 expect b3_slot 1
 expect obar8 8
 expect odirty 0
-tap SEL
+# FX: ORGAN VIBRATO (not SEL's: SEL goes on to the LESLIE)
+tap FX
+wait 600
+expect page 58
+said ORGAN VIBRATO
+# its left cheek: K2 VIBRATO LOWER, K4 VIBRATO AND CHORUS round its positions, V1 C1 V2 C2 V3 C3
+turn K2 1
+wait 30
+said VIBRATO LOWER ON
+turn K4 -1
+wait 30
+said VIBRATO CHORUS V3
+tap ENV
 wait 600
 expect page 53
 wait 2500
 shot organ-tabs.png
-tap SEL
+tap LFO
 wait 600
 expect page 54
 wait 2500
 shot organ-leslie.png
+# SEL off the LESLIE: HOME; SEL on: DRAWBARS, its other view, the NAME
+tap SEL
+wait 1500
+expect page 52
+tap SEL
+wait 800
+tap SEL
+wait 600
 tap SEL
 wait 600
 expect page 39
@@ -115,3 +142,16 @@ said 2 2/3' 1
 turn SELECT -27
 wait 30
 said ORGAN VOLUME 100
+# HOME's FX: ORGAN VIBRATO (FX again: VIBRATO UPPER); LFO: ORGAN LESLIE (LFO again: its speed)
+tap FX
+wait 800
+expect page 58
+tap FX
+wait 30
+said VIBRATO UPPER
+tap LFO
+wait 300
+expect page 54
+tap LFO
+wait 30
+said LESLIE

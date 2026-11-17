@@ -95,8 +95,9 @@ static struct {
     volatile uint32_t pass;                  /* a pattern's pass begun (its loop, the next): the piano's part follows it */
     float roll_t, roll_g, roll_inc;          /* ticks since its last hit, between hits, a sample's */
 } dq PLAT_POOL;
-/* the piano's part (PIANO pages: REC, PLAY), a part of each pattern: its notes in a pool as the drums' hits, saved with
- * them. An event: time 19 bits, key 7, velocity 4 (0: its Note Off), the sustain pedal's (its key's place: 0 up, 1
+/* the piano's part and the organ's (their pages: REC, PLAY), parts of each pattern: their notes each in a pool as the
+ * drums' hits, saved with them; the pq_ functions act on part pq_p's (pqm, pq, pqq: 0 the piano's, 1 the organ's), the
+ * audio's on each in turn (pq_block), the main loop's on the one it names (pq_part). An event: time 19 bits, key 7, velocity 4 (0: its Note Off), the sustain pedal's (its key's place: 0 up, 1
  * down), fresh (recorded in the last pass with notes: PLAY held takes them back) */
 #define PQ_EV 3700u
 #define PQ_MAGIC 0x50515331u
@@ -110,9 +111,10 @@ typedef struct {
     uint16_t start[DQ_NPAT], n[DQ_NPAT];
     uint32_t ev[PQ_EV];
 } pq_mem_t;
-static pq_mem_t pqm PLAT_POOL;
+#define PQ_NPART 2u
+static pq_mem_t pqm_[PQ_NPART] PLAT_POOL;
 enum { PQR_OFF, PQR_REC, PQR_ERASE };
-static struct {
+typedef struct {
     volatile uint8_t rec, mute, full, dirty;  /* PQR_*; the part not played (PLAY); a note found no room; unsaved */
     uint8_t pat, any, ped;                   /* the pattern its pass is of; a note recorded this pass; its pedal down */
     uint32_t pass, idx;                      /* the drums' pass it's on (dq.pass); the next event */
@@ -122,8 +124,17 @@ static struct {
     float on_at[128];                        /* (and where the playhead was, unswung, as it went down) */
     uint32_t on_pass[128];
     uint8_t on_new[128];
-} pq PLAT_POOL;
-static fifo_t pqq;                           /* main loop -> audio, the part's (pq_block, before the piano's block) */
+    uint32_t commit;                         /* passes with notes so far: a Note Off fresh as its note was */
+} pq_state_t;
+static pq_state_t pq_[PQ_NPART] PLAT_POOL;
+static fifo_t pqq_[PQ_NPART];                /* main loop -> audio, each part's (pq_block, before the piano's block) */
+static uint32_t pq_p;                        /* the part the pq_ functions act on (the audio's: kept as it found it) */
+#define pqm (pqm_[pq_p])
+#define pq (pq_[pq_p])
+#define pqq (pqq_[pq_p])
+static void pq_part(uint32_t p) { pq_p = p < PQ_NPART ? p : 0u; }   /* (the main loop's: the part it acts on) */
+static uint32_t pq_n(uint32_t g) { return (uint32_t)pqm_[0].n[g] + pqm_[1].n[g]; }   /* (pattern g's notes, both parts) */
+static int pq_recording(void) { return pq_[0].rec || pq_[1].rec; }
 enum { PQC_REC, PQC_MUTE, PQC_UNDO, PQC_CLEAR };
 static void pq_cmd(uint32_t op, uint32_t a) { fifo_put(&pqq, op | a << 8); }
 static fifo_t dqq;                           /* main loop -> audio: op | a << 8 | b << 16 */
@@ -195,7 +206,7 @@ static void dq_next(const dq_pat_t *p)       /* what's next on the way: a hit, a
     float n = (float)p->len, t;
     if (dq.idx < p->n && (t = dq_sw(p, DQ_T(dqm.ev[p->start + dq.idx]))) < n)
         n = t;
-    if ((dq.rec || pq.rec) && dq.click_t < p->len && (float)dq.click_t < n)
+    if ((dq.rec || pq_recording()) && dq.click_t < p->len && (float)dq.click_t < n)
         n = (float)dq.click_t;
     dq.next = n;
 }
@@ -323,7 +334,7 @@ static int dq_song_walk(void)
         }
         dq.sstep++;
         if (c < DQ_NPAT + 1u) {
-            if (c >= DQ_NPAT || (!dqm.pat[c].n && !pqm.n[c]))
+            if (c >= DQ_NPAT || (!dqm.pat[c].n && !pq_n(c)))
                 return 0;
             dq.cur = (uint8_t)c;
             return 1;
@@ -352,9 +363,9 @@ static void dq_song_start(uint32_t n)
 }
 static const char *dq_copy_no(uint32_t a, uint32_t b)   /* why pattern a won't go onto b, to say; 0: it will */
 {
-    if (a >= DQ_NPAT || b >= DQ_NPAT || (!dqm.pat[a].n && !pqm.n[a]))
+    if (a >= DQ_NPAT || b >= DQ_NPAT || (!dqm.pat[a].n && !pq_n(a)))
         return "Nothing to copy";
-    if (dqm.used + dqm.pat[a].n > DQ_HITS || pqm.used + pqm.n[a] > PQ_EV)
+    if (dqm.used + dqm.pat[a].n > DQ_HITS || pqm_[0].used + pqm_[0].n[a] > PQ_EV || pqm_[1].used + pqm_[1].n[a] > PQ_EV)
         return "Memory full";
     if ((dqm.pat[b].n ? dqm.pat[b].len : 0u) + dqm.pat[a].len > 0x7FFFFu)
         return "Pattern too long";
@@ -369,8 +380,13 @@ static void dq_copy(uint32_t a, uint32_t b)  /* pattern a onto b: empty, a copy,
     if (dq_copy_no(a, b))
         return;
     n = s->n;
-    off = d->n || pqm.n[b] ? d->len : 0u;
-    pq_copy(a, b, off);
+    off = d->n || pq_n(b) ? d->len : 0u;
+    {                                        /* (each part's: the audio's, pq_p kept) */
+        const uint32_t was = pq_p;
+        for (pq_p = 0; pq_p < PQ_NPART; pq_p++)
+            pq_copy(a, b, off);
+        pq_p = was;
+    }
     if (d->n || off) {
         d->len = off + s->len;               /* (its time signature kept, as the manual) */
         d->prog |= s->prog;                  /* (a drum locked in a's, locked here from now on) */
@@ -427,6 +443,13 @@ static void pq_clear(uint32_t g)             /* pattern g's part erased (ERASE P
     if (g == pq.pat)
         pq.idx = 0;
 }
+static void pq_clear_all(uint32_t g)         /* both parts' (ERASE PATTERN: the audio's, pq_p kept) */
+{
+    const uint32_t was = pq_p;
+    for (pq_p = 0; pq_p < PQ_NPART; pq_p++)
+        pq_clear(g);
+    pq_p = was;
+}
 static void pq_copy(uint32_t a, uint32_t b, uint32_t off)   /* a's part after b's, off ticks on (COPY PATTERN) */
 {
     const uint32_t n = pqm.n[a];
@@ -467,7 +490,6 @@ static int32_t pq_put(uint32_t g, uint32_t e)
         pq.idx++;                            /* (behind the playhead: not this pass) */
     return (int32_t)i;
 }
-static uint32_t pq_commit;                   /* (passes with notes so far: a Note Off fresh as its note was) */
 static void pq_rec_on(uint32_t k, uint32_t v)
 {
     const dq_pat_t *p = &dqm.pat[dq.cur];
@@ -480,7 +502,7 @@ static void pq_rec_on(uint32_t k, uint32_t v)
         for (i = 0; i < pqm.used; i++)
             pqm.ev[i] &= ~PQ_NEW;
         pq.any = 1;
-        pq_commit++;
+        pq.commit++;
     }
     if (pq_put(dq.cur, t | k << 19 | (1u + (v - 1u) * 14u / 126u) << 26 | PQ_NEW) < 0)   /* (velocity 1..15) */
         return;
@@ -489,7 +511,7 @@ static void pq_rec_on(uint32_t k, uint32_t v)
     pq.on_t[k] = (int32_t)t;
     pq.on_at[k] = raw;
     pq.on_pass[k] = dq.pass;
-    pq.on_new[k] = (uint8_t)pq_commit;
+    pq.on_new[k] = (uint8_t)pq.commit;
 }
 static void pq_rec_off(uint32_t k, int at_end)   /* its Note Off as long after as it was held (at_end: the pattern's end) */
 {
@@ -502,7 +524,7 @@ static void pq_rec_off(uint32_t k, int at_end)   /* its Note Off as long after a
     t = (uint32_t)pq.on_t[k] + (uint32_t)fm_clampf(dur, 1.0f, (float)p->len - 1.0f);
     if (at_end)
         t = p->len - 1u;
-    pq_put(pq.pat, (t % p->len) | k << 19 | (pq.on_new[k] == (uint8_t)pq_commit ? PQ_NEW : 0u));
+    pq_put(pq.pat, (t % p->len) | k << 19 | (pq.on_new[k] == (uint8_t)pq.commit ? PQ_NEW : 0u));
     pq.on_t[k] = -1;
 }
 static void pq_rec_ends(int at_end)          /* the keys still held: their Note Offs (recording off, the pattern's change) */
@@ -543,22 +565,32 @@ static void pq_cc(uint32_t c, uint32_t v)    /* the sustain pedal, recorded as i
     t = (uint32_t)(dq_unsw(p, dt_pos) + 0.5f);
     pq_put(dq.cur, (t < p->len ? t : 0u) | (v >= 64u ? 1u : 0u) << 19 | PQ_PED);
 }
-static void pq_out(uint32_t st, uint32_t k, uint32_t v)   /* MIDI out on the piano's channel (GLO PIANO) */
+static void pq_out(uint32_t st, uint32_t k, uint32_t v)   /* MIDI out on its instrument's channel (GLO MIDI CHANNELS) */
 {
-    const uint32_t ch = set.rmi_chan == CH_ALL ? 1u : set.rmi_chan;
+    const uint32_t c = pq_p ? o_ch(set.b3_chan) : set.rmi_chan, ch = c == CH_ALL ? 1u : c;
     if (ch && plat_midi_out_room(TO_USB | TO_BLE) >= 2u)
         plat_midi_send(st >> 4 | (st | (ch - 1u)) << 8 | k << 16 | v << 24, TO_USB | TO_BLE);
+}
+static void pq_sound(uint32_t k, uint32_t v)   /* a note on its instrument: the piano's (and ROUTE's), the organ's */
+{
+#if BS2_B3
+    if (pq_p) {
+        b3_note(k, v);
+        return;
+    }
+#endif
+    rmi_route(k, v);
 }
 static void pq_hush(void)                    /* what it sounds let go */
 {
     uint32_t k;
     for (k = 0; k < 128u; k++)
         if (pq.sound[k >> 5] >> (k & 31u) & 1u) {
-            rmi_route(k, 0);
+            pq_sound(k, 0);
             pq_out(0x80u, k, 0);
         }
     pq.sound[0] = pq.sound[1] = pq.sound[2] = pq.sound[3] = 0;
-    if (pq.ped)
+    if (pq.ped && !pq_p)
         rmi_cc(64, 0);
     pq.ped = 0;
 }
@@ -567,17 +599,18 @@ static void pq_play(uint32_t e)
     const uint32_t k = PQ_K(e), b = 1u << (k & 31u);
     if (e & PQ_PED) {
         pq.ped = (uint8_t)(k & 1u);
-        rmi_cc(64, pq.ped ? 127u : 0u);
+        if (!pq_p)                           /* (the piano's pedal; the organ has none) */
+            rmi_cc(64, pq.ped ? 127u : 0u);
     } else if (PQ_V(e)) {
         if (pq.skip[k] == (int32_t)DQ_T(e)) {
             pq.skip[k] = -1;
             return;
         }
-        rmi_route(k, PQ_V(e) * 8u + 7u);
+        pq_sound(k, PQ_V(e) * 8u + 7u);
         pq_out(0x90u, k, PQ_V(e) * 8u + 7u);
         pq.sound[k >> 5] |= b;
     } else if (pq.sound[k >> 5] & b) {
-        rmi_route(k, 0);
+        pq_sound(k, 0);
         pq_out(0x80u, k, 0);
         pq.sound[k >> 5] &= ~b;
     }
@@ -616,7 +649,7 @@ static void pq_undo(void)                    /* the last pass with notes taken b
 }
 /* a block's start (audio interrupt, before the piano's block: its notes the piano's at once): what the main loop asked;
  * the part along with the drums' pass, up to their playhead */
-static void pq_block(void)
+static void pq_block1(void)
 {
     uint32_t c;
     while (fifo_get(&pqq, &c))
@@ -690,6 +723,13 @@ static void pq_block(void)
         }
     }
 }
+static void pq_block(void)                   /* each part's, its own pq_p (the main loop's left as it was) */
+{
+    const uint32_t was = pq_p;
+    for (pq_p = 0; pq_p < PQ_NPART; pq_p++)
+        pq_block1();
+    pq_p = was;
+}
 /* MIDI out, the drums' channel (GLO DRUMS; ALL: on 1, OFF: none): the 400's map, DT_*'s order (dt_note's the way in) */
 static const uint8_t DT_OUT[NDT] = {36, 38, 37, 41, 45, 49, 51, 42, 46, 39, 54, 56, 58};
 #define DQ_GATE 6u                           /* a pattern's hit: its Note Off this many blocks on (about 35 ms) */
@@ -736,7 +776,7 @@ static void dq_step(void)
                 dq_out(d, l);
             }
         }
-        if ((dq.rec || pq.rec) && dq.click_t < p->len && (float)dq.click_t <= dt_pos) {   /* on each beat, the loop's first
+        if ((dq.rec || pq_recording()) && dq.click_t < p->len && (float)dq.click_t <= dt_pos) {   /* on each beat, the loop's first
                                               * accented (the piano's recording too) */
             dq.click = dq.click_t ? 0.7f : 1.0f;
             dq.click_inc = (dq.click_t ? 1600.0f : 2400.0f) / BS2_RATE;
@@ -768,7 +808,7 @@ static void dq_step(void)
             dq.cue = DQ_NONE;
             p = &dqm.pat[dq.cur];
         }
-        if (!p->n && !pqm.n[dq.cur] && !dq.rec && !pq.rec) {   /* (an empty one, or all its hits erased; the piano's
+        if (!p->n && !pq_n(dq.cur) && !dq.rec && !pq_recording()) {   /* (an empty one, or all its hits erased; the piano's
                                               * part counts) */
             dq_stop();
             return;
@@ -879,7 +919,7 @@ static void dq_block(void)
             if (a < DQ_NPAT) {
                 if (dqm.pat[a].n)
                     dq_close(dqm.pat[a].start, dqm.pat[a].n, &dqm.pat[a]);
-                pq_clear(a);
+                pq_clear_all(a);
                 dq_defaults(&dqm.pat[a]);
                 dq.full = 0;
                 dq.dirty = 1;
@@ -918,7 +958,7 @@ static void dq_block(void)
 #define DS_NOBJ 3u
 #define PQ_NOBJ 4u
 _Static_assert(sizeof(pq_mem_t) <= PQ_NOBJ * PLAT_STORE_MAX, "the piano's parts fit their store objects");
-static uint32_t dq_sum[DQ_NOBJ], ds_sum[DS_NOBJ], pq_sum[PQ_NOBJ];
+static uint32_t dq_sum[DQ_NOBJ], ds_sum[DS_NOBJ], pq_sum[PQ_NPART][PQ_NOBJ];
 static uint32_t dq_hash(const uint8_t *s, uint32_t n)
 {
     uint32_t h = 2166136261u;
@@ -1037,10 +1077,11 @@ static void dq_init(void)
         for (i = 0; i < DS_NSONG; i++)
             dsong_clear(&dsm.s[i]);
     }
-    if (!dq_load(&pqm, (uint32_t)sizeof pqm, OBJ_PQ0, pq_sum, PQ_NOBJ) || pqm.magic != PQ_MAGIC) {   /* (the piano's
+    for (pq_p = 0; pq_p < PQ_NPART; pq_p++) {   /* (each part: its objects, its own sums) */
+    if (!dq_load(&pqm, (uint32_t)sizeof pqm, pq_p ? OBJ_OQ0 : OBJ_PQ0, pq_sum[pq_p], PQ_NOBJ) || pqm.magic != PQ_MAGIC) {   /* (the piano's
                                               * parts: none before them) */
         for (i = 0; i < PQ_NOBJ; i++)
-            pq_sum[i] = 0;
+            pq_sum[pq_p][i] = 0;
         pqm.magic = PQ_MAGIC;
         for (i = 0; i < DQ_NPAT; i++)
             pqm.start[i] = pqm.n[i] = 0;
@@ -1054,6 +1095,8 @@ static void dq_init(void)
     for (i = 0; i < 128u; i++)
         pq.skip[i] = pq.on_t[i] = -1;
     pq.pat = DQ_NONE;
+    }
+    pq_p = 0;
     dq.cue = dq.scue = dq.sel_song = DQ_NONE;
     dq.cur = 0;
 }
@@ -1068,7 +1111,8 @@ static int dq_save(void)                     /* 0: done (stopped: the main loop'
     dqm.master = dt.master;
     dqm.tempo = dt.tempo;
     if (dq_store(&dqm, (uint32_t)sizeof dqm, OBJ_DQ0, dq_sum, DQ_NOBJ) || dq_store(&dsm, (uint32_t)sizeof dsm, OBJ_DS0, ds_sum, DS_NOBJ)
-        || dq_store(&pqm, (uint32_t)sizeof pqm, OBJ_PQ0, pq_sum, PQ_NOBJ))
+        || dq_store(&pqm_[0], (uint32_t)sizeof pqm_[0], OBJ_PQ0, pq_sum[0], PQ_NOBJ)
+        || dq_store(&pqm_[1], (uint32_t)sizeof pqm_[1], OBJ_OQ0, pq_sum[1], PQ_NOBJ))
         return 1;
     dq.dirty = 0;
     return 0;

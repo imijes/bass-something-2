@@ -230,3 +230,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-16 | e464274+ | ORGAN HOME as the other HOMEs, from the front photo; PRESET the organ's preset on its pages | 491,180 | +880 | 90,384 | 73,148 | +0 | 25,156 | 267,268 |
 | 2026-11-16 | e464274+ | ORGAN DRAWBARS: HOME's console twice as big under HOME's head | 489,372 | -1,808 | 92,192 | 73,148 | +0 | 25,156 | 267,268 |
 | 2026-11-16 | b25b2e4+ | Knobs alike on every HOME: SELECT the volume, PRESET the presets | 490,364 | +992 | 91,200 | 73,180 | +32 | 25,124 | 267,268 |
+| 2026-11-16 | 8b6fb55+ | Organ its own: its mix, echo send, USB 7-8, part of the patterns, drawbars in the motion loop; ECHO TAPE | 493,000 | +2,636 | 88,564 | 75,260 | +2,080 | 23,044 | 284,704 |

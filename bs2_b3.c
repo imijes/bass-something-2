@@ -128,6 +128,7 @@ B3_IN uint32_t b3_wheel(int32_t n)          /* a MIDI note's nearest wheel, fold
 B3_IN uint32_t b3_bit(const uint32_t *m, uint32_t k) { return m[k >> 5] >> (k & 31u) & 1u; }
 B3_IN uint32_t b3_held(uint32_t k) { return b3_bit(b3.held, k); }
 
+uint32_t b3_down(void) { return (b3.held[0] | b3.held[1]) != 0u; }   /* (a key held: the host's checks) */
 void b3_note(uint32_t note, uint32_t vel)   /* a key (vel 0: up; NOTE_ALL_OFF: every one) */
 {
     uint32_t k, c;

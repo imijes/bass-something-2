@@ -1,0 +1,47 @@
+# The motion recorder on the organ (mo_step, MO_ORG): its drawbars' moves recorded over the arp's clock and played
+# back on the organ; REC + OCT+ in its mode clears the organ's moves only, the drawbar back as the hand left it
+wait 600
+listen
+midi B0 6C 7F
+midi 90 3C 64
+wait 100
+tap HOME
+wait 1000
+tap HOME
+wait 1000
+tap HOME
+wait 2500
+said ORGAN HOME
+expect obar0 8
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+wait 50
+said MOTION RECORDING
+wait 500
+turn ALGO -5
+wait 1000
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+wait 50
+expect mo_n >1
+# played back: the hand's turn undone a bar on
+wait 2500
+turn ALGO 5
+wait 4400
+expect obar0 <5
+press REC
+wait 50
+tap OCT+
+wait 50
+release REC
+wait 50
+said ORGAN MOTION CLEARED
+expect mo_n 0
+expect obar0 8
+midi 80 3C 00

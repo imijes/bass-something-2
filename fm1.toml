@@ -19,8 +19,8 @@ bt_audio = true                # Bluetooth audio out to headphones and speakers 
 bt_audio_mem = "static"        # its buffers static for the trial (the app lends none yet)
 bt_audio_sim = true           # the host simulator and the browser emulator with Bluetooth audio too
 usb_host = true                # the USB port a MIDI host when GLO CONNECT's USB HOST is on (off at every start)
-usb_audio_channels = 6         # the USB audio input: the master on 1 and 2, then the bass, the drums, the piano and the
-                               # Space Echo's return, one each (app_render, plat_usb_ch)
+usb_audio_channels = 8         # the USB audio input: the master on 1 and 2, then the bass, the drums, the piano, the
+                               # Space Echo's return and the organ's left and right (app_render, plat_usb_ch)
 usb_midi_last = true           # MIDI after the audio streaming interfaces (felucca-bsp FELUCCA_UAC_MIDI_LAST, the
                                # default): macOS 13-15 show the FM-1 as an audio device beside its MIDI
 backup = true                  # backup and restore over USB (device/backup.c, tools/fm1_backup.py, web/backup)
