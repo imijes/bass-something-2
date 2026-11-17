@@ -11,10 +11,15 @@ typedef struct {                             /* an organ preset's sound (app.c's
     uint8_t perc_on, perc_3rd, perc_soft, perc_fast;   /* the percussion's tabs: on, THIRD (else SECOND), SOFT, FAST */
     uint8_t vib_on, vib;                     /* the vibrato/chorus: on; its knob, 0..5 (V1 V2 V3 C1 C2 C3) */
     uint8_t drive, click, width;             /* the preamp's drive, the key click, the Leslie's stereo width: 0..127 */
-    uint8_t vol_soft, vib_lower;             /* the VOLUME tab SOFT (6 dB down); VIBRATO LOWER (no lower manual yet) */
+    uint8_t vol_soft, vib_lower;             /* the VOLUME tab SOFT (6 dB down); VIBRATO LOWER */
+    uint8_t ua[9];                           /* the upper manual's A# set (bar: its B set, the percussion's) */
+    uint8_t la[9], lbar[9];                  /* the lower manual's A# and B sets */
+    uint8_t ub, lb;                          /* each manual's preset key: 1 its B set, 0 its A# */
 } b3_patch_t;
 void b3_init(void);
-void b3_note(uint32_t note, uint32_t vel);
+uint32_t b3_key(uint32_t lower, uint32_t note);   /* a note's key code on a manual (b3_note's) */
+uint32_t b3_unkey(uint32_t code, uint32_t *lower);   /* its note again, its manual */
+void b3_note(uint32_t code, uint32_t vel);
 uint32_t b3_down(void);                     /* a key held */   /* vel 0: up; 128 and over: every key up */
 void b3_set(const b3_patch_t *p);            /* a preset's sound */
 void b3_leslie(uint32_t fast, uint32_t brake);   /* the Leslie: chorale or tremolo, the brake (live) */

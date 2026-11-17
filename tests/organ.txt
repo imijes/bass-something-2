@@ -18,10 +18,11 @@ expect b3_slot 0
 expect obar0 8
 wait 2500
 shot organ-home.png
-# a key: it sounds
+# a key: it sounds, lit on the upper manual's roll over the footer's (the footer's the lower's)
 key 7 down 100
 wait 300
 expect b3_on 1
+shot organ-roll.png
 key 7 up
 turn ALGO -1
 wait 30
@@ -44,7 +45,7 @@ wait 2000
 expect page 52
 tap EDIT
 wait 30
-said VIBRATO OFF
+said VIBRATO UPPER OFF
 tap ARP
 wait 30
 said LESLIE FAST
@@ -62,13 +63,52 @@ expect page 56
 said ORGAN DRAWBARS
 tap SEL
 wait 30
-said ORGAN DRAWBARS 2' TO 1'
+said UPPER DRAWBARS 2' TO 1'
 turn PRESET 1
 wait 30
 said P02 FULL ORGAN
 expect b3_slot 1
 expect obar8 8
 expect odirty 0
+# the lower manual: SEL on, its two views (the keys and the knobs its now); EDIT held its A# set, SEL held the upper
+tap SEL
+wait 30
+said LOWER DRAWBARS 16' TO 2 2/3'
+expect olower 1
+expect olb 1
+wait 1500
+shot organ-lower.png
+turn ALGO 1
+wait 30
+said 16' 1
+expect olbar0 1
+expect obar0 8
+press EDIT
+wait 1100
+release EDIT
+wait 30
+said LOWER A#
+expect olb 0
+expect oub 1
+turn K2 -2
+wait 30
+said 8' 6
+expect olab2 6
+key 7 down 100
+wait 300
+expect b3_on 1
+key 7 up
+tap SEL
+wait 30
+said LOWER DRAWBARS 2' TO 1'
+press SEL
+wait 1100
+release SEL
+wait 30
+said UPPER B
+expect olower 0
+wait 1500
+shot organ-upper.png
 # FX: ORGAN VIBRATO (not SEL's: SEL goes on to the LESLIE)
 tap FX
 wait 600
@@ -156,12 +196,17 @@ expect oswell 127
 tap LFO
 wait 30
 said LESLIE CABINET
-# SEL off the LESLIE: HOME; SEL on: DRAWBARS, its other view, the NAME
+# SEL off the LESLIE: HOME; SEL on: DRAWBARS, its other view, the lower's two, the NAME (the lower then played: SEL
+# held the upper again)
 tap SEL
 wait 1500
 expect page 52
 tap SEL
 wait 800
+tap SEL
+wait 600
+tap SEL
+wait 600
 tap SEL
 wait 600
 tap SEL
@@ -175,6 +220,12 @@ said ORGAN NAME
 tap SEL
 wait 600
 expect page 52
+expect olower 1
+press SEL
+wait 1100
+release SEL
+wait 30
+expect olower 0
 # SAVE: its HOME's other view, the slot blinking; PRESET picks; SAVE stores there
 turn ALGO -2
 wait 30

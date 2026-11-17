@@ -53,14 +53,17 @@ static struct {
     float kc[B3_NW];                         /* 2 cos(its step): its sine a sample on from the two before */
     uint32_t t;                              /* the generator's samples (the wheels turn without being made) */
     float g[B3_NW], dg[B3_NW];               /* each wheel's level on the bus, its step a sample to the target */
+    float d[B3_NW], dd[B3_NW];               /* on the dry bus (a manual's VIBRATO off: past the scanner) */
     float pg[B3_NW], dpg[B3_NW];             /* the percussion's, on its own bus */
     uint8_t act[B3_NW], nact;                /* the wheels sounding or ramping */
-    uint32_t held[2];                        /* the keys down (61), a bit each */
-    uint32_t pk[2];                          /* the keys the percussion struck */
-    float lv[9];                             /* each drawbar's level (b3_levels) */
+    uint32_t held[4];                        /* the keys down, a bit each: the upper manual's 61, the lower's from 64 */
+    uint32_t pk[2];                          /* the upper manual's keys the percussion struck */
+    float lv[2][9];                          /* each drawbar's level (b3_levels), the upper manual's sounding set's, the
+                                              * lower's */
     float perc, perc_k;                      /* its envelope, its fall a sample */
     uint32_t perc_t;                         /* samples since it struck (a chord's keys join it within B3_CH * 8) */
-    uint8_t bar[9];                          /* the drawbars, 0..8 */
+    uint8_t bar[2][9];                       /* the drawbars of the set each manual sounds, 0..8 */
+    uint8_t vib[2];                          /* each manual through the scanner (VIBRATO UPPER, LOWER) */
     uint8_t perc_on, perc_3rd, perc_soft, perc_fast, scan, click;
     float expr, drive;                       /* the swell pedal (0 closed .. 1 open), the preamp's drive */
     float sw_lo, sw_hi, sw_x, sw_tlo, sw_thi;                /* the swell's gains now, under its split and over it (slewed a step at a
@@ -87,9 +90,11 @@ static float b3_lp_b[3], b3_lp_a[2];     /* the crossover's Butterworth, 800 Hz 
 static void b3_levels(void)                  /* the drawbars' levels (3 dB a step; percussion on: the 1' bar off), the
                                               * percussion's fall a step: from the settings, here, not on the second core */
 {
-    uint32_t b;
-    for (b = 0; b < 9u; b++)
-        b3.lv[b] = b3.bar[b] && !(b == 8u && b3.perc_on) ? fm_exp2f(((float)b3.bar[b] - 8.0f) * 0.5f) : 0.0f;
+    uint32_t b, m;
+    for (m = 0; m < 2u; m++)
+        for (b = 0; b < 9u; b++)
+            b3.lv[m][b] = b3.bar[m][b] && !(b == 8u && b3.perc_on && !m) ? fm_exp2f(((float)b3.bar[m][b] - 8.0f) * 0.5f)
+                                                                         : 0.0f;
     b3.perc_k = fm_exp2f(-(float)B3_CH / ((b3.perc_fast ? 0.115f : 0.34f) * B3_RATE) * 1.442695f);
 }
 void b3_init(void)
@@ -111,7 +116,8 @@ void b3_init(void)
         b3_lp_b[0] = b3_lp_b[2] = (1.0f - c) * 0.5f / a0, b3_lp_b[1] = (1.0f - c) / a0;
         b3_lp_a[0] = -2.0f * c / a0, b3_lp_a[1] = (1.0f - al) / a0;
     }
-    b3.bar[0] = b3.bar[1] = b3.bar[2] = 8;   /* 888000000, the jazz organ's */
+    b3.bar[0][0] = b3.bar[0][1] = b3.bar[0][2] = 8;   /* 888000000, the jazz organ's */
+    b3.vib[0] = 1;
     b3.perc_on = 1, b3.perc_3rd = 1, b3.perc_fast = 1, b3.scan = 6, b3.click = 64;
     b3.expr = 1.0f, b3.drive = 0.3f;
     b3.sw_lo = b3.sw_hi = b3.sw_tlo = b3.sw_thi = 1.0f;
@@ -137,32 +143,44 @@ B3_IN uint32_t b3_wheel(int32_t n)          /* a MIDI note's nearest wheel, fold
 B3_IN uint32_t b3_bit(const uint32_t *m, uint32_t k) { return m[k >> 5] >> (k & 31u) & 1u; }
 B3_IN uint32_t b3_held(uint32_t k) { return b3_bit(b3.held, k); }
 
-uint32_t b3_down(void) { return (b3.held[0] | b3.held[1]) != 0u; }   /* (a key held: the host's checks) */
-void b3_note(uint32_t note, uint32_t vel)   /* a key (vel 0: up; NOTE_ALL_OFF: every one) */
+uint32_t b3_down(void) { return (b3.held[0] | b3.held[1] | b3.held[2] | b3.held[3]) != 0u; }   /* (a key held: the
+                                              * host's checks) */
+uint32_t b3_key(uint32_t lower, uint32_t note)   /* a note's key code on a manual: the upper's its note C2..C7 (36..96),
+                                              * the lower's the codes either side, 0..35 and 97..121, its key 0..60 */
 {
-    uint32_t k, c;
-    if (note >= 128u) {
-        b3.held[0] = b3.held[1] = 0;
-        return;
-    }
     while (note < B3_K0)                     /* (the FM-1's keys and MIDI past the manual: by octaves onto it) */
         note += 12u;
     while (note >= B3_K0 + B3_NK)
         note -= 12u;
-    k = note - B3_K0;
+    return !lower ? note : note - B3_K0 < B3_K0 ? note - B3_K0 : note - B3_K0 - B3_K0 + B3_K0 + B3_NK;
+}
+uint32_t b3_unkey(uint32_t code, uint32_t *lower)   /* a key code's note, its manual */
+{
+    *lower = code < B3_K0 || code >= B3_K0 + B3_NK;
+    return !*lower ? code : code < B3_K0 ? code + B3_K0 : code - B3_NK + B3_K0;
+}
+void b3_note(uint32_t code, uint32_t vel)   /* a key (its code, b3_key's; vel 0: up; NOTE_ALL_OFF: every one) */
+{
+    uint32_t k, c, lower;
+    if (code >= 128u) {
+        b3.held[0] = b3.held[1] = b3.held[2] = b3.held[3] = 0;
+        return;
+    }
+    k = b3_unkey(code, &lower) - B3_K0 + (lower ? 64u : 0u);
     b3.awake = 1;
     b3.dirty = 1;
     if (vel && !b3_held(k)) {
-        if (!b3.held[0] && !b3.held[1]) {    /* (none down: the percussion strikes again) */
+        if (!lower && !b3.held[0] && !b3.held[1]) {   /* (none of the upper's down: the percussion strikes again) */
             b3.pk[0] = b3.pk[1] = 0;
             b3.perc = b3.perc_soft ? 0.5f : 1.0f;
             b3.perc_t = 0;
         }
-        if (b3.perc_t < B3_CH * 8u)          /* (a chord's keys: struck with it) */
+        if (!lower && b3.perc_t < B3_CH * 8u)   /* (a chord's keys: struck with it) */
             b3.pk[k >> 5] |= 1u << (k & 31u);
         b3.held[k >> 5] |= 1u << (k & 31u);
     } else if (!vel)
         b3.held[k >> 5] &= ~(1u << (k & 31u));
+    k -= lower ? 64u : 0u;
     c = b3.cl_next++ % B3_NCL;               /* the contacts' click: at make, softer at break */
     b3.cl[c].e = (float)b3.click * (vel ? 1.0f : 0.4f) * (1.0f / 127.0f);
     b3.cl[c].k = vel ? 0.9897f : 0.9972f;    /* (2.2 ms, 8 ms to 1/e) */
@@ -172,11 +190,14 @@ void b3_note(uint32_t note, uint32_t vel)   /* a key (vel 0: up; NOTE_ALL_OFF: e
 void b3_set(const b3_patch_t *p)             /* a preset's sound (the organ's, app.c's: before the second core's job) */
 {
     uint32_t b;
-    for (b = 0; b < 9u; b++)
-        b3.bar[b] = p->bar[b] > 8u ? 8u : p->bar[b];
-    b3.perc_on = p->perc_on != 0u, b3.perc_3rd = p->perc_3rd != 0u;
+    for (b = 0; b < 9u; b++)                 /* (each manual's set: its B preset key's or its A#'s) */
+        b3.bar[0][b] = (p->ub ? p->bar[b] : p->ua[b]) > 8u ? 8u : p->ub ? p->bar[b] : p->ua[b],
+        b3.bar[1][b] = (p->lb ? p->lbar[b] : p->la[b]) > 8u ? 8u : p->lb ? p->lbar[b] : p->la[b];
+    b3.vib[0] = p->vib_on != 0u, b3.vib[1] = p->vib_lower != 0u;
+    b3.perc_on = p->perc_on && p->ub, b3.perc_3rd = p->perc_3rd != 0u;
     b3.perc_soft = p->perc_soft != 0u, b3.perc_fast = p->perc_fast != 0u;
-    b3.scan = p->vib_on ? (uint8_t)(1u + (p->vib > 5u ? 5u : p->vib)) : 0u;   /* (off, V1 V2 V3, C1 C2 C3) */
+    b3.scan = p->vib_on || p->vib_lower ? (uint8_t)(1u + (p->vib > 5u ? 5u : p->vib)) : 0u;   /* (off, V1 V2 V3, C1
+                                              * C2 C3) */
     b3.drive = (float)p->drive * (1.0f / 127.0f);
     b3.click = p->click;
     b3.width = (float)p->width * (1.0f / 127.0f);
@@ -217,10 +238,9 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
                                               * targets again only when a key or a setting changed (dirty) or the
                                               * percussion falls */
 {
-    static float tg[B3_NW], tp[B3_NW];
-    const float *lv = b3.lv;
+    static float tg[B3_NW], td[B3_NW], tp[B3_NW];
     float pl;
-    uint32_t k, b, w;
+    uint32_t k, b, w, m;
     const int perc = b3.perc_on && b3.perc > 1e-4f;
     b3.perc *= b3.perc_k;                    /* (the percussion's fall, a step at a time) */
     b3.perc_t += B3_CH;
@@ -228,8 +248,8 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
         uint32_t n = 0;
         for (k = 0; k < b3.nact; k++) {
             w = b3.act[k];
-            b3.g[w] = tg[w], b3.pg[w] = tp[w], b3.dg[w] = b3.dpg[w] = 0.0f;
-            if (tg[w] > 0.0f || tp[w] > 0.0f)
+            b3.g[w] = tg[w], b3.d[w] = td[w], b3.pg[w] = tp[w], b3.dg[w] = b3.dd[w] = b3.dpg[w] = 0.0f;
+            if (tg[w] > 0.0f || td[w] > 0.0f || tp[w] > 0.0f)
                 b3.act[n++] = (uint8_t)w;
         }
         b3.nact = (uint8_t)n;
@@ -237,19 +257,23 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
     }
     b3.dirty = 0;
     for (w = 0; w < B3_NW; w++)              /* (a loop: memset is in the flash) */
-        tg[w] = tp[w] = 0.0f;
-    for (k = 0; k < B3_NK; k++)
-        if (b3_held(k)) {
-            for (b = 0; b < 9u; b++)
-                if (lv[b] > 0.0f) {
-                    w = b3_wheel((int32_t)(B3_K0 + k) + B3_BAR[b]);
-                    tg[w] += lv[b];
-                    if (B3_LEAK > 0.0f && w)
-                        tg[w - 1u] += lv[b] * B3_LEAK;
-                    if (B3_LEAK > 0.0f && w + 1u < B3_NW)
-                        tg[w + 1u] += lv[b] * B3_LEAK;
-                }
-        }
+        tg[w] = td[w] = tp[w] = 0.0f;
+    for (m = 0; m < 2u; m++) {               /* each manual's keys: onto the scanner's bus or the dry one (its VIBRATO
+                                              * tab; the scanner off, both dry) */
+        const float *lv = b3.lv[m];
+        float *t = b3.vib[m] && b3.scan ? tg : td;
+        for (k = 0; k < B3_NK; k++)
+            if (b3_held(k + 64u * m))
+                for (b = 0; b < 9u; b++)
+                    if (lv[b] > 0.0f) {
+                        w = b3_wheel((int32_t)(B3_K0 + k) + B3_BAR[b]);
+                        t[w] += lv[b];
+                        if (B3_LEAK > 0.0f && w)
+                            t[w - 1u] += lv[b] * B3_LEAK;
+                        if (B3_LEAK > 0.0f && w + 1u < B3_NW)
+                            t[w + 1u] += lv[b] * B3_LEAK;
+                    }
+    }
     pl = b3.perc_on ? b3.perc : 0.0f;
     if (pl > 1e-4f)
         for (k = 0; k < B3_NK; k++)
@@ -258,31 +282,32 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
     {                                        /* an overload's cap: past it, the quietest wheels' targets 0 (they fade) */
         uint32_t n = 0;
         for (w = 0; w < B3_NW; w++)
-            n += tg[w] > 0.0f;
+            n += tg[w] + td[w] > 0.0f;
         if (n > b3.cap) {                    /* (the level the cap's loudest reach: halved, 8 times, from the top) */
-            float lo = 0.0f, hi = 0.0f, m;
+            float lo = 0.0f, hi = 0.0f, mid;
             uint32_t it, c;
             for (w = 0; w < B3_NW; w++)
-                hi = tg[w] > hi ? tg[w] : hi;
+                hi = tg[w] + td[w] > hi ? tg[w] + td[w] : hi;
             for (it = 0; it < 8u; it++) {
-                m = 0.5f * (lo + hi);
+                mid = 0.5f * (lo + hi);
                 for (c = 0, w = 0; w < B3_NW; w++)
-                    c += tg[w] > m;
+                    c += tg[w] + td[w] > mid;
                 if (c > b3.cap)
-                    lo = m;
+                    lo = mid;
                 else
-                    hi = m;
+                    hi = mid;
             }
             for (w = 0; w < B3_NW; w++)
-                if (tg[w] <= hi)
-                    tg[w] = 0.0f;
+                if (tg[w] + td[w] <= hi)
+                    tg[w] = td[w] = 0.0f;
         }
     }
     b3.nact = 0;
     for (w = 0; w < B3_NW; w++) {
         b3.dg[w] = (tg[w] - b3.g[w]) * (1.0f / B3_CH);
+        b3.dd[w] = (td[w] - b3.d[w]) * (1.0f / B3_CH);
         b3.dpg[w] = (tp[w] - b3.pg[w]) * (1.0f / B3_CH);
-        if (tg[w] > 0.0f || b3.g[w] > 0.0f || tp[w] > 0.0f || b3.pg[w] > 0.0f)
+        if (tg[w] > 0.0f || b3.g[w] > 0.0f || td[w] > 0.0f || b3.d[w] > 0.0f || tp[w] > 0.0f || b3.pg[w] > 0.0f)
             b3.act[b3.nact++] = (uint8_t)w;
     }
     if (perc)                                /* (the percussion falling: its targets again next step) */
@@ -328,30 +353,37 @@ B3_IN float b3_clip(float x)         /* a soft clip, no division: x - x^3/6.75 t
  * ends */
 static B3_HOT void b3_chunk(float *ol, float *orr)
 {
-    float bus[B3_CH], pbus[B3_CH];
+    float bus[B3_CH], dbus[B3_CH], pbus[B3_CH];
     uint32_t i, k;
     b3_step();
     for (i = 0; i < B3_CH; i++)
-        bus[i] = pbus[i] = 0.0f;
+        bus[i] = dbus[i] = pbus[i] = 0.0f;
     for (k = 0; k < b3.nact; k++) {          /* the wheels sounding: each a sine from its two samples before (2 cos(step)
                                               * y1 - y2), set again from its true phase at each step's start, so it never
                                               * drifts */
         const uint32_t w = b3.act[k], ph = b3.ph[w] + b3.inc[w] * b3.t;
         const float kc = b3.kc[w];
         float a = b3_tab(b3_wave[1], ph), b = b3_tab(b3_wave[1], ph + b3.inc[w]), nx;
-        float g = b3.g[w], dg = b3.dg[w], pg = b3.pg[w], dpg = b3.dpg[w];
-        if (pg == 0.0f && dpg == 0.0f)
+        float g = b3.g[w], dg = b3.dg[w], d = b3.d[w], dd = b3.dd[w], pg = b3.pg[w], dpg = b3.dpg[w];
+        const int dry = d != 0.0f || dd != 0.0f;
+        if (pg == 0.0f && dpg == 0.0f && !dry)
             for (i = 0; i < B3_CH; i++, g += dg) {
                 bus[i] += g * a;
                 nx = kc * b - a, a = b, b = nx;
             }
+        else if (pg == 0.0f && dpg == 0.0f && g == 0.0f && dg == 0.0f)
+            for (i = 0; i < B3_CH; i++, d += dd) {
+                dbus[i] += d * a;
+                nx = kc * b - a, a = b, b = nx;
+            }
         else
-            for (i = 0; i < B3_CH; i++, g += dg, pg += dpg) {
+            for (i = 0; i < B3_CH; i++, g += dg, d += dd, pg += dpg) {
                 bus[i] += g * a;
+                dbus[i] += d * a;
                 pbus[i] += pg * a;
                 nx = kc * b - a, a = b, b = nx;
             }
-        b3.g[w] = g, b3.pg[w] = pg;
+        b3.g[w] = g, b3.d[w] = d, b3.pg[w] = pg;
     }
     b3.t += B3_CH;
     b3.quiet = b3.nact ? 0u : b3.quiet + B3_CH;
@@ -429,7 +461,7 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
          * loses it; its gains slewed over the step (no steps heard as it moves) */
         const float dlo = (b3.sw_tlo - b3.sw_lo) * (1.0f / B3_CH), dhi = (b3.sw_thi - b3.sw_hi) * (1.0f / B3_CH);
         for (i = 0; i < B3_CH; i++) {
-            const float raw = bus[i] + pbus[i] * 0.125f;
+            const float raw = bus[i] + (dbus[i] + pbus[i]) * 0.125f;
             float x, y, hi, lo, out[2] = {0.0f, 0.0f};
             uint32_t m;
             b3.sw_x += (raw - b3.sw_x) * (2.0f * FM_PI * 250.0f / B3_RATE);

@@ -3,23 +3,30 @@
  * after the RMI's), its 32 presets as the bass's patches are (PRESET plays one at once; SAVE as a Bass Station II's: its
  * HOME, the slot blinking, PRESET picks, SAVE stores; PATCH NAME its name), its pages and its live buttons. Part of the
  * unity build, included by app.c after the panel's drawing:
- *   ORGAN HOME (PG_OHOME): the console as the photo has it, its drawbars and tabs as the sound has them; ALGO 16', K1-K4
- *     5 1/3' 8' 4' 2 2/3' (a turn dives to DRAWBARS: zoom_organ); PRESET the preset (the display's); SELECT its volume,
- *     as every HOME's (here and on DRAWBARS)
- *   ORGAN DRAWBARS (PG_OBARS): the drawbars up close, the same five; SEL there its other view: K1-K4 2' 1 3/5' 1 1/3'
- *     1'; PRESET the preset on both
+ *   the two manuals, upper and lower (ui.olower: the one the FM-1's keys play and the pages edit; SEL held the other),
+ *     each with two sets of drawbars, its preset keys A# and B choosing the one it sounds (EDIT held the other); the
+ *     percussion the upper's B set's alone; the lower on its own MIDI channel (GLO MIDI CHANNELS' ALGO)
+ *   ORGAN HOME (PG_OHOME): the console as the photo has it, its four sets and tabs as the sound has them; ALGO 16',
+ *     K1-K4 5 1/3' 8' 4' 2 2/3' of the manual played's set sounding (a turn dives to DRAWBARS: zoom_organ); PRESET the
+ *     preset (the display's); SELECT its volume, as every HOME's (here and on DRAWBARS)
+ *   ORGAN DRAWBARS (PG_OBARS): the manual played's two sets up close, the same five; SEL there its other view: K1-K4
+ *     2' 1 3/5' 1 1/3' 1', then the other manual's two views; PRESET the preset on each
  *   ORGAN TABS (PG_OTABS): the percussion's tabs (K1 ON, K2 VOLUME SOFT, K3 DECAY FAST, K4 HARMONIC THIRD), the vibrato
  *     (SELECT on, ALGO its knob V1 V2 V3 C1 C2 C3)
  *   ORGAN LESLIE (PG_OLES): the 122, LFO again its views round (oles_draw): CABINET (K1 WIDTH, K2 DRIVE, K3 CLICK, K4
  *     VOLUME), ROTORS turning (K1-K4 the horn's and the drum's slow and fast speeds), HORN ROTOR and LOW ROTOR (the
  *     CONTROLS panel's trimmers: RISE, FALL, SLOW, FAST), AMP (K1 DRIVE, K4 VOLUME); ALGO the speed on each (SLOW,
  *     STOP, FAST), SELECT and PRESET as HOME's
- *   SEL: DRAWBARS, its other view, PATCH NAME, round (VIBRATO, PERCUSSION, LESLIE: FX, ENV, LFO). ARP the Leslie chorale or tremolo (held: the brake),
- *   FX ORGAN VIBRATO, ENV ORGAN PERCUSSION (again there: its main switch), LFO ORGAN LESLIE (again: its next view), EDIT the vibrato on or off;
+ *   SEL: DRAWBARS, its other view, the other manual's two, PATCH NAME, round (VIBRATO, PERCUSSION, LESLIE: FX, ENV,
+ *   LFO); held, the other manual. ARP the Leslie chorale or tremolo (held: the brake), FX ORGAN VIBRATO, ENV ORGAN
+ *   PERCUSSION (again there: its main switch), LFO ORGAN LESLIE (again: its next view), EDIT the manual's vibrato on or
+ *   off (held: its other preset key, A# or B);
  *   REC, PLAY and SEQ (held: cleared) its part of the pattern, as the piano's.
  * Its MIDI: notes on its channel (b3_chan), its CCs on its CC channel (organ_cc) */
 #define ONSLOT 32u
-#define ORG_MAGIC 0x31334F42u                /* "BO31" */
+#define ORG_MAGIC 0x32334F42u                /* "BO32" (the two manuals) */
+#define ORG_MAGIC_1 0x31334F42u              /* "BO31": one */
+_Static_assert(__builtin_offsetof(b3_patch_t, ua) == 20, "a bank from before the lower manual: its presets 20 bytes");
 typedef struct {
     uint32_t magic;
     b3_patch_t p[ONSLOT];
@@ -47,6 +54,14 @@ static const struct {
     {"FLUTE", "008000000", 0, 0, 0, 1, 2, 0},       {"CLARINET", "008080800", 0, 0, 0, 0, 0, 10},
     {"PERC SECOND", "808000000", 1, 0, 1, 1, 5, 30}, {"ORGAN LICKER", "207736358", 0, 0, 0, 1, 5, 40},
 };
+static void organ_manuals(b3_patch_t *p)     /* (a preset from before the lower manual: its upper A# set its B's, without
+                                              * the percussion; the lower's A# 00 8600 000, B 00 8800 000; both on B) */
+{
+    uint32_t i;
+    for (i = 0; i < 9u; i++)
+        p->ua[i] = p->bar[i], p->la[i] = i == 2u ? 8u : i == 3u ? 6u : 0u, p->lbar[i] = i == 2u || i == 3u ? 8u : 0u;
+    p->ub = p->lb = 1;
+}
 static void organ_factory(uint32_t s)        /* slot s as the factory has it */
 {
     b3_patch_t *p = &obank.p[s];
@@ -62,6 +77,7 @@ static void organ_factory(uint32_t s)        /* slot s as the factory has it */
     }
     for (i = 0; i < 9u; i++)
         p->bar[i] = (uint8_t)(b[i] - '0');
+    organ_manuals(p);
     for (i = 0; n[i] && i < PNAME_N; i++)
         obank.name[s][i] = n[i];
 }
@@ -76,7 +92,17 @@ static void organ_pick(uint32_t s)           /* slot s's sound, at once (what wa
 static void organ_load(void)                 /* (app_init: its bank, else the factory's) */
 {
     uint32_t s;
-    if (plat_store_load(OBJ_ORGAN, &obank, sizeof obank) != (int)sizeof obank || obank.magic != ORG_MAGIC) {
+    enum { OLD_P = 20, OLD_SIZE = 4 + ONSLOT * (OLD_P + PNAME_N) };   /* (a bank from before the lower manual) */
+    const int n = plat_store_load(OBJ_ORGAN, &obank, sizeof obank);
+    if (n == OLD_SIZE && obank.magic == ORG_MAGIC_1) {   /* (its names to their place, then its presets, the last first) */
+        uint8_t *const o = (uint8_t *)&obank + 4;
+        memmove(obank.name, o + ONSLOT * OLD_P, ONSLOT * PNAME_N);
+        for (s = ONSLOT; s-- > 0;) {
+            memmove(&obank.p[s], o + s * OLD_P, OLD_P);
+            organ_manuals(&obank.p[s]);
+        }
+        obank.magic = ORG_MAGIC;
+    } else if (n != (int)sizeof obank || obank.magic != ORG_MAGIC) {
         obank.magic = ORG_MAGIC;
         for (s = 0; s < ONSLOT; s++)
             organ_factory(s);
@@ -111,7 +137,8 @@ static void name_changed(void)
 static int organ_dirty(void) { return odirty; }
 static uint32_t organ_lights(void)           /* FX and EDIT lit while its vibrato is on, ENV while its percussion is */
 {
-    return (uint32_t)opatch.vib_on << B_FX | (uint32_t)opatch.perc_on << B_ENV | (uint32_t)opatch.vib_on << B_EDIT;
+    return (uint32_t)opatch.vib_on << B_FX | (uint32_t)(opatch.perc_on && opatch.ub) << B_ENV
+         | (uint32_t)(ui.olower ? opatch.vib_lower : opatch.vib_on) << B_EDIT;
 }
 static void organ_changed(void)
 {
@@ -126,7 +153,8 @@ static void organ_changed(void)
 static void organ_cc(uint32_t c, uint32_t v)
 {
     if (c >= 12u && c <= 20u)
-        opatch.bar[c - 12u] = (uint8_t)((v * 8u + 63u) / 127u);
+        (opatch.ub ? opatch.bar : opatch.ua)[c - 12u] = (uint8_t)((v * 8u + 63u) / 127u);   /* (the upper's set
+                                              * sounding) */
     else if (c == 21u)
         opatch.perc_on = v >= 64u;
     else if (c == 22u)
@@ -164,11 +192,16 @@ static void organ_cc(uint32_t c, uint32_t v)
     organ_changed();
 }
 
+static const char *const OMAN[2] = {"UPPER", "LOWER"};
+static uint8_t *o_bars(void)                 /* the drawbars the pages edit: the set the manual played sounds */
+{
+    return ui.olower ? (opatch.lb ? opatch.lbar : opatch.la) : opatch.ub ? opatch.bar : opatch.ua;
+}
 /* the knobs: each page's (knob_turn's for the organ's pages), said as they go */
 static void o_say_bar(uint32_t b)
 {
     char t[4];
-    t[0] = (char)('0' + opatch.bar[b]), t[1] = 0;
+    t[0] = (char)('0' + o_bars()[b]), t[1] = 0;
     app_say(OBAR[b], t);
 }
 static void o_flag(uint8_t *f, int32_t e, const char *name, const char *off, const char *on)
@@ -241,7 +274,7 @@ static int o_turn(uint32_t k, int32_t e)
         }
         if (b < 0)
             return 0;
-        opatch.bar[b] = (uint8_t)clamp((int32_t)opatch.bar[b] + (e > 0 ? 1 : -1), 0, 8);
+        o_bars()[b] = (uint8_t)clamp((int32_t)o_bars()[b] + (e > 0 ? 1 : -1), 0, 8);
         organ_changed();
         o_say_bar((uint32_t)b);
         return 0;
@@ -299,6 +332,45 @@ static int o_turn(uint32_t k, int32_t e)
     return 0;
 }
 
+/* Hints (GLO DISPLAY's): each knob's here, as the page and its view have it (hint_of's for the organ's pages); 0 none */
+static const char *o_hint(uint32_t k)
+{
+    static const char *const FT[9] = {"16'", "5 1/3'", "8'", "4'", "2 2/3'", "2'", "1 3/5'", "1 1/3'", "1'"};
+    static const char *const LES[5][4] = {
+        {"Leslie stereo width", "Preamp drive", "Key click", "Organ's volume"},
+        {"Horn's slow speed", "Horn's fast speed", "Drum's slow speed", "Drum's fast speed"},
+        {"Horn's spin-up time", "Horn's slow-down time", "Horn's slow speed", "Horn's fast speed"},
+        {"Drum's spin-up time", "Drum's slow-down time", "Drum's slow speed", "Drum's fast speed"},
+        {"Amp's drive", "Key pressure opens swell", "Swell with no pressure", "Organ's volume"}};
+    static char t[32];
+    if (k == EN_SELECT && ui.page != PG_OLES)
+        return "Organ's volume";
+    if (k == EN_PRESET && ui.page != PG_OLES)
+        return "Pick the preset";
+    if (ui.page == PG_OHOME || ui.page == PG_OBARS) {   /* (the manual played's set sounding: its drawbar) */
+        const int32_t b = ui.page == PG_OBARS && ui.oview ? (k >= EN_K1 ? (int32_t)(k - EN_K1) + 5 : -1)
+                        : k == EN_ALGO ? 0 : k >= EN_K1 ? (int32_t)(k - EN_K1) + 1 : -1;
+        if (b < 0)
+            return 0;
+        t[0] = 0;
+        text_cat(t, ui.olower ? "Lower " : "Upper ");
+        text_cat(t, (ui.olower ? opatch.lb : opatch.ub) ? "B " : "A# ");
+        text_cat(t, FT[b]);
+        text_cat(t, " drawbar");
+        return t;
+    }
+    if (ui.page == PG_OVIB)
+        return k == EN_K1 ? "Volume tab: soft, -6 dB" : k == EN_K2 ? "Vibrato on the lower"
+             : k == EN_K3 ? "Vibrato on the upper" : k == EN_K4 ? "Vibrato or chorus, depth" : 0;
+    if (ui.page == PG_OTABS)
+        return k == EN_K1 ? "Percussion, upper B only" : k == EN_K2 ? "Percussion soft"
+             : k == EN_K3 ? "Percussion fast decay" : k == EN_K4 ? "Percussion 2nd or 3rd" : 0;
+    if (ui.page == PG_OLES)
+        return k == EN_ALGO ? "Leslie slow, stop, fast" : k == EN_SELECT || k == EN_PRESET ? (k == EN_SELECT ? "Organ's volume" : "Pick the preset")
+             : k >= EN_K1 && ui.oles < 5u ? LES[ui.oles][k - EN_K1] : 0;
+    return 0;
+}
+
 /* SAVE, as the bass's (save_button): its HOME's other view, the slot blinking on its display; PRESET picks; SAVE again
  * stores the sound and its name there */
 static void o_save_say(void)
@@ -326,7 +398,7 @@ static void o_save_button(void)
     obank.p[s] = opatch;
     if (mo.n)                                /* (the drawbars as the hand left them, under the motion loop's) */
         for (i = 0; i < 9u; i++)
-            obank.p[s].bar[i] = mo.hv[MO_ORG + i];
+            (obank.p[s].ub ? obank.p[s].bar : obank.p[s].ua)[i] = mo.hv[MO_ORG + i];
     memcpy(obank.name[s], oname, PNAME_N);
     set.b3_slot = (uint8_t)s;
     if (set_store() == 0 && store_save(OBJ_ORGAN, &obank, sizeof obank) == 0) {   /* (the settings too: the slot
@@ -352,6 +424,23 @@ static void organ_leslie_tap(void)           /* ARP: chorale or tremolo (the bra
     ui.redraw = 1;
     app_say("LESLIE", ui.ofast ? "FAST" : "SLOW");
 }
+static void o_manual_say(void)               /* the manual, its preset key: "UPPER B", "LOWER A#" */
+{
+    app_say(OMAN[ui.olower], (ui.olower ? opatch.lb : opatch.ub) ? "B" : "A#");
+}
+static void organ_manual(void)               /* SEL held: the other manual, the keys' and the pages' */
+{
+    ui.olower = (uint8_t)!ui.olower;
+    ui.redraw = 1;
+    o_manual_say();
+}
+static void organ_ab(void)                   /* EDIT held: the manual's other preset key, A# or B */
+{
+    uint8_t *const f = ui.olower ? &opatch.lb : &opatch.ub;
+    *f = (uint8_t)!*f;
+    organ_changed();
+    o_manual_say();
+}
 static void organ_brake(void)                /* ARP held: the brake */
 {
     ui.obrake = 1;
@@ -364,15 +453,19 @@ static void o_button(uint32_t k)
     if (k == B_SEL) {                        /* HOME's view, its other, TABS, LESLIE, PATCH NAME, round */
         if (zoom.home && zoom.hp == PG_OHOME)   /* (on HOME's dive, or its way back: HOME's SEL) */
             ui.page = PG_OHOME, ui.oview = 0;
-        if (ui.page == PG_OBARS && !ui.oview) {
-            ui.oview = 1;
+        if (ui.page == PG_OHOME)             /* (from HOME: the manual played first, then the other) */
+            ui.osel2 = 0;
+        if (ui.page == PG_OBARS && (!ui.oview || !ui.osel2)) {   /* (its other view; then the other manual's two) */
+            if (ui.oview)
+                ui.olower = (uint8_t)!ui.olower, ui.osel2 = 1;
+            ui.oview = (uint8_t)!ui.oview;
             ui.redraw = 1;
-            app_say("ORGAN DRAWBARS", "2' TO 1'");
+            app_say(ui.olower ? "LOWER DRAWBARS" : "UPPER DRAWBARS", ui.oview ? "2' TO 1'" : "16' TO 2 2/3'");
         } else {
             const uint32_t g = ui.page == PG_OHOME ? PG_OBARS : ui.page == PG_OBARS ? PG_NAME   /* (VIBRATO, PERCUSSION
                                               * and the LESLIE: FX's, ENV's and LFO's, not SEL's) */
                              : PG_OHOME;
-            ui.oview = 0;
+            ui.oview = ui.osel2 = 0;         /* (the manual last shown: the one played) */
             sect_open(g, k);
         }
     } else if (k == B_SAVE)
@@ -399,11 +492,12 @@ static void o_button(uint32_t k)
         opatch.vib_on = (uint8_t)!opatch.vib_on;
         organ_changed();
         app_say("VIBRATO UPPER", OFF_ON[opatch.vib_on]);
-    } else if (k == B_EDIT) {
-        opatch.vib_on = (uint8_t)!opatch.vib_on;
+    } else if (k == B_EDIT) {                /* (the manual's own: VIBRATO UPPER or LOWER) */
+        uint8_t *const v = ui.olower ? &opatch.vib_lower : &opatch.vib_on;
+        *v = (uint8_t)!*v;
         organ_changed();
-        app_say("VIBRATO", OFF_ON[opatch.vib_on]);
-        o_tab_dive(PG_OVIB, EN_K3);
+        app_say(ui.olower ? "VIBRATO LOWER" : "VIBRATO UPPER", OFF_ON[*v]);
+        o_tab_dive(PG_OVIB, ui.olower ? EN_K2 : EN_K3);
     } else
         app_say("ORGAN", "SEL: ITS PANELS");
 }
@@ -421,13 +515,11 @@ static void o_wood(void)                     /* (TABS', LESLIE's) */
 }
 /* ORGAN HOME: as the other HOMEs, its name, the display (the preset's name under it), what plays; then the console from
  * the player's seat, as b3-front-closeup.jpeg (2560 x 1707) has it, its rows set out to fit: the rack's ledge, the rail
- * with the drawbars (OB: from x 990, the B set first, the upper manual's A# set and the pedals' two left out, the
- * lower's two sets closed up after it; the B set as the sound has it, each tip lower by its setting, its shaft over it;
- * the rest in); at the keys' level the cheeks: the left's vibrato knob and tabs (the first the vibrato, down: on), the
+ * with the drawbars (OH_SET: the upper manual's A# and B sets, the lower's, the pedals' two left out; each tip
+ * lower by its setting, its shaft over it; the sets not sounding dimmed; their preset keys over them, oh_keys); at the keys' level the cheeks: the left's vibrato knob and tabs (the first the vibrato, down: on), the
  * right's percussion tabs (down: on), the name board between; under them the upper manual, a second roll of keys over
  * the footer's (the FM-1's: the lower manual). ORGAN DRAWBARS is HOME's own console twice as big (oz), its left half
  * from the ledge down, under the same head: the dive in from HOME lands on what it showed */
-#define OB(x) (4 + ((int32_t)(x) - 990) * 3057 / 10000)
 #define OH_RAIL 75                           /* the rail's top; the tips at rest under it, a stop 3 px further */
 #define OH_ROLL (TALL_H - 29)                /* the upper manual's keys (as the footer's: blacks 13, whites 14 under) */
 #define OH_CHEEK (OH_ROLL - 22)              /* the cheeks' row (its top 2 over), the drawbars' tips all over it */
@@ -459,21 +551,21 @@ static void oh_tab(int32_t cx, int on, const char *top, const char *bot, const c
             tag(x, OZY(OH_CHEEK + 13), k);
     }
 }
-static void oh_bar(int32_t x, uint32_t v, uint32_t col, int dim, const char *ft, uint32_t k)
-{                                            /* a drawbar at the photo's x, pulled to v; dimmed; up close its footage, its
+static void oh_bar(int32_t cx, uint32_t v, uint32_t col, int dim, const char *ft, uint32_t k)
+{                                            /* a drawbar at HOME's x, pulled to v; dimmed; up close its footage, its
                                               * encoder's tag */
     static const uint16_t TIP[3] = {RGB(92, 44, 32), RGB(248, 244, 231), RGB(20, 18, 16)},
                           TOP[3] = {RGB(150, 86, 70), RGB(255, 255, 255), RGB(100, 100, 100)},
                           TC[3] = {O_IVORY, RGB(30, 24, 20), O_IVORY};
-    const int32_t cx = OB(x), y = OH_RAIL + 2 + 3 * (int32_t)v;
+    const int32_t y = OH_RAIL + 2 + 3 * (int32_t)v;
     int32_t i;
     if (v) {                                 /* its shaft, a line a stop */
         oh_rect(cx - 1, OH_RAIL + 2, 3, y - OH_RAIL - 2, dim ? grey(70) : RGB(206, 202, 196));
         for (i = 1; i <= (int32_t)v; i++)
             oh_rect(cx - 1, y - 3 * i + 1, 3, 1, dim ? grey(40) : RGB(70, 66, 62));
     }
-    oh_rect(cx - 3, y, 6, 6, dim ? grey(48) : TIP[col]);
-    oh_rect(cx - 3, y, 6, 1, dim ? grey(60) : TOP[col]);
+    oh_rect(cx - 2, y, 5, 6, dim ? grey(48) : TIP[col]);
+    oh_rect(cx - 2, y, 5, 1, dim ? grey(60) : TOP[col]);
     if (oz > 1) {
         print_c(OZX(cx), OZY(y) + 4, ft, dim ? grey(30) : TC[col]);
         if (k < NE)
@@ -517,19 +609,48 @@ static void oh_head(const char *line2, const char *cyan)   /* the HOMEs' head: t
         text_cat(v, "%");
         cv_text(151 - text_w(&FONT_XS, v) / 2, 37, &FONT_XS, v, o_swell < 127u ? P_CYAN : P_SILK);
     }
-    text_cat(st, ui.obrake ? "LESLIE BRAKE" : ui.ofast ? "LESLIE FAST" : "LESLIE SLOW");
-    text_cat(st, "  ");
-    text_cat(st, opatch.vib_on ? OVIB[opatch.vib] : "VIB OFF");
-    if (opatch.perc_on)
-        text_cat(st, opatch.perc_3rd ? "  PERC 3RD" : "  PERC 2ND");
-    cv_text(10, 56, &FONT_T, st, P_SILK);
+    {                                        /* the manual played, its preset key; the Leslie, its vibrato, the
+                                              * percussion (the upper's B set's) */
+        char mk[12] = "";
+        int32_t x;
+        text_cat(mk, OMAN[ui.olower]);
+        text_cat(mk, (ui.olower ? opatch.lb : opatch.ub) ? " B" : " A#");
+        x = cv_text(10, 56, &FONT_T, mk, P_CYAN);
+        text_cat(st, ui.obrake ? "  LESLIE BRAKE" : ui.ofast ? "  LESLIE FAST" : "  LESLIE SLOW");
+        text_cat(st, "  ");
+        text_cat(st, (ui.olower ? opatch.vib_lower : opatch.vib_on) ? OVIB[opatch.vib] : "VIB OFF");
+        if (opatch.perc_on && opatch.ub)
+            text_cat(st, opatch.perc_3rd ? "  PERC 3RD" : "  PERC 2ND");
+        cv_text(x, 56, &FONT_T, st, P_SILK);
+    }
 }
-static void oh_face(int dim0, int dim1, const uint8_t *keys)   /* the console at oz: the B set's bars dim0..dim1-1
-                                                  * dimmed, keys their encoders (up close) */
+#define OH_SET(i) (9 + 57 * ((int32_t)(i) & 1) + 120 * ((int32_t)(i) >> 1))   /* a set's first bar on HOME: the upper
+                                              * manual's A# and B sets in its left half, the lower's in its right (as
+                                              * the B-3's, the pedals' two between them left out) */
+#define OH_BX 6                              /* (its bars apart) */
+static const uint8_t *o_set(uint32_t i)      /* set i's drawbars: the upper's A#, B, the lower's A#, B */
+{
+    return i == 0u ? opatch.ua : i == 1u ? opatch.bar : i == 2u ? opatch.la : opatch.lbar;
+}
+static int o_sounds(uint32_t i) { return (i & 1u) == ((i >> 1) ? opatch.lb : opatch.ub); }   /* its preset key down */
+static void oh_keys(int32_t z, int32_t x0)   /* over each set its preset key, A# or B, lit while down (HOME's scale z,
+                                              * its column x0 at the page's left) */
+{
+    uint32_t i;
+    for (i = 0; i < 4u; i++) {
+        const int32_t cx = (OH_SET(i) + 4 * OH_BX - x0) * z;
+        const char *const n = i & 1u ? "B" : "A#";
+        if (cx > 0 && cx < 240)
+            cv_text(cx - text_w(&FONT_XS, n) / 2, 64, &FONT_XS, n,
+                    o_sounds(i) ? ((i >> 1) == ui.olower ? P_CYAN : P_SILK) : grey(70));
+    }
+}
+static void oh_face(int dim0, int dim1, const uint8_t *keys)   /* the console at oz: the manual played's set sounding,
+                                                  * its bars dim0..dim1-1 dimmed, keys their encoders (up close); the
+                                                  * sets not sounding dimmed */
 {
     static const uint8_t COL[9] = {0, 0, 1, 1, 2, 1, 2, 2, 1};   /* the tips: brown, ivory, black */
     static const char *const FT[9] = {"16'", "5'", "8'", "4'", "2'", "2'", "1'", "1'", "1'"};
-    static const int32_t SET[3] = {1005, 1266, 1526};   /* (the B set; the lower's two closed up on it) */
     static const uint8_t AT[11] = {0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14};
     int32_t i, b;
     if (oz < 3) {                            /* (the cheeks up close: their row alone) */
@@ -537,10 +658,12 @@ static void oh_face(int dim0, int dim1, const uint8_t *keys)   /* the console at
     oh_rect(0, OH_RAIL - 1, 240, 1, RGB(90, 31, 13));
     oh_rect(0, OH_RAIL, 240, OH_ROLL - OH_RAIL, RGB(39, 36, 33));   /* the rail, the tips' slot */
     oh_rect(0, OH_RAIL, 240, 2, RGB(12, 10, 8));
-    for (i = 0; i < 3; i++)
+    for (i = 0; i < 4; i++) {
+        const int ed = (uint32_t)i >> 1 == ui.olower && o_sounds((uint32_t)i);   /* (the set the pages edit) */
         for (b = 0; b < 9; b++)
-            oh_bar(SET[i] + (int32_t)b * 2575 / 100, i == 0 ? opatch.bar[b] : 0u, COL[b], i == 0 && b >= dim0 && b < dim1,
-                   FT[b], i == 0 && keys ? keys[b] : NE);
+            oh_bar(OH_SET(i) + b * OH_BX, o_set((uint32_t)i)[b], COL[b], !o_sounds((uint32_t)i) || (ed && b >= dim0 && b < dim1),
+                   FT[b], ed && keys ? keys[b] : NE);
+    }
     }
     oh_rect(0, OH_CHEEK - 2, 240, OH_ROLL - OH_CHEEK + 2, RGB(16, 14, 12));   /* the cheeks' row, the name board */
     disc(OZX(O_KNOB_X), OZY(OH_CHEEK + 12), 6 * oz, RGB(30, 28, 26));   /* the vibrato's knob, its pointer V1..C3 */
@@ -572,12 +695,22 @@ static void oh_face(int dim0, int dim1, const uint8_t *keys)   /* the console at
     oh_tab(199, opatch.perc_soft, "SOFT", "NORMAL", "PERCUSSION", "VOLUME", EN_K2);
     oh_tab(214, opatch.perc_fast, "FAST", "SLOW", "PERCUSSION", "DECAY", EN_K3);
     oh_tab(229, opatch.perc_3rd, "THIRD", "SECOND", "HARMONIC", "SELECTOR", EN_K4);
-    if (oz < 3)
-    for (i = 0; i < 16; i++)                 /* the upper manual: as the footer's keys */
-        oh_rect(8 + i * 14, OH_ROLL + 14, 13, 14, P_KEYW);
-    for (i = 0; i < 11 && oz < 3; i++) {
-        oh_rect(8 + (int32_t)AT[i] * 14 + 7, OH_ROLL, 13, 13, P_EDGE);
-        oh_rect(8 + (int32_t)AT[i] * 14 + 8, OH_ROLL, 11, 12, P_KEYB);
+    if (oz < 3) {                            /* the upper manual: as the footer's keys (the lower's), those it plays
+                                              * held lit to their velocity, as the footer's are */
+        static const uint8_t WK[16] = PLAT_WHITE_KEYS, BK[11] = PLAT_BLACK_KEYS;
+        const uint32_t up = o_up_roll();
+        for (i = 0; i < 16; i++) {
+            oh_rect(8 + i * 14, OH_ROLL + 14, 13, 14, P_KEYW);
+            if (up >> WK[i] & 1u)
+                oh_rect(8 + i * 14, OH_ROLL + 28 - (ui.vel[WK[i]] * 14 + 126) / 127, 13, (ui.vel[WK[i]] * 14 + 126) / 127, P_CYAN);
+        }
+        for (i = 0; i < 11; i++) {
+            oh_rect(8 + (int32_t)AT[i] * 14 + 7, OH_ROLL, 13, 13, P_EDGE);
+            oh_rect(8 + (int32_t)AT[i] * 14 + 8, OH_ROLL, 11, 12, P_KEYB);
+            if (up >> BK[i] & 1u)
+                oh_rect(8 + (int32_t)AT[i] * 14 + 8, OH_ROLL + 12 - (ui.vel[BK[i]] * 12 + 126) / 127, 11,
+                        (ui.vel[BK[i]] * 12 + 126) / 127, P_CYAN);
+        }
     }
 }
 static void ohome_draw(void)
@@ -586,27 +719,29 @@ static void ohome_draw(void)
     cv_rect(0, 0, 240, TALL_H, P_BG);
     oh_face(9, 9, 0);
     oh_head("SOMETHING", "B3");
+    oh_keys(1, 0);
 }
 static void zoom_organ(uint32_t k)           /* ORGAN HOME's drawbar turned: the camera in on DRAWBARS (its middle: HOME's
                                               * x 60, the row under the page's 80) */
 {
-    zoom_dive(PG_OHOME, PG_OBARS, k, 0, 60, OZ_Y0 + (80 - OZ_Y) / 2, 1.0f);
+    zoom_dive(PG_OHOME, PG_OBARS, k, 0, ui.olower ? 180 : 60, OZ_Y0 + (80 - OZ_Y) / 2, 1.0f);
 }
 static void obars_draw(void)                 /* ORGAN DRAWBARS: HOME's console twice as big; its other view the last three */
 {
     static const uint8_t K0[9] = {EN_ALGO, EN_K1, EN_K2, EN_K3, EN_K4, NE, NE, NE, NE},
                          K1[9] = {NE, NE, NE, NE, NE, EN_K1, EN_K2, EN_K3, EN_K4};
-    oz = 2, oz_x0 = 0, oz_y0 = OZ_Y0, oz_y = OZ_Y;
+    oz = 2, oz_x0 = ui.olower ? 120 : 0, oz_y0 = OZ_Y0, oz_y = OZ_Y;   /* (the manual played's half of HOME's rail) */
     cv_rect(0, 0, 240, TALL_H, P_BG);
     oh_face(ui.oview ? 0 : 5, ui.oview ? 5 : 9, ui.oview ? K1 : K0);
     oz = 1, oz_x0 = oz_y0 = oz_y = 0;
-    oh_head("DRAWBARS", ui.oview ? "2" : "1");
+    oh_head(OMAN[ui.olower], (ui.olower ? opatch.lb : opatch.ub) ? "B" : "A#");
+    oh_keys(2, ui.olower ? 120 : 0);
 }
 /* the sections of ORGAN HOME its pages show up close (SEL's open from HOME, HOME's back to it, the live buttons' dives):
  * DRAWBARS its rail's left, VIBRATO and PERCUSSION its cheeks; the middle on HOME, the scale (log2) it fills the screen at */
 static void o_sect(uint32_t g, int16_t *x, int16_t *y, float *lc)
 {
-    *x = g == PG_OBARS ? 60 : g == PG_OVIB ? 35 : 207;
+    *x = g == PG_OBARS ? (ui.olower ? 180 : 60) : g == PG_OVIB ? 35 : 207;
     *y = g == PG_OBARS ? OZ_Y0 + (80 - OZ_Y) / 2 : OH_CHEEK - 2 + (80 - 72) / 3;
     *lc = g == PG_OBARS ? 1.0f : 1.585f;
 }

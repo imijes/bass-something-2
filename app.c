@@ -108,7 +108,9 @@ typedef struct {
                                           * HORN ROTOR's then the LOW ROTOR's: RISE TIME, FALL TIME, SLOW, FAST SPEED */
     uint8_t oswell;                      /* KEY SWELL (LESLIE AMP's K2): the keys' pressure the organ's swell pedal, 0 off */
     uint8_t oswell_rest;                 /* its resting place (K3), 0..127: no pressure there, full pressure open */
-    uint8_t spare12[2];                  /* (the record's end on its word) */
+    uint8_t b3_lchan;                    /* the organ's lower manual's MIDI channel, in and out: stored so that 0 is
+                                          * channel 5, its default (l_ch; was spare, 0) */
+    uint8_t spare12;                     /* (the record's end on its word) */
 } settings_t;
 /* GLO RMI's ROUTE: the RMI's notes (its keys, its channel's) into the bass, as its keys; what the bass plays (its
  * keys, its arp, its sequencer) on the RMI too. One hop: a note routed is never routed again, nor sent out, so BOTH
@@ -618,6 +620,8 @@ static volatile uint8_t dt_cc_roll;          /* the roll held by CC 66 (MIDI in'
 #define KEYQ_RMI (1u << 16)                  /* (keyq: a key of the RMI's mode, rmi_note's) */
 #define KEYQ_B3 (1u << 17)                   /* (keyq: a key of the organ's mode, b3_note's) */
 #define CCQ_ORGAN (1u << 30)                 /* (ccq: one on the organ's CC channel, organ_cc's) */
+static uint32_t l_ch(uint32_t v) { return v == 0u ? 5u : v == 5u ? 0u : v; }   /* its lower manual's, as stored (0
+                                              * and 5 swapped) */
 static uint32_t o_ch(uint32_t v) { return v == 0u ? 4u : v == 4u ? 0u : v; }   /* the organ's channels as stored
                                               * (b3_chan, b3_cc_chan: 0 and 4 swapped, 0 its default 4) both ways */
 static int store_save(uint32_t obj, const void *src, uint32_t len);   /* plat_store_save, told if it is in silence */
@@ -642,6 +646,9 @@ static void o_button(uint32_t k);
 static void o_save_pick(int32_t e);
 static void organ_leslie_tap(void);
 static void organ_brake(void);
+static void organ_ab(void);
+static uint32_t o_up_roll(void);
+static void organ_manual(void);
 static char *name_cur(void);                 /* PATCH NAME's: the bass's name, or the organ's in its mode */
 static void name_changed(void);              /* (its SAVE lit) */
 static int organ_dirty(void);
@@ -1211,9 +1218,12 @@ static void midi_in(void)                    /* audio interrupt: the keys' notes
                 }
             }
             {                                /* the organ (GLO MIDI CHANNELS), a device of its own too */
-                const uint32_t oc = o_ch(set.b3_chan), occ = o_ch(set.b3_cc_chan);
-                if ((oc == CH_ALL || oc == ch) && ((st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u))
-                    b3_play(d1, (st & 0xF0u) == 0x90u ? d2 : 0u);
+                const uint32_t oc = o_ch(set.b3_chan), occ = o_ch(set.b3_cc_chan), lc = l_ch(set.b3_lchan);
+                const int nt = (st & 0xF0u) == 0x90u || (st & 0xF0u) == 0x80u;
+                if (nt && (oc == CH_ALL || oc == ch))   /* (the upper manual; the lower on its own channel) */
+                    b3_play(b3_key(0, d1), (st & 0xF0u) == 0x90u ? d2 : 0u);
+                else if (nt && (lc == CH_ALL || lc == ch))
+                    b3_play(b3_key(1, d1), (st & 0xF0u) == 0x90u ? d2 : 0u);
                 else if ((occ == CH_ALL || occ == ch) && (st & 0xF0u) == 0xB0u)
                     fifo_put(&ccq, d1 | d2 << 8 | CCQ_ORGAN);
             }
@@ -2253,6 +2263,10 @@ static struct {
     uint8_t oles;                        /* ORGAN LESLIE's view (LFO there): CABINET, ROTORS, HORN, LOW ROTOR, AMP */
     uint8_t oexpr_off;                   /* the organ's swell pedal from MIDI (CC 11), upside down: 0 open */
     uint32_t okeys;                      /* the keys playing the organ, a bit each */
+    uint32_t olow;                       /* those of them on its lower manual */
+    uint8_t osel2;                       /* (SEL on DRAWBARS: the other manual's views, its two after the first's) */
+    uint8_t olower;                      /* the organ's manual the FM-1's keys play and its pages edit: 1 the lower
+                                          * (SEL held) */
     uint8_t se;                          /* the Space Echo's (HOME on the RMI's): HOME its page, the keys the RMI's still
                                           * (rmi stays set: an effect has no keys of its own) */
     uint32_t rkeys;                      /* the keys sounding the RMI (their release its too) */
@@ -2675,7 +2689,9 @@ static const param_t PARAMS[NPAGES][NE] = {
     [PG_GMIDI] = {[EN_K1] = {"BASS", SF(chan), CH_OFF, CH_ALL, CHAN_NAME},
                   [EN_K2] = {"DRUMS", SF(dchan), CH_OFF, CH_ALL, CHAN_NAME},
                   [EN_K3] = {"PIANO", SF(rmi_chan), CH_OFF, CH_ALL, CHAN_NAME},
-                  [EN_K4] = {"ORGAN", SF(b3_chan), CH_OFF, CH_ALL, CHAN_NAME}},
+                  [EN_K4] = {"ORGAN", SF(b3_chan), CH_OFF, CH_ALL, CHAN_NAME},
+                  [EN_ALGO] = {"LOWER", SF(b3_lchan), CH_OFF, CH_ALL, CHAN_NAME}},   /* (the organ's lower manual's,
+                                              * stored swapped: l_ch) */
     [PG_GCC] = {[EN_K1] = {"BASS CC", SF(cc_chan), CH_OFF, CH_ALL, CHAN_NAME},
                 [EN_K2] = {"DRUMS CC", SF(dcc_chan), CH_OFF, CH_ALL, CHAN_NAME},
                 [EN_K3] = {"PIANO CC", SF(rmi_cc_chan), CH_OFF, CH_ALL, CHAN_NAME},
@@ -2798,7 +2814,7 @@ static const char *const TITLE[NPAGES][NE] = {
     [PG_LFO1] = {[EN_SELECT] = "GLIDE TIME", [EN_K1] = "LFO 1 WAVE", [EN_K4] = "LFO 2 WAVE"},
 
     [PG_GMIDI] = {[EN_K1] = "BASS CHANNEL", [EN_K2] = "DRUMS CHANNEL", [EN_K3] = "PIANO CHANNEL",
-                  [EN_K4] = "ORGAN CHANNEL"},
+                  [EN_K4] = "ORGAN CHANNEL", [EN_ALGO] = "ORGAN LOWER CHANNEL"},
     [PG_GCC] = {[EN_K1] = "BASS CC CHANNEL", [EN_K2] = "DRUMS CC CHANNEL", [EN_K3] = "PIANO CC CHANNEL",
                 [EN_K4] = "ORGAN CC CHANNEL"},
     [PG_GCONN] = {[EN_PRESET] = "PROX TARGET", [EN_K1] = "USB MIDI HOST", [EN_K2] = "BLUETOOTH MIDI",
@@ -3743,6 +3759,10 @@ static int knob_turn(uint32_t k, int32_t e)
         *c = (uint8_t)o_ch((uint32_t)clamp((int32_t)o_ch(*c) + e, CH_OFF, CH_ALL));
         return 1;
     }
+    if (ui.page == PG_GMIDI && k == EN_ALGO) {   /* (the organ's lower manual's, stored swapped: l_ch) */
+        set.b3_lchan = (uint8_t)l_ch((uint32_t)clamp((int32_t)l_ch(set.b3_lchan) + e, CH_OFF, CH_ALL));
+        return 1;
+    }
     param_put(q, page_rec(ui.page), param_get(q, page_rec(ui.page)) + e);
     if (ui.page < PG_GMIDI) {                /* (the GLO pages' keep themselves: glo_keep) */
         org_set(q);
@@ -3851,6 +3871,11 @@ static void knob_text(uint32_t k, char *t)
     if ((ui.page == PG_GMIDI || ui.page == PG_GCC) && k == EN_K4) {   /* (the organ's channel, stored swapped) */
         t[0] = 0;
         text_cat(t, CHAN_NAME[o_ch(ui.page == PG_GCC ? set.b3_cc_chan : set.b3_chan)]);
+        return;
+    }
+    if (ui.page == PG_GMIDI && k == EN_ALGO) {
+        t[0] = 0;
+        text_cat(t, CHAN_NAME[l_ch(set.b3_lchan)]);
         return;
     }
     if (ui.page == PG_GCLK && k == EN_K1) {  /* (the tempo, as on ARP) */
@@ -4548,7 +4573,8 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_ATOUCH] = {[EN_K1] = "Pressure to cutoff", "Pressure: LFO 1 vibrato", "Pressure: LFO 2 faster"},
     [PG_WHEELS] = {[EN_PRESET] = "Bend range, semitones", [EN_K1] = "Mod wheel to cutoff", "Mod wheel: LFO 1 vibrato",
                    "Mod wheel: LFO 2 to cutoff", "Mod wheel to osc 2 pitch"},
-    [PG_GMIDI] = {[EN_K1] = "Bass note channel", "Drums' note channel", "Piano's note channel", "Organ's note channel"},
+    [PG_GMIDI] = {[EN_K1] = "Bass note channel", "Drums' note channel", "Piano's note channel", "Organ upper's channel",
+                  [EN_ALGO] = "Organ's lower manual's channel"},
     [PG_GCC] = {[EN_K1] = "Bass CC channel", "Drums' CC channel", "Piano's CC channel", "Organ's CC channel"},
     [PG_GCONN] = {[EN_PRESET] = "Bluetooth distance turns it", [EN_K1] = "A USB MIDI device, no computer",
                   "Bluetooth MIDI", "Pressure out as MIDI"},
@@ -4577,6 +4603,7 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_RPAT] = {"Lock patch type", "Lock track count", [EN_K1] = "Lock root note", "Lock root octave", "Lock scale"},
     [PG_RTRK] = {[EN_PRESET] = "Pick the knobs' row"},
 };
+static const char *o_hint(uint32_t k);      /* (bs2_organ.c's: the organ's pages') */
 static const char *hint_of(uint32_t k)       /* encoder k's here (as its page's switches are), or 0 */
 {
     static const char *const PW_H[NPW] = {"Pulse width", "Envelope to width", "LFO 2 to width"};
@@ -4593,6 +4620,8 @@ static const char *hint_of(uint32_t k)       /* encoder k's here (as its page's 
                : ui.dt_fn == DTF_TIME && k == EN_PRESET ? "Beats in a bar" : ui.dt_fn == DTF_TIME && k == EN_ALGO ? "The note that's a beat"
                : dt_knobs_split() && k == EN_PRESET ? "Pick the Step" : ui.dt_fn == DTF_BPAT && k == EN_ALGO ? "Pick the Pattern"
                : k == EN_PRESET || k == EN_ALGO ? DT_H[ui.dt_fn] : 0;
+    if (ui.b3 && ORGAN_PAGE(ui.page))
+        return o_hint(k);
     if (ui.page == PG_MIX && k == EN_K4)
         return PW_H[ui.pw_src];
     if (ui.page == PG_FX && k == EN_K4)
@@ -4694,8 +4723,14 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
                : ui.b3 ? "HOME tap: Space Something 201" : ui.rmi ? "HOME tap: Organ Something B3"
                : "HOME tap: Drum Something 400";
     if (ui.b3 && (ORGAN_PAGE(ui.page) || ui.page == PG_NAME || ui.page < PG_HOME))   /* (the organ's: o_button) */
-        return k == B_SEL ? "SEL tap: Next panel" : k == B_ARP ? "ARP tap: Leslie, hold: brake"
-               : k == B_SEQ ? "SEQ tap: Perc harmonic" : k == B_FX ? "FX tap: Percussion" : k == B_EDIT ? "EDIT tap: Vibrato"
+        return k == B_SEL ? (ORGAN_PAGE(ui.page) ? "SEL tap: Next panel, hold: Manual" : "SEL tap: Next panel")
+               : k == B_EDIT ? (ORGAN_PAGE(ui.page) ? "EDIT tap: Vibrato, hold: A#/B" : "EDIT tap: Vibrato")
+               : k == B_ARP ? "ARP tap: Leslie, hold: Brake"
+               : k == B_FX ? (ui.page == PG_OVIB ? "FX tap: Upper vibrato" : "FX tap: Vibrato panel")
+               : k == B_ENV ? (ui.page == PG_OTABS ? "ENV tap: Percussion on/off" : "ENV tap: Percussion panel")
+               : k == B_LFO ? (ui.page == PG_OLES ? "LFO tap: Next Leslie view" : "LFO tap: Leslie panel")
+               : k == B_REC ? "REC tap: Record organ, hold: Erase"
+               : k == B_PLAY ? "PLAY tap: Organ part on/off, hold: Undo" : k == B_SEQ ? "SEQ hold: Clear the organ part"
                : k == B_SAVE ? "Save: PRESET picks where" : k == B_HOME ? "Organ Home" : 0;
     if (ui.se && (SE_PAGE(ui.page) || ui.page < PG_HOME))   /* (the Space Echo's: its panels, se_button) */
         return k == B_SEL ? "Next panel" : k == B_HOME ? "Echo Home" : 0;
@@ -4930,7 +4965,8 @@ static uint32_t mo_bar(void);
 static uint8_t *mo_ref(uint32_t g)           /* value g's */
 {
     return g < MO_DVOL ? (uint8_t *)&patch + MO_BASS_AT[g] : g < MO_DTUNE ? &dt.vol[g - MO_DVOL]
-         : g < MO_SE   ? &dt.tune[g - MO_DTUNE] : g < MO_ORG ? (uint8_t *)&set + MO_SE_AT[g - MO_SE] : &opatch.bar[g - MO_ORG];
+         : g < MO_SE   ? &dt.tune[g - MO_DTUNE] : g < MO_ORG ? (uint8_t *)&set + MO_SE_AT[g - MO_SE]
+         : &(opatch.ub ? opatch.bar : opatch.ua)[g - MO_ORG];   /* (the upper manual's set sounding) */
 }
 static int mo_in(uint32_t t, float a, float p) { return p >= a ? t > a && t <= p : t > a || t <= p; }   /* in (a, p] */
 static void mo_put(float p, uint32_t g, uint32_t v)   /* a move in, in time's order */
@@ -5297,7 +5333,9 @@ static void prox_cal(void)                   /* SEL on GLO CONNECT: calibrating,
 static void hold_tap(uint32_t k)
 {
     const char *const said = ui.hint;        /* (what the tap refuses, said over this) */
-    if (k == B_GLO && ui.drum && !RND_PAGE(ui.page))
+    if (ui.b3 && (k == B_SEL || k == B_EDIT) && ORGAN_PAGE(ui.page))   /* the organ's, tapped on its pages */
+        o_button(k);
+    else if (k == B_GLO && ui.drum && !RND_PAGE(ui.page))
         dt_button(k);
     else if (k == B_REC && ui.drum && (ui.page != PG_GCONN || !FM1B_BLE_CENTRAL || set.ble_off))
         dt_rec_tap();
@@ -5750,6 +5788,11 @@ static void hold_step(uint32_t btn)
             if (dq.rec == DQR_ERASE)
                 hint_show(B_REC);
         }
+        else if (ui.hold_k == B_EDIT && ui.b3 && ORGAN_PAGE(ui.page))   /* (the organ's: the manual's other preset
+                                              * key, A# or B) */
+            organ_ab();
+        else if (ui.hold_k == B_SEL && ui.b3)   /* (the organ's: its other manual) */
+            organ_manual();
         else if (ui.hold_k == B_EDIT)
             randomize();
         else if (ui.hold_k == B_ARP && ui.b3)   /* (the organ's: its Leslie's brake) */
@@ -5825,9 +5868,11 @@ static void input(void)
                 continue;
             }
             if (ui.b3) {                     /* the organ's: its notes (out on its channel) */
-                const uint32_t oc = o_ch(set.b3_chan);
+                const uint32_t oc = ui.olower ? l_ch(set.b3_lchan) : o_ch(set.b3_chan);   /* (the manual SEL held
+                                              * chose) */
                 ui.okeys |= bit;
-                fifo_put(&keyq, (uint32_t)note | v << 8 | KEYQ_B3);
+                ui.olow = ui.olower ? ui.olow | bit : ui.olow & ~bit;
+                fifo_put(&keyq, b3_key(ui.olower, (uint32_t)clamp(note, 0, 127)) | v << 8 | KEYQ_B3);
                 ui.och[k] = (uint8_t)(oc == CH_ALL ? 1u : oc);
                 key_send(0x90u, (uint32_t)note, v, ui.och[k]);
                 continue;
@@ -5851,7 +5896,8 @@ static void input(void)
                 dq_cmd(DQC_ROLLOFF, 0, 0);
                 mo_roll(MO_ROLL, 0);
             }
-            fifo_put(&keyq, (uint32_t)note | (ui.rkeys & bit ? KEYQ_RMI : 0u) | (ui.okeys & bit ? KEYQ_B3 : 0u));   /* (LOCAL
+            fifo_put(&keyq, (ui.okeys & bit ? b3_key((ui.olow & bit) != 0u, (uint32_t)clamp(note, 0, 127)) : (uint32_t)note)
+                            | (ui.rkeys & bit ? KEYQ_RMI : 0u) | (ui.okeys & bit ? KEYQ_B3 : 0u));   /* (LOCAL
                                               * turned off while it was held: still let go; the RMI's or the organ's,
                                               * its: the mode may have changed) */
             ui.rkeys &= ~bit;
@@ -5911,12 +5957,14 @@ static void input(void)
                  && ui.page != PG_GDUMP)
             se_button(k);
         else if (ui.b3 && k != B_HOME && k != B_REC && k != B_PLAY && k != B_SEQ && k != B_GLO && k != B_OCTDN && k != B_OCTUP && k != B_ARP
+                 && !((k == B_SEL || k == B_EDIT) && ORGAN_PAGE(ui.page))   /* (on its pages, their holds: hold_step) */
                  && !RND_PAGE(ui.page) && ui.page != PG_GDUMP)
             o_button(k);
         else if (ui.rmi && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && k != B_PLAY
                  && k != B_SEQ && !RND_PAGE(ui.page) && ui.page != PG_GDUMP)
             rmi_button(k);
-        else if (k == B_ARP || k == B_SEQ || k == B_GLO || k == B_REC || k == B_HOME || k == B_EDIT || (ui.rmi && k == B_PLAY)) {   /* on release, or once held
+        else if (k == B_ARP || k == B_SEQ || k == B_GLO || k == B_REC || k == B_HOME || k == B_EDIT || (ui.rmi && k == B_PLAY)
+                 || (ui.b3 && k == B_SEL && ORGAN_PAGE(ui.page))) {   /* on release, or once held
                                               * HOLD_MS (hold_step) */
             ui.hold_k = (uint8_t)k;
             ui.hold_live = 1;
@@ -6073,8 +6121,11 @@ static void input(void)
 #endif
     if (ui.b3) {                             /* (the organ's swell pedal moving: its head's) */
         static uint8_t sw = 127;
+        static uint32_t up;                  /* (and the keys on its upper manual's roll) */
         if (o_swell != sw && ORGAN_PAGE(ui.page))
             sw = o_swell, ui.redraw = 1;
+        if (o_up_roll() != up)
+            up = o_up_roll(), ui.redraw = 1;
     }
     if (ui.page == PG_OLES && ui.oles != 2u && ui.oles != 3u) {   /* (ORGAN LESLIE: its rotors turning, 25 frames a
                                               * second) */
@@ -7925,6 +7976,11 @@ static void glo_chan_draw(void)
     glo_frame(cc ? "CC Channels" : "MIDI Channels");
     cv_text(10, 46, &FONT_XS, cc ? "The channel each instrument's knobs" : "The channel each instrument plays and", P_SILK);
     cv_text(10, 61, &FONT_XS, cc ? "answer MIDI CC on." : "sends its notes on.", P_SILK);
+    if (!cc) {                               /* (the organ's lower manual: ALGO) */
+        char t[24] = "Organ lower (ALGO) ";
+        text_cat(t, CHAN_NAME[l_ch(set.b3_lchan)]);
+        cv_text(10, 74, &FONT_XS, t, P_SILK);
+    }
     for (i = 0; i < 4u; i++) {
         const int32_t x = 34 + 58 * (int32_t)i;
         const param_t *q = knob_param(EN_K1 + i);
@@ -10124,11 +10180,17 @@ static void panel_draw(void)                 /* the page's section panel, from u
     pr_font = &FONT_T;
 }
 
+static uint32_t o_up_roll(void)              /* the keys the organ's upper manual plays, lit on its own roll over the
+                                              * footer's (ORGAN HOME's and DRAWBARS'), not on the footer's: the
+                                              * footer's the lower manual's */
+{
+    return ui.b3 && (ui.page == PG_OHOME || ui.page == PG_OBARS) ? ui.okeys & ~ui.olow & ui.keys : 0u;
+}
 static void key_cell(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t k, uint16_t off)
 {
     int32_t v, p;
     cv_rect(x, y, w, h, off);
-    if (!(ui.keys >> k & 1u)) {              /* not pressed: its note held all the same (MIDI in), filled */
+    if (!(ui.keys >> k & 1u) || (o_up_roll() >> k & 1u)) {              /* not pressed: its note held all the same (MIDI in), filled */
         if (ui.lit >> k & 1u)
             cv_rect(x, y, w, h, P_CYAN);
         return;
@@ -11047,6 +11109,16 @@ int app_expect(const char *what, int *got)
         *got = set.b3_slot;
     else if (!strncmp(what, "obar", 4) && what[4] >= '0' && what[4] <= '8')
         *got = opatch.bar[what[4] - '0'];
+    else if (!strncmp(what, "olbar", 5) && what[5] >= '0' && what[5] <= '8')   /* (the lower manual's B set) */
+        *got = opatch.lbar[what[5] - '0'];
+    else if (!strncmp(what, "olab", 4) && what[4] >= '0' && what[4] <= '8')   /* (its A# set) */
+        *got = opatch.la[what[4] - '0'];
+    else if (!strcmp(what, "olower"))
+        *got = ui.olower;
+    else if (!strcmp(what, "oub"))           /* (each manual's preset key: 1 B) */
+        *got = opatch.ub;
+    else if (!strcmp(what, "olb"))
+        *got = opatch.lb;
     else if (!strcmp(what, "odirty"))
         *got = odirty;
     else if (!strcmp(what, "ofast"))

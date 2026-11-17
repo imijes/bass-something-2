@@ -567,9 +567,11 @@ static void pq_cc(uint32_t c, uint32_t v)    /* the sustain pedal, recorded as i
 }
 static void pq_out(uint32_t st, uint32_t k, uint32_t v)   /* MIDI out on its instrument's channel (GLO MIDI CHANNELS) */
 {
-    const uint32_t c = pq_p ? o_ch(set.b3_chan) : set.rmi_chan, ch = c == CH_ALL ? 1u : c;
+    uint32_t lower = 0;
+    const uint32_t n = pq_p ? b3_unkey(k, &lower) : k;   /* (the organ's: its key code, its manual's channel) */
+    const uint32_t c = pq_p ? (lower ? l_ch(set.b3_lchan) : o_ch(set.b3_chan)) : set.rmi_chan, ch = c == CH_ALL ? 1u : c;
     if (ch && plat_midi_out_room(TO_USB | TO_BLE) >= 2u)
-        plat_midi_send(st >> 4 | (st | (ch - 1u)) << 8 | k << 16 | v << 24, TO_USB | TO_BLE);
+        plat_midi_send(st >> 4 | (st | (ch - 1u)) << 8 | n << 16 | v << 24, TO_USB | TO_BLE);
 }
 static void pq_sound(uint32_t k, uint32_t v)   /* a note on its instrument: the piano's (and ROUTE's), the organ's */
 {
