@@ -18,6 +18,11 @@ void b3_note(uint32_t note, uint32_t vel);
 uint32_t b3_down(void);                     /* a key held */   /* vel 0: up; 128 and over: every key up */
 void b3_set(const b3_patch_t *p);            /* a preset's sound */
 void b3_leslie(uint32_t fast, uint32_t brake);   /* the Leslie: chorale or tremolo, the brake (live) */
+void b3_rotor(const uint8_t t[8]);         /* the Leslie's trimmers, 0..127 (64: the 122's), the horn's then the drum's:
+                                              * RISE TIME, FALL TIME, SLOW SPEED, FAST SPEED (live) */
+float b3_trim(uint32_t i, uint32_t v);       /* a trimmer's value at its setting (i: b3_rotor's order): s or Hz */
+float b3_angle(uint32_t r);                  /* a rotor's angle, 0..1 (0 the horn, 1 the drum) */
+float b3_speed(uint32_t r);                  /* its speed now, Hz */
 void b3_expr(uint32_t v);                    /* the expression pedal, 0..127 (live) */
 uint32_t b3_job(float *mid, float *side, uint32_t n);   /* the second core's: a block, its middle into mid, its
                                               * stereo sides into side; 1 if it sounds */

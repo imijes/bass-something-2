@@ -70,6 +70,8 @@ static struct {
     float hp_x, hp_y;                        /* the preamp's input high pass */
     float xo[2][4];                          /* the crossover's biquads' states (x1 x2 y1 y2) */
     float hz[2], to[2], ang[2];              /* the rotors: speed now, its aim, the angle (0..1) */
+    float cho[2], tre[2], up[2], down[2];    /* each rotor's trimmers: its slow and fast speeds (Hz), its rise and fall
+                                              * (s, a time constant) */
     float hlp[2];                            /* the horn's facing low pass, at each microphone */
     float width;                             /* the stereo's: 0 mono .. 1 the two microphones as they are (CC 29) */
     uint32_t lw;
@@ -111,6 +113,10 @@ void b3_init(void)
     b3.perc_on = 1, b3.perc_3rd = 1, b3.perc_fast = 1, b3.scan = 6, b3.click = 64;
     b3.expr = 1.0f, b3.drive = 0.3f;
     b3.hz[0] = b3.to[0] = 0.83f, b3.hz[1] = b3.to[1] = 0.67f;
+    {
+        static const uint8_t MID[8] = {64, 64, 64, 64, 64, 64, 64, 64};
+        b3_rotor(MID);
+    }
     b3.rng = 22222u;
     b3.cap = B3_NW;
     b3.width = 0.8f;
@@ -175,6 +181,21 @@ void b3_set(const b3_patch_t *p)             /* a preset's sound (the organ's, a
     b3.dirty = 1;
 }
 void b3_leslie(uint32_t fast, uint32_t brake) { b3.fast = fast != 0u, b3.brake = brake != 0u; }   /* (live) */
+float b3_trim(uint32_t i, uint32_t v)        /* a trimmer's (i: b3_rotor's order) value at its setting: 64 as modelled
+                                              * (the 122's), the times a half to twice it, the speeds 0.7 to 1.4 times */
+{
+    static const float AT[8] = {0.6f, 1.3f, 0.83f, 6.75f, 3.5f, 4.5f, 0.67f, 5.75f};
+    return AT[i & 7u] * fm_exp2f(((float)(v > 127u ? 127u : v) - 64.0f) * ((i & 2u) ? 0.5f / 64.0f : 1.0f / 64.0f));
+}
+void b3_rotor(const uint8_t t[8])            /* the Leslie's trimmers (live) */
+{
+    uint32_t r;
+    for (r = 0; r < 2u; r++)
+        b3.up[r] = b3_trim(4u * r, t[4u * r]), b3.down[r] = b3_trim(4u * r + 1u, t[4u * r + 1u]),
+        b3.cho[r] = b3_trim(4u * r + 2u, t[4u * r + 2u]), b3.tre[r] = b3_trim(4u * r + 3u, t[4u * r + 3u]);
+}
+float b3_angle(uint32_t r) { return b3.ang[r & 1u]; }   /* a rotor's angle, 0..1 (the pages' animation) */
+float b3_speed(uint32_t r) { return b3.hz[r & 1u]; }    /* its speed now, Hz */
 void b3_expr(uint32_t v) { b3.expr = (float)v * (1.0f / 127.0f); }   /* the expression pedal (CC 11), 0..127 (live) */
 void b3_cap(uint32_t n)                      /* the wheels it may sound at most (an overload's: the quietest go first) */
 {
@@ -259,10 +280,8 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
         b3.dirty = 1;
 rotors:
     for (b = 0; b < 2u; b++) {               /* the rotors: chorale or tremolo, the brake; each its own run */
-        static const float CHO[2] = {0.83f, 0.67f}, TRE[2] = {6.75f, 5.75f}, UP[2] = {0.6f, 3.5f},
-                           DOWN[2] = {1.3f, 4.5f};
-        const float to = b3.brake ? 0.0f : b3.fast ? TRE[b] : CHO[b];
-        const float tau = to > b3.hz[b] ? UP[b] : DOWN[b];
+        const float to = b3.brake ? 0.0f : b3.fast ? b3.tre[b] : b3.cho[b];
+        const float tau = to > b3.hz[b] ? b3.up[b] : b3.down[b];
         b3.hz[b] += (to - b3.hz[b]) * ((float)B3_CH / (tau * B3_RATE));
     }
 }

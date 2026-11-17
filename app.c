@@ -104,6 +104,8 @@ typedef struct {
     int8_t bend;                         /* WHEELS: the pitch bend's range, -24..24 semitones (negative: reversed) */
     int8_t mw_amt[4];                    /* WHEELS: the mod wheel on the filter's frequency, LFO 1 to the pitches, LFO 2
                                           * to the filter, oscillator 2's pitch, each -63..63 (its On-Key Mod Wh four) */
+    uint8_t les[8];                      /* the Leslie's trimmers (LESLIE CONTROLS), each 0..127 (64: the 122's), the
+                                          * HORN ROTOR's then the LOW ROTOR's: RISE TIME, FALL TIME, SLOW, FAST SPEED */
 } settings_t;
 /* GLO RMI's ROUTE: the RMI's notes (its keys, its channel's) into the bass, as its keys; what the bass plays (its
  * keys, its arp, its sequencer) on the RMI too. One hop: a note routed is never routed again, nor sent out, so BOTH
@@ -132,6 +134,7 @@ static uint32_t ms_stamp(void) { return (plat_ms() - 1u) | 1u; }
 #define SET_V8_SIZE offsetof(settings_t, se_voice)   /* the record before ECHO VOICE */
 #define SET_V9_SIZE offsetof(settings_t, droom)      /* the record before DRUM ROOM */
 #define SET_V10_SIZE offsetof(settings_t, at_amt)    /* the record before AFTERTOUCH and WHEELS */
+#define SET_V11_SIZE offsetof(settings_t, les)       /* the record before the Leslie's trimmers */
 enum { CH_OFF = 0, CH_ALL = 17 };
 enum { CLK_AUTO, CLK_INT, CLK_EXT, NCLK };   /* MIDI clock followed when it comes; never; always (none: stopped) */
 enum { VC_SOFT, VC_NORMAL, VC_HARD, NVC };
@@ -1891,6 +1894,7 @@ static void settings_defaults(settings_t *s)
     s->se_wow = 13;
     memset(s->se_voice, 64, sizeof s->se_voice);   /* (ECHO VOICE: as modelled) */
     memset(s->droom, 64, sizeof s->droom);   /* (DRUM ROOM: as modelled) */
+    memset(s->les, 64, sizeof s->les);       /* (the Leslie's trimmers: the 122's) */
     s->at_amt[0] = s->mw_amt[1] = 10;        /* (as the Bass Station II's Init Patch: aftertouch on the filter, the mod
                                               * wheel a vibrato; the bend an octave) */
     s->bend = 12;
@@ -1960,7 +1964,7 @@ _Static_assert(offsetof(patch_t, env_trig) == BANK_V10_PSIZE, "version 10's: 11'
 _Static_assert(offsetof(patch_t, lfo_delay) == BANK_V11_PSIZE, "version 11's: 12's without the LFOs' delay on");
 _Static_assert(offsetof(patch_t, ofm) == BANK_V12_PSIZE, "version 12's: 13's without Osc Filter Mod on");
 _Static_assert(sizeof(settings_t) <= PLAT_STORE_MAX, "the settings fit a store object");
-_Static_assert(sizeof(settings_t) == SET_V10_SIZE + 8u, "the settings end with no padding");
+_Static_assert(sizeof(settings_t) == SET_V11_SIZE + 8u, "the settings end with no padding");
 _Static_assert(offsetof(settings_t, mw_amt[3]) < 256u, "every setting a param_t's offset (a byte) reaches");
 static bank_t bank[NBANKP] PLAT_POOL;
 #define BANK_P(s) (bank[(s) / NPSLOT].p[(s) % NPSLOT])   /* slot s's patch */
@@ -2240,6 +2244,7 @@ static struct {
     uint8_t b3;                          /* the organ's (HOME on the RMI's HOME, bs2_organ.c): the keys its, HOME its page */
     uint8_t oview, osave_to;             /* ORGAN HOME's view (1: 1 1/3', 1' and PRESET); saving it, the slot (+1) */
     uint8_t ofast, obrake;               /* the Leslie: tremolo (else chorale), the brake (live: ARP) */
+    uint8_t oles;                        /* ORGAN LESLIE's view (LFO there): CABINET, ROTORS, HORN, LOW ROTOR, AMP */
     uint32_t okeys;                      /* the keys playing the organ, a bit each */
     uint8_t se;                          /* the Space Echo's (HOME on the RMI's): HOME its page, the keys the RMI's still
                                           * (rmi stays set: an effect has no keys of its own) */
@@ -6059,7 +6064,8 @@ static void input(void)
         }
     }
 #endif
-    if (ui.page == PG_OLES) {                /* (ORGAN LESLIE: its horn turning, 25 frames a second) */
+    if (ui.page == PG_OLES && ui.oles != 2u && ui.oles != 3u) {   /* (ORGAN LESLIE: its rotors turning, 25 frames a
+                                              * second) */
         static uint32_t at;
         if (plat_ms() - at >= 40u) {
             at = plat_ms();

@@ -91,6 +91,48 @@ wait 600
 expect page 54
 wait 2500
 shot organ-leslie.png
+# LESLIE: ALGO its speed (SLOW, STOP, FAST); LFO again its views: ROTORS, HORN ROTOR, LOW ROTOR, AMP, round
+turn ALGO -1
+wait 30
+said LESLIE SLOW
+expect obrake 0
+expect ofast 0
+turn ALGO 1
+wait 30
+said LESLIE STOP
+expect obrake 1
+turn ALGO 1
+wait 30
+said LESLIE FAST
+expect ofast 1
+expect obrake 0
+tap LFO
+wait 30
+said LESLIE ROTORS
+wait 1500
+shot organ-rotors.png
+turn K2 4
+wait 30
+said HORN FAST SPEED 414 RPM
+tap LFO
+wait 30
+said LESLIE HORN ROTOR
+turn K1 -64
+wait 30
+said HORN RISE TIME 0.3 S
+wait 2500
+shot organ-controls.png
+tap LFO
+wait 30
+said LESLIE LOW ROTOR
+tap LFO
+wait 30
+said LESLIE AMP
+wait 2500
+shot organ-amp.png
+tap LFO
+wait 30
+said LESLIE CABINET
 # SEL off the LESLIE: HOME; SEL on: DRAWBARS, its other view, the NAME
 tap SEL
 wait 1500
@@ -142,7 +184,7 @@ said 2 2/3' 1
 turn SELECT -27
 wait 30
 said ORGAN VOLUME 100
-# HOME's FX: ORGAN VIBRATO (FX again: VIBRATO UPPER); LFO: ORGAN LESLIE (LFO again: its speed)
+# HOME's FX: ORGAN VIBRATO (FX again: VIBRATO UPPER); LFO: ORGAN LESLIE (LFO again: its next view)
 tap FX
 wait 800
 expect page 58
@@ -154,4 +196,4 @@ wait 300
 expect page 54
 tap LFO
 wait 30
-said LESLIE
+said LESLIE ROTORS

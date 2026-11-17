@@ -10,9 +10,12 @@
  *     1'; PRESET the preset on both
  *   ORGAN TABS (PG_OTABS): the percussion's tabs (K1 ON, K2 VOLUME SOFT, K3 DECAY FAST, K4 HARMONIC THIRD), the vibrato
  *     (SELECT on, ALGO its knob V1 V2 V3 C1 C2 C3)
- *   ORGAN LESLIE (PG_OLES): the cabinet turning; SELECT its speed, ALGO the brake, K1 WIDTH, K2 DRIVE, K3 CLICK, K4 VOL
+ *   ORGAN LESLIE (PG_OLES): the 122, LFO again its views round (oles_draw): CABINET (K1 WIDTH, K2 DRIVE, K3 CLICK, K4
+ *     VOLUME), ROTORS turning (K1-K4 the horn's and the drum's slow and fast speeds), HORN ROTOR and LOW ROTOR (the
+ *     CONTROLS panel's trimmers: RISE, FALL, SLOW, FAST), AMP (K1 DRIVE, K4 VOLUME); ALGO the speed on each (SLOW,
+ *     STOP, FAST), SELECT and PRESET as HOME's
  *   SEL: DRAWBARS, its other view, PATCH NAME, round (VIBRATO, PERCUSSION, LESLIE: FX, ENV, LFO). ARP the Leslie chorale or tremolo (held: the brake),
- *   FX ORGAN VIBRATO, ENV ORGAN PERCUSSION, LFO ORGAN LESLIE (again there: its main switch), EDIT the vibrato on or off;
+ *   FX ORGAN VIBRATO, ENV ORGAN PERCUSSION (again there: its main switch), LFO ORGAN LESLIE (again: its next view), EDIT the vibrato on or off;
  *   REC, PLAY and SEQ (held: cleared) its part of the pattern, as the piano's.
  * Its MIDI: notes on its channel (b3_chan), its CCs on its CC channel (organ_cc) */
 #define ONSLOT 32u
@@ -87,6 +90,7 @@ static void organ_block(void)                /* the render's, before the second 
         b3_set(&opatch);
     }
     b3_leslie(ui.ofast, ui.obrake);
+    b3_rotor(set.les);
 }
 static char *name_cur(void) { return ui.b3 ? oname : cur_name; }   /* PATCH NAME's: the bass's, the organ's */
 static void name_changed(void)
@@ -165,9 +169,28 @@ static void o_flag(uint8_t *f, int32_t e, const char *name, const char *off, con
     organ_changed();
     app_say(name, *f ? on : off);
 }
+static const char *const OSPD[3] = {"SLOW", "STOP", "FAST"};
+static const char *const OLES_V[5] = {"CABINET", "ROTORS", "HORN ROTOR", "LOW ROTOR", "AMP"};
+static const char *const OTRIM[8] = {"HORN RISE TIME", "HORN FALL TIME", "HORN SLOW SPEED", "HORN FAST SPEED",
+                                     "LOW RISE TIME", "LOW FALL TIME", "LOW SLOW SPEED", "LOW FAST SPEED"};
+static uint32_t o_speed(void) { return ui.obrake ? 1u : ui.ofast ? 2u : 0u; }
+static void o_trim_text(uint32_t i, char *t)  /* a trimmer's value: a time in tenths of a second, a speed in RPM */
+{
+    const float f = b3_trim(i, set.les[i]);
+    if (i & 2u) {
+        int_text((int32_t)(f * 60.0f + 0.5f), t);
+        text_cat(t, " RPM");
+    } else {
+        const int32_t d = (int32_t)(f * 10.0f + 0.5f);
+        int_text(d / 10, t);
+        text_cat(t, ".");
+        int_text(d % 10, t + __builtin_strlen(t));
+        text_cat(t, " S");
+    }
+}
 static int o_turn(uint32_t k, int32_t e)
 {
-    if ((ui.page == PG_OTABS || ui.page == PG_OVIB) && (k == EN_SELECT || k == EN_PRESET)) {   /* (the cheeks': its
+    if ((ui.page == PG_OTABS || ui.page == PG_OVIB || ui.page == PG_OLES) && (k == EN_SELECT || k == EN_PRESET)) {   /* (the cheeks': its
                                               * volume and its preset, as HOME's) */
         const uint8_t pg = ui.page;
         ui.page = PG_OHOME;
@@ -226,27 +249,33 @@ static int o_turn(uint32_t k, int32_t e)
             o_flag(&opatch.perc_3rd, e, "PERC HARMONIC", "SECOND", "THIRD");
         return 0;
     }
-    if (ui.page == PG_OLES) {
-        char t[8];
-        uint8_t *v = k == EN_K1 ? &opatch.width : k == EN_K2 ? &opatch.drive : k == EN_K3 ? &opatch.click : 0;
-        if (k == EN_SELECT) {
-            ui.ofast = e > 0;
+    if (ui.page == PG_OLES) {                /* (its views': oles_draw) */
+        char t[12];
+        static const uint8_t VT[2][4] = {{2, 3, 6, 7}, {0, 1, 2, 3}};   /* (ROTORS': the speeds; CONTROLS': a row) */
+        if (k == EN_ALGO) {                  /* the speed: SLOW, STOP (the brake), FAST */
+            const int32_t v = clamp((int32_t)o_speed() + e, 0, 2);
+            ui.obrake = v == 1, ui.ofast = v == 2;
             ui.redraw = 1;
-            app_say("LESLIE", ui.ofast ? "FAST" : "SLOW");
-        } else if (k == EN_ALGO) {
-            ui.obrake = e > 0;
+            app_say("LESLIE", OSPD[v]);
+        } else if (k >= EN_K1 && (ui.oles == 1u || ui.oles == 2u || ui.oles == 3u)) {   /* the trimmers (kept as the
+                                              * GLO settings are) */
+            const uint32_t j = ui.oles == 1u ? VT[0][k - EN_K1] : VT[1][k - EN_K1] + (ui.oles == 3u ? 4u : 0u);
+            set.les[j] = (uint8_t)clamp((int32_t)set.les[j] + e, 0, 127);
             ui.redraw = 1;
-            app_say("LESLIE BRAKE", OFF_ON[ui.obrake]);
+            o_trim_text(j, t);
+            app_say(OTRIM[j], t);
         } else if (k == EN_K4) {             /* (its volume: a setting, kept with GLO's; SAVE stays dark) */
             set.b3vol_off = (uint8_t)(127 - clamp(127 - (int32_t)set.b3vol_off + e, 0, 127));
             int_text(127 - (int32_t)set.b3vol_off, t);
             ui.redraw = 1;
             app_say("ORGAN VOLUME", t);
-        } else if (v) {
+        } else if (k == EN_K1 || (ui.oles == 0u && (k == EN_K2 || k == EN_K3))) {   /* the CABINET's WIDTH, DRIVE,
+                                              * CLICK; the AMP's DRIVE */
+            uint8_t *v = ui.oles == 4u || k == EN_K2 ? &opatch.drive : k == EN_K1 ? &opatch.width : &opatch.click;
             *v = (uint8_t)clamp((int32_t)*v + e, 0, 127);
             organ_changed();
             int_text(*v, t);
-            app_say(k == EN_K1 ? "LESLIE WIDTH" : k == EN_K2 ? "DRIVE" : "KEY CLICK", t);
+            app_say(v == &opatch.width ? "LESLIE WIDTH" : v == &opatch.drive ? "DRIVE" : "KEY CLICK", t);
         }
     }
     return 0;
@@ -336,10 +365,14 @@ static void o_button(uint32_t k)
         sect_open(PG_OVIB, k);
     else if (k == B_ENV && ui.page != PG_OTABS)
         sect_open(PG_OTABS, k);
-    else if (k == B_LFO && ui.page != PG_OLES)
+    else if (k == B_LFO && ui.page != PG_OLES) {
+        ui.oles = 0;
         sect_open(PG_OLES, k);
-    else if (k == B_LFO)
-        organ_leslie_tap();
+    } else if (k == B_LFO) {                 /* (LFO again: its views round) */
+        ui.oles = (uint8_t)((ui.oles + 1u) % 5u);
+        ui.redraw = 1;
+        app_say("LESLIE", OLES_V[ui.oles]);
+    }
     else if (k == B_ENV) {
         opatch.perc_on = (uint8_t)!opatch.perc_on;
         organ_changed();
@@ -572,40 +605,362 @@ static void o_switch(int32_t cx, int32_t cy, uint32_t k, int on, const char *n0,
     tag(cx, cy, k);
     print_c(cx, cy + 12, on ? n1 : n0, P_CYAN);
 }
-static void oles_draw(void)
+/* ORGAN LESLIE: the Leslie 122 (Leslie_122H_Heritage_Series_Rotary_Speaker.webp and the photos of its inside), under
+ * HOME's head; LFO there its views round (ui.oles): the CABINET from the front, its ROTORS turning (the horn's shelf,
+ * its belt and pulleys; the drum under it), its CONTROLS (the HORN ROTOR's trimmers, then the LOW ROTOR's), its AMP.
+ * The rotors as the engine turns them (b3_angle); ALGO on each the speed: SLOW, STOP (the brake), FAST, as its lamps */
+static uint16_t o_rgb(int32_t r, int32_t g, int32_t b)
 {
-    static uint32_t at;
-    static float ang, hz;
-    const uint32_t now = plat_ms();
-    const float to = ui.obrake ? 0.0f : ui.ofast ? 6.75f : 0.83f, dt = (float)(now - at) * 0.001f;
+    return RGB(clamp(r, 0, 255), clamp(g, 0, 255), clamp(b, 0, 255));
+}
+static void o_grain(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, int32_t g, int32_t b, uint32_t seed)
+{                                            /* veneer, its grain lying along: each row a shade of its own, a streak */
+    int32_t i;
+    for (i = 0; i < h; i++) {
+        const uint32_t z = ((uint32_t)(y + i) + seed * 977u) * 2654435761u;
+        const int32_t d = ((int32_t)(z >> 28) - 8) * 2;
+        cv_rect(x, y + i, w, 1, o_rgb(r + d, g + d * 6 / 10, b + d / 3));
+        if (((z >> 9) & 3u) == 0u && w > 8)
+            cv_rect(x + (int32_t)((z >> 13) % (uint32_t)(w / 2)), y + i, w / 3, 1, o_rgb(r - 16, g - 12, b - 6));
+    }
+}
+static void o_ell(int32_t cx, int32_t cy, int32_t rx, int32_t ry, uint16_t c)   /* filled */
+{
+    int32_t dy;
+    for (dy = -ry; dy <= ry; dy++) {
+        const int32_t w = ry ? rx * chord(ry, dy) / ry : rx;
+        if (w >= 0)
+            cv_rect(cx - w, cy + dy, 2 * w + 1, 1, c);
+    }
+}
+static void o_louvre(int32_t x, int32_t y, int32_t w)   /* a louvre's slot, routed: its shadow, its lit lower lip */
+{
+    cv_rect(x + 2, y, w - 4, 1, RGB(48, 18, 8));
+    cv_rect(x, y + 1, w, 2, RGB(78, 30, 16));
+    cv_rect(x + 1, y + 3, w - 2, 1, RGB(96, 40, 20));
+    cv_rect(x + 2, y + 4, w - 4, 1, RGB(214, 140, 80));
+    cv_rect(x + 1, y + 1, 3, 1, RGB(150, 84, 50));
+}
+static void o_seen(int32_t cx, int32_t y, int32_t w, float a, int32_t r, int sides)
+{                                            /* a rotor seen through a louvre: its mouth (the horn's two) as it passes
+                                              * the front */
+    int32_t j;
+    for (j = 0; j < sides; j++) {
+        const float c = fm_cosf(2.0f * FM_PI * (a + 0.5f * (float)j)), s = fm_sinf(2.0f * FM_PI * (a + 0.5f * (float)j));
+        if (s > 0.0f) {
+            const int32_t x = cx + (int32_t)(c * (float)r), hw = 1 + (int32_t)(s * 4.0f);
+            const int32_t x0 = clamp(x - hw, cx - w / 2 + 1, cx + w / 2 - 1), x1 = clamp(x + hw, cx - w / 2 + 1, cx + w / 2 - 1);
+            if (x1 > x0)
+                cv_rect(x0, y + 1, x1 - x0, 2, RGB(8, 6, 6));
+        }
+    }
+}
+static void o_lamp(int32_t cx, int32_t cy, int on, uint16_t lit, uint16_t glow, uint16_t off)
+{
+    if (on)
+        disc(cx, cy, 5, glow);
+    disc(cx, cy, 3, P_KSHADOW);
+    disc(cx, cy, 2, on ? lit : off);
+    if (on)
+        cv_pset(cx - 1, cy - 1, RGB(255, 250, 230));
+}
+static void o_lamps(int32_t x, int32_t y, int32_t dx, uint16_t ink, int beside)   /* SLOW STOP FAST, the speed's
+                                              * lamps, their names under them or beside */
+{
+    const uint32_t s = o_speed();
+    o_lamp(x, y, s == 0u, RGB(255, 214, 120), RGB(96, 64, 20), RGB(70, 54, 30));
+    o_lamp(x + dx, y, s == 1u, RGB(255, 70, 60), RGB(90, 16, 14), RGB(80, 20, 20));
+    o_lamp(x + 2 * dx, y, s == 2u, RGB(110, 240, 140), RGB(16, 70, 30), RGB(20, 64, 34));
+    if (beside) {
+        uint32_t i;
+        for (i = 0; i < 3u; i++)
+            cv_text(x + (int32_t)i * dx + 6, y - 4, &FONT_XS, OSPD[i], ink);
+    } else {
+        print_c(x, y + 6, "SLOW", ink);
+        print_c(x + dx, y + 6, "STOP", ink);
+        print_c(x + 2 * dx, y + 6, "FAST", ink);
+    }
+    tag(x + dx, y, EN_ALGO);
+}
+static void o_cabinet(void)                  /* the cabinet from the front, a little to its left: its lid, the front's
+                                              * louvres (two pairs over the horn, four long over the drum), its side's */
+{
+    const float ha = b3_angle(0), da = b3_angle(1);
     static const char *const LBL[4] = {"WIDTH", "DRIVE", "CLICK", "VOLUME"};
     const int32_t vals[4] = {opatch.width, opatch.drive, opatch.click, 127 - (int32_t)set.b3vol_off};
-    int32_t i, hx, hy;
-    char t[8];
-    at = now;
-    if (dt < 0.5f) {                         /* (the horn as the engine turns it: its speed's own run) */
-        hz += (to - hz) * fm_minf(dt / (to > hz ? 0.6f : 1.3f), 1.0f);
-        ang += hz * dt;
-        ang -= (float)(int32_t)ang;
+    int32_t i;
+    cv_rect(0, 66, 240, TALL_H - 66, P_BG);
+    o_grain(22, 66, 80, 3, 150, 76, 38, 7);  /* the lid: its top, its moulded front edge */
+    o_grain(16, 69, 72, 4, 168, 88, 42, 3);
+    cv_rect(16, 69, 72, 1, RGB(214, 140, 84));
+    cv_rect(17, 73, 70, 1, RGB(96, 44, 20));
+    o_grain(88, 68, 14, 5, 128, 58, 28, 5);
+    o_grain(22, 74, 62, 76, 184, 104, 50, 11);   /* the front, its stiles; the side, darker, turned away */
+    cv_rect(22, 74, 1, 76, RGB(214, 144, 84));
+    cv_rect(83, 74, 1, 76, RGB(110, 50, 22));
+    o_grain(84, 74, 14, 76, 140, 62, 30, 13);
+    cv_rect(97, 74, 1, 76, RGB(96, 42, 20));
+    o_grain(18, 150, 68, 8, 156, 78, 36, 17);   /* the plinth */
+    cv_rect(18, 150, 68, 1, RGB(206, 130, 72));
+    o_grain(86, 151, 14, 7, 120, 54, 26, 19);
+    cv_rect(51, 76, 4, 1, O_GOLD);           /* (the Leslie script) */
+    for (i = 0; i < 2; i++) {                /* the horn's louvres: the horn's mouths passing behind */
+        o_louvre(27, 79 + 6 * i, 25);
+        o_louvre(54, 79 + 6 * i, 25);
+        o_seen(53, 79 + 6 * i, 52, ha, 22, 2);
+        o_louvre(86, 79 + 6 * i, 10);
     }
-    o_wood();
-    panel_head("LESLIE");
-    cv_rect(14, 24, 74, 90, RGB(70, 42, 24));   /* the cabinet: its louvres, the horn turning in them */
-    for (i = 0; i < 6; i++)
-        cv_rect(20, 30 + 6 * i, 62, 3, RGB(20, 12, 8));
-    hx = (int32_t)(fm_cosf(2.0f * FM_PI * ang) * 26.0f), hy = (int32_t)(fm_sinf(2.0f * FM_PI * ang) * 4.0f);
-    cv_line(51 - hx, 48 - hy, 51 + hx, 48 + hy, RGB(220, 200, 160));
-    disc(51 + hx, 48 + hy, 3, RGB(240, 220, 180));
-    disc(51, 92, 14, RGB(30, 18, 10));
-    cv_text(26, 116, &FONT_T, ui.obrake ? "BRAKE" : ui.ofast ? "TREMOLO" : "CHORALE", P_CYAN);
-    o_switch(112, 54, EN_SELECT, ui.ofast, "SLOW", "FAST", "Speed");
-    o_switch(112, 106, EN_ALGO, ui.obrake, "OFF", "ON", "Brake");
+    for (i = 0; i < 4; i++) {                /* the drum's: its opening going round */
+        o_louvre(28, 126 + 6 * i, 51);
+        o_seen(53, 126 + 6 * i, 50, da, 24, 1);
+        o_louvre(86, 126 + 6 * i, 10);
+    }
+    o_lamps(134, 84, 34, P_SILK, 0);
     for (i = 0; i < 4; i++) {
-        const int32_t cx = 160 + 46 * (i & 1), cy = 52 + 56 * (i >> 1);
-        bs2_knob(cx, cy, 13, vals[i], 127, knob_lit(EN_K1 + (uint32_t)i) ? KF_LIT : 0u);
+        const int32_t cx = 122 + 32 * i, cy = 122;
+        bs2_knob(cx, cy, 10, vals[i], 127, knob_lit(EN_K1 + (uint32_t)i) ? KF_LIT : 0u);
         tag(cx, cy, EN_K1 + (uint32_t)i);
-        print_c(cx, cy + 16, LBL[i], RGB(236, 232, 220));
-        int_text(vals[i], t);
-        print_c(cx, cy + 28, t, RGB(200, 170, 120));
+        print_c(cx, cy + 13, LBL[i], P_SILK);
+        {
+            char t[8];
+            int_text(vals[i], t);
+            print_c(cx, cy + 23, t, P_CYAN);
+        }
     }
+}
+static void o_arm(int32_t cx, int32_t cy, float a, int32_t l)   /* a horn's arm from the rotor's middle, flaring to its
+                                              * mouth; facing us, its mouth open */
+{
+    const float c = fm_cosf(2.0f * FM_PI * a), s = fm_sinf(2.0f * FM_PI * a);
+    int32_t i, ex = cx + (int32_t)(c * (float)l), ey = cy + (int32_t)(s * (float)l * 0.34f);
+    for (i = 2; i <= 12; i++) {
+        const float t = (float)i / 12.0f;
+        disc(cx + (int32_t)(c * (float)l * t), cy + (int32_t)(s * (float)l * 0.34f * t) - 1, 3 + (int32_t)(5.0f * t * t),
+             RGB(16, 16, 18));
+    }
+    for (i = 3; i <= 10; i++)                /* (its sheen along the top) */
+        cv_pset(cx + (int32_t)(c * (float)l * (float)i / 12.0f), cy + (int32_t)(s * (float)l * 0.34f * (float)i / 12.0f) - 3
+                    - i / 4, RGB(84, 84, 90));
+    if (s > 0.15f) {
+        o_ell(ex, ey - 1, 2 + (int32_t)(7.0f * s), 8, RGB(74, 74, 78));
+        o_ell(ex, ey - 1, 1 + (int32_t)(6.0f * s), 6, RGB(4, 4, 4));
+    } else
+        o_ell(ex, ey - 1, 3, 8, RGB(40, 40, 44));
+}
+static void o_wing(int32_t cx, int32_t cy)   /* a wing nut on its stud */
+{
+    cv_rect(cx - 4, cy - 2, 3, 2, RGB(214, 214, 214));
+    cv_rect(cx + 2, cy - 2, 3, 2, RGB(214, 214, 214));
+    cv_rect(cx - 1, cy - 1, 3, 3, RGB(170, 170, 170));
+    cv_rect(cx, cy + 2, 1, 2, RGB(120, 120, 120));
+}
+static void o_rotors(void)                   /* Leslie-122H-Rotor-and-Tension-Pulleys.webp: the horn's shelf, the horn
+                                              * turning on its pulley, the motor's brass pulley, the idler and its
+                                              * spring with their wing nuts, the belt; under it the drum, its opening
+                                              * going round */
+{
+    const float ha = b3_angle(0), da = b3_angle(1);
+    const int32_t hx = 156, hy = 92;
+    int32_t i;
+    char t[12];
+    cv_rect(0, 66, 240, TALL_H - 66, P_BG);
+    o_grain(0, 66, 240, 5, 206, 132, 70, 23);   /* the shelf over it, the back, the motor board, its edge */
+    cv_rect(0, 70, 240, 1, RGB(120, 66, 30));
+    o_grain(0, 71, 240, 14, 70, 42, 26, 29);
+    o_grain(0, 85, 240, 24, 104, 66, 40, 31);
+    o_ell(hx, 104, 18, 4, RGB(46, 30, 20));  /* (the rotor's hole in the board) */
+    o_grain(0, 109, 240, 6, 212, 140, 76, 37);
+    cv_rect(0, 109, 240, 1, RGB(236, 176, 110));
+    cv_rect(0, 114, 240, 1, RGB(110, 60, 28));
+    {                                        /* the pulleys and the belt: the motor's (x 50) turns 3 times the horn's */
+        const float m = ha * 3.0f;
+        cv_rect(22, 98, 14, 2, RGB(150, 150, 150));   /* (the motor's bracket, its wing nut) */
+        cv_rect(22, 98, 2, 7, RGB(120, 120, 120));
+        o_wing(29, 96);
+        cv_line(50, 99, hx - 14, 101, RGB(10, 10, 10));
+        cv_line(50, 104, 96, 105, RGB(10, 10, 10));
+        cv_line(96, 105, hx - 12, 106, RGB(10, 10, 10));
+        o_ell(50, 101, 6, 3, RGB(176, 140, 64));
+        o_ell(50, 101, 3, 1, RGB(90, 70, 36));
+        cv_pset(50 + (int32_t)(fm_cosf(2.0f * FM_PI * m) * 5.0f), 101 + (int32_t)(fm_sinf(2.0f * FM_PI * m) * 2.0f),
+                RGB(255, 236, 170));
+        cv_rect(76, 100, 18, 5, RGB(150, 150, 154));   /* the idler's bracket, its wing nut; the spring, its wire */
+        o_wing(84, 98);
+        for (i = 0; i < 5; i++)
+            cv_rect(108, 98 + 2 * i, 6, 1, i & 1 ? RGB(110, 110, 110) : RGB(210, 210, 210));
+        o_wing(111, 96);
+        cv_line(70, 107, 108, 106, RGB(190, 190, 190));
+        cv_line(114, 106, hx + 18, 103, RGB(190, 190, 190));
+        o_ell(hx + 20, 103, 5, 2, RGB(232, 232, 228));   /* (the tension pulley, white) */
+        cv_rect(hx + 19, 99, 2, 3, RGB(160, 160, 160));
+    }
+    o_ell(hx, 103, 14, 3, RGB(12, 12, 12));  /* the horn's pulley, its bolts going round */
+    o_ell(hx, 101, 12, 2, RGB(30, 30, 32));
+    cv_pset(hx + (int32_t)(fm_cosf(2.0f * FM_PI * ha) * 9.0f), 101 + (int32_t)(fm_sinf(2.0f * FM_PI * ha) * 2.0f),
+            RGB(200, 200, 200));
+    cv_rect(hx - 1, hy, 3, 7, RGB(20, 20, 20));
+    if (fm_sinf(2.0f * FM_PI * ha) > 0.0f) { /* the horn: the far arm first */
+        o_arm(hx, hy, ha + 0.5f, 58);
+        disc(hx, hy - 1, 7, RGB(22, 22, 24));
+        o_arm(hx, hy, ha, 58);
+    } else {
+        o_arm(hx, hy, ha, 58);
+        disc(hx, hy - 1, 7, RGB(22, 22, 24));
+        o_arm(hx, hy, ha + 0.5f, 58);
+    }
+    o_grain(0, 115, 240, 4, 196, 124, 64, 41);   /* the shelf under it; the drum's compartment */
+    o_grain(0, 119, 240, 39, 56, 34, 22, 43);
+    {                                        /* the drum: a cylinder lit from the front, its opening facing round */
+        const int32_t cx = 176, r = 34, y0 = 128, h = 24;
+        const float u0 = fm_sinf(2.0f * FM_PI * da), f0 = fm_cosf(2.0f * FM_PI * da);
+        for (i = -r; i <= r; i++) {
+            const float u = (float)i / (float)r, f = (float)chord(r, i) / (float)r;
+            const int32_t g = 30 + (int32_t)(50.0f * f);
+            cv_rect(cx + i, y0, 1, h, o_rgb(g, g - 4, g - 8));
+            if (f0 > 0.0f && fm_fabsf(u - u0) < 0.42f * f0) {
+                const int edge = fm_fabsf(u - u0) > 0.42f * f0 - 0.06f;
+                cv_rect(cx + i, y0 + 3, 1, h - 6, edge ? RGB(120, 116, 108) : RGB(4, 4, 4));
+            }
+        }
+        o_ell(cx, y0, r, 4, RGB(96, 92, 86));
+        o_ell(cx, y0, r - 3, 2, RGB(70, 66, 62));
+        cv_rect(cx - 1, y0 + h + 3, 3, 6, RGB(150, 150, 150));
+        for (i = -r; i <= r; i += 1) {       /* (its lower rim) */
+            const int32_t e = chord(r, i) * 4 / r;
+            cv_pset(cx + i, y0 + h + e - 1, RGB(26, 24, 22));
+        }
+    }
+    cv_text(8, 124, &FONT_T, "HORN", P_SILK);   /* the speeds the trimmers set, and each rotor's now */
+    cv_text(8, 142, &FONT_T, "DRUM", P_SILK);
+    for (i = 0; i < 4; i++) {
+        const uint32_t j = i < 2 ? 2u + (uint32_t)i : 4u + (uint32_t)i;
+        const int32_t x = 60 + 42 * (i & 1), y = i < 2 ? 124 : 142;
+        int_text((int32_t)(b3_trim(j, set.les[j]) * 60.0f + 0.5f), t);
+        print_c(x, y - 2, OSPD[(i & 1) * 2], P_DIM);
+        print_c(x, y + 7, t, knob_lit(EN_K1 + (uint32_t)i) ? P_CYAN : P_SILK);
+        tag(x, y + 10, EN_K1 + (uint32_t)i);
+    }
+    for (i = 0; i < 2; i++) {
+        int_text((int32_t)(b3_speed((uint32_t)i) * 60.0f + 0.5f), t);
+        text_cat(t, " RPM");
+        cv_text(236 - text_w(&FONT_T, t), i ? 150 : 74, &FONT_T, t, P_CYAN);
+    }
+}
+static void o_trimmer(int32_t cx, int32_t cy, uint32_t v, uint32_t f)   /* a trimmer's knurled knob in its bezel */
+{
+    int32_t i, x, y;
+    disc(cx, cy, 8, RGB(14, 14, 14));
+    disc(cx, cy, 7, RGB(70, 68, 66));
+    disc(cx, cy, 6, RGB(26, 26, 26));
+    for (i = 0; i < 12; i++) {
+        pt_at(cx, cy, 5, (float)i * (FM_PI / 6.0f), &x, &y);
+        cv_pset(x, y, RGB(62, 62, 62));
+    }
+    pt_at(cx, cy, 5, ((float)v / 127.0f - 0.5f) * (FM_PI * 5.0f / 3.0f), &x, &y);
+    cv_line(cx, cy, x, y, f & KF_LIT ? P_CYAN : f & KF_DIM ? RGB(120, 120, 120) : RGB(236, 236, 236));
+}
+static void o_rule(int32_t y, const char *s)  /* a heading between two lines, as the panel's printed */
+{
+    const int32_t w = text_w(&FONT_T, s);
+    cv_rect(12, y + 4, 120 - w / 2 - 18, 1, RGB(220, 220, 216));
+    cv_rect(120 + w / 2 + 6, y + 4, 228 - (120 + w / 2 + 6), 1, RGB(220, 220, 216));
+    cv_text(120 - w / 2, y, &FONT_T, s, RGB(230, 230, 226));
+}
+static void o_controls(int low)              /* Leslie-122H-Controls.webp: the panel, its two rows of trimmers, the
+                                              * speed's lamps; K1-K4 the row this view's */
+{
+    static const char *const L1[4] = {"RISE", "FALL", "SLOW", "FAST"}, *const L2[4] = {"TIME", "TIME", "SPEED", "SPEED"};
+    int32_t i;
+    cv_rect(0, 66, 240, TALL_H - 66, RGB(10, 10, 10));
+    cv_rect(4, 66, 232, TALL_H - 68, RGB(44, 43, 41));
+    for (i = 0; i < 700; i++) {              /* (its wrinkle finish) */
+        const uint32_t z = (uint32_t)i * 2654435761u;
+        cv_pset(4 + (int32_t)(z % 232u), 66 + (int32_t)((z >> 12) % (uint32_t)(TALL_H - 68)),
+                z >> 30 ? RGB(54, 53, 51) : RGB(32, 31, 30));
+    }
+    o_rule(66, "HORN ROTOR");
+    o_rule(134, "LOW ROTOR");
+    for (i = 0; i < 4; i++) {
+        const int32_t cx = 24 + 54 * i;
+        uint32_t r;
+        cv_rect(cx, 91, 1, 3, RGB(220, 220, 216));
+        print_c(cx, 95, L1[i], RGB(230, 230, 226));
+        print_c(cx, 104, L2[i], RGB(230, 230, 226));
+        cv_rect(cx, 113, 1, 2, RGB(220, 220, 216));
+        for (r = 0; r < 2u; r++) {
+            const uint32_t j = 4u * r + (uint32_t)i, on = r == (uint32_t)(low != 0);
+            const int32_t cy = r ? 124 : 82;
+            char t[12];
+            o_trimmer(cx, cy, set.les[j], on ? (knob_lit(EN_K1 + (uint32_t)i) ? KF_LIT : 0u) : KF_DIM);
+            if (on)
+                tag(cx, cy, EN_K1 + (uint32_t)i);
+            o_trim_text(j, t);
+            cv_text(cx + 10, cy - 3, &FONT_XS, t, on ? P_CYAN : P_DIM);
+        }
+    }
+    o_lamps(24, 150, 44, RGB(230, 230, 226), 1);
+}
+static void o_tube(int32_t cx, int32_t top, int32_t w, int32_t h, float g)   /* a valve, glowing g (0..1) */
+{
+    const int32_t r = w / 2, base = top + h;
+    disc(cx, top + r, r, RGB(58, 54, 50));
+    cv_rect(cx - r, top + r, w, h - r - 6, RGB(58, 54, 50));
+    cv_rect(cx - r / 2, top + r - 2, r, 3, RGB(176, 176, 180));   /* (the getter's silver) */
+    cv_rect(cx - r + 3, top + r + 3, w - 6, h - r - 14, RGB(34, 32, 30));   /* the plates, glowing at their middle */
+    cv_rect(cx - r + 4, top + r + (h - r) / 2 - 4, w - 8, 4, o_rgb((int32_t)(255.0f * g), (int32_t)(120.0f * g),
+                                                                     (int32_t)(40.0f * g)));
+    cv_rect(cx - 1, top + r + (h - r) / 2 - 3, 2, 2, o_rgb(255, (int32_t)(200.0f * g), (int32_t)(120.0f * g)));
+    cv_rect(cx - r, base - 9, w, 2, o_rgb((int32_t)(220.0f * g), (int32_t)(40.0f * g), 30));   /* (its red ring) */
+    cv_rect(cx - r + 1, top + r, 1, h - r - 8, RGB(130, 124, 116));   /* (the glass's sheen) */
+    cv_rect(cx - r + 1, base - 6, w - 2, 6, w > 14 ? RGB(150, 128, 92) : RGB(40, 36, 32));   /* its base */
+}
+static void o_amp(void)                      /* Leslie-122H-Amp.webp: the chassis in the dark, its two big valves and
+                                              * two small glowing, the transformer, the wires; the glow by DRIVE, a
+                                              * flicker as it plays */
+{
+    const uint32_t z = (plat_ms() / 40u) * 2654435761u;
+    const float g = fm_minf(1.0f, 0.5f + 0.35f * (float)opatch.drive / 127.0f
+                                  + (b3_down() ? 0.1f + 0.06f * (float)(z >> 29) / 7.0f : 0.0f));
+    char t[16];
+    cv_rect(0, 66, 240, TALL_H - 66, RGB(6, 6, 6));
+    cv_rect(36, 112, 200, 12, RGB(110, 110, 102));   /* the chassis: its top, its face */
+    cv_rect(36, 112, 200, 1, RGB(150, 150, 140));
+    cv_rect(36, 124, 200, 28, RGB(156, 156, 146));
+    cv_rect(36, 151, 200, 2, RGB(70, 70, 66));
+    cv_rect(14, 82, 22, 71, RGB(178, 176, 158));   /* (its end, bent up; its screws) */
+    cv_rect(35, 82, 1, 71, RGB(90, 90, 82));
+    screw(25, 98);
+    screw(25, 142);
+    o_tube(96, 70, 26, 48, g);
+    o_tube(134, 70, 26, 48, g);
+    o_tube(62, 88, 12, 30, g * 0.8f);
+    o_tube(114, 92, 12, 28, g * 0.8f);
+    cv_rect(160, 96, 30, 22, RGB(120, 120, 116));   /* the transformer, its coil */
+    cv_rect(166, 100, 18, 14, RGB(226, 200, 96));
+    cv_rect(160, 96, 30, 2, RGB(170, 170, 166));
+    cv_line(190, 100, 228, 74, RGB(200, 40, 40));   /* the wires */
+    cv_line(190, 104, 230, 80, RGB(60, 80, 200));
+    cv_line(190, 108, 232, 86, RGB(220, 220, 220));
+    cv_line(188, 98, 214, 72, RGB(40, 150, 70));
+    int_text(opatch.drive, t);
+    print_c(80, 128, "DRIVE", RGB(30, 30, 30));
+    print_c(80, 138, t, knob_lit(EN_K1) ? P_CYAN : RGB(30, 30, 30));
+    tag(80, 134, EN_K1);
+    int_text(127 - (int32_t)set.b3vol_off, t);
+    print_c(196, 128, "VOLUME", RGB(30, 30, 30));
+    print_c(196, 138, t, knob_lit(EN_K4) ? P_CYAN : RGB(30, 30, 30));
+    tag(196, 134, EN_K4);
+}
+static void oles_draw(void)
+{
+    oh_head("LESLIE", OLES_V[ui.oles][0] == 'H' ? "HORN" : OLES_V[ui.oles][0] == 'L' ? "LOW" : ui.oles ? OLES_V[ui.oles]
+                                                                                                      : "122");
+    if (ui.oles == 0u)
+        o_cabinet();
+    else if (ui.oles == 1u)
+        o_rotors();
+    else if (ui.oles == 4u)
+        o_amp();
+    else
+        o_controls(ui.oles == 3u);
 }
