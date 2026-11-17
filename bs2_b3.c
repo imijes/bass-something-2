@@ -62,7 +62,9 @@ static struct {
     uint32_t perc_t;                         /* samples since it struck (a chord's keys join it within B3_CH * 8) */
     uint8_t bar[9];                          /* the drawbars, 0..8 */
     uint8_t perc_on, perc_3rd, perc_soft, perc_fast, scan, click;
-    float expr, drive;
+    float expr, drive;                       /* the swell pedal (0 closed .. 1 open), the preamp's drive */
+    float sw_lo, sw_hi, sw_x, sw_tlo, sw_thi;                /* the swell's gains now, under its split and over it (slewed a step at a
+                                              * time), the split's low pass, their aims (b3_expr's) */
     struct { float e, k, x1, y1, y2, amt; } cl[B3_NCL];   /* the clicks: their noise's level and fall, a band pass */
     uint32_t cl_next, rng;
     float sc_ph, sc_x;                       /* the scanner: its rotor (0..1), its line's low pass */
@@ -112,6 +114,7 @@ void b3_init(void)
     b3.bar[0] = b3.bar[1] = b3.bar[2] = 8;   /* 888000000, the jazz organ's */
     b3.perc_on = 1, b3.perc_3rd = 1, b3.perc_fast = 1, b3.scan = 6, b3.click = 64;
     b3.expr = 1.0f, b3.drive = 0.3f;
+    b3.sw_lo = b3.sw_hi = b3.sw_tlo = b3.sw_thi = 1.0f;
     b3.hz[0] = b3.to[0] = 0.83f, b3.hz[1] = b3.to[1] = 0.67f;
     {
         static const uint8_t MID[8] = {64, 64, 64, 64, 64, 64, 64, 64};
@@ -194,9 +197,15 @@ void b3_rotor(const uint8_t t[8])            /* the Leslie's trimmers (live) */
         b3.up[r] = b3_trim(4u * r, t[4u * r]), b3.down[r] = b3_trim(4u * r + 1u, t[4u * r + 1u]),
         b3.cho[r] = b3_trim(4u * r + 2u, t[4u * r + 2u]), b3.tre[r] = b3_trim(4u * r + 3u, t[4u * r + 3u]);
 }
+static volatile float b3_pk_out;             /* the last block's peak (b3_level) */
+float b3_level(void) { return b3_pk_out; }
 float b3_angle(uint32_t r) { return b3.ang[r & 1u]; }   /* a rotor's angle, 0..1 (the pages' animation) */
 float b3_speed(uint32_t r) { return b3.hz[r & 1u]; }    /* its speed now, Hz */
-void b3_expr(uint32_t v) { b3.expr = (float)v * (1.0f / 127.0f); }   /* the expression pedal (CC 11), 0..127 (live) */
+void b3_expr(uint32_t v)                     /* (its gains' aims here, off the second core's fast code) */
+{
+    b3.expr = (float)v * (1.0f / 127.0f);
+    b3.sw_tlo = fm_exp2f(-2.0f * (1.0f - b3.expr)), b3.sw_thi = fm_exp2f(-4.0f * (1.0f - b3.expr));
+}   /* the expression pedal (CC 11), 0..127 (live) */
 void b3_cap(uint32_t n)                      /* the wheels it may sound at most (an overload's: the quietest go first) */
 {
     n = n > B3_NW ? B3_NW : n;
@@ -416,10 +425,16 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
             }
             b3.ang[r] = a1;
         }
+        /* the swell pedal (the AO-28's): closed, 24 dB down over 250 Hz and 12 under it, the bass kept as the ear
+         * loses it; its gains slewed over the step (no steps heard as it moves) */
+        const float dlo = (b3.sw_tlo - b3.sw_lo) * (1.0f / B3_CH), dhi = (b3.sw_thi - b3.sw_hi) * (1.0f / B3_CH);
         for (i = 0; i < B3_CH; i++) {
-            const float x = (bus[i] + pbus[i] * 0.125f) * b3.expr;
-            float y, hi, lo, out[2] = {0.0f, 0.0f};
+            const float raw = bus[i] + pbus[i] * 0.125f;
+            float x, y, hi, lo, out[2] = {0.0f, 0.0f};
             uint32_t m;
+            b3.sw_x += (raw - b3.sw_x) * (2.0f * FM_PI * 250.0f / B3_RATE);
+            x = b3.sw_x * b3.sw_lo + (raw - b3.sw_x) * b3.sw_hi;
+            b3.sw_lo += dlo, b3.sw_hi += dhi;
             b3.hp_y = 0.996f * (b3.hp_y + x - b3.hp_x);   /* (the input transformer: a high pass) */
             b3.hp_x = x;
             y = (b3_clip(g * b3.hp_y + bias) - tb) * og;
@@ -456,10 +471,11 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
  * B3_CH); 1 if it sounds (else both silent) */
 B3_HOT uint32_t b3_job(float *mid, float *side, uint32_t n)
 {
-    float ol[B3_CH], orr[B3_CH];
+    float ol[B3_CH], orr[B3_CH], pk = 0.0f;
     uint32_t i, j;
     for (i = 0; i < n; i++)
         mid[i] = side[i] = 0.0f;
+    b3_pk_out = 0.0f;
     if (!b3.awake)
         return 0;
     if (b3.quiet > B3_LES_N + B3_SCAN_N + 4096u && !b3.dirty && !b3.nact) {   /* (silent: the rotors turn on alone) */
@@ -472,8 +488,13 @@ B3_HOT uint32_t b3_job(float *mid, float *side, uint32_t n)
         for (j = 0; j < B3_CH; j++) {
             mid[i + j] = 0.5f * (ol[j] + orr[j]);
             side[i + j] = 0.5f * b3.width * (ol[j] - orr[j]);
+            {                                /* (no call: the fast code's) */
+                const float a = mid[i + j] < 0.0f ? -mid[i + j] : mid[i + j];
+                pk = a > pk ? a : pk;
+            }
         }
     }
+    b3_pk_out = pk;
     return 1;
 }
 #endif

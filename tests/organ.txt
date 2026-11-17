@@ -128,8 +128,31 @@ said LESLIE LOW ROTOR
 tap LFO
 wait 30
 said LESLIE AMP
-wait 2500
+# KEY SWELL (the AMP's K2): the keys' pressure the swell pedal, from its REST (K3, 70 % by default) open; MIDI's CC 11
+# (the organ's CC channel, 4) with it
+expect oswell 127
+turn K2 1
+wait 30
+said KEY SWELL ON
+expect oswell 89
+turn K3 -9
+wait 30
+said SWELL REST 63%
+key 7 down 100 80
+wait 600
+expect oswell >100
+wait 1500
 shot organ-amp.png
+key 7 up
+wait 100
+expect oswell 80
+midi B3 0B 40
+wait 30
+expect oswell 40
+midi B3 0B 7F
+turn K2 -1
+wait 30
+expect oswell 127
 tap LFO
 wait 30
 said LESLIE CABINET

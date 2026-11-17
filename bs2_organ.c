@@ -91,6 +91,14 @@ static void organ_block(void)                /* the render's, before the second 
     }
     b3_leslie(ui.ofast, ui.obrake);
     b3_rotor(set.les);
+    {                                        /* the swell: MIDI's pedal, and with KEY SWELL the keys' pressure opening
+                                              * it from its rest */
+        uint32_t e = 127u - ui.oexpr_off;
+        if (set.oswell)
+            e = e * (set.oswell_rest + (at_keys > 127u ? 127u : at_keys) * (127u - set.oswell_rest) / 127u) / 127u;
+        o_swell = (uint8_t)e;
+        b3_expr(e);
+    }
 }
 static char *name_cur(void) { return ui.b3 ? oname : cur_name; }   /* PATCH NAME's: the bass's, the organ's */
 static void name_changed(void)
@@ -148,8 +156,8 @@ static void organ_cc(uint32_t c, uint32_t v)
             ui.obrake = v >= 64u;
         ui.redraw = 1;
         return;
-    } else if (c == 11u) {
-        b3_expr(v);
+    } else if (c == 11u) {                   /* (organ_block's, with the keys') */
+        ui.oexpr_off = (uint8_t)(127u - v);
         return;
     } else
         return;
@@ -264,6 +272,16 @@ static int o_turn(uint32_t k, int32_t e)
             ui.redraw = 1;
             o_trim_text(j, t);
             app_say(OTRIM[j], t);
+        } else if (ui.oles == 4u && k == EN_K2) {   /* KEY SWELL, its rest (settings, kept as GLO's) */
+            set.oswell = e > 0;
+            ui.redraw = 1;
+            app_say("KEY SWELL", OFF_ON[set.oswell]);
+        } else if (ui.oles == 4u && k == EN_K3) {
+            set.oswell_rest = (uint8_t)clamp((int32_t)set.oswell_rest + e, 0, 127);
+            int_text((int32_t)set.oswell_rest * 100 / 127, t);
+            text_cat(t, "%");
+            ui.redraw = 1;
+            app_say("SWELL REST", t);
         } else if (k == EN_K4) {             /* (its volume: a setting, kept with GLO's; SAVE stays dark) */
             set.b3vol_off = (uint8_t)(127 - clamp(127 - (int32_t)set.b3vol_off + e, 0, 127));
             int_text(127 - (int32_t)set.b3vol_off, t);
@@ -485,6 +503,19 @@ static void oh_head(const char *line2, const char *cyan)   /* the HOMEs' head: t
         int_text(127u - set.b3vol_off, v + 7);
         cv_text(232 - text_w(&FONT_T, v), 8 + SEG_SH + 16, &FONT_T, v, P_SILK);
         tag(232 - text_w(&FONT_T, v) / 2, 8 + SEG_SH + 20, EN_SELECT);
+    }
+    if (set.oswell || ui.oexpr_off) {        /* the swell pedal, side on, when it's played (KEY SWELL, MIDI's CC 11):
+                                              * toe down open, its heel on its pivot; how open under it */
+        char v[8] = "";
+        const int32_t a = 127 - (int32_t)o_swell;   /* (0 open: the toe 3 px down; closed: 13 up) */
+        int32_t i;
+        cv_rect(134, 31, 34, 4, RGB(60, 58, 56));
+        for (i = 0; i < 3; i++)
+            cv_line(136, 28 + i, 166, 31 + i - a * 16 / 127, i ? RGB(30, 30, 30) : RGB(110, 110, 110));
+        disc(137, 30, 2, RGB(150, 150, 150));
+        int_text((int32_t)o_swell * 100 / 127, v);
+        text_cat(v, "%");
+        cv_text(151 - text_w(&FONT_XS, v) / 2, 37, &FONT_XS, v, o_swell < 127u ? P_CYAN : P_SILK);
     }
     text_cat(st, ui.obrake ? "LESLIE BRAKE" : ui.ofast ? "LESLIE FAST" : "LESLIE SLOW");
     text_cat(st, "  ");
@@ -900,28 +931,37 @@ static void o_controls(int low)              /* Leslie-122H-Controls.webp: the p
     }
     o_lamps(24, 150, 44, RGB(230, 230, 226), 1);
 }
-static void o_tube(int32_t cx, int32_t top, int32_t w, int32_t h, float g)   /* a valve, glowing g (0..1) */
-{
-    const int32_t r = w / 2, base = top + h;
+static void o_tube(int32_t cx, int32_t top, int32_t w, int32_t h, float blue, float plate)
+{                                            /* a valve: its heater's steady orange, its plates dull red as they heat
+                                              * (red-plating), the blue-violet glow on its glass as the signal swings */
+    const int32_t r = w / 2, base = top + h, my = top + r + (h - r) / 2;
+    int32_t i;
     disc(cx, top + r, r, RGB(58, 54, 50));
     cv_rect(cx - r, top + r, w, h - r - 6, RGB(58, 54, 50));
     cv_rect(cx - r / 2, top + r - 2, r, 3, RGB(176, 176, 180));   /* (the getter's silver) */
-    cv_rect(cx - r + 3, top + r + 3, w - 6, h - r - 14, RGB(34, 32, 30));   /* the plates, glowing at their middle */
-    cv_rect(cx - r + 4, top + r + (h - r) / 2 - 4, w - 8, 4, o_rgb((int32_t)(255.0f * g), (int32_t)(120.0f * g),
-                                                                     (int32_t)(40.0f * g)));
-    cv_rect(cx - 1, top + r + (h - r) / 2 - 3, 2, 2, o_rgb(255, (int32_t)(200.0f * g), (int32_t)(120.0f * g)));
-    cv_rect(cx - r, base - 9, w, 2, o_rgb((int32_t)(220.0f * g), (int32_t)(40.0f * g), 30));   /* (its red ring) */
+    cv_rect(cx - r + 3, top + r + 3, w - 6, h - r - 14, o_rgb(34 + (int32_t)(150.0f * plate), 32 + (int32_t)(20.0f * plate),
+                                                            30 + (int32_t)(8.0f * plate)));   /* the plates */
+    if (blue > 0.02f)                        /* (the glass's glow: at the plates' edges, inside the glass) */
+        for (i = 0; i < 2; i++)
+            cv_rect(i ? cx + r - 3 : cx - r + 1, top + r + 4, 2, h - r - 16,
+                    o_rgb(58 + (int32_t)(60.0f * blue), 54 + (int32_t)(70.0f * blue), 50 + (int32_t)(205.0f * blue)));
+    cv_rect(cx - r + 4, my - 4, w - 8, 4, RGB(255, 120, 40));   /* the heater, through the mica: steady */
+    cv_rect(cx - 1, my - 3, 2, 2, RGB(255, 210, 140));
+    cv_rect(cx - r, base - 9, w, 2, RGB(200, 40, 30));   /* (its red ring) */
     cv_rect(cx - r + 1, top + r, 1, h - r - 8, RGB(130, 124, 116));   /* (the glass's sheen) */
     cv_rect(cx - r + 1, base - 6, w - 2, 6, w > 14 ? RGB(150, 128, 92) : RGB(40, 36, 32));   /* its base */
 }
 static void o_amp(void)                      /* Leslie-122H-Amp.webp: the chassis in the dark, its two big valves and
-                                              * two small glowing, the transformer, the wires; the glow by DRIVE, a
-                                              * flicker as it plays */
+                                              * two small, the transformer, the wires; the valves as they'd be: the
+                                              * signal's swing (b3_level) a blue glow, louder and the more DRIVE the
+                                              * more; the power valves' plates reddening as it's driven hard a while */
 {
-    const uint32_t z = (plat_ms() / 40u) * 2654435761u;
-    const float g = fm_minf(1.0f, 0.5f + 0.35f * (float)opatch.drive / 127.0f
-                                  + (b3_down() ? 0.1f + 0.06f * (float)(z >> 29) / 7.0f : 0.0f));
+    static float blue, plate;
+    const float d = (float)opatch.drive / 127.0f, lv = fm_minf(1.0f, b3_level() * 3.0f);
+    const float to_b = lv * (0.35f + 0.65f * d), to_p = lv * d * d;
     char t[16];
+    blue += (to_b - blue) * (to_b > blue ? 0.6f : 0.25f);   /* (the glow follows at once; the plates' heat slow) */
+    plate += (to_p - plate) * (to_p > plate ? 0.03f : 0.015f);
     cv_rect(0, 66, 240, TALL_H - 66, RGB(6, 6, 6));
     cv_rect(36, 112, 200, 12, RGB(110, 110, 102));   /* the chassis: its top, its face */
     cv_rect(36, 112, 200, 1, RGB(150, 150, 140));
@@ -931,10 +971,10 @@ static void o_amp(void)                      /* Leslie-122H-Amp.webp: the chassi
     cv_rect(35, 82, 1, 71, RGB(90, 90, 82));
     screw(25, 98);
     screw(25, 142);
-    o_tube(96, 70, 26, 48, g);
-    o_tube(134, 70, 26, 48, g);
-    o_tube(62, 88, 12, 30, g * 0.8f);
-    o_tube(114, 92, 12, 28, g * 0.8f);
+    o_tube(96, 70, 26, 48, blue, plate);
+    o_tube(134, 70, 26, 48, blue, plate);
+    o_tube(62, 88, 12, 30, blue * 0.3f, 0.0f);
+    o_tube(114, 92, 12, 28, blue * 0.3f, 0.0f);
     cv_rect(160, 96, 30, 22, RGB(120, 120, 116));   /* the transformer, its coil */
     cv_rect(166, 100, 18, 14, RGB(226, 200, 96));
     cv_rect(160, 96, 30, 2, RGB(170, 170, 166));
@@ -942,14 +982,24 @@ static void o_amp(void)                      /* Leslie-122H-Amp.webp: the chassi
     cv_line(190, 104, 230, 80, RGB(60, 80, 200));
     cv_line(190, 108, 232, 86, RGB(220, 220, 220));
     cv_line(188, 98, 214, 72, RGB(40, 150, 70));
-    int_text(opatch.drive, t);
-    print_c(80, 128, "DRIVE", RGB(30, 30, 30));
-    print_c(80, 138, t, knob_lit(EN_K1) ? P_CYAN : RGB(30, 30, 30));
-    tag(80, 134, EN_K1);
-    int_text(127 - (int32_t)set.b3vol_off, t);
-    print_c(196, 128, "VOLUME", RGB(30, 30, 30));
-    print_c(196, 138, t, knob_lit(EN_K4) ? P_CYAN : RGB(30, 30, 30));
-    tag(196, 134, EN_K4);
+    {                                        /* its face's print: DRIVE, KEY SWELL, its REST, VOLUME */
+        static const char *const LBL[4] = {"DRIVE", "KEY SWELL", "REST", "VOLUME"};
+        uint32_t i;
+        for (i = 0; i < 4u; i++) {
+            const int32_t cx = 66 + 46 * (int32_t)i;
+            if (i == 0u)
+                int_text(opatch.drive, t);
+            else if (i == 1u)
+                t[0] = 0, text_cat(t, OFF_ON[set.oswell]);
+            else if (i == 2u)
+                int_text((int32_t)set.oswell_rest * 100 / 127, t), text_cat(t, "%");
+            else
+                int_text(127 - (int32_t)set.b3vol_off, t);
+            print_c(cx, 128, LBL[i], RGB(30, 30, 30));
+            print_c(cx, 138, t, knob_lit(EN_K1 + i) ? P_CYAN : RGB(30, 30, 30));
+            tag(cx, 134, EN_K1 + i);
+        }
+    }
 }
 static void oles_draw(void)
 {
