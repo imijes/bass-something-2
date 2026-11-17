@@ -197,6 +197,8 @@ said SWELL REST 63%
 key 7 down 100 80
 wait 600
 expect oswell >100
+# the organ's keys' pressure: not the bass's (AFTERTOUCH's ORGAN KEYS off)
+expect atkeys 0
 wait 1500
 shot organ-amp.png
 key 7 up

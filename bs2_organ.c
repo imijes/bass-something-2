@@ -23,7 +23,6 @@
  *   off (held: its other preset key, A# or B);
  *   REC, PLAY and SEQ (held: cleared) its part of the pattern, as the piano's.
  * Its MIDI: notes on its channel (b3_chan), its CCs on its CC channel (organ_cc) */
-#define ONSLOT 32u
 #define ORG_MAGIC 0x33334F42u                /* "BO33" (the Leslie's settings in each preset) */
 #define ORG_MAGIC_2 0x32334F42u              /* "BO32": the two manuals, the Leslie's in the settings */
 #define ORG_MAGIC_1 0x31334F42u              /* "BO31": one */
@@ -136,7 +135,7 @@ static void organ_block(void)                /* the render's, before the second 
                                               * it from its rest */
         uint32_t e = 127u - ui.oexpr_off;
         if (opatch.swell)
-            e = e * (opatch.swell_rest + (at_keys > 127u ? 127u : at_keys) * (127u - opatch.swell_rest) / 127u) / 127u;
+            e = e * (opatch.swell_rest + (at_okeys > 127u ? 127u : at_okeys) * (127u - opatch.swell_rest) / 127u) / 127u;
         o_swell = (uint8_t)e;
         b3_expr(e);
     }
@@ -388,22 +387,20 @@ static const char *o_hint(uint32_t k)
 
 /* SAVE, as the bass's (save_button): its HOME's other view, the slot blinking on its display; PRESET picks; SAVE again
  * stores the sound and its name there */
-static void o_save_say(void) { save_say_to(ui.osave_to); }
 static void o_save_button(void)
 {
-    uint32_t s, i;
-    if (!ui.osave_to) {
+    if (!ui.save_to) {
         ui.oview = 1;
         if (ui.page != PG_OBARS)
             page_go(PG_OBARS);
-        ui.osave_to = (uint8_t)(set.b3_slot + 1u);
-        o_save_say();
-        return;
-    }
-    s = ui.osave_to - 1u;
-    ui.osave_to = 0;
-    for (i = PNAME_N; i && oname[i - 1u] <= ' '; i--)   /* (its spaces at the end left off) */
-        oname[i - 1u] = 0;
+        save_start(1, set.b3_slot);
+    } else
+        save_commit();
+}
+static void o_store(uint32_t s)              /* (save_commit's: the sound and its name into slot s) */
+{
+    uint32_t i;
+    name_trim(oname);
     opatch.speed = (uint8_t)o_speed();      /* (the Leslie's speed now, the preset's to start with) */
     obank.p[s] = opatch;
     if (mo.n)                                /* (the drawbars as the hand left them, under the motion loop's) */
@@ -419,11 +416,6 @@ static void o_save_button(void)
         app_say("ORGAN SAVED", t);
     } else
         app_say("SAVE", "FAILED");
-}
-static void o_save_pick(int32_t e)
-{
-    ui.osave_to = (uint8_t)(clamp((int32_t)ui.osave_to - 1 + e, 0, ONSLOT - 1) + 1);
-    o_save_say();
 }
 
 /* its buttons (but HOME, REC, GLO, ARP and the octaves: hold_tap and hold_step have ARP) */
@@ -591,10 +583,11 @@ static void oh_head(const char *line2, const char *cyan)   /* the HOMEs' head: t
     cv_text(10, 12, &FONT_B, "ORGAN", P_SILK);
     cv_text(cv_text(10, 30, &FONT_B, line2, P_SILK) + 5, 30, &FONT_B, cyan, P_BAR);
     cv_rect(10, 49, 116, 2, P_BAR);
-    if (ui.osave_to && plat_ms() / SAVE_BLINK_MS & 1u)   /* (saving: its slot blinking) */
+    const uint32_t to = ui.save_who ? ui.save_to : 0u;   /* (saving: its slot blinking) */
+    if (to && plat_ms() / SAVE_BLINK_MS & 1u)
         d[0] = d[1] = d[2] = ' ', d[3] = 0;
     else
-        slot_p_text(ui.osave_to ? ui.osave_to - 1u : set.b3_slot, d);
+        slot_p_text(to ? to - 1u : set.b3_slot, d);
     seg_small(232, 8, d);
     if (odirty)
         disc(232 - 6, 8 + SEG_SH - 6, 2, RGB(252, 78, 112));

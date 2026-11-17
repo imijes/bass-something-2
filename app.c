@@ -110,7 +110,8 @@ typedef struct {
     uint8_t oswell_rest;                 /* its resting place (K3), 0..127: no pressure there, full pressure open */
     uint8_t b3_lchan;                    /* the organ's lower manual's MIDI channel, in and out: stored so that 0 is
                                           * channel 5, its default (l_ch; was spare, 0) */
-    uint8_t spare12;                     /* (the record's end on its word) */
+    uint8_t at_from;                     /* AFTERTOUCH's K4: another instrument's keys' pressure on the bass's too, AT_*
+                                          * (was spare: the record's end on its word) */
 } settings_t;
 /* GLO RMI's ROUTE: the RMI's notes (its keys, its channel's) into the bass, as its keys; what the bass plays (its
  * keys, its arp, its sequencer) on the RMI too. One hop: a note routed is never routed again, nor sent out, so BOTH
@@ -643,7 +644,6 @@ static void otabs_draw(void);
 static void oles_draw(void);
 static int o_turn(uint32_t k, int32_t e);
 static void o_button(uint32_t k);
-static void o_save_pick(int32_t e);
 static void organ_leslie_tap(void);
 static void organ_brake(void);
 static void organ_ab(void);
@@ -1200,7 +1200,7 @@ static void route_follow(void)               /* what the bass plays (its keys, a
  * (at_midi), the greater, as AFTERTOUCH sets it (set.at_amt) */
 static int32_t bend_in;
 static uint32_t mw_in, at_midi;
-static volatile uint32_t at_keys;
+static volatile uint32_t at_keys, at_okeys;   /* (at_okeys: the organ's keys', its KEY SWELL's) */
 /* a USB host session ended (its device gone, the mode changed): what its notes held let go, the bass's (the keys'
  * too: no note keeps its owner), the piano's and its pedal, and the wheels and pressure */
 static void usb_lost(void)
@@ -2013,6 +2013,7 @@ static void settings_defaults(settings_t *s)
 #define NPSLOT 32u                       /* a bank page's slots: a store object each (OBJ_PATCHES, OBJ_PATCHES1..3) */
 #define NBANKP 4u                        /* the pages */
 #define NSLOTS (NBANKP * NPSLOT)         /* the slots: 128, as a Bass Station II's */
+#define ONSLOT 32u                           /* the organ's (bs2_organ.c) */
 typedef struct {
     uint32_t magic;
     uint16_t version;
@@ -2310,7 +2311,8 @@ static struct {
     uint8_t drum;                        /* Drum Something's mode (HOME held): the keys its instruments, HOME its page */
     uint8_t rmi;                         /* the RMI's mode (HOME on the drums' HOME): the keys its, HOME its page */
     uint8_t b3;                          /* the organ's (HOME on the RMI's HOME, bs2_organ.c): the keys its, HOME its page */
-    uint8_t oview, osave_to;             /* ORGAN HOME's view (1: 1 1/3', 1' and PRESET); saving it, the slot (+1) */
+    uint8_t oview, save_who;             /* ORGAN HOME's view (1: 1 1/3', 1' and PRESET); who save_to's is (1: the
+                                          * organ's, else the bass's) */
     uint8_t ofast, obrake;               /* the Leslie: tremolo (else chorale), the brake (live: ARP) */
     uint8_t oles;                        /* ORGAN LESLIE's view (LFO there): CABINET, ROTORS, HORN, LOW ROTOR, AMP */
     uint8_t oexpr_off;                   /* the organ's swell pedal from MIDI (CC 11), upside down: 0 open */
@@ -2657,6 +2659,8 @@ static const char *const COUNT_NAME[17] = {"ENDLESS", "1", "2", "3", "4", "5", "
                                            "13", "14", "15", "16"};
 static const char *const RANGE_NAME[NRANGE] = {"16'", "8'", "4'", "2'"};
 static const char *const OFF_ON[2] = {"OFF", "ON"};
+enum { AT_BASS, AT_PIANO, AT_ORGAN, AT_ALL };   /* (bits: the piano's, the organ's) */
+static const char *const AT_FROM[4] = {"BASS", "BASS+PIANO", "BASS+ORGAN", "ALL"};
 static const char *const AUTO_OFF[2] = {"AUTO", "OFF"};
 static const char *const ON_OFF[2] = {"ON", "OFF"};   /* (ble_off) */
 static const char *const CHAN_NAME[CH_ALL + 1] = {"OFF", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11",
@@ -2788,7 +2792,7 @@ static const param_t PARAMS[NPAGES][NE] = {
                   [EN_K3] = {"ECHO VOLUME", SF(se_echo), 0, 127, 0}, [EN_K4] = {"REVERB VOLUME", SF(se_rev), 0, 127, 0}},
     /* the bass's AFTERTOUCH and WHEELS (FX's mods; the settings', not the patch's) */
     [PG_ATOUCH] = {[EN_K1] = {"FILTER", SF(at_amt[0]), -63, 63, 0}, [EN_K2] = {"LFO1 PITCH", SF(at_amt[1]), -63, 63, 0},
-                   [EN_K3] = {"LFO2 SPEED", SF(at_amt[2]), -63, 63, 0}},
+                   [EN_K3] = {"LFO2 SPEED", SF(at_amt[2]), -63, 63, 0}, [EN_K4] = {"KEYS FROM", SF(at_from), AT_BASS, AT_ALL, AT_FROM}},
     [PG_WHEELS] = {[EN_PRESET] = {"BEND", SF(bend), -24, 24, 0}, [EN_K1] = {"MW FILTER", SF(mw_amt[0]), -63, 63, 0},
                    [EN_K2] = {"MW LFO1", SF(mw_amt[1]), -63, 63, 0}, [EN_K3] = {"MW LFO2", SF(mw_amt[2]), -63, 63, 0},
                    [EN_K4] = {"MW OSC2", SF(mw_amt[3]), -63, 63, 0}},
@@ -2861,7 +2865,8 @@ static const char *const TITLE[NPAGES][NE] = {
     [PG_FMOD] = {[EN_K1] = "FILTER LFO 2 DEPTH"},
     [PG_EFX] = {[EN_K1] = "DISTORTION", [EN_K2] = "OSC FILTER MOD"},
     [PG_XMOD] = {[EN_K1] = "FILTER KEY TRACKING", [EN_K2] = "VCA LIMITER"},
-    [PG_ATOUCH] = {[EN_K1] = "AFTERTOUCH FILTER", [EN_K2] = "AFTERTOUCH LFO 1 PITCH", [EN_K3] = "AFTERTOUCH LFO 2 SPEED"},
+    [PG_ATOUCH] = {[EN_K1] = "AFTERTOUCH FILTER", [EN_K2] = "AFTERTOUCH LFO 1 PITCH", [EN_K3] = "AFTERTOUCH LFO 2 SPEED",
+                   [EN_K4] = "AFTERTOUCH KEYS FROM"},
     [PG_WHEELS] = {[EN_PRESET] = "PITCH BEND RANGE", [EN_K1] = "MOD WHEEL FILTER", [EN_K2] = "MOD WHEEL LFO 1 PITCH",
                    [EN_K3] = "MOD WHEEL LFO 2 FILTER", [EN_K4] = "MOD WHEEL OSC 2 PITCH"},
     [PG_LFO1] = {[EN_SELECT] = "GLIDE TIME", [EN_K1] = "LFO 1 WAVE", [EN_K4] = "LFO 2 WAVE"},
@@ -3259,12 +3264,13 @@ static void slot_p_text(uint32_t s, char *t)   /* slot s as the display has it: 
 static void slot_disp(char *t)               /* the display's three digits: P01 .. P99, then 100 .. 128 (as a Bass
                                               * Station II's); saving, the slot SAVE stores to, blinking */
 {
-    if (ui.save_to && plat_ms() / SAVE_BLINK_MS & 1u) {
+    const uint32_t to = ui.save_who ? 0u : ui.save_to;   /* (the bass's saving) */
+    if (to && plat_ms() / SAVE_BLINK_MS & 1u) {
         t[0] = t[1] = t[2] = ' ';
         t[3] = 0;
         return;
     }
-    slot_p_text(ui.save_to ? ui.save_to - 1u : set.slot, t);
+    slot_p_text(to ? to - 1u : set.slot, t);
 }
 
 #include "bs2_rnd.c"                      /* RND seeds: the RND Synth's, captured, kept in their table, sent back */
@@ -4116,31 +4122,50 @@ static void page_go(uint32_t g)
  * sound's own at first), and PRESET picks another without loading it; SAVE again stores the sound and its name there, and it's the sound's slot from then on.
  * Any other button lets it go (save_button, save_pick) */
 static void save(void);
-static void save_say_to(uint32_t to)       /* SAVE TO its slot (to: 1 the first), the bass's and the organ's */
+static void save_say(void)                  /* SAVE TO its slot, the bass's or the organ's */
 {
     char t[8];
-    slot_p_text(to - 1u, t);
+    slot_p_text(ui.save_to - 1u, t);
     app_say("SAVE TO", t);
     ui.msg_until = plat_ms() + 600000u;      /* (up till SAVE again, or another button) */
 }
-static void save_say(void) { save_say_to(ui.save_to); }
+static void save_start(uint32_t who, uint32_t slot)   /* SAVE's first press: who's (1 the organ's), from its slot */
+{
+    ui.save_who = (uint8_t)who;
+    ui.save_to = (uint8_t)(slot + 1u);
+    save_say();
+}
+static void o_store(uint32_t s);
+static void save_commit(void)                /* SAVE's second: into the slot picked */
+{
+    const uint32_t s = ui.save_to - 1u;
+    ui.save_to = 0;
+    if (ui.save_who)
+        o_store(s);
+    else {
+        set.slot = (uint8_t)s;
+        save();
+    }
+}
 static void save_button(void)
 {
     if (!ui.save_to) {
         if (ui.page != PG_PATCH)
             page_go(PG_PATCH);
-        ui.save_to = (uint8_t)(set.slot + 1u);
-        save_say();
-        return;
-    }
-    set.slot = (uint8_t)(ui.save_to - 1u);
-    ui.save_to = 0;
-    save();
+        save_start(0, set.slot);
+    } else
+        save_commit();
 }
 static void save_pick(int32_t e)             /* PRESET turned while saving: the slot */
 {
-    ui.save_to = (uint8_t)(clamp((int32_t)ui.save_to - 1 + e, 0, NSLOTS - 1) + 1);
+    ui.save_to = (uint8_t)(clamp((int32_t)ui.save_to - 1 + e, 0, (int32_t)(ui.save_who ? ONSLOT : NSLOTS) - 1) + 1);
     save_say();
+}
+static void name_trim(char *n)               /* (a name's spaces at the end left off) */
+{
+    uint32_t i;
+    for (i = PNAME_N; i && n[i - 1u] <= ' '; i--)
+        n[i - 1u] = 0;
 }
 static void save(void)                       /* the settings, and the sound into its slot */
 {
@@ -4148,8 +4173,7 @@ static void save(void)                       /* the settings, and the sound into
     BANK_P(set.slot) = patch;
     for (i = 0; i < MO_DVOL; i++)            /* (the knobs' own, under the motion loop's sweeps) */
         ((uint8_t *)&BANK_P(set.slot))[MO_BASS_AT[i]] = mo.hv[i];
-    for (i = PNAME_N; i && cur_name[i - 1u] <= ' '; i--)   /* (its spaces at the end left off) */
-        cur_name[i - 1u] = 0;
+    name_trim(cur_name);
     if (memcmp(names.n[set.slot], cur_name, PNAME_N)) {
         memcpy(names.n[set.slot], cur_name, PNAME_N);
         names_dirty = 1;
@@ -4625,7 +4649,8 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_FMOD] = {[EN_K1] = "LFO 2 to cutoff"},
     [PG_EFX] = {[EN_K1] = "Distortion amount", "Osc 2 to cutoff"},
     [PG_XMOD] = {[EN_K1] = "Cutoff follows keys", "Level limiter"},
-    [PG_ATOUCH] = {[EN_K1] = "Pressure to cutoff", "Pressure: LFO 1 vibrato", "Pressure: LFO 2 faster"},
+    [PG_ATOUCH] = {[EN_K1] = "Pressure to cutoff", "Pressure: LFO 1 vibrato", "Pressure: LFO 2 faster",
+                   "Piano/organ keys press bass"},
     [PG_WHEELS] = {[EN_PRESET] = "Bend range, semitones", [EN_K1] = "Mod wheel to cutoff", "Mod wheel: LFO 1 vibrato",
                    "Mod wheel: LFO 2 to cutoff", "Mod wheel to osc 2 pitch"},
     [PG_GMIDI] = {[EN_K1] = "Bass note channel", "Drums' note channel", "Piano's note channel", "Organ upper's channel",
@@ -5977,12 +6002,23 @@ static void input(void)
                 key_send(0xA0u, (uint32_t)note, ui.prs[k], ui.och[k]);
         }
     }
-    {                                        /* the bass's pressure (AFTERTOUCH): its held keys' most */
-        uint32_t m = 0;
+    {                                        /* the bass's pressure (AFTERTOUCH): its held keys' most (the piano's or
+                                              * the organ's too by KEYS FROM, its K4) */
+        uint32_t m = 0, mo = 0, mr = 0;
         for (k = 0; k < NKEYS; k++)
-            if ((keys >> k & 1u) && !(ui.rkeys >> k & 1u) && ui.prs[k] > m)
-                m = ui.prs[k];
-        at_keys = ui.drum || !set.local ? 0u : m;
+            if (!(keys >> k & 1u))
+                ;
+            else if (ui.rkeys >> k & 1u)
+                mr = ui.prs[k] > mr ? ui.prs[k] : mr;
+            else if (ui.okeys >> k & 1u)
+                mo = ui.prs[k] > mo ? ui.prs[k] : mo;
+            else
+                m = ui.prs[k] > m ? ui.prs[k] : m;
+        at_okeys = mo;
+        mo = set.at_from & AT_ORGAN ? mo : 0u;
+        mr = set.at_from & AT_PIANO ? mr : 0u;
+        m = mr > m ? mr : m;
+        at_keys = ui.drum || !set.local ? 0u : mo > m ? mo : m;
     }
     ui.btn_in = btn;
     for (k = 0; k < NB; k++) {               /* a button pressed: its name, and what it does here */
@@ -6004,9 +6040,9 @@ static void input(void)
             mo_cmd(k == B_OCTUP);
             continue;
         }
-        if ((ui.save_to || ui.osave_to) && k != B_SAVE) {   /* (saving: another button lets it go, and does
+        if (ui.save_to && k != B_SAVE) {   /* (saving: another button lets it go, and does
                                               * nothing else) */
-            ui.save_to = ui.osave_to = 0;
+            ui.save_to = 0;
             app_say("SAVE", "CANCELLED");
             continue;
         }
@@ -6137,10 +6173,6 @@ static void input(void)
             save_pick(e);
             continue;
         }
-        if (ui.osave_to && k == EN_PRESET) {  /* (the organ's, saving: the same) */
-            o_save_pick(e);
-            continue;
-        }
         if (home_knob(k)) {
             home_knob_turn(k, e);
             continue;
@@ -6203,7 +6235,7 @@ static void input(void)
     }
     {                                        /* saving: the display's blink (slot_disp) */
         static uint8_t blink;
-        const uint8_t b = (ui.save_to || ui.osave_to) && plat_ms() / SAVE_BLINK_MS & 1u;
+        const uint8_t b = ui.save_to && plat_ms() / SAVE_BLINK_MS & 1u;
         if (b != blink) {
             blink = b;
             ui.redraw = 1;
@@ -7050,7 +7082,7 @@ static void mod_draw(void)
     static const char *const LBL[8][4] = {{"KEY TRACK", "LIMITER"}, {"VELOCITY", "RETRIGGER", "COUNT", "FIXED SUS"},
                                           {"KEYSYNC", "SPEED/SYNC", "SLEW"}, {"SEQ RETRIG", "SWING"},
                                           {"BASS SEND", "DRUM SEND", "PIANO SEND", "ORGAN SEND"},
-                                          {"FILTER", "LFO1 PITCH", "LFO2 SPEED"},
+                                          {"FILTER", "LFO1 PITCH", "LFO2 SPEED", "KEYS FROM"},
                                           {"FILTER", "LFO1 PITCH", "LFO2 FILT", "OSC2 PITCH"}, {"WOW"}};
     static const char *const ENV_T[3] = {"ENV MOD: AMP ENV", "ENV MOD: MOD ENV", "ENV MOD: AMP+MOD"};
     const int env = ui.page == PG_EMOD ? 1 : ui.page == PG_LFO2 ? 2 : ui.page == PG_AMOD ? 3 : ui.page == PG_SMOD ? 4
@@ -7933,7 +7965,7 @@ static void master_draw(void)
     cv_rect(96, 22, 136, 50, RGB(4, 4, 4));  /* the display: black, its window, three digits */
     cv_rect(100, 26, 72, 42, RGB(20, 16, 20));
     slot_disp(t);
-    if (ui.org_at && !ui.save_to) {          /* (a control just changed: its value, as the Bass Station II's, -63..127;
+    if (ui.org_at && !(ui.save_to && !ui.save_who)) {          /* (a control just changed: its value, as the Bass Station II's, -63..127;
                                               * saving: the slot) */
         seg_num(param_get(ui.org, &patch), t);
     }
@@ -11258,6 +11290,8 @@ int app_expect(const char *what, int *got)
         *got = ui.vel[ui.last_key];
     else if (!strcmp(what, "prs"))
         *got = ui.prs[ui.last_key];
+    else if (!strcmp(what, "atkeys"))        /* the bass's pressure from the keys (AFTERTOUCH) */
+        *got = (int32_t)at_keys;
     else if (!strncmp(what, "turns", 5))    /* turnsN: encoder N's count (plat.h EN_*) */
         *got = ui.turns[atoi(what + 5) % NE];
     else {                                   /* a control on this page, by its name on the screen */
