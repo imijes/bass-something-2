@@ -79,4 +79,33 @@ release REC
 wait 50
 expect mo_n 0
 expect olbar0 0
+# the organ's volume (SELECT on its HOME) too
+expect page 52
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+wait 500
+turn SELECT -20
+wait 1000
+press REC
+wait 50
+tap OCT-
+wait 50
+release REC
+wait 50
+expect b3vol_off 20
+wait 2500
+turn SELECT 20
+wait 4400
+expect b3vol_off >5
+press REC
+wait 50
+tap OCT+
+wait 50
+release REC
+wait 50
+expect mo_n 0
+expect b3vol_off 0
 midi 80 3C 00

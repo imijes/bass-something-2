@@ -261,6 +261,10 @@ reboot
 wait 600
 expect b3_slot 6
 expect obar0 6
+# the Leslie's with it: its trimmers (HORN RISE TIME, FAST SPEED), its speed (FAST)
+expect oles0 0
+expect oles3 68
+expect ofast 1
 # HOME: PRESET the preset there too; ALGO the 16', K4 the 2 2/3'; SELECT its own volume
 tap HOME
 wait 30

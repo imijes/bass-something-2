@@ -922,7 +922,7 @@ expect cents_abs <200
 midi 80 30 00
 wait 300
 # EFFECTS (FX again): Osc Filter Mod (K2), oscillator 2 on the cutoff at audio rate: with the filter shut (its
-# frequency 0) the note all but gone, and with it full opened in time with oscillator 2, louder (measured: -57, -46 dB)
+# frequency 0) the note all but gone, and with it full opened in time with oscillator 2, louder (measured: -49, -38 dB)
 bank_init
 reboot
 wait 600
@@ -939,7 +939,7 @@ midi 90 30 7F
 wait 300
 peakreset
 wait 300
-expect peak_db_max -53
+expect peak_db_max -45
 midi 80 30 00
 wait 900
 tap SEL
@@ -996,7 +996,7 @@ midi 90 30 7F
 wait 300
 peakreset
 wait 300
-expect peak_db_max -43
+expect peak_db_max -35
 midi 80 30 00
 wait 900
 spin K4 -127

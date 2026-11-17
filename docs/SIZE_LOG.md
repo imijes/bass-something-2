@@ -236,3 +236,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-16 | 7eec678+ | Organ lower manual: four drawbar sets, A#/B preset keys, its own channel | 502,804 | -24 | 78,760 | 76,492 | +1,168 | 21,812 | 285,676 |
 | 2026-11-16 | 7eec678+ | Organ hints for the two manuals; the upper manual's notes lit on its own roll | 504,748 | +1,944 | 76,816 | 76,524 | +32 | 21,780 | 285,676 |
 | 2026-11-16 | 9441972+ | Organ motion: all four drawbar sets, LANES by set | 505,372 | +624 | 76,192 | 76,876 | +352 | 21,428 | 285,680 |
+| 2026-11-16 | 2be2871+ | Volume balance, organ volume motion, button hints, Leslie in organ presets | 505,628 | +256 | 75,936 | 76,908 | +32 | 21,396 | 286,064 |

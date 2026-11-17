@@ -15,6 +15,8 @@ typedef struct {                             /* an organ preset's sound (app.c's
     uint8_t ua[9];                           /* the upper manual's A# set (bar: its B set, the percussion's) */
     uint8_t la[9], lbar[9];                  /* the lower manual's A# and B sets */
     uint8_t ub, lb;                          /* each manual's preset key: 1 its B set, 0 its A# */
+    uint8_t les[8];                          /* the Leslie's trimmers (b3_rotor's), 0..127 (64: the 122's) */
+    uint8_t speed, swell, swell_rest, spare; /* the Leslie's speed (0 slow, 1 the brake, 2 fast); KEY SWELL, its rest */
 } b3_patch_t;
 void b3_init(void);
 uint32_t b3_key(uint32_t lower, uint32_t note);   /* a note's key code on a manual (b3_note's) */

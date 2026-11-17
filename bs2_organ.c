@@ -24,8 +24,10 @@
  *   REC, PLAY and SEQ (held: cleared) its part of the pattern, as the piano's.
  * Its MIDI: notes on its channel (b3_chan), its CCs on its CC channel (organ_cc) */
 #define ONSLOT 32u
-#define ORG_MAGIC 0x32334F42u                /* "BO32" (the two manuals) */
+#define ORG_MAGIC 0x33334F42u                /* "BO33" (the Leslie's settings in each preset) */
+#define ORG_MAGIC_2 0x32334F42u              /* "BO32": the two manuals, the Leslie's in the settings */
 #define ORG_MAGIC_1 0x31334F42u              /* "BO31": one */
+#define ORG_P2 __builtin_offsetof(b3_patch_t, les)   /* (a BO32 preset's size) */
 _Static_assert(__builtin_offsetof(b3_patch_t, ua) == 20, "a bank from before the lower manual: its presets 20 bytes");
 typedef struct {
     uint32_t magic;
@@ -62,6 +64,11 @@ static void organ_manuals(b3_patch_t *p)     /* (a preset from before the lower 
         p->ua[i] = p->bar[i], p->la[i] = i == 2u ? 8u : i == 3u ? 6u : 0u, p->lbar[i] = i == 2u || i == 3u ? 8u : 0u;
     p->ub = p->lb = 1;
 }
+static void organ_leslie(b3_patch_t *p)      /* (a preset from before the Leslie's were its: the settings' then) */
+{
+    memcpy(p->les, set.les, sizeof p->les);
+    p->speed = 0, p->swell = set.oswell, p->swell_rest = set.oswell_rest, p->spare = 0;
+}
 static void organ_factory(uint32_t s)        /* slot s as the factory has it */
 {
     b3_patch_t *p = &obank.p[s];
@@ -70,6 +77,8 @@ static void organ_factory(uint32_t s)        /* slot s as the factory has it */
     __builtin_memset(p, 0, sizeof *p);
     __builtin_memset(obank.name[s], 0, PNAME_N);
     p->vib = 5, p->drive = 20, p->click = 64, p->width = 100;
+    __builtin_memset(p->les, 64, sizeof p->les);   /* (the Leslie's trimmers: the 122's; KEY SWELL's rest 70 %) */
+    p->swell_rest = 89;
     if (s < sizeof OFACT / sizeof OFACT[0]) {
         n = OFACT[s].name, b = OFACT[s].bars;
         p->perc_on = OFACT[s].perc, p->perc_3rd = OFACT[s].third, p->perc_fast = OFACT[s].fast;
@@ -88,18 +97,24 @@ static void organ_pick(uint32_t s)           /* slot s's sound, at once (what wa
     memcpy(oname, obank.name[s], PNAME_N);
     odirty = 0;
     o_sent = 1;
+    ui.obrake = opatch.speed == 1u, ui.ofast = opatch.speed == 2u;   /* (its Leslie's speed as saved) */
 }
 static void organ_load(void)                 /* (app_init: its bank, else the factory's) */
 {
     uint32_t s;
-    enum { OLD_P = 20, OLD_SIZE = 4 + ONSLOT * (OLD_P + PNAME_N) };   /* (a bank from before the lower manual) */
+    enum { OLD_P = 20, OLD_SIZE = 4 + ONSLOT * (OLD_P + PNAME_N),   /* (a bank from before the lower manual; from */
+           OLD_SIZE2 = 4 + ONSLOT * (ORG_P2 + PNAME_N) };          /* before the Leslie's were each preset's) */
     const int n = plat_store_load(OBJ_ORGAN, &obank, sizeof obank);
-    if (n == OLD_SIZE && obank.magic == ORG_MAGIC_1) {   /* (its names to their place, then its presets, the last first) */
+    const uint32_t op = n == OLD_SIZE && obank.magic == ORG_MAGIC_1 ? OLD_P
+                      : n == OLD_SIZE2 && obank.magic == ORG_MAGIC_2 ? ORG_P2 : 0u;
+    if (op) {                                /* (its names to their place, then its presets, the last first) */
         uint8_t *const o = (uint8_t *)&obank + 4;
-        memmove(obank.name, o + ONSLOT * OLD_P, ONSLOT * PNAME_N);
+        memmove(obank.name, o + ONSLOT * op, ONSLOT * PNAME_N);
         for (s = ONSLOT; s-- > 0;) {
-            memmove(&obank.p[s], o + s * OLD_P, OLD_P);
-            organ_manuals(&obank.p[s]);
+            memmove(&obank.p[s], o + s * op, op);
+            if (op == OLD_P)
+                organ_manuals(&obank.p[s]);
+            organ_leslie(&obank.p[s]);
         }
         obank.magic = ORG_MAGIC;
     } else if (n != (int)sizeof obank || obank.magic != ORG_MAGIC) {
@@ -116,12 +131,12 @@ static void organ_block(void)                /* the render's, before the second 
         b3_set(&opatch);
     }
     b3_leslie(ui.ofast, ui.obrake);
-    b3_rotor(set.les);
+    b3_rotor(opatch.les);
     {                                        /* the swell: MIDI's pedal, and with KEY SWELL the keys' pressure opening
                                               * it from its rest */
         uint32_t e = 127u - ui.oexpr_off;
-        if (set.oswell)
-            e = e * (set.oswell_rest + (at_keys > 127u ? 127u : at_keys) * (127u - set.oswell_rest) / 127u) / 127u;
+        if (opatch.swell)
+            e = e * (opatch.swell_rest + (at_keys > 127u ? 127u : at_keys) * (127u - opatch.swell_rest) / 127u) / 127u;
         o_swell = (uint8_t)e;
         b3_expr(e);
     }
@@ -217,7 +232,7 @@ static const char *const OTRIM[8] = {"HORN RISE TIME", "HORN FALL TIME", "HORN S
 static uint32_t o_speed(void) { return ui.obrake ? 1u : ui.ofast ? 2u : 0u; }
 static void o_trim_text(uint32_t i, char *t)  /* a trimmer's value: a time in tenths of a second, a speed in RPM */
 {
-    const float f = b3_trim(i, set.les[i]);
+    const float f = b3_trim(i, opatch.les[i]);
     if (i & 2u) {
         int_text((int32_t)(f * 60.0f + 0.5f), t);
         text_cat(t, " RPM");
@@ -298,22 +313,22 @@ static int o_turn(uint32_t k, int32_t e)
             ui.obrake = v == 1, ui.ofast = v == 2;
             ui.redraw = 1;
             app_say("LESLIE", OSPD[v]);
-        } else if (k >= EN_K1 && (ui.oles == 1u || ui.oles == 2u || ui.oles == 3u)) {   /* the trimmers (kept as the
+        } else if (k >= EN_K1 && (ui.oles == 1u || ui.oles == 2u || ui.oles == 3u)) {   /* the trimmers (the preset's, as
                                               * GLO settings are) */
             const uint32_t j = ui.oles == 1u ? VT[0][k - EN_K1] : VT[1][k - EN_K1] + (ui.oles == 3u ? 4u : 0u);
-            set.les[j] = (uint8_t)clamp((int32_t)set.les[j] + e, 0, 127);
-            ui.redraw = 1;
+            opatch.les[j] = (uint8_t)clamp((int32_t)opatch.les[j] + e, 0, 127);
+            organ_changed();
             o_trim_text(j, t);
             app_say(OTRIM[j], t);
-        } else if (ui.oles == 4u && k == EN_K2) {   /* KEY SWELL, its rest (settings, kept as GLO's) */
-            set.oswell = e > 0;
-            ui.redraw = 1;
-            app_say("KEY SWELL", OFF_ON[set.oswell]);
+        } else if (ui.oles == 4u && k == EN_K2) {   /* KEY SWELL, its rest (the preset's) */
+            opatch.swell = e > 0;
+            organ_changed();
+            app_say("KEY SWELL", OFF_ON[opatch.swell]);
         } else if (ui.oles == 4u && k == EN_K3) {
-            set.oswell_rest = (uint8_t)clamp((int32_t)set.oswell_rest + e, 0, 127);
-            int_text((int32_t)set.oswell_rest * 100 / 127, t);
+            opatch.swell_rest = (uint8_t)clamp((int32_t)opatch.swell_rest + e, 0, 127);
+            int_text((int32_t)opatch.swell_rest * 100 / 127, t);
             text_cat(t, "%");
-            ui.redraw = 1;
+            organ_changed();
             app_say("SWELL REST", t);
         } else if (k == EN_K4) {             /* (its volume: a setting, kept with GLO's; SAVE stays dark) */
             set.b3vol_off = (uint8_t)(127 - clamp(127 - (int32_t)set.b3vol_off + e, 0, 127));
@@ -395,6 +410,7 @@ static void o_save_button(void)
     ui.osave_to = 0;
     for (i = PNAME_N; i && oname[i - 1u] <= ' '; i--)   /* (its spaces at the end left off) */
         oname[i - 1u] = 0;
+    opatch.speed = (uint8_t)o_speed();      /* (the Leslie's speed now, the preset's to start with) */
     obank.p[s] = opatch;
     if (mo.n)                                /* (the drawbars as the hand left them, under the motion loop's) */
         for (i = 0; i < 36u; i++)
@@ -596,7 +612,7 @@ static void oh_head(const char *line2, const char *cyan)   /* the HOMEs' head: t
         cv_text(232 - text_w(&FONT_T, v), 8 + SEG_SH + 16, &FONT_T, v, P_SILK);
         tag(232 - text_w(&FONT_T, v) / 2, 8 + SEG_SH + 20, EN_SELECT);
     }
-    if (set.oswell || ui.oexpr_off) {        /* the swell pedal, side on, when it's played (KEY SWELL, MIDI's CC 11):
+    if (opatch.swell || ui.oexpr_off) {        /* the swell pedal, side on, when it's played (KEY SWELL, MIDI's CC 11):
                                               * toe down open, its heel on its pivot; how open under it */
         char v[8] = "";
         const int32_t a = 127 - (int32_t)o_swell;   /* (0 open: the toe 3 px down; closed: 13 up) */
@@ -1005,7 +1021,7 @@ static void o_rotors(void)                   /* Leslie-122H-Rotor-and-Tension-Pu
     for (i = 0; i < 4; i++) {
         const uint32_t j = i < 2 ? 2u + (uint32_t)i : 4u + (uint32_t)i;
         const int32_t x = 60 + 42 * (i & 1), y = i < 2 ? 124 : 142;
-        int_text((int32_t)(b3_trim(j, set.les[j]) * 60.0f + 0.5f), t);
+        int_text((int32_t)(b3_trim(j, opatch.les[j]) * 60.0f + 0.5f), t);
         print_c(x, y - 2, OSPD[(i & 1) * 2], P_DIM);
         print_c(x, y + 7, t, knob_lit(EN_K1 + (uint32_t)i) ? P_CYAN : P_SILK);
         tag(x, y + 10, EN_K1 + (uint32_t)i);
@@ -1061,7 +1077,7 @@ static void o_controls(int low)              /* Leslie-122H-Controls.webp: the p
             const uint32_t j = 4u * r + (uint32_t)i, on = r == (uint32_t)(low != 0);
             const int32_t cy = r ? 124 : 82;
             char t[12];
-            o_trimmer(cx, cy, set.les[j], on ? (knob_lit(EN_K1 + (uint32_t)i) ? KF_LIT : 0u) : KF_DIM);
+            o_trimmer(cx, cy, opatch.les[j], on ? (knob_lit(EN_K1 + (uint32_t)i) ? KF_LIT : 0u) : KF_DIM);
             if (on)
                 tag(cx, cy, EN_K1 + (uint32_t)i);
             o_trim_text(j, t);
@@ -1129,9 +1145,9 @@ static void o_amp(void)                      /* Leslie-122H-Amp.webp: the chassi
             if (i == 0u)
                 int_text(opatch.drive, t);
             else if (i == 1u)
-                t[0] = 0, text_cat(t, OFF_ON[set.oswell]);
+                t[0] = 0, text_cat(t, OFF_ON[opatch.swell]);
             else if (i == 2u)
-                int_text((int32_t)set.oswell_rest * 100 / 127, t), text_cat(t, "%");
+                int_text((int32_t)opatch.swell_rest * 100 / 127, t), text_cat(t, "%");
             else
                 int_text(127 - (int32_t)set.b3vol_off, t);
             print_c(cx, 128, LBL[i], RGB(30, 30, 30));

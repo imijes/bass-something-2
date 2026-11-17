@@ -888,7 +888,8 @@ static void seq_beat(void)                   /* a 16th of the arp's rhythm, the 
 #define MO_TOUCH_MS 300u                     /* a hand on it holds the loop's moves off so long after its last */
 #define MO_NSE 10u                           /* the Space Echo's (MO_SE_AT) */
 enum { MO_CUTOFF, MO_RESO, MO_RHY, MO_AOCT, MO_DVOL, MO_DTUNE = MO_DVOL + NDT, MO_SE = MO_DTUNE + NDT, MO_ORG = MO_SE + MO_NSE,
-       MO_ROLL = MO_ORG + 36, MO_PAT = MO_ROLL + 1 + NDT };   /* (MO_ORG: the organ's drawbars, its four sets' nine) */         /* its
+       MO_OVOL = MO_ORG + 36, MO_ROLL, MO_PAT = MO_ROLL + 1 + NDT };   /* (MO_ORG: the organ's drawbars, its four sets'
+                                              * nine; MO_OVOL its volume) */         /* its
                                               * values (mo_ref), then the roll: MO_ROLL off, MO_ROLL + 1 + the drum on (its
                                               * velocity, the accent's bit 7); a drum pattern cued (its number) */
 #define MO_NT (MO_ROLL + 2)                  /* what a hand holds: the values, the roll, the patterns */
@@ -974,7 +975,7 @@ static int mo_lane(uint32_t g)               /* move g's lane on (LANES) */
     if (w == 2u)
         return g - MO_SE == l - 1u;
     if (w == 3u)
-        return l <= 4u ? (g - MO_ORG) / 9u == l - 1u : (g - MO_ORG) % 9u == l - 5u;   /* (a set; a footage, in
+        return g == MO_OVOL ? l == 14u : l <= 4u ? (g - MO_ORG) / 9u == l - 1u : l < 14u && (g - MO_ORG) % 9u == l - 5u;   /* (a set; a footage, in
                                               * each set) */
     return l == 1u ? g >= MO_DVOL && g < MO_DTUNE : l == 2u ? g >= MO_DTUNE && g < MO_SE
          : l == 3u ? g >= MO_ROLL && g < MO_PAT : g == MO_PAT;   /* (the drums': volumes, tunings, the roll, cues) */
@@ -1405,7 +1406,10 @@ static float sag_gain(void)                  /* a modulation step: the gain the 
     return 1.0f / (1.0f + SAG_K * fm_maxf(voice.sag_f - SAG_TH, 0.0f));
 }
 
-#define DT_MIX 4.0f                          /* +12 dB */
+#define BASS_MIX 0.75f                       /* the bass's, at full volumes: by ear and by RMS (2026-11-16) 8 dB over the
+                                              * 0.3 it had, buried under the others */
+#define DT_MIX 0.85f                         /* the drums', over the bass's: their old 4 x 0.3, 3 dB down; 11 dB under the
+                                              * bass's level now, as the user set them by ear */
 #define RMI_MIX 1.4f                         /* the RMI's: a note's peak about the bass's (a chord over it), at full volumes */
 #define OUT_FS 8300000.0f                    /* the output's full scale, as MASTER's gain has it */
 #define OUT_KNEE (0.7f * OUT_FS)
@@ -1492,6 +1496,7 @@ static void se_apply(void)
 }
 #ifdef PLAT_HOST
 static int32_t usb_pk[10];                   /* (the USB audio's channels' peaks since the tests' last look, 1..N) */
+static double usb_ms[10], usb_msn;            /* (and their squares' sum, over usb_msn samples: usbrms) */
 #endif
 static uint32_t usb_off;                     /* the frames already rendered of the platform's block (app_render's halves) */
 static inline int16_t usb_s16(float s)       /* a sample, the master's scale, as the USB audio's 16 bits (the master's >> 8) */
@@ -1765,14 +1770,14 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             }
             if (!(++scope_ph & 3u))          /* (HOME's scope: every 4th, before the volume) */
                 scope_buf[scope_w++ & (SCOPE_N - 1u)] = (int8_t)fm_clampf(s * 100.0f, -127.0f, 127.0f);
-            s *= 0.3f * gain_now * bass_vol;   /* (MASTER: the FM-1's knob, over every instrument; the bass's own Volume) */
+            s *= BASS_MIX * gain_now * bass_vol;   /* (MASTER: the FM-1's knob, over every instrument; the bass's own Volume) */
 #ifdef PLAT_HOST
             dsum += s;
             dabs += fm_fabsf(s);
 #endif
             dq_sample();
             {
-                const float g = DT_MIX * 0.3f * gain_now * ((float)dt.master / 127.0f), b = s;   /* the drums: after the
+                const float g = DT_MIX * gain_now * ((float)dt.master / 127.0f), b = s;   /* the drums: after the
                                                   * bass's chain, over its level (hits, it sustains), under their own
                                                   * MASTER VOLUME (K2) */
                 s += dt_next(g) + dq_click_next() * g;
@@ -1837,7 +1842,9 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                     for (c = 0; c < 2u + (uint32_t)PLAT_USB_CH; c++) {
                         const int32_t a = c < 2u ? lr[2u * i + c] / 256 : u[c - 2u] < 0 ? -u[c - 2u] : u[c - 2u];
                         usb_pk[c] = a > usb_pk[c] ? a : usb_pk[c];
+                        usb_ms[c] += (double)a * (double)a;
                     }
+                    usb_msn++;
                 }
 #endif
                 u += PLAT_USB_CH_STRIDE, ur--;
@@ -1913,6 +1920,8 @@ static void mo_hand_set(settings_t *s)       /* the Space Echo's knobs in s as t
     if (mo.n)
         for (i = 0; i < MO_NSE; i++)
             ((uint8_t *)s)[MO_SE_AT[i]] = mo.hv[MO_SE + i];
+    if (mo.n)
+        s->b3vol_off = mo.hv[MO_OVOL];       /* (the organ's volume too) */
 }
 static int set_store(void)                   /* the settings into the store: 0 done */
 {
@@ -2883,7 +2892,7 @@ static const char *const MO_LN_BASS[1 + MO_DVOL] = {"ALL", "FREQUENCY", "RESONAN
 static const char *const MO_LN_DRUM[5] = {"ALL", "VOLUMES", "TUNINGS", "ROLL", "PATTERNS"};
 static const char *const MO_LN_ECHO[1 + MO_NSE] = {"ALL", "INTENSITY", "REPEAT RATE", "INPUT", "MODE", "REVERB",
                                                     "ECHO", "BASS SEND", "DRUM SEND", "PIANO SEND", "WOW"};   /* (MO_SE_AT's) */
-static const char *const MO_LN_ORG[14] = {"ALL", "UPPER A#", "UPPER B", "LOWER A#", "LOWER B", "16'", "5 1/3'", "8'", "4'", "2 2/3'", "2'", "1 3/5'", "1 1/3'", "1'"};
+static const char *const MO_LN_ORG[15] = {"ALL", "UPPER A#", "UPPER B", "LOWER A#", "LOWER B", "16'", "5 1/3'", "8'", "4'", "2 2/3'", "2'", "1 3/5'", "1 1/3'", "1'", "VOLUME"};
 static const param_t MO_P[NE] = {
     [EN_SELECT] = {"FOR", MF(mfor), 0, 4, MO_FOR_NAME}, [EN_PRESET] = {"CLEAR", MF(clear), 0, 0, 0},
     [EN_K1] = {"LENGTH", MF(len), 0, MO_NLEN - 1, MO_LEN_NAME}, [EN_K2] = {"SPEED", MF(speed), 0, 2, MO_SPD_NAME},
@@ -2892,7 +2901,7 @@ static const param_t MO_LANE_P[5] = {{"LANES", MF(lane[0]), 0, 0, MO_LN_ALL},
                                      {"LANES", MF(lane[0]), 0, MO_DVOL, MO_LN_BASS},
                                      {"LANES", MF(lane[1]), 0, 4, MO_LN_DRUM},
                                      {"LANES", MF(lane[2]), 0, MO_NSE, MO_LN_ECHO},
-                                     {"LANES", MF(lane[3]), 0, 13, MO_LN_ORG}};
+                                     {"LANES", MF(lane[3]), 0, 14, MO_LN_ORG}};
 
 static int32_t param_get(const param_t *q, const void *p)
 {
@@ -4767,7 +4776,8 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
         return ui.se ? "HOME tap: Bass Something 2" : ui.drum ? "HOME tap: Piano Something 368X"
                : ui.b3 ? "HOME tap: Space Something 201" : ui.rmi ? "HOME tap: Organ Something B3"
                : "HOME tap: Drum Something 400";
-    if (ui.b3 && (ORGAN_PAGE(ui.page) || ui.page == PG_NAME || ui.page < PG_HOME))   /* (the organ's: o_button) */
+    const int own = k != B_GLO && k != B_OCTDN && k != B_OCTUP;   /* (GLO and the octaves: as everywhere, below) */
+    if (own && ui.b3 && (ORGAN_PAGE(ui.page) || ui.page == PG_NAME || ui.page < PG_HOME))   /* (the organ's: o_button) */
         return k == B_SEL ? (ORGAN_PAGE(ui.page) ? "SEL tap: Next panel, hold: Manual" : "SEL tap: Next panel")
                : k == B_EDIT ? (ORGAN_PAGE(ui.page) ? "EDIT tap: Vibrato, hold: A#/B" : "EDIT tap: Vibrato")
                : k == B_ARP ? "ARP tap: Leslie, hold: Brake"
@@ -4777,13 +4787,16 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
                : k == B_REC ? "REC tap: Record organ, hold: Erase"
                : k == B_PLAY ? "PLAY tap: Organ part on/off, hold: Undo" : k == B_SEQ ? "SEQ hold: Clear the organ part"
                : k == B_SAVE ? "Save: PRESET picks where" : k == B_HOME ? "Organ Home" : 0;
-    if (ui.se && (SE_PAGE(ui.page) || ui.page < PG_HOME))   /* (the Space Echo's: its panels, se_button) */
-        return k == B_SEL ? "Next panel" : k == B_HOME ? "Echo Home" : 0;
-    if (ui.rmi && (RMI_PAGE(ui.page) || ui.page < PG_HOME))   /* (the RMI's: its panel and mods, rmi_button) */
+    if (own && k != B_REC && ui.se && (SE_PAGE(ui.page) || ui.page < PG_HOME))   /* (the Space Echo's: its panels,
+                                              * se_button) */
+        return k == B_SEL ? "SEL tap: Next panel" : k == B_HOME ? "Echo Home" : k == B_SAVE ? "Echo keeps itself"
+               : "Unused here, SEL: panels";
+    if (own && ui.rmi && (RMI_PAGE(ui.page) || ui.page < PG_HOME))   /* (the RMI's: its panel and mods, rmi_button) */
         return k == B_SEL ? (ui.page == PG_RSEL ? "SEL tap: Next toggle" : ui.page == PG_RVIEW ? "SEL tap: Change Piano Presets"
                              : "SEL tap: Piano Presets")
                : k == B_HOME ? "Piano Home" : k == B_REC ? "REC tap: Record piano, hold: Erase"
-               : k == B_PLAY ? "PLAY tap: Piano part on/off, hold: Undo" : k == B_SEQ ? "SEQ hold: Clear the piano part" : k == B_SAVE ? "SAVE tap: Save drums + piano" : 0;
+               : k == B_PLAY ? "PLAY tap: Piano part on/off, hold: Undo" : k == B_SEQ ? "SEQ hold: Clear the piano part" : k == B_SAVE ? "SAVE tap: Save drums + piano"
+               : "Unused here, SEL: panels";
     if (ui.drum && !RND_PAGE(ui.page)) {     /* (every button the drums', as dt_button: the bass's form) */
         const uint32_t f = ui.dt_fn;
         const char *to = 0, *more = 0;
@@ -5011,7 +5024,7 @@ static uint8_t *mo_ref(uint32_t g)           /* value g's */
 {
     return g < MO_DVOL ? (uint8_t *)&patch + MO_BASS_AT[g] : g < MO_DTUNE ? &dt.vol[g - MO_DVOL]
          : g < MO_SE   ? &dt.tune[g - MO_DTUNE] : g < MO_ORG ? (uint8_t *)&set + MO_SE_AT[g - MO_SE]
-         : &o_bars_of(&opatch, (g - MO_ORG) / 9u)[(g - MO_ORG) % 9u];
+         : g == MO_OVOL ? &set.b3vol_off : &o_bars_of(&opatch, (g - MO_ORG) / 9u)[(g - MO_ORG) % 9u];
 }
 static int mo_in(uint32_t t, float a, float p) { return p >= a ? t > a && t <= p : t > a || t <= p; }   /* in (a, p] */
 static void mo_put(float p, uint32_t g, uint32_t v)   /* a move in, in time's order */
@@ -10871,7 +10884,22 @@ int app_expect(const char *what, int *got)
         *got = set.se_vol_off;
     else if (!strcmp(what, "se_input"))
         *got = set.se_input;
-    else if (!strcmp(what, "b3vol_off"))
+    else if (!strcmp(what, "hintscan")) {   /* (the knobs set to something with no hint, each page's: printed) */
+        const uint32_t pg = ui.page, b3 = ui.b3;
+        uint32_t g, k;
+        *got = 0;
+        for (g = 0; g < NPAGES; g++)
+            for (k = 0; k < NE; k++) {
+                const param_t *p;
+                ui.page = (uint8_t)g, ui.b3 = ORGAN_PAGE(g) ? 1u : 0u;
+                char t[32] = {0};
+                p = knob_param(k);
+                knob_text(k, t);
+                if (((p && p->name) || t[0]) && !hint_of(k))
+                    printf("  nohint page %u knob %u %s [%s]\n", (unsigned)g, (unsigned)k, p && p->name ? p->name : "-", t), (*got)++;
+            }
+        ui.page = (uint8_t)pg, ui.b3 = (uint8_t)b3;
+    } else if (!strcmp(what, "b3vol_off"))
         *got = set.b3vol_off;
     else if (!strcmp(what, "rvol_off"))
         *got = set.rvol_off;
@@ -11090,7 +11118,9 @@ int app_expect(const char *what, int *got)
         *got = usb_pk[what[5] - '1'];
         usb_pk[what[5] - '1'] = 0;
     } else if (!strcmp(what, "usbpk0"))      /* (every channel's from 0) */
-        __builtin_memset(usb_pk, 0, sizeof usb_pk), *got = 0;
+        __builtin_memset(usb_pk, 0, sizeof usb_pk), __builtin_memset(usb_ms, 0, sizeof usb_ms), usb_msn = 0, *got = 0;
+    else if (!strncmp(what, "usbrms", 6) && what[6] >= '1' && what[6] <= '9')   /* (its RMS since usbpk0, 0..32767) */
+        *got = usb_msn ? (int32_t)__builtin_sqrt(usb_ms[what[6] - '1'] / usb_msn) : 0;
     else if (!strcmp(what, "olit"))          /* (the organ's upper manual's, on its roll) */
         *got = (int32_t)ui.olit;
     else if (!strcmp(what, "lit"))           /* the keys lit for the notes held (bit 0: F3 at octave 0) */
@@ -11190,6 +11220,8 @@ int app_expect(const char *what, int *got)
         *got = opatch.lb;
     else if (!strcmp(what, "odirty"))
         *got = odirty;
+    else if (!strncmp(what, "oles", 4) && what[4] >= '0' && what[4] <= '7')   /* (the preset's Leslie trimmers) */
+        *got = opatch.les[what[4] - '0'];
     else if (!strcmp(what, "ofast"))
         *got = ui.ofast;
     else if (!strcmp(what, "obrake"))
