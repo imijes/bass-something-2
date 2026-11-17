@@ -4116,13 +4116,14 @@ static void page_go(uint32_t g)
  * sound's own at first), and PRESET picks another without loading it; SAVE again stores the sound and its name there, and it's the sound's slot from then on.
  * Any other button lets it go (save_button, save_pick) */
 static void save(void);
-static void save_say(void)
+static void save_say_to(uint32_t to)       /* SAVE TO its slot (to: 1 the first), the bass's and the organ's */
 {
     char t[8];
-    slot_p_text(ui.save_to - 1u, t);
+    slot_p_text(to - 1u, t);
     app_say("SAVE TO", t);
     ui.msg_until = plat_ms() + 600000u;      /* (up till SAVE again, or another button) */
 }
+static void save_say(void) { save_say_to(ui.save_to); }
 static void save_button(void)
 {
     if (!ui.save_to) {
@@ -4636,10 +4637,10 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_GAUD] = {[EN_K1] = "The speaker's sound, or off", "Master tune"},
     [PG_GCTL] = {[EN_K1] = "Touch curve", "Knob speed-up", "Keys play the synth", "Notes piano to bass, or back"},
     [PG_NAME] = {[EN_K1] = "Which letter", "Change it", "Clear to the end"},
-    [PG_RVIEW] = {"Its own volume", "This toggle on or off", "Along the toggles", [EN_K1] = "Bass boost",
-                  "No decay, as an organ", "A sharper attack", "Its own volume"},
-    [PG_RSEL] = {"Its own volume", "This toggle on or off", "Along the toggles", [EN_K1] = "Bass boost", "No decay, as an organ",
-                 "A sharper attack", "Its own volume"},
+    [PG_RVIEW] = {"Piano's volume", "This toggle on or off", "Along the toggles", [EN_K1] = "Bass boost",
+                  "No decay, as an organ", "A sharper attack", "Piano's volume"},
+    [PG_RSEL] = {"Piano's volume", "This toggle on or off", "Along the toggles", [EN_K1] = "Bass boost", "No decay, as an organ",
+                 "A sharper attack", "Piano's volume"},
     [PG_SHOME] = {[EN_SELECT] = "Echo's own volume", "Drive into the tape", "Heads and spring", [EN_K1] = "Tape speed: delay", "Repeats, feedback", "Echo level",
                   "Spring level"},
     [PG_SIN] = {[EN_SELECT] = "Echo's own volume", "Drive into the tape", "Heads and spring"},
@@ -6772,8 +6773,11 @@ static void tags_draw(void)
     for (i = 0; i < ntags; i++) {            /* (the map's names; else the values of what turns) */
         const char *s = ui.map_until ? tags[i].s : tags[i].lit && tags[i].v[0] ? tags[i].v : 0;
         int32_t w, x, y = tags[i].y - 7;
-        if (!s)
+        if (!s) {                            /* (no value of its own: the organ's, drawn on its panel) the hint alone */
+            if (!ui.map_until && tags[i].lit && tags[i].h)
+                hint_pill(tags[i].x, tags[i].y + 10 < pan_h - 24 ? tags[i].y + 10 : tags[i].y - 26, tags[i].h);
             continue;
+        }
         w = text_w(&FONT_XS, s) + 6;
         x = clamp(tags[i].x - w / 2, 2, 238 - w);   /* (kept on the screen) */
         cv_rect(x - 1, y - 1, w + 2, 17, RGB(0, 0, 0));
@@ -7851,10 +7855,9 @@ static uint32_t seg_mask(char c)             /* c's lit segments, gfedcba (0: bl
             return SEG[i];
     return 0;
 }
-static void seg7(int32_t x, int32_t y, char c)
+static void seg7_at(int32_t x, int32_t y, char c, const int8_t R[7][4])   /* a digit, its segments a..g at R's x, y,
+                                              * w, h */
 {
-    static const int8_t R[7][4] = {{3, 0, 10, 3}, {13, 2, 3, 11}, {13, 15, 3, 11}, {3, 25, 10, 3},
-                                   {0, 15, 3, 11}, {0, 2, 3, 11}, {3, 12, 10, 3}};   /* a..g: x, y, w, h */
     uint32_t m = seg_mask(c), i;
     for (i = 0; i < 7u; i++) {
         const int8_t *r = R[i];
@@ -7865,19 +7868,17 @@ static void seg7(int32_t x, int32_t y, char c)
             cv_rect(x + r[0], y + r[1], r[2], r[3], RGB(34, 22, 26));
     }
 }
+static void seg7(int32_t x, int32_t y, char c)
+{
+    static const int8_t R[7][4] = {{3, 0, 10, 3}, {13, 2, 3, 11}, {13, 15, 3, 11}, {3, 25, 10, 3},
+                                   {0, 15, 3, 11}, {0, 2, 3, 11}, {3, 12, 10, 3}};
+    seg7_at(x, y, c, R);
+}
 static void seg7s(int32_t x, int32_t y, char c)   /* a digit as seg7's, smaller (10 x 18): the HOMEs' corner displays */
 {
     static const int8_t R[7][4] = {{2, 0, 6, 2}, {8, 1, 2, 7}, {8, 10, 2, 7}, {2, 16, 6, 2},
-                                   {0, 10, 2, 7}, {0, 1, 2, 7}, {2, 8, 6, 2}};   /* a..g: x, y, w, h */
-    uint32_t m = seg_mask(c), i;
-    for (i = 0; i < 7u; i++) {
-        const int8_t *r = R[i];
-        if (m >> i & 1u) {
-            cv_rect(x + r[0] - 1, y + r[1] - 1, r[2] + 2, r[3] + 2, RGB(90, 18, 34));   /* (its glow) */
-            cv_rect(x + r[0], y + r[1], r[2], r[3], RGB(252, 78, 112));
-        } else
-            cv_rect(x + r[0], y + r[1], r[2], r[3], RGB(34, 22, 26));
-    }
+                                   {0, 10, 2, 7}, {0, 1, 2, 7}, {2, 8, 6, 2}};
+    seg7_at(x, y, c, R);
 }
 /* a HOME's corner display: three small digits (seg7s), its right edge at r, its top y (SEG_SW x SEG_SH), the room under
  * it the patch's name's */

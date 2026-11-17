@@ -388,13 +388,7 @@ static const char *o_hint(uint32_t k)
 
 /* SAVE, as the bass's (save_button): its HOME's other view, the slot blinking on its display; PRESET picks; SAVE again
  * stores the sound and its name there */
-static void o_save_say(void)
-{
-    char t[8];
-    slot_p_text(ui.osave_to - 1u, t);
-    app_say("SAVE TO", t);
-    ui.msg_until = plat_ms() + 600000u;
-}
+static void o_save_say(void) { save_say_to(ui.osave_to); }
 static void o_save_button(void)
 {
     uint32_t s, i;

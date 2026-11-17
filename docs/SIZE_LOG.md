@@ -237,3 +237,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-16 | 7eec678+ | Organ hints for the two manuals; the upper manual's notes lit on its own roll | 504,748 | +1,944 | 76,816 | 76,524 | +32 | 21,780 | 285,676 |
 | 2026-11-16 | 9441972+ | Organ motion: all four drawbar sets, LANES by set | 505,372 | +624 | 76,192 | 76,876 | +352 | 21,428 | 285,680 |
 | 2026-11-16 | 2be2871+ | Volume balance, organ volume motion, button hints, Leslie in organ presets | 505,628 | +256 | 75,936 | 76,908 | +32 | 21,396 | 286,064 |
+| 2026-11-16 | cbbb6e9+ | Organ knob hints shown, shared seg7/save_say/pool_shift | 505,388 | -240 | 76,176 | 76,908 | +0 | 21,396 | 286,064 |

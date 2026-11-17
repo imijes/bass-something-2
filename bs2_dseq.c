@@ -178,28 +178,32 @@ static float dq_unsw(const dq_pat_t *p, float pos)   /* its way back: what the p
     h = 0.24f * (float)DQ_SWING[p->swing];
     return b + (q < h ? q * 12.0f / h : 12.0f + (q - h) * 12.0f / (24.0f - h));
 }
-/* the pool's one list: the other patterns' places as a hit goes in or out at abs (an empty pattern has no place) */
+/* a pool's one list (the drums', a part's): by events opened (open) or closed at abs, the list's events of esz bytes,
+ * its used count, each pattern's start (stride bytes apart) but self's moved with them (an empty pattern has no place) */
+static void pool_shift(void *ev, uint32_t esz, uint16_t *used, uint16_t *start, uint32_t stride, uint32_t self,
+                       uint32_t abs, uint32_t by, int open)
+{
+    uint8_t *const e = (uint8_t *)ev;
+    uint32_t i;
+    if (open)
+        __builtin_memmove(e + (abs + by) * esz, e + abs * esz, (*used - abs) * esz);
+    else
+        __builtin_memmove(e + abs * esz, e + (abs + by) * esz, (*used - abs - by) * esz);
+    for (i = 0; i < DQ_NPAT; i++) {
+        uint16_t *const st = (uint16_t *)((uint8_t *)start + i * stride);
+        if (i != self && (open ? *st >= abs : *st > abs))
+            *st = (uint16_t)(open ? *st + by : *st - by);
+    }
+    *used = (uint16_t)(open ? *used + by : *used - by);
+    dq.dirty = 1;
+}
 static void dq_open(uint32_t abs, uint32_t by, const dq_pat_t *self)
 {
-    uint32_t i;
-    for (i = (uint32_t)dqm.used; i-- > abs;)
-        dqm.ev[i + by] = dqm.ev[i];
-    for (i = 0; i < DQ_NPAT; i++)
-        if (&dqm.pat[i] != self && dqm.pat[i].start >= abs)
-            dqm.pat[i].start = (uint16_t)(dqm.pat[i].start + by);
-    dqm.used = (uint16_t)(dqm.used + by);
-    dq.dirty = 1;
+    pool_shift(dqm.ev, sizeof dqm.ev[0], &dqm.used, &dqm.pat[0].start, sizeof dqm.pat[0], (uint32_t)(self - dqm.pat), abs, by, 1);
 }
 static void dq_close(uint32_t abs, uint32_t by, const dq_pat_t *self)
 {
-    uint32_t i;
-    for (i = abs; i + by < dqm.used; i++)
-        dqm.ev[i] = dqm.ev[i + by];
-    for (i = 0; i < DQ_NPAT; i++)
-        if (&dqm.pat[i] != self && dqm.pat[i].start > abs)
-            dqm.pat[i].start = (uint16_t)(dqm.pat[i].start - by);
-    dqm.used = (uint16_t)(dqm.used - by);
-    dq.dirty = 1;
+    pool_shift(dqm.ev, sizeof dqm.ev[0], &dqm.used, &dqm.pat[0].start, sizeof dqm.pat[0], (uint32_t)(self - dqm.pat), abs, by, 0);
 }
 static void dq_next(const dq_pat_t *p)       /* what's next on the way: a hit, a beat or the loop's end */
 {
@@ -408,25 +412,11 @@ static void dq_copy(uint32_t a, uint32_t b)  /* pattern a onto b: empty, a copy,
 /* the piano's part: the pool's one list, as the drums' (dq_open, dq_close) */
 static void pq_open(uint32_t abs, uint32_t by, uint32_t self)
 {
-    uint32_t i;
-    for (i = (uint32_t)pqm.used; i-- > abs;)
-        pqm.ev[i + by] = pqm.ev[i];
-    for (i = 0; i < DQ_NPAT; i++)
-        if (i != self && pqm.start[i] >= abs)
-            pqm.start[i] = (uint16_t)(pqm.start[i] + by);
-    pqm.used = (uint16_t)(pqm.used + by);
-    dq.dirty = 1;
+    pool_shift(pqm.ev, sizeof pqm.ev[0], &pqm.used, &pqm.start[0], sizeof pqm.start[0], self, abs, by, 1);
 }
 static void pq_close(uint32_t abs, uint32_t by, uint32_t self)
 {
-    uint32_t i;
-    for (i = abs; i + by < pqm.used; i++)
-        pqm.ev[i] = pqm.ev[i + by];
-    for (i = 0; i < DQ_NPAT; i++)
-        if (i != self && pqm.start[i] > abs)
-            pqm.start[i] = (uint16_t)(pqm.start[i] - by);
-    pqm.used = (uint16_t)(pqm.used - by);
-    dq.dirty = 1;
+    pool_shift(pqm.ev, sizeof pqm.ev[0], &pqm.used, &pqm.start[0], sizeof pqm.start[0], self, abs, by, 0);
 }
 static void pq_del(uint32_t g, uint32_t i)
 {
