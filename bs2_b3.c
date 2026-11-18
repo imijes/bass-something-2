@@ -47,8 +47,9 @@
 #define B3_LES_N 1024u                       /* a rotor's line (a power of 2): its swing and its reflections */
 /* the cabinet's voicing, a reference organ's Leslie measured (its response over the same chord direct: the horn and
  * its driver 10-16 dB over the drum's 350 Hz from 700 Hz to 3 kHz, falling past 5 kHz; the drum's hump at 200 Hz;
- * tools/b3_compare.py): the horn's gain and a broad peak and a low pass on it, a peak on the drum's */
-#define B3_EQ_HORN 13.1f                     /* dB */
+ * tools/b3_compare.py; the horn's driver refitted to its chord's spectrum: its resonance near 1.8 kHz, its presence):
+ * the horn's gain and a peak and a low pass on it, a peak on the drum's */
+#define B3_EQ_HORN 16.9f                     /* dB */
 #define B3_PRE_HR 0.4f                       /* the preamp at DRIVE 0: its input this much into the clip and made up after
                                               * (a full chord bent it: sum tones 42 dB down, a reference organ's 60) */
 #define B3_RICH 0.005f                       /* a wheel's level under which its harmonics are not made (-46 dB: the
@@ -264,7 +265,7 @@ void b3_init(void)
     }
     {                                        /* the cabinet's voicing: RBJ's peaks (0: the horn's, 2: the drum's) and a
                                               * low pass (1: the horn's top) */
-        static const float F[3] = {1039.0f, 2711.0f, 207.0f}, Q[3] = {0.30f, 0.50f, 1.92f}, G[3] = {8.1f, 0.0f, 11.9f};
+        static const float F[3] = {1836.0f, 2768.0f, 207.0f}, Q[3] = {2.07f, 0.40f, 1.92f}, G[3] = {8.1f, 0.0f, 11.9f};
         uint32_t k;
         for (k = 0; k < 3u; k++) {
             const float om = 2.0f * FM_PI * F[k] / (k == 2u ? 0.5f * B3_RATE : B3_RATE),   /* (the drum's at half) */ al = fm_sinf(om) / (2.0f * Q[k]), c = fm_cosf(om),
