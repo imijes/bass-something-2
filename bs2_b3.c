@@ -74,6 +74,13 @@
  * rotors' wind, a rumble (30-250 Hz, falling past 1 kHz) at the fast speed, none at the slow; a drawbar's or a tab's
  * clunk (300-500 Hz, 20 ms) */
 #define B3_THUD 0.078f                        /* the thud's strike at its full */
+/* the percussion: its level over the 8' bar's (normal, soft), its fall to silence (fast, slow), s: as a reference
+ * organ's, measured (tools/b3_compare.py's perc takes: the 3rd 12 dB over the 8' at the strike, gone in 140 ms; the
+ * soft 2nd 3 dB under it, its shoulder held, gone in 385 ms) */
+#define B3_PERC_NORM 5.5f
+#define B3_PERC_SOFT 0.9f
+#define B3_PERC_FAST 0.14f
+#define B3_PERC_SLOW 0.385f
 #define B3_HUM 0.0072f                       /* the hum's level, the hiss's */
 #define B3_HISS 0.0024f
 #define B3_WIND_FREE 0.018f                   /* and each microphone's own, round the cabinet */
@@ -174,7 +181,7 @@ static struct {
     uint32_t pk[2];                          /* the upper manual's keys the percussion struck */
     float lv[2][9];                          /* each drawbar's level (b3_levels), the upper manual's sounding set's, the
                                               * lower's */
-    float perc, perc_k;                      /* its envelope, its fall a sample */
+    float perc, perc_k;                      /* its envelope (1 struck .. 0), its fall a step */
     uint32_t perc_t;                         /* samples since it struck (a chord's keys join it within B3_CH * 8) */
     uint8_t bar[2][9];                       /* the drawbars of the set each manual sounds, 0..8 */
     uint8_t vib[2];                          /* each manual through the scanner (VIBRATO UPPER, LOWER) */
@@ -233,7 +240,7 @@ static void b3_levels(void)                  /* the drawbars' levels (3 dB a ste
         for (b = 0; b < 9u; b++)
             b3.lv[m][b] = b3.bar[m][b] && !(b == 8u && b3.perc_on && !m) ? fm_exp2f(((float)b3.bar[m][b] - 8.0f) * 0.5f)
                                                                          : 0.0f;
-    b3.perc_k = fm_exp2f(-(float)B3_CH / ((b3.perc_fast ? 0.115f : 0.34f) * B3_RATE) * 1.442695f);
+    b3.perc_k = (float)B3_CH / ((b3.perc_fast ? B3_PERC_FAST : B3_PERC_SLOW) * B3_RATE);
 }
 void b3_init(void)
 {
@@ -347,7 +354,7 @@ void b3_note(uint32_t code, uint32_t vel)   /* a key (its code, b3_key's; vel 0:
     if (vel && !b3_held(k)) {
         if (!lower && !b3.held[0] && !b3.held[1]) {   /* (none of the upper's down: the percussion strikes again) */
             b3.pk[0] = b3.pk[1] = 0;
-            b3.perc = b3.perc_soft ? 0.5f : 1.0f;
+            b3.perc = 1.0f;
             b3.perc_t = 0;
         }
         if (!lower && b3.perc_t < B3_CH * 8u)   /* (a chord's keys: struck with it) */
@@ -462,7 +469,7 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
     float pl, load = 0.0f;                   /* (the keys' loudest bars, summed: the tired supply's sag) */
     uint32_t k, b, w, m;
     const int perc = b3.perc_on && b3.perc > 1e-4f;
-    b3.perc *= b3.perc_k;                    /* (the percussion's fall, a step at a time) */
+    b3.perc = b3.perc > b3.perc_k ? b3.perc - b3.perc_k : 0.0f;   /* (the percussion's fall, a step at a time) */
     b3.perc_t += B3_CH;
     if (!b3.dirty && !perc) {                /* (nothing changed: each wheel at its target, those silent let go) */
         uint32_t n = 0;
@@ -511,7 +518,8 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
                     }
             }
     }
-    pl = b3.perc_on ? b3.perc : 0.0f;
+    pl = b3.perc_on ? b3.perc * (1.0f + (b3.perc_fast ? 0.0f : 0.5f) * (1.0f - b3.perc))   /* (slow: its shoulder) */
+                          * (b3.perc_soft ? B3_PERC_SOFT : B3_PERC_NORM) : 0.0f;
     if (pl > 1e-4f)
         for (k = 0; k < B3_NK; k++)
             if (b3_bit(b3.pk, k) && b3_held(k))
