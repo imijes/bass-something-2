@@ -51,6 +51,8 @@
  * its driver 10-16 dB over the drum's 350 Hz from 700 Hz to 3 kHz, falling past 5 kHz; the drum's hump at 200 Hz;
  * tools/b3_compare.py): the horn's gain and a broad peak and a low pass on it, a peak on the drum's */
 #define B3_EQ_HORN 13.1f                     /* dB */
+#define B3_PRE_HR 0.4f                       /* the preamp at DRIVE 0: its input this much into the clip and made up after
+                                              * (a full chord bent it: sum tones 42 dB down, a reference organ's 60) */
 #define B3_HORN_H2 0.3f                      /* the horn's compression driver: its even harmonic (x + this x^2, its DC
                                               * off): a reference organ's C6 2nd 9 dB more through the horn */
 #define B3_EQ_TRIM -6.7f                     /* the whole, dB: as loud as before it (the organ's mix kept) */
@@ -546,8 +548,9 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
                            AT[2][3] = {{-B3_MIC, B3_MIC, 0.5f}, {-B3_DMIC, B3_DMIC, 0.5f}};   /* (the microphones
                                               * either side of the cabinet's front; the reflection off its back, both
                                               * hear it) */
-        const float g = 1.0f + 6.0f * b3.drive, bias = 0.08f + 0.2f * b3.drive, tb = b3_clip(bias),
-                    og = 1.0f / (0.5f + 0.5f * g);
+        const float hr = B3_PRE_HR + (1.0f - B3_PRE_HR) * b3.drive,   /* (the clip's headroom: DRIVE 0 nearly clean) */
+                    g = (1.0f + 6.0f * b3.drive) * hr, bias = 0.28f * b3.drive, tb = b3_clip(bias),
+                    og = 1.0f / ((0.5f + 0.5f * g / hr) * hr);
         float c[2][3], dc[2][3];
         uint32_t r, j;
         for (r = 0; r < 2u; r++) {           /* each rotor's angle at each microphone and its reflection's, at the
@@ -607,7 +610,7 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
                     float v = b3_line(l, b3.lw, 2.0f + (!r && m ? B3_HMIC_D : 0.0f) + SWING[r] * (1.0f - cf)) * dir
                               + rf;
                     if (!r) {                /* (the horn: brighter facing the microphone) */
-                        b3.hlp[m] += (v - b3.hlp[m]) * (0.3f + 0.6f * dir);
+                        b3.hlp[m] += (v - b3.hlp[m]) * (0.18f + 0.77f * q * q);
                         v = b3.hlp[m];
                     }
                     out[m] += v;

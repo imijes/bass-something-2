@@ -78,7 +78,7 @@ def takes():
 def render(names, out):
     """The takes in the host, as out/<name>.wav: {name: path}"""
     T = takes()
-    lines = ["wait 600"]
+    lines = ["wait 600", "room_send 0"]      # (the references dry: the organ's room send off)
     for n in names:
         reg, extra, ev, ms, direct = T[n]
         cc = {12 + i: round(int(d) * 127 / 8) for i, d in enumerate(reg)}

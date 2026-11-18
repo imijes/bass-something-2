@@ -1525,6 +1525,11 @@ static float mix_pre[APP_BLOCK] PLAT_POOL, mix_send[APP_BLOCK] PLAT_POOL;   /* a
 /* the Space Echo's knobs (the settings' bytes) onto it, a block at a time, and its sends' gains (each squared, as a
  * fader's); TEMPO SYNC: REPEAT RATE picks a note, an 8th to a 32nd (slow to fast), head 1 its time at the tempo,
  * halved or doubled into the RE-201's 60..175 ms */
+#ifdef PLAT_HOST
+static float room_test = 1.0f;               /* (the host's room_send) */
+#else
+#define room_test 1.0f
+#endif
 static float se_send_g[4];                   /* (the bass's, the drums', the RMI's, the organ's) */
 /* ECHO VOICE: the engine's voicing to taste, each encoder a constant's scale, 64 as modelled; kept with the GLO
  * settings (set.se_voice) */
@@ -1982,7 +1987,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             const float r = rmi_buf[i] * rv * (g0 + dg * (float)i), o = 0.0f;
 #endif
             float s, e;
-            s = mix_pre[i] + r + o + fx_take(i, mix_send[i] + (r + o) * RMI_SEND, mix_se[i] + r * se_send_g[2] + o * se_send_g[3], &e);
+            s = mix_pre[i] + r + o + fx_take(i, mix_send[i] + (r + o) * RMI_SEND * room_test, mix_se[i] + r * se_send_g[2] + o * se_send_g[3], &e);
 #if BS2_B3
             {                                /* (the organ's sides: its Leslie in stereo, the speaker's sum the middle) */
                 const float sd = b3_side[i] * ov * gi;
@@ -11743,6 +11748,11 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     if (!strcmp(cmd, "dt_gain")) {           /* dt_gain X: the drums' output times X (tools/dt_compare.py's: its
                                               * renders well above the host's 16-bit files' floor) */
         dt_test_gain = (float)atof(a);
+        return 1;
+    }
+    if (!strcmp(cmd, "room_send")) {         /* room_send X: the RMI's and the organ's room send times X (tools/b3_compare.py's
+                                              * 0: a reference recorded dry) */
+        room_test = (float)atof(a);
         return 1;
     }
     if (!strcmp(cmd, "b3_direct")) {         /* b3_direct 1: the organ's preamp out, no Leslie (tools/b3_compare.py's) */
