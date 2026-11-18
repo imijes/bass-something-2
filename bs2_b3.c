@@ -34,6 +34,9 @@
 #endif
 #define B3_IN static inline __attribute__((always_inline))
 #define B3_NW 91u                            /* wheels: C1 (MIDI 24) .. F#8 */
+#define B3_NT (B3_NW + 20u)                  /* and above them, to 18.8 kHz, the top wheels' own 2nd and 3rd's alone (a
+                                              * wheel's harmonics made on the wheels above it: the generator's top
+                                              * octave and a half had none) */
 #define B3_W0 24u                            /* the first wheel's MIDI note */
 #define B3_K0 36u                            /* the manual: C2 .. C7 */
 #define B3_NK 61u
@@ -44,30 +47,54 @@
 #define B3_NCL 8u                            /* key clicks at once */
 #define B3_SCAN_N 128u                       /* the scanner's line (a power of 2) */
 #define B3_LES_N 1024u                       /* a rotor's line (a power of 2): its swing and its reflections */
+/* the cabinet's voicing, a reference organ's Leslie measured (its response over the same chord direct: the horn and
+ * its driver 10-16 dB over the drum's 350 Hz from 700 Hz to 3 kHz, falling past 5 kHz; the drum's hump at 200 Hz;
+ * tools/b3_compare.py): the horn's gain and a broad peak and a low pass on it, a peak on the drum's */
+#define B3_EQ_HORN 13.1f                     /* dB */
+#define B3_HORN_H2 0.3f                      /* the horn's compression driver: its even harmonic (x + this x^2, its DC
+                                              * off): a reference organ's C6 2nd 9 dB more through the horn */
+#define B3_EQ_TRIM -6.7f                     /* the whole, dB: as loud as before it (the organ's mix kept) */
+#define B3_HORN_SW 5.1f                      /* each rotor's Doppler: its path's swing, samples (the horn's, the
+                                              * drum's) */
+#define B3_DRUM_SW 8.5f
+#define B3_HORN_AM 0.85f                     /* each rotor's level turned away, to facing (its tremolo) */
+#define B3_DRUM_AM 0.2f
+#define B3_MIC 0.25f                         /* the microphones either side of the front, a turn's (a quarter: the
+                                              * sides), */
+#define B3_DMIC 0.06f                        /* the horn's and the drum's (the drum's louvres heard nearly as one) */
+#define B3_HORN_REF 0.15f                    /* the horn's reflection, the two microphones' in common (the drum's
+                                              * 0.4) */
+#define B3_HMIC_D 8.0f                       /* the right microphone that much farther from the horn, samples (the two
+                                              * apart: a reference organ's L/R) */
 #define B3_LEVEL 2.0f                        /* into the RMI's buffer (its level 1) */
 static const int8_t B3_BAR[9] = {-12, 7, 0, 12, 19, 24, 28, 31, 36};
 /* the manual's taper: each drawbar's level at C2 C3 C4 C5 C6 C7, half dB to the 8' at C4 (between, in a line); the
  * upper bars louder on the low keys, all falling to the top, as a B-3's resistors and wheels give it */
 static const int8_t B3_TAPER[9][6] = {
-    {5, -2, 5, 9, 2, -3}, {4, 2, 2, -18, -8, -10}, {-3, -7, 3, -7, -7, -7}, {-2, 0, -6, -18, -30, -33},
+    {-19, -7, 5, 9, 2, -3}, {4, 2, 2, -18, -8, -10}, {-3, -7, 3, -7, -7, -7}, {-2, 0, -6, -18, -30, -33},
     {21, 10, -19, -17, -32, -42}, {20, 0, -16, -23, -29, -37}, {10, -9, -17, -21, -35, -40},
     {2, -17, -17, -22, -36, -40}, {-13, -15, -24, -25, -40, -42}};
 static float b3_tap[9][B3_NK] PLAT_POOL;     /* it for each key (b3_init's), a gain */
 /* a wheel's own 2nd and 3rd harmonics (its tooth's shape, its pickup's), dB to it at C2 C3 .. C8, the low wheels
  * the richest: made on the wheels an octave up (2:1 on a B-3's gears) and an octave and a fifth (3:1 within 2 cents) */
 static const int8_t B3_HARM[2][7] = {{-14, -23, -32, -43, -42, -34, -32}, {-40, -43, -46, -50, -53, -65, -57}};
-static float b3_hm[2][B3_NW] PLAT_POOL;      /* it for each wheel (b3_init's), a gain (0: under -60 dB) */
+static float b3_hm[2][B3_NW] PLAT_POOL;
+/* the busbars' crosstalk: a key down, every drawbar of its manual not drawn still heard faintly while one is (none:
+ * silence, as a B-3's), dB under the key's loudest drawn bar (a reference organ's, measured: its undrawn 1 1/3' and
+ * 1' 45-55 dB down, its 1 3/5' about 65); its wheels made plain (no harmonics) */
+static const int8_t B3_XT[9] = {-52, -52, -52, -52, -52, -52, -65, -50, -52};
+static float b3_xt[9];                       /* it as gains (b3_init's) */      /* it for each wheel (b3_init's), a gain (0: under -60 dB) */
 static float b3_wave[2][B3_TB + 1u] PLAT_POOL;   /* the low wheels' (a little 2nd and 3rd), the high wheels' (sine) */
 static float b3_scan[B3_SCAN_N] PLAT_POOL;
 static float b3_les[2][B3_LES_N] PLAT_POOL;      /* the horn's line, the drum's */
 static struct {
-    uint32_t ph[B3_NW], inc[B3_NW];          /* the wheels: each one's phase at t 0, its step (its phase: ph + inc * t) */
-    float kc[B3_NW];                         /* 2 cos(its step): its sine a sample on from the two before */
+    uint32_t ph[B3_NT], inc[B3_NT];          /* the wheels: each one's phase at t 0, its step (its phase: ph + inc * t) */
+    float kc[B3_NT];                         /* 2 cos(its step): its sine a sample on from the two before */
     uint32_t t;                              /* the generator's samples (the wheels turn without being made) */
-    float g[B3_NW], dg[B3_NW];               /* each wheel's level on the bus, its step a sample to the target */
-    float d[B3_NW], dd[B3_NW];               /* on the dry bus (a manual's VIBRATO off: past the scanner) */
-    float pg[B3_NW], dpg[B3_NW];             /* the percussion's, on its own bus */
-    uint8_t act[B3_NW], nact;                /* the wheels sounding or ramping */
+    float g[B3_NT], dg[B3_NT];               /* each wheel's level on the bus, its step a sample to the target */
+    float d[B3_NT], dd[B3_NT];               /* on the dry bus (a manual's VIBRATO off: past the scanner) */
+    float pg[B3_NT], dpg[B3_NT];             /* the percussion's, on its own bus */
+    uint8_t act[B3_NT], nact;                /* the wheels sounding or ramping */
     uint32_t held[4];                        /* the keys down, a bit each: the upper manual's 61, the lower's from 64 */
     uint32_t pk[2];                          /* the upper manual's keys the percussion struck */
     float lv[2][9];                          /* each drawbar's level (b3_levels), the upper manual's sounding set's, the
@@ -85,7 +112,11 @@ static struct {
     float sc_ph, sc_x;                       /* the scanner: its rotor (0..1), its line's low pass */
     uint32_t sc_w;
     float hp_x, hp_y;                        /* the preamp's input high pass */
-    float xo[2][4];                          /* the crossover's biquads' states (x1 x2 y1 y2) */
+    float xo[4][4];                          /* the crossover's biquads' states (x1 x2 y1 y2): the low pass's two, the
+                                              * high pass's two */
+    float eq[3][4];                          /* the cabinet's voicing (B3_EQ): the horn's lift and its top's fall, the
+                                              * drum's hump */
+    float hdc;                               /* the horn driver's even harmonic's own DC (its low pass) */
     float hz[2], to[2], ang[2];              /* the rotors: speed now, its aim, the angle (0..1) */
     float cho[2], tre[2], up[2], down[2];    /* each rotor's trimmers: its slow and fast speeds (Hz), its rise and fall
                                               * (s, a time constant) */
@@ -97,7 +128,10 @@ static struct {
     uint8_t cap;                             /* the wheels it may sound at most (b3_cap: an overload's) */
     uint32_t quiet;                          /* samples its input has been silent (past the lines: the chain skipped) */
 } b3;
-static float b3_lp_b[3], b3_lp_a[2];     /* the crossover's Butterworth, 800 Hz */
+static float b3_eq_b[3][3], b3_eq_a[3][2];   /* the cabinet's voicing's biquads (b3_init's) */
+static float b3_eq_hg, b3_eq_tg;             /* its gains: the horn's (with the trim), the drum's (the trim) */
+static float b3_lp_b[3], b3_lp_a[2], b3_hp_b[3];   /* the crossover's Butterworths, 800 Hz: the low pass, the high
+                                              * pass's (the same poles) */
 #ifdef PLAT_HOST
 uint8_t b3_test_direct;                      /* (the host's b3_direct: the preamp's out, no Leslie, tools/b3_compare.py's) */
 #endif
@@ -120,16 +154,35 @@ void b3_init(void)
         b3_wave[1][i] = fm_sinf(x);
         b3_wave[0][i] = (fm_sinf(x) + 0.04f * fm_sinf(2.0f * x) + 0.02f * fm_sinf(3.0f * x)) * (1.0f / 1.06f);
     }
-    for (w = 0; w < B3_NW; w++)
+    for (w = 0; w < B3_NT; w++)
         b3.inc[w] = (uint32_t)(32.70319566f * fm_exp2f((float)w / 12.0f) / B3_RATE * 4294967040.0f),
         b3.ph[w] = (uint32_t)w * 2654435761u,   /* (each wheel somewhere of its own) */
         b3.kc[w] = 2.0f * fm_cosf(2.0f * FM_PI * (float)b3.inc[w] * (1.0f / 4294967296.0f));
-    {                                        /* the crossover: RBJ's Butterworth (Q 0.7071) low pass, twice (the high:
-                                              * the rest) */
+    {                                        /* the crossover, Linkwitz-Riley: RBJ's Butterworths (Q 0.7071), a low pass
+                                              * twice and a high pass twice */
         const float om = 2.0f * FM_PI * 800.0f / B3_RATE, al = fm_sinf(om) / (2.0f * 0.70710678f), c = fm_cosf(om),
                     a0 = 1.0f + al;
         b3_lp_b[0] = b3_lp_b[2] = (1.0f - c) * 0.5f / a0, b3_lp_b[1] = (1.0f - c) / a0;
         b3_lp_a[0] = -2.0f * c / a0, b3_lp_a[1] = (1.0f - al) / a0;
+        b3_hp_b[0] = b3_hp_b[2] = (1.0f + c) * 0.5f / a0, b3_hp_b[1] = -(1.0f + c) / a0;
+    }
+    {                                        /* the cabinet's voicing: RBJ's peaks (0: the horn's, 2: the drum's) and a
+                                              * low pass (1: the horn's top) */
+        static const float F[3] = {1039.0f, 2711.0f, 207.0f}, Q[3] = {0.30f, 0.50f, 1.92f}, G[3] = {8.1f, 0.0f, 11.9f};
+        uint32_t k;
+        for (k = 0; k < 3u; k++) {
+            const float om = 2.0f * FM_PI * F[k] / B3_RATE, al = fm_sinf(om) / (2.0f * Q[k]), c = fm_cosf(om),
+                        A = fm_exp2f(G[k] * (3.321928f / 40.0f)), a0 = k == 1u ? 1.0f + al : 1.0f + al / A;
+            if (k == 1u)
+                b3_eq_b[k][0] = b3_eq_b[k][2] = (1.0f - c) * 0.5f / a0, b3_eq_b[k][1] = (1.0f - c) / a0,
+                b3_eq_a[k][1] = (1.0f - al) / a0;
+            else
+                b3_eq_b[k][0] = (1.0f + al * A) / a0, b3_eq_b[k][1] = -2.0f * c / a0,
+                b3_eq_b[k][2] = (1.0f - al * A) / a0, b3_eq_a[k][1] = (1.0f - al / A) / a0;
+            b3_eq_a[k][0] = -2.0f * c / a0;
+        }
+        b3_eq_hg = fm_exp2f((B3_EQ_HORN + B3_EQ_TRIM) * (3.321928f / 20.0f));
+        b3_eq_tg = fm_exp2f(B3_EQ_TRIM * (3.321928f / 20.0f));
     }
     for (w = 0; w < 9u; w++)
         for (i = 0; i < B3_NK; i++) {
@@ -138,6 +191,8 @@ void b3_init(void)
                         h = (float)B3_TAPER[w][j] + ((float)B3_TAPER[w][j + 1u] - (float)B3_TAPER[w][j]) * f;
             b3_tap[w][i] = fm_exp2f(h * (0.5f / 6.0206f));
         }
+    for (w = 0; w < 9u; w++)
+        b3_xt[w] = fm_exp2f((float)B3_XT[w] * (3.321928f / 20.0f));
     for (w = 0; w < 2u; w++)
         for (i = 0; i < B3_NW; i++) {
             const int32_t n = (int32_t)(i + B3_W0) - 36;
@@ -151,13 +206,13 @@ void b3_init(void)
     b3.perc_on = 1, b3.perc_3rd = 1, b3.perc_fast = 1, b3.scan = 6, b3.click = 64;
     b3.expr = 1.0f, b3.drive = 0.3f;
     b3.sw_lo = b3.sw_hi = b3.sw_tlo = b3.sw_thi = 1.0f;
-    b3.hz[0] = b3.to[0] = 0.83f, b3.hz[1] = b3.to[1] = 0.67f;
+    b3.hz[0] = b3.to[0] = 0.77f, b3.hz[1] = b3.to[1] = 0.70f;
     {
         static const uint8_t MID[8] = {64, 64, 64, 64, 64, 64, 64, 64};
         b3_rotor(MID);
     }
     b3.rng = 22222u;
-    b3.cap = B3_NW;
+    b3.cap = B3_NT;
     b3.width = 0.8f;
     b3_levels();
 }
@@ -242,7 +297,8 @@ void b3_leslie(uint32_t fast, uint32_t brake) { b3.fast = fast != 0u, b3.brake =
 float b3_trim(uint32_t i, uint32_t v)        /* a trimmer's (i: b3_rotor's order) value at its setting: 64 as modelled
                                               * (the 122's), the times a half to twice it, the speeds 0.7 to 1.4 times */
 {
-    static const float AT[8] = {0.6f, 1.3f, 0.83f, 6.75f, 3.5f, 4.5f, 0.67f, 5.75f};
+    static const float AT[8] = {0.25f, 1.5f, 0.77f, 6.81f, 2.5f, 3.6f, 0.70f, 6.6f};   /* (a reference organ's,
+                                              * measured: tools/b3_compare.py's leslie) */
     return AT[i & 7u] * fm_exp2f(((float)(v > 127u ? 127u : v) - 64.0f) * ((i & 2u) ? 0.5f / 64.0f : 1.0f / 64.0f));
 }
 void b3_rotor(const uint8_t t[8])            /* the Leslie's trimmers (live) */
@@ -263,7 +319,7 @@ void b3_expr(uint32_t v)                     /* (its gains' aims here, off the s
 }   /* the expression pedal (CC 11), 0..127 (live) */
 void b3_cap(uint32_t n)                      /* the wheels it may sound at most (an overload's: the quietest go first) */
 {
-    n = n > B3_NW ? B3_NW : n;
+    n = n > B3_NT ? B3_NT : n;
     if (n != b3.cap)
         b3.cap = (uint8_t)n, b3.dirty = 1;
 }
@@ -272,7 +328,7 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
                                               * targets again only when a key or a setting changed (dirty) or the
                                               * percussion falls */
 {
-    static float tg[B3_NW], td[B3_NW], tp[B3_NW];
+    static float tg[B3_NT], td[B3_NT], tp[B3_NT];
     float pl;
     uint32_t k, b, w, m;
     const int perc = b3.perc_on && b3.perc > 1e-4f;
@@ -290,29 +346,36 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
         goto rotors;
     }
     b3.dirty = 0;
-    for (w = 0; w < B3_NW; w++)              /* (a loop: memset is in the flash) */
+    for (w = 0; w < B3_NT; w++)              /* (a loop: memset is in the flash) */
         tg[w] = td[w] = tp[w] = 0.0f;
     for (m = 0; m < 2u; m++) {               /* each manual's keys: onto the scanner's bus or the dry one (its VIBRATO
                                               * tab; the scanner off, both dry) */
         const float *lv = b3.lv[m];
         float *t = b3.vib[m] && b3.scan ? tg : td;
         for (k = 0; k < B3_NK; k++)
-            if (b3_held(k + 64u * m))
+            if (b3_held(k + 64u * m)) {
+                float top = 0.0f;            /* (the key's loudest drawn bar: the crosstalk under it) */
                 for (b = 0; b < 9u; b++)
-                    if (lv[b] > 0.0f) {
+                    top = lv[b] * b3_tap[b][k] > top ? lv[b] * b3_tap[b][k] : top;
+                for (b = 0; b < 9u; b++)
+                    if (lv[b] <= 0.0f) {
+                        if (top > 0.0f)      /* (the crosstalk: an undrawn bar, while one is drawn) */
+                            t[b3_wheel((int32_t)(B3_K0 + k) + B3_BAR[b] + (!b && k < 12u ? 12 : 0))] += b3_xt[b] * top;
+                    } else {
                         w = b3_wheel((int32_t)(B3_K0 + k) + B3_BAR[b] + (!b && k < 12u ? 12 : 0));   /* (the 16'
                                               * folded back on the bottom octave) */
                         const float v = lv[b] * b3_tap[b][k];
                         t[w] += v;
-                        if (w + 12u < B3_NW)
+                        if (w + 12u < B3_NT)
                             t[w + 12u] += v * b3_hm[0][w];
-                        if (w + 19u < B3_NW)
+                        if (w + 19u < B3_NT)
                             t[w + 19u] += v * b3_hm[1][w];
                         if (B3_LEAK > 0.0f && w)
                             t[w - 1u] += lv[b] * B3_LEAK;
                         if (B3_LEAK > 0.0f && w + 1u < B3_NW)
                             t[w + 1u] += lv[b] * B3_LEAK;
                     }
+            }
     }
     pl = b3.perc_on ? b3.perc : 0.0f;
     if (pl > 1e-4f)
@@ -321,29 +384,29 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
                 tp[b3_wheel((int32_t)(B3_K0 + k) + (b3.perc_3rd ? 19 : 12))] += pl;
     {                                        /* an overload's cap: past it, the quietest wheels' targets 0 (they fade) */
         uint32_t n = 0;
-        for (w = 0; w < B3_NW; w++)
+        for (w = 0; w < B3_NT; w++)
             n += tg[w] + td[w] > 0.0f;
         if (n > b3.cap) {                    /* (the level the cap's loudest reach: halved, 8 times, from the top) */
             float lo = 0.0f, hi = 0.0f, mid;
             uint32_t it, c;
-            for (w = 0; w < B3_NW; w++)
+            for (w = 0; w < B3_NT; w++)
                 hi = tg[w] + td[w] > hi ? tg[w] + td[w] : hi;
             for (it = 0; it < 8u; it++) {
                 mid = 0.5f * (lo + hi);
-                for (c = 0, w = 0; w < B3_NW; w++)
+                for (c = 0, w = 0; w < B3_NT; w++)
                     c += tg[w] + td[w] > mid;
                 if (c > b3.cap)
                     lo = mid;
                 else
                     hi = mid;
             }
-            for (w = 0; w < B3_NW; w++)
+            for (w = 0; w < B3_NT; w++)
                 if (tg[w] + td[w] <= hi)
                     tg[w] = td[w] = 0.0f;
         }
     }
     b3.nact = 0;
-    for (w = 0; w < B3_NW; w++) {
+    for (w = 0; w < B3_NT; w++) {
         b3.dg[w] = (tg[w] - b3.g[w]) * (1.0f / B3_CH);
         b3.dd[w] = (td[w] - b3.d[w]) * (1.0f / B3_CH);
         b3.dpg[w] = (tp[w] - b3.pg[w]) * (1.0f / B3_CH);
@@ -479,9 +542,10 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
             bus[i] *= 0.125f;
     PROF2_ADD(1, pt);
     {                                        /* the preamp, the crossover, the rotors heard by two microphones */
-        static const float SWING[2] = {19.0f, 6.0f}, REF[2] = {137.0f, 295.0f},
-                           AT[3] = {-0.125f, 0.125f, 0.25f};   /* (the microphones 45 degrees either side of the
-                                              * cabinet's front; the reflection's a quarter turn on, both hear it) */
+        static const float SWING[2] = {B3_HORN_SW, B3_DRUM_SW}, REF[2] = {137.0f, 295.0f},
+                           AT[2][3] = {{-B3_MIC, B3_MIC, 0.5f}, {-B3_DMIC, B3_DMIC, 0.5f}};   /* (the microphones
+                                              * either side of the cabinet's front; the reflection off its back, both
+                                              * hear it) */
         const float g = 1.0f + 6.0f * b3.drive, bias = 0.08f + 0.2f * b3.drive, tb = b3_clip(bias),
                     og = 1.0f / (0.5f + 0.5f * g);
         float c[2][3], dc[2][3];
@@ -492,7 +556,7 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
             if (a1 >= 1.0f)
                 a1 -= 1.0f;
             for (j = 0; j < 3u; j++) {
-                float e = a1 + AT[j] + 1.0f, s0 = b3.ang[r] + AT[j] + 1.0f;
+                float e = a1 + AT[r][j] + 1.0f, s0 = b3.ang[r] + AT[r][j] + 1.0f;
                 e -= (float)(uint32_t)e;
                 s0 -= (float)(uint32_t)s0;
                 c[r][j] = b3_cos(s0);
@@ -520,18 +584,28 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
             }
 #endif
             lo = b3_bq(b3_bq(y, b3.xo[0], b3_lp_b, b3_lp_a), b3.xo[1], b3_lp_b, b3_lp_a);
-            hi = y - lo;                     /* (the horn's: the rest, so the two add back to the whole) */
+            hi = b3_bq(b3_bq(y, b3.xo[2], b3_hp_b, b3_lp_a), b3.xo[3], b3_hp_b, b3_lp_a);   /* (the horn's: its own
+                                              * high pass; the rest (y - lo) left a bass note half its level, the
+                                              * low pass's phase not the note's) */
+            hi = b3_bq(b3_bq(hi, b3.eq[0], b3_eq_b[0], b3_eq_a[0]), b3.eq[1], b3_eq_b[1], b3_eq_a[1]) * b3_eq_hg;
+            {                                /* (the horn's driver: its even harmonic, its DC off at about 20 Hz) */
+                const float h2 = hi * hi;
+                b3.hdc += (h2 - b3.hdc) * 0.003f;
+                hi += B3_HORN_H2 * (h2 - b3.hdc);
+            }
+            lo = b3_bq(lo, b3.eq[2], b3_eq_b[2], b3_eq_a[2]) * b3_eq_tg;
             b3_les[0][b3.lw & (B3_LES_N - 1u)] = hi;
             b3_les[1][b3.lw & (B3_LES_N - 1u)] = lo;
             for (r = 0; r < 2u; r++) {       /* each microphone: the rotor's path's delay, its level by its facing;
                                               * the reflection, one for both */
                 const float *l = b3_les[r];
-                const float rf = 0.4f * b3_line(l, b3.lw, REF[r] + SWING[r] * (1.0f - c[r][2]));
+                const float rf = (r ? 0.4f : B3_HORN_REF) * b3_line(l, b3.lw, REF[r] + SWING[r] * (1.0f - c[r][2]));
                 for (m = 0; m < 2u; m++) {
                     const float cf = c[r][m];
-                    const float dir = r ? 0.75f + 0.25f * cf * cf
-                                        : 0.22f + 0.78f * (0.5f + 0.5f * cf) * (0.5f + 0.5f * cf);
-                    float v = b3_line(l, b3.lw, 2.0f + SWING[r] * (1.0f - cf)) * dir + rf;
+                    const float q = 0.5f + 0.5f * cf, dir = r ? B3_DRUM_AM + (1.0f - B3_DRUM_AM) * q * q
+                                                              : B3_HORN_AM + (1.0f - B3_HORN_AM) * q * q;
+                    float v = b3_line(l, b3.lw, 2.0f + (!r && m ? B3_HMIC_D : 0.0f) + SWING[r] * (1.0f - cf)) * dir
+                              + rf;
                     if (!r) {                /* (the horn: brighter facing the microphone) */
                         b3.hlp[m] += (v - b3.hlp[m]) * (0.3f + 0.6f * dir);
                         v = b3.hlp[m];

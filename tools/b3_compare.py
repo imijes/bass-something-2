@@ -67,6 +67,11 @@ def takes():
     t["leslie_fast"] = ("888000000", {1: 127}, hold(CHORD, 6000), 7000, False)
     t["leslie_up"] = ("888000000", {1: 0}, hold(CHORD, 8000) + [(2000, ("cc", 1, 127), None)], 9000, False)
     t["leslie_down"] = ("888000000", {1: 127}, hold(CHORD, 8000) + [(2000, ("cc", 1, 0), None)], 9000, False)
+    for rot, key in (("horn", 84), ("drum", 48)):   # one tone (8'), heard by one rotor alone: C6 the horn, C3 the drum
+        t["les_%s_slow" % rot] = ("008000000", {1: 0}, hold([key], 8000), 8000, False)
+        t["les_%s_fast" % rot] = ("008000000", {1: 127}, hold([key], 8000), 8000, False)
+        t["les_%s_up" % rot] = ("008000000", {1: 0}, hold([key], 10000) + [(2000, ("cc", 1, 127), None)], 10000, False)
+        t["les_%s_down" % rot] = ("008000000", {1: 127}, hold([key], 10000) + [(2000, ("cc", 1, 0), None)], 10000, False)
     return t
 
 
@@ -80,7 +85,8 @@ def render(names, out):
         cc.update({21: 0, 30: 0, 26: 0, 11: 127, 1: 0, 27: 0})
         cc.update(extra)
         lines += ["b3_direct %d" % direct] + ["midi B3 %02X %02X" % (c, v) for c, v in cc.items()]
-        lines += ["wait %d" % (2500 if not direct else 400), "wav %s.wav" % n, "wait 100"]
+        lines += ["wait %d" % (400 if direct else 4000 if n.startswith("les_") else 2500), "wav %s.wav" % n, "wait 100"]   # (the
+        # rotors' settling as the references had it: capture.py's 2.5 s, les_cap.py's 4 s)
         now = 0
         for at, notes, on in sorted(ev, key=lambda e: e[0]):
             if at > now:
@@ -269,7 +275,107 @@ def stage_score(ref, ours):
     print("  ALL      mean %5.1f %%" % (sum(allv) / len(allv)))
 
 
-STAGES = {"bars": stage_bars, "regs": stage_regs, "score": stage_score}
+def band_env(x, sr, lo, hi, ms=5.0):
+    """a band's (lo..hi Hz, by FFT mask) RMS envelope, a value every ms, of each channel's mean"""
+    m = x.mean(1)
+    F = np.fft.rfft(m)
+    fr = np.fft.rfftfreq(len(m), 1 / sr)
+    F[(fr < lo) | (fr > hi)] = 0
+    b = np.fft.irfft(F, len(m))
+    n = int(ms * sr / 1000)
+    k = len(b) // n
+    return np.sqrt((b[: k * n].reshape(k, n) ** 2).mean(1)), 1000.0 / ms
+
+
+def am(env, rate, lo=0.3, hi=12.0):
+    """the envelope's strongest wobble: (Hz, depth: its peak-to-peak over its mean, from the line's amplitude)"""
+    e = env - env.mean()
+    n = 1 << int(math.ceil(math.log2(len(e) * 8)))
+    F = np.abs(np.fft.rfft(e * np.hanning(len(e)), n))
+    fr = np.fft.rfftfreq(n, 1 / rate)
+    b = (fr >= lo) & (fr <= hi)
+    G = np.where(b, F, 0)
+    k = np.argmax(G)
+    pk = [i for i in range(1, len(G) - 1) if G[i] >= G[i - 1] and G[i] >= G[i + 1] and G[i] >= 0.35 * G[k]]
+    k = pk[0] if pk else k                   # the lowest strong peak: the rotation's own, not a harmonic of it
+    return fr[k], 4 * G[np.argmax(G)] / np.hanning(len(e)).sum() / max(env.mean(), 1e-12)
+
+
+def rate_track(env, rate, win=1.0, hop=0.1, lo=0.3, hi=12.0):
+    """the wobble's rate over time: (times s, Hz)"""
+    w, h = int(win * rate), int(hop * rate)
+    t, f = [], []
+    for a in range(0, len(env) - w, h):
+        t.append((a + w / 2) / rate)
+        f.append(am(env[a: a + w], rate, lo, hi)[0])
+    return np.array(t), np.array(f)
+
+
+def ramp_time(t, f, t0, f_from, f_to):
+    """seconds from t0 till the rate first passes 63 % of the way from f_from to f_to"""
+    goal = f_from + 0.63 * (f_to - f_from)
+    for ti, fi in zip(t, f):
+        if ti > t0 and ((f_to > f_from and fi >= goal) or (f_to < f_from and fi <= goal)):
+            return ti - t0
+    return float("nan")
+
+
+def tone_track(x, sr, hz, ms=5.0):
+    """a pure tone's frequency and level over time (its band, +-25 %, analytic): (rate a second, Hz, level)"""
+    F = np.fft.fft(x)
+    fr = np.fft.fftfreq(len(x), 1 / sr)
+    F[(fr < hz * 0.75) | (fr > hz * 1.25)] = 0
+    z = np.fft.ifft(F) * 2
+    ph = np.unwrap(np.angle(z))
+    n = int(ms * sr / 1000)
+    k = (len(z) - 1) // n
+    f = (ph[n: k * n + 1: n] - ph[0: (k - 1) * n + 1: n])[: k - 1] * sr / (2 * np.pi * n)
+    lv = np.abs(z[: k * n]).reshape(k, n).mean(1)[: k - 1]
+    return 1000.0 / ms, f, lv
+
+
+def wobble(v, rate, lo=0.3, hi=12.0):
+    """a series' strongest wobble: (Hz, its peak-to-peak as a fraction of the mean)"""
+    return am(v, rate, lo, hi)
+
+
+def stage_leslie(ref, ours):
+    """the Leslie on one tone a rotor (les_horn_*: C6's 8', above the crossover; les_drum_*: C3's): each rotor's speed
+    (the Doppler's vibrato rate), its swing (cents, peak to peak) and its tremolo (the level's peak to peak / mean),
+    slow and fast, at the left microphone; the two microphones' correlation; the ramps (63 % of the way)"""
+    print("== Leslie: a rotor's speed, Doppler swing, tremolo, L/R correlation")
+    for rot, key in (("horn", 84), ("drum", 48)):
+        hz = note_hz(key)
+        for kind in ("slow", "fast"):
+            n = "les_%s_%s" % (rot, kind)
+            if n not in ref:
+                continue
+            for side, d in (("ref", ref), ("ours", ours)):
+                x, sr = read(d[n])
+                x = x[int(1.0 * sr): int(7.5 * sr)]
+                r, f, lv = tone_track(x[:, 0], sr, hz)
+                fr, fd = wobble(f, r)
+                ar, ad = wobble(lv, r)
+                cents = 1200 * math.log2((f.mean() * (1 + fd / 2)) / (f.mean() * (1 - fd / 2)))
+                c = np.corrcoef(x[:, 0], x[:, 1])[0, 1] if x.shape[1] > 1 else 1.0
+                print("  %-15s %-4s speed %5.2f Hz  swing %5.1f cents  tremolo %4.2f (%5.2f Hz)  L/R %5.2f" %
+                      (n, side, fr, cents, ad, ar, c))
+    print("== Leslie: the ramps (the switch at 2 s): rate before -> after, s to 63 %")
+    for rot, key in (("horn", 84), ("drum", 48)):
+        hz = note_hz(key)
+        for kind in ("up", "down"):
+            n = "les_%s_%s" % (rot, kind)
+            if n not in ref:
+                continue
+            for side, d in (("ref", ref), ("ours", ours)):
+                x, sr = read(d[n])
+                r, f, lv = tone_track(x[:, 0], sr, hz)
+                t, tr = rate_track(f, r, win=1.5, hop=0.1)
+                f0, f1 = np.median(tr[(t > 0.8) & (t < 1.9)]), np.median(tr[t > t[-1] - 2.0])
+                print("  %-15s %-4s %5.2f -> %5.2f Hz in %4.2f s" % (n, side, f0, f1, ramp_time(t, tr, 2.0, f0, f1)))
+
+
+STAGES = {"bars": stage_bars, "regs": stage_regs, "score": stage_score, "leslie": stage_leslie}
 
 
 def main():

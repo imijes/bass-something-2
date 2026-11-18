@@ -169,13 +169,13 @@ wait 1500
 shot organ-rotors.png
 turn K2 4
 wait 30
-said HORN FAST SPEED 414 RPM
+said HORN FAST SPEED 411 RPM
 tap LFO
 wait 30
 said LESLIE HORN ROTOR
 turn K1 -64
 wait 30
-said HORN RISE TIME 0.3 S
+said HORN RISE TIME 0.2 S
 wait 2500
 shot organ-controls.png
 tap LFO

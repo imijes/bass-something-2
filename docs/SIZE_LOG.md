@@ -249,3 +249,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-17 | 9b60162+ | bass voice: asleep after 1 s closed, exact savings, its sample chain in RAM (voice_run) | 515,728 | +4,796 | 65,836 | 76,928 | +0 | 21,376 | 297,180 |
 | 2026-11-17 | 5a34aa4+ | RMI's block on the first core; PROF_TIMING in bs2_prof.h, the organ's and FX bus's parts | 515,856 | +128 | 65,708 | 76,928 | +0 | 21,376 | 297,180 |
 | 2026-11-17 | 5342cdc+ | RMI's block in RAM (rmi_job) | 515,708 | -148 | 65,856 | 76,928 | +0 | 21,376 | 297,180 |
+| 2026-11-17 | fb98170+ | B3: Leslie crossover, voicing, speeds; top wheels' harmonics; busbar crosstalk; 16' bottom | 517,220 | +1,512 | 64,344 | 78,112 | +1,184 | 20,192 | 297,180 |
