@@ -213,6 +213,24 @@ wait 30
 expect oswell 127
 tap LFO
 wait 30
+said LESLIE NOISES
+# NOISES: the organ's four, settings (every preset's): K1 the keys' thuds
+turn K1 5
+wait 30
+said KEY THUDS 5
+expect onoise0 5
+tap LFO
+wait 30
+said LESLIE MOJO
+# MOJO: this organ's quirks, the preset's
+turn K1 10
+wait 30
+said MOJO 7%
+expect omojo 10
+turn K1 -10
+wait 30
+tap LFO
+wait 30
 said LESLIE CABINET
 # SEL off the LESLIE: HOME; SEL on: DRAWBARS, its other view, the lower's two, the NAME (the lower then played: SEL
 # held the upper again)

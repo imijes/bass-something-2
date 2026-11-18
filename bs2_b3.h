@@ -18,7 +18,8 @@ typedef struct {                             /* an organ preset's sound (app.c's
                                               * one edited), bit 1 both down (A#+B: each drawbar the more of the two);
                                               * 4 its CANCEL, held (live, never kept: b3_set alone) */
     uint8_t les[8];                          /* the Leslie's trimmers (b3_rotor's), 0..127 (64: the 122's) */
-    uint8_t speed, swell, swell_rest, spare; /* the Leslie's speed (0 slow, 1 the brake, 2 fast); KEY SWELL, its rest */
+    uint8_t speed, swell, swell_rest, mojo;  /* the Leslie's speed (0 slow, 1 the brake, 2 fast); KEY SWELL, its rest;
+                                              * MOJO, this organ's quirks, 0..127 (0: as from the factory; was spare) */
 } b3_patch_t;
 void b3_init(void);
 uint32_t b3_key(uint32_t lower, uint32_t note);   /* a note's key code on a manual (b3_note's) */
@@ -36,5 +37,8 @@ float b3_level(void);                        /* the last block's peak out (the A
 void b3_expr(uint32_t v);                    /* the expression pedal, 0..127 (live) */
 uint32_t b3_job(float *mid, float *side, uint32_t n);   /* the second core's: a block, its middle into mid, its
                                               * stereo sides into side; 1 if it sounds */
+void b3_noise(uint32_t thud, uint32_t floor, uint32_t rotor, uint32_t mech);   /* its noises, each 0..127 (0: none):
+                                              * the keys' thuds, the floor's hum and hiss, the rotors' wind, the
+                                              * drawbars' and tabs' clunks (live) */
 void b3_cap(uint32_t n);                     /* the wheels it may sound at most (an overload's; 91: all) */
 #endif

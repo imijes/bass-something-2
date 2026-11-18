@@ -112,6 +112,8 @@ typedef struct {
                                           * channel 5, its default (l_ch; was spare, 0) */
     uint8_t at_from;                     /* AFTERTOUCH's K4: another instrument's keys' pressure on the bass's too, AT_*
                                           * (was spare: the record's end on its word) */
+    uint8_t b3_noise[4];                 /* the organ's noises (LESLIE NOISES' K1-K4): the keys' THUDS, the floor's HUM,
+                                          * the ROTOR's wind, the drawbars' and tabs' CLUNKS, each 0..127 (0: none) */
 } settings_t;
 /* GLO RMI's ROUTE: the RMI's notes (its keys, its channel's) into the bass, as its keys; what the bass plays (its
  * keys, its arp, its sequencer) on the RMI too. One hop: a note routed is never routed again, nor sent out, so BOTH
@@ -142,6 +144,7 @@ static uint32_t ms_stamp(void) { return (plat_ms() - 1u) | 1u; }
 #define SET_V10_SIZE offsetof(settings_t, at_amt)    /* the record before AFTERTOUCH and WHEELS */
 #define SET_V11_SIZE offsetof(settings_t, les)       /* the record before the Leslie's trimmers */
 #define SET_V12_SIZE offsetof(settings_t, oswell)    /* the record before KEY SWELL */
+#define SET_V13_SIZE offsetof(settings_t, b3_noise)  /* the record before the organ's noises */
 enum { CH_OFF = 0, CH_ALL = 17 };
 enum { CLK_AUTO, CLK_INT, CLK_EXT, NCLK };   /* MIDI clock followed when it comes; never; always (none: stopped) */
 enum { VC_SOFT, VC_NORMAL, VC_HARD, NVC };
@@ -1525,7 +1528,7 @@ static float mix_pre[APP_BLOCK] PLAT_POOL, mix_send[APP_BLOCK] PLAT_POOL;   /* a
 /* the Space Echo's knobs (the settings' bytes) onto it, a block at a time, and its sends' gains (each squared, as a
  * fader's); TEMPO SYNC: REPEAT RATE picks a note, an 8th to a 32nd (slow to fast), head 1 its time at the tempo,
  * halved or doubled into the RE-201's 60..175 ms */
-#define B3_ROOM_SEND 0.15f                   /* the organ's send into the room (its Leslie's own walls already round
+#define B3_ROOM_SEND 0.0f                    /* the organ's send into the room (its Leslie's own walls already round
                                               * it; the RMI's RMI_SEND): till the MASTERING pages' aux sends */
 #ifdef PLAT_HOST
 static float room_test = 1.0f;               /* (the host's room_send) */
@@ -2218,7 +2221,7 @@ _Static_assert(offsetof(patch_t, env_trig) == BANK_V10_PSIZE, "version 10's: 11'
 _Static_assert(offsetof(patch_t, lfo_delay) == BANK_V11_PSIZE, "version 11's: 12's without the LFOs' delay on");
 _Static_assert(offsetof(patch_t, ofm) == BANK_V12_PSIZE, "version 12's: 13's without Osc Filter Mod on");
 _Static_assert(sizeof(settings_t) <= PLAT_STORE_MAX, "the settings fit a store object");
-_Static_assert(sizeof(settings_t) == SET_V12_SIZE + 4u, "the settings end with no padding");
+_Static_assert(sizeof(settings_t) == SET_V13_SIZE + 4u, "the settings end with no padding");
 _Static_assert(offsetof(settings_t, mw_amt[3]) < 256u, "every setting a param_t's offset (a byte) reaches");
 static bank_t bank[NBANKP] PLAT_POOL;
 #define BANK_P(s) (bank[(s) / NPSLOT].p[(s) % NPSLOT])   /* slot s's patch */
@@ -2501,7 +2504,8 @@ static struct {
                                           * organ's, else the bass's) */
     uint8_t ofast, obrake;               /* the Leslie: tremolo (else chorale), the brake (live: ARP) */
     uint8_t ocan;                        /* the organ's CANCEL held (EDIT + OCT-): bit 0 the upper's, 1 the lower's */
-    uint8_t oles;                        /* ORGAN LESLIE's view (LFO there): CABINET, ROTORS, HORN, LOW ROTOR, AMP */
+    uint8_t oles;                        /* ORGAN LESLIE's view (LFO there): CABINET, ROTORS, HORN, LOW ROTOR, AMP,
+                                          * NOISES, MOJO */
     uint8_t oexpr_off;                   /* the organ's swell pedal from MIDI (CC 11), upside down: 0 open */
     uint32_t okeys;                      /* the keys playing the organ, a bit each */
     uint32_t olow;                       /* those of them on its lower manual */
@@ -11505,6 +11509,10 @@ int app_expect(const char *what, int *got)
         *got = opatch.lb;
     else if (!strcmp(what, "odirty"))
         *got = odirty;
+    else if (!strncmp(what, "onoise", 6) && what[6] >= '0' && what[6] <= '3')   /* (the organ's noises: settings) */
+        *got = set.b3_noise[what[6] - '0'];
+    else if (!strcmp(what, "omojo"))          /* (MOJO, the preset's) */
+        *got = opatch.mojo;
     else if (!strncmp(what, "oles", 4) && what[4] >= '0' && what[4] <= '7')   /* (the preset's Leslie trimmers) */
         *got = opatch.les[what[4] - '0'];
     else if (!strcmp(what, "ofast"))
@@ -11755,6 +11763,11 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     if (!strcmp(cmd, "room_send")) {         /* room_send X: the RMI's and the organ's room send times X (tools/b3_compare.py's
                                               * 0: a reference recorded dry) */
         room_test = (float)atof(a);
+        return 1;
+    }
+    if (!strcmp(cmd, "b3_noise")) {          /* b3_noise THUD FLOOR ROTOR MECH: the organ's noises, 0..127 each (until
+                                              * their knobs: tools/b3_compare.py's) */
+        b3_noise((uint32_t)atoi(a), (uint32_t)atoi(b), (uint32_t)atoi(c), (uint32_t)atoi(d));
         return 1;
     }
     if (!strcmp(cmd, "b3_direct")) {         /* b3_direct 1: the organ's preamp out, no Leslie (tools/b3_compare.py's) */

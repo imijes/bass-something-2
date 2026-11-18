@@ -69,6 +69,21 @@
 #define B3_HORN_REF2 0.6f                    /* and off its side walls, each */
 #define B3_HMIC_D 8.0f                       /* the right microphone that much farther from the horn, samples (the two
                                               * apart: a reference organ's L/R) */
+/* the noises (a reference organ's, measured with each alone at its full): its keys' thud a low thump (75 Hz, 40 ms)
+ * at make and at break, about 18 dB under a note; the floor's 60 Hz hum and its harmonics and a faint hiss; the
+ * rotors' wind, a rumble (30-250 Hz, falling past 1 kHz) at the fast speed, none at the slow; a drawbar's or a tab's
+ * clunk (300-500 Hz, 20 ms) */
+#define B3_THUD 0.078f                        /* the thud's strike at its full */
+#define B3_HUM 0.0072f                       /* the hum's level, the hiss's */
+#define B3_HISS 0.0024f
+#define B3_WIND_FREE 0.36f                    /* and each microphone's own, round the cabinet */
+#define B3_WIND_AIR 0.15f                    /* its air: a one pole's over the rumble's four, falling past 900 Hz */
+#define B3_WIND_HORN 0.03f                   /* the wind on the horn's path (its middle, 200 Hz-2 kHz): it turns
+                                              * with the horn, its Doppler, its mouths, its walls */
+#define B3_WHIRR 0.014f                       /* the rotor's whirr, to the rumble's noise */
+#define B3_MOUTHS 0.0f                       /* its swell as the horn's mouths pass */
+#define B3_BROOK 40.0f                       /* its tone's wander (the cutoff's, about 3 Hz) */
+#define B3_CLUNK 0.00135f                       /* a clunk's */
 #define B3_LEVEL 2.0f                        /* into the RMI's buffer (its level 1) */
 static const int8_t B3_BAR[9] = {-12, 7, 0, 12, 19, 24, 28, 31, 36};
 /* the manual's taper: each drawbar's level at C2 C3 C4 C5 C6 C7, half dB to the 8' at C4 (between, in a line); the
@@ -86,7 +101,46 @@ static float b3_hm[2][B3_NW] PLAT_POOL;
  * silence, as a B-3's), dB under the key's loudest drawn bar (a reference organ's, measured: its undrawn 1 1/3' and
  * 1' 45-55 dB down, its 1 3/5' about 65); its wheels made plain (no harmonics) */
 static const int8_t B3_XT[9] = {-52, -52, -52, -52, -52, -52, -65, -50, -52};
-static float b3_xt[9];                       /* it as gains (b3_init's) */      /* it for each wheel (b3_init's), a gain (0: under -60 dB) */
+static float b3_xt[9];                       /* it as gains (b3_init's) */
+/* MOJO: this organ's quirks (its own, from its story). A B-3 off the road: a generator rebuild left two tonewheels a
+ * little off their centres, the A1 and the E2, their fields reaching the pickups near them, so they bleed into the
+ * keys a fourth, a fifth or an octave from them; and a tired harness lets a wheel or two more whisper in on about a
+ * third of the keys, no two manuals alike. No tech ever found it all; the players asked them not to. Each key's (both
+ * manuals'): up to four wheels and their levels under its loudest drawn bar, made once (b3_init) from the organ's
+ * serial; heard while a bar is drawn, by MOJO */
+#define B3_MJ_N 4u
+static uint8_t b3_mj_w[2][B3_NK][B3_MJ_N];  /* the wheels (B3_NW: none) */
+static float b3_mj_g[2][B3_NK][B3_MJ_N];    /* their levels */
+static void b3_mojo_init(void)
+{
+    uint32_t m, k, n, rng = 0x1963B3u;       /* (its serial) */
+    for (m = 0; m < 2u; m++)
+        for (k = 0; k < B3_NK; k++) {
+            const uint32_t pc = (B3_K0 + k) % 12u;
+            const float mid = 1.0f - 0.5f * fm_fabsf(((float)k - 30.0f) / 30.0f);   /* (strongest mid keyboard) */
+            n = 0;
+            for (uint32_t i = 0; i < B3_MJ_N; i++)
+                b3_mj_w[m][k][i] = B3_NW, b3_mj_g[m][k][i] = 0.0f;
+            if (pc == 9u || pc == 2u || pc == 4u)   /* the loose A1 (wheel 9): A, D, E keys */
+                b3_mj_w[m][k][n] = 9u, b3_mj_g[m][k][n++] = 0.08f * mid;   /* (-22 dB mid keyboard) */
+            if (pc == 4u || pc == 9u || pc == 11u)  /* the loose E2 (wheel 16): E, A, B keys */
+                b3_mj_w[m][k][n] = 16u, b3_mj_g[m][k][n++] = 0.063f * mid;
+            for (uint32_t i = 0; i < 2u && n < B3_MJ_N; i++) {   /* the harness: a third of the keys a wheel, an eighth
+                                              * two */
+                static const int8_t OFF[8] = {-17, -12, -7, -5, 5, 7, 12, 19};
+                rng = rng * 1664525u + 1013904223u;
+                if ((rng >> 24) >= (i ? 32u : 85u))
+                    break;
+                {
+                    const int32_t w = (int32_t)(B3_K0 + k) + OFF[(rng >> 8) & 7u] - (int32_t)B3_W0;
+                    if (w >= 0 && w < (int32_t)B3_NW)
+                        b3_mj_w[m][k][n] = (uint8_t)w,
+                        b3_mj_g[m][k][n++] = fm_exp2f(-(28.0f + 10.0f * (float)((rng >> 16) & 255u) / 255.0f)
+                                                      * (3.321928f / 20.0f));   /* (-28..-38 dB) */
+                }
+            }
+        }
+}      /* it for each wheel (b3_init's), a gain (0: under -60 dB) */
 static float b3_wave[2][B3_TB + 1u] PLAT_POOL;   /* the low wheels' (a little 2nd and 3rd), the high wheels' (sine) */
 static float b3_scan[B3_SCAN_N] PLAT_POOL;
 static float b3_les[2][B3_LES_N] PLAT_POOL;      /* the horn's line, the drum's */
@@ -119,6 +173,17 @@ static struct {
                                               * high pass's two */
     float eq[3][4];                          /* the cabinet's voicing (B3_EQ): the horn's lift and its top's fall, the
                                               * drum's hump */
+    float mojo;                              /* MOJO, 0..1 (b3_set's) */
+    float n_thud, n_floor, n_rotor, n_mech;  /* the noises' levels, 0..1 (b3_noise's) */
+    float th_in, th1, th2;                   /* the thud: its strike to come, its resonator */
+    float mc_e, mc1, mc2;                    /* the clunk: its burst's level, its band pass */
+    float hum_ph, hs1;                       /* the floor: its hum's phase, its hiss's low pass */
+    float wf[2], wf2[2], wf3[2], wf4[2], wfa[2];   /* the wind, each microphone's: its rumble's four poles, its air */
+    float bub[2], bub2[2], whr[2], wph;      /* its tone's wander; its whirr, its phase (the horn's mouths') */
+    float hw0, hw1, hw2;                     /* the horn's wind: its band's one poles */
+    float gust, gust2;                       /* the wind's slow gusts (twice low passed noise) */
+    uint32_t nrng;                           /* (the noises' own) */
+    uint8_t lastbar[2][9], lastsw;           /* (the drawbars and tabs last set: a change the clunk's) */
     float dlo, dout[2], dmid[2];             /* the drum's at half the rate: the pair's first, each microphone's last
                                               * and halfway */
     uint32_t dw;                             /* its line's write */
@@ -198,6 +263,7 @@ void b3_init(void)
         }
     for (w = 0; w < 9u; w++)
         b3_xt[w] = fm_exp2f((float)B3_XT[w] * (3.321928f / 20.0f));
+    b3_mojo_init();
     for (w = 0; w < 2u; w++)
         for (i = 0; i < B3_NW; i++) {
             const int32_t n = (int32_t)(i + B3_W0) - 36;
@@ -271,6 +337,11 @@ void b3_note(uint32_t code, uint32_t vel)   /* a key (its code, b3_key's; vel 0:
     } else if (!vel)
         b3.held[k >> 5] &= ~(1u << (k & 31u));
     k -= lower ? 64u : 0u;
+    if (b3.n_thud > 0.0f) {                  /* the key's thud: at make, at break a little softer, each its own */
+        b3.nrng = b3.nrng * 1664525u + 1013904223u;
+        b3.th_in += b3.n_thud * B3_THUD * (vel ? 1.0f : 0.8f)
+                    * (0.7f + 0.6f * (float)(b3.nrng >> 8) * (1.0f / 16777216.0f));
+    }
     c = b3.cl_next++ % B3_NCL;               /* the contacts' click: at make, softer at break */
     b3.cl[c].e = (float)b3.click * (vel ? 1.0f : 0.4f) * (1.0f / 127.0f);
     b3.cl[c].k = vel ? 0.9897f : 0.9972f;    /* (2.2 ms, 8 ms to 1/e) */
@@ -294,6 +365,18 @@ void b3_set(const b3_patch_t *p)             /* a preset's sound (the organ's, a
                                               * C2 C3) */
     b3.drive = (float)p->drive * (1.0f / 127.0f);
     b3.click = p->click;
+    b3.mojo = (float)p->mojo * (1.0f / 127.0f);
+    {                                        /* (a drawbar or a tab moved: its clunk) */
+        uint32_t m2, b2, ch = 0;
+        const uint8_t sw = (uint8_t)(b3.perc_on | b3.perc_3rd << 1 | b3.perc_soft << 2 | b3.perc_fast << 3
+                                     | b3.vib[0] << 4 | b3.vib[1] << 5);
+        for (m2 = 0; m2 < 2u; m2++)
+            for (b2 = 0; b2 < 9u; b2++)
+                ch += b3.lastbar[m2][b2] != b3.bar[m2][b2], b3.lastbar[m2][b2] = b3.bar[m2][b2];
+        ch += sw != b3.lastsw, b3.lastsw = sw;
+        if (ch && b3.n_mech > 0.0f)
+            b3.mc_e = b3.n_mech * B3_CLUNK, b3.awake = 1, b3.quiet = 0;
+    }
     b3.width = (float)p->width * (1.0f / 127.0f);
     b3_levels();
     b3.dirty = 1;
@@ -322,6 +405,12 @@ void b3_expr(uint32_t v)                     /* (its gains' aims here, off the s
     b3.expr = (float)v * (1.0f / 127.0f);
     b3.sw_tlo = fm_exp2f(-2.0f * (1.0f - b3.expr)), b3.sw_thi = fm_exp2f(-4.0f * (1.0f - b3.expr));
 }   /* the expression pedal (CC 11), 0..127 (live) */
+void b3_noise(uint32_t thud, uint32_t floor, uint32_t rotor, uint32_t mech)
+{
+    b3.n_thud = (float)thud * (1.0f / 127.0f), b3.n_floor = (float)floor * (1.0f / 127.0f);
+    b3.n_rotor = (float)rotor * (1.0f / 127.0f), b3.n_mech = (float)mech * (1.0f / 127.0f);
+    b3.awake = 1;                            /* (the floor and the wind heard from now) */
+}
 void b3_cap(uint32_t n)                      /* the wheels it may sound at most (an overload's: the quietest go first) */
 {
     n = n > B3_NT ? B3_NT : n;
@@ -362,6 +451,9 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
                 float top = 0.0f;            /* (the key's loudest drawn bar: the crosstalk under it) */
                 for (b = 0; b < 9u; b++)
                     top = lv[b] * b3_tap[b][k] > top ? lv[b] * b3_tap[b][k] : top;
+                if (top > 0.0f && b3.mojo > 0.0f)   /* (MOJO: its quirks' wheels under it) */
+                    for (b = 0; b < B3_MJ_N && b3_mj_w[m][k][b] < B3_NW; b++)
+                        t[b3_mj_w[m][k][b]] += b3_mj_g[m][k][b] * top * b3.mojo;
                 for (b = 0; b < 9u; b++)
                     if (lv[b] <= 0.0f) {
                         if (top > 0.0f && b >= 5u)   /* (the crosstalk: an undrawn bar, while one is drawn; the 2'
@@ -449,6 +541,8 @@ B3_IN float b3_line(const float *l, uint32_t w, float d)   /* a rotor's line d s
     const float f = d - (float)i, a = l[(w - i) & (B3_LES_N - 1u)], b = l[(w - i - 1u) & (B3_LES_N - 1u)];
     return a + (b - a) * f;
 }
+B3_IN float b3_flush(float x) { return x > -1e-20f && x < 1e-20f ? 0.0f : x; }   /* (no denormals: fm_flush's,
+                                              * inline in the RAM code) */
 B3_IN float b3_clip(float x)         /* a soft clip, no division: x - x^3/6.75 to +-1.5, flat past it */
 {
     x = x > 1.5f ? 1.5f : x < -1.5f ? -1.5f : x;
@@ -512,6 +606,9 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
     }
     b3.t += B3_CH;
     PROF2_ADD(0, pt);
+    const float hwind = b3.n_rotor * B3_WIND_HORN * b3.hz[0] * b3.hz[0] * (1.0f / 46.0f);
+    if (hwind > 1e-6f)                       /* (the horn's wind heard: the chain kept up, no notes or not) */
+        b3.quiet = 0;
     b3.quiet = b3.nact ? 0u : b3.quiet + B3_CH;
     for (k = 0; k < B3_NCL; k++)             /* the key clicks: noise, high passed by amt */
         if (b3.cl[k].e > 1e-4f)
@@ -599,6 +696,19 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
             uint32_t m;
             b3.sw_x += (raw - b3.sw_x) * (2.0f * FM_PI * 250.0f / B3_RATE);
             x = b3.sw_x * b3.sw_lo + (raw - b3.sw_x) * b3.sw_hi;
+            if (b3.th_in != 0.0f || b3.th1 != 0.0f || b3.mc_e > 1e-6f) {   /* the thud's resonator (75 Hz, 40 ms) and
+                                              * the clunk's burst (a band pass at 400 Hz), past the swell */
+                const float th = 1.99875f * b3.th1 - 0.99887f * b3.th2 + b3.th_in;
+                b3.th_in = 0.0f, b3.th2 = b3.th1, b3.th1 = b3_flush(th);
+                b3.nrng = b3.nrng * 1664525u + 1013904223u;
+                {
+                    const float n = (float)(int32_t)b3.nrng * (1.0f / 2147483648.0f) * b3.mc_e,
+                                mc = 1.96853f * b3.mc1 - 0.97192f * b3.mc2 + n;
+                    b3.mc2 = b3.mc1, b3.mc1 = b3_flush(mc), b3.mc_e *= 0.9977f;
+                    x += 0.05f * th + 0.1f * mc;
+                }
+                b3.quiet = 0;
+            }
             b3.sw_lo += dlo, b3.sw_hi += dhi;
             b3.hp_y = 0.996f * (b3.hp_y + x - b3.hp_x);   /* (the input transformer: a high pass) */
             b3.hp_x = x;
@@ -614,6 +724,16 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
                                               * high pass; the rest (y - lo) left a bass note half its level, the
                                               * low pass's phase not the note's) */
             hi = b3_bq(b3_bq(hi, b3.eq[0], b3_eq_b[0], b3_eq_a[0]), b3.eq[1], b3_eq_b[1], b3_eq_a[1]) * b3_eq_hg;
+            if (hwind > 0.0f) {              /* the rotors' wind on the horn's path: noise in its middle band, so it
+                                              * moves as the horn's own sound does */
+                float n;
+                b3.nrng = b3.nrng * 1664525u + 1013904223u;
+                n = (float)(int32_t)b3.nrng * (1.0f / 2147483648.0f);
+                b3.hw0 += (n - b3.hw0) * 0.15f;           /* (under 1.1 kHz, two poles) */
+                b3.hw1 += (b3.hw0 - b3.hw1) * 0.15f;
+                b3.hw2 += (b3.hw1 - b3.hw2) * 0.03f;      /* (over 200 Hz: the rest) */
+                hi += hwind * (b3.hw1 - b3.hw2);
+            }
             b3_les[0][b3.lw & (B3_LES_N - 1u)] = hi;
             if (b3.lw & 1u) {                /* the drum at half the rate (all it carries under 800 Hz, the low pass's
                                               * before it): a pair's mean in, its line in half samples; out, each
@@ -676,6 +796,75 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
 /* the organ's block, after the RMI's: its middle (left and right's mean) into mid, its sides (half their difference,
  * by the width) into side (the second core's job; b3_note and b3_set before it, in the render; n a multiple of
  * B3_CH); 1 if it sounds (else both silent) */
+/* the floor's hum and hiss, into the block's middle (after the chain: heard asleep too, as the organ's on) */
+B3_IN void b3_noises(float *mid, float *side, uint32_t n)
+{
+    const float hum = b3.n_floor * B3_HUM, hiss = b3.n_floor * B3_HISS,
+                wa = b3.n_rotor * B3_WIND_FREE * (b3.hz[0] * b3.hz[0] + b3.hz[1] * b3.hz[1]) * (1.0f / 92.0f);
+    uint32_t i, m;
+    if (hum <= 0.0f && wa <= 1e-7f)
+        return;
+    for (i = 0; i < n; i++) {
+        if (wa > 1e-7f) {                    /* (the rotors' wind, each microphone its own: a rumble whose tone
+                                              * wanders at random about three times a second (a brook's burble), its
+                                              * level gusting slowly and swelling a little as the horn's two mouths
+                                              * pass, twice a turn) */
+            float w[2], h2;
+            b3.wph += 2.0f * b3.hz[0] * (1.0f / B3_RATE);   /* (its own phase, the horn's two mouths', a sample
+                                              * at a time: the block's angle would step) */
+            b3.wph -= b3.wph >= 1.0f ? 1.0f : 0.0f;
+            h2 = b3.wph;
+            b3.nrng = b3.nrng * 1664525u + 1013904223u;
+            b3.gust += ((float)(int32_t)b3.nrng * (1.0f / 2147483648.0f) - b3.gust) * 0.0003f;
+            b3.gust2 += (b3.gust - b3.gust2) * 0.0003f;
+            for (m = 0; m < 2u; m++) {
+                float k;
+                b3.nrng = b3.nrng * 1664525u + 1013904223u;
+                b3.bub[m] += ((float)(int32_t)b3.nrng * (1.0f / 2147483648.0f) - b3.bub[m]) * 0.0005f;
+                b3.bub2[m] += (b3.bub[m] - b3.bub2[m]) * 0.0005f;
+                k = 0.035f * (1.0f + B3_BROOK * b3.bub2[m]);
+                k = k < 0.008f ? 0.008f : k > 0.06f ? 0.06f : k;
+                b3.nrng = b3.nrng * 1664525u + 1013904223u;
+                b3.wf[m] += ((float)(int32_t)b3.nrng * (1.0f / 2147483648.0f) - b3.wf[m]) * k;
+                b3.wf2[m] += (b3.wf[m] - b3.wf2[m]) * k;
+                b3.wf3[m] += (b3.wf2[m] - b3.wf3[m]) * k;   /* (four poles: its rumble falls steeply past 250 Hz,
+                                              * as the reference's) */
+                b3.wf4[m] += (b3.wf3[m] - b3.wf4[m]) * k;
+                b3.wfa[m] += (b3.wf[m] - b3.wfa[m]) * 0.12f;   /* (the air's own fall past 900 Hz) */
+                {                            /* (the whirr: the horn's two mouths a turn, its 3rd to 9th, each
+                                              * microphone a quarter turn on) */
+                    float ph = h2 + (m ? 0.25f : 0.0f), c, cp, cn, wr = 0.0f;
+                    uint32_t hh;
+                    ph -= ph >= 1.0f ? 1.0f : 0.0f;
+                    c = b3_cos(ph), cp = 1.0f, cn = c;
+                    for (hh = 2u; hh <= 9u; hh++) {
+                        const float nx = 2.0f * c * cn - cp;
+                        cp = cn, cn = nx;
+                        if (hh >= 3u)
+                            wr += cn;
+                    }
+                    b3.whr[m] = wr;
+                }
+                w[m] = wa * B3_WHIRR * b3.whr[m]
+                       + wa * (1.0f + 10.0f * b3.gust2)
+                         * (1.0f + B3_MOUTHS * b3_cos(h2 + (m ? 0.25f : 0.0f) - (m && h2 >= 0.75f ? 1.0f : 0.0f)))
+                       * (b3.wf4[m] + B3_WIND_AIR * b3.wfa[m]);   /* (its rumble, and a little air over it) */
+            }
+            mid[i] += 0.5f * (w[0] + w[1]);
+            side[i] += 0.5f * b3.width * (w[0] - w[1]);
+        }
+        if (hum > 0.0f) {                    /* (60 Hz and its 2nd to 4th, from its cosine) */
+            const float c = b3_cos(b3.hum_ph), c2 = 2.0f * c * c - 1.0f;
+            b3.hum_ph += 60.0f / B3_RATE;
+            b3.hum_ph -= b3.hum_ph >= 1.0f ? 1.0f : 0.0f;
+            b3.nrng = b3.nrng * 1664525u + 1013904223u;
+            b3.hs1 += ((float)(int32_t)b3.nrng * (1.0f / 2147483648.0f) - b3.hs1) * 0.12f;
+            mid[i] += hum * (c + 0.18f * c2 + 0.15f * (4.0f * c * c - 3.0f) * c + 0.1f * (2.0f * c2 * c2 - 1.0f))
+                      + hiss * b3.hs1;
+        }
+    }
+}
+
 B3_HOT uint32_t b3_job(float *mid, float *side, uint32_t n)
 {
     float ol[B3_CH], orr[B3_CH], pk = 0.0f;
@@ -683,11 +872,14 @@ B3_HOT uint32_t b3_job(float *mid, float *side, uint32_t n)
     for (i = 0; i < n; i++)
         mid[i] = side[i] = 0.0f;
     b3_pk_out = 0.0f;
-    if (!b3.awake)
+    if (!b3.awake) {
+        b3_noises(mid, side, n);
         return 0;
+    }
     if (b3.quiet > B3_LES_N + B3_SCAN_N + 4096u && !b3.dirty && !b3.nact) {   /* (silent: the rotors turn on alone) */
         for (i = 0; i + B3_CH <= n; i += B3_CH)
             b3_chunk(ol, orr);
+        b3_noises(mid, side, n);
         return 0;
     }
     for (i = 0; i + B3_CH <= n; i += B3_CH) {
@@ -701,6 +893,7 @@ B3_HOT uint32_t b3_job(float *mid, float *side, uint32_t n)
             }
         }
     }
+    b3_noises(mid, side, n);
     b3_pk_out = pk;
     return 1;
 }

@@ -66,7 +66,7 @@ static void organ_manuals(b3_patch_t *p)     /* (a preset from before the lower 
 static void organ_leslie(b3_patch_t *p)      /* (a preset from before the Leslie's were its: the settings' then) */
 {
     memcpy(p->les, set.les, sizeof p->les);
-    p->speed = 0, p->swell = set.oswell, p->swell_rest = set.oswell_rest, p->spare = 0;
+    p->speed = 0, p->swell = set.oswell, p->swell_rest = set.oswell_rest, p->mojo = 0;
 }
 static void organ_factory(uint32_t s)        /* slot s as the factory has it */
 {
@@ -126,6 +126,11 @@ static void organ_load(void)                 /* (app_init: its bank, else the fa
 static void organ_block(void)                /* the render's, before the second core's job: the sound, the Leslie */
 {
     static uint8_t can;                      /* (the CANCEL held last time) */
+    static uint32_t noise = 0xFFFFFFFFu;     /* (the noises last given it) */
+    const uint32_t nz = (uint32_t)set.b3_noise[0] | (uint32_t)set.b3_noise[1] << 8 | (uint32_t)set.b3_noise[2] << 16
+                        | (uint32_t)set.b3_noise[3] << 24;
+    if (nz != noise)
+        noise = nz, b3_noise(set.b3_noise[0], set.b3_noise[1], set.b3_noise[2], set.b3_noise[3]);
     if (o_sent || ui.ocan != can) {          /* (CANCEL held: the manual's keys none, on a copy) */
         b3_patch_t p = opatch;
         o_sent = 0;
@@ -166,8 +171,8 @@ static void organ_changed(void)
 }
 
 /* its CCs (its CC channel): 12-20 the drawbars, 21 the percussion, 22 its THIRD, 23 SOFT, 24 FAST, 30 the vibrato,
- * 25 its knob, 26 the drive, 28 the click, 29 the width, 7 its volume; live: 1 (the mod wheel) the Leslie fast, 27
- * the brake, 11 the expression pedal; 64 and up: on */
+ * 25 its knob, 26 the drive, 28 the click, 29 the width, 31 its MOJO, 7 its volume; live: 1 (the mod wheel) the
+ * Leslie fast, 27 the brake, 11 the expression pedal; 64 and up: on */
 static void organ_cc(uint32_t c, uint32_t v)
 {
     if (c >= 12u && c <= 20u)
@@ -183,6 +188,8 @@ static void organ_cc(uint32_t c, uint32_t v)
         opatch.perc_fast = v >= 64u;
     else if (c == 30u)
         opatch.vib_on = v >= 64u;
+    else if (c == 31u)
+        opatch.mojo = (uint8_t)v;
     else if (c == 25u)
         opatch.vib = (uint8_t)(v * 6u / 128u);
     else if (c == 26u)
@@ -235,7 +242,9 @@ static void o_flag(uint8_t *f, int32_t e, const char *name, const char *off, con
     app_say(name, *f ? on : off);
 }
 static const char *const OSPD[3] = {"SLOW", "STOP", "FAST"};
-static const char *const OLES_V[5] = {"CABINET", "ROTORS", "HORN ROTOR", "LOW ROTOR", "AMP"};
+#define NOLES 7u                             /* (ORGAN LESLIE's views) */
+static const char *const OLES_V[NOLES] = {"CABINET", "ROTORS", "HORN ROTOR", "LOW ROTOR", "AMP", "NOISES", "MOJO"};
+static const char *const ONOISE[4] = {"KEY THUDS", "HUM", "ROTOR NOISE", "CLUNKS"};
 static const char *const OTRIM[8] = {"HORN RISE TIME", "HORN FALL TIME", "HORN SLOW SPEED", "HORN FAST SPEED",
                                      "LOW RISE TIME", "LOW FALL TIME", "LOW SLOW SPEED", "LOW FAST SPEED"};
 static uint32_t o_speed(void) { return ui.obrake ? 1u : ui.ofast ? 2u : 0u; }
@@ -330,6 +339,20 @@ static int o_turn(uint32_t k, int32_t e)
             organ_changed();
             o_trim_text(j, t);
             app_say(OTRIM[j], t);
+        } else if (ui.oles == 5u && k >= EN_K1) {   /* NOISES: the organ's four (settings, every preset's) */
+            uint8_t *v = &set.b3_noise[k - EN_K1];
+            *v = (uint8_t)clamp((int32_t)*v + knob_wide(k, e), 0, 127);
+            int_text(*v, t);
+            ui.redraw = 1;
+            app_say(ONOISE[k - EN_K1], t);
+        } else if (ui.oles == 6u) {          /* MOJO: this organ's quirks (the preset's) */
+            if (k == EN_K1) {
+                opatch.mojo = (uint8_t)clamp((int32_t)opatch.mojo + knob_wide(k, e), 0, 127);
+                organ_changed();
+                int_text((int32_t)opatch.mojo * 100 / 127, t);
+                text_cat(t, "%");
+                app_say("MOJO", t);
+            }
         } else if (ui.oles == 4u && k == EN_K2) {   /* KEY SWELL, its rest (the preset's) */
             opatch.swell = e > 0;
             organ_changed();
@@ -361,12 +384,14 @@ static int o_turn(uint32_t k, int32_t e)
 static const char *o_hint(uint32_t k)
 {
     static const char *const FT[9] = {"16'", "5 1/3'", "8'", "4'", "2 2/3'", "2'", "1 3/5'", "1 1/3'", "1'"};
-    static const char *const LES[5][4] = {
+    static const char *const LES[NOLES][4] = {
         {"Leslie stereo width", "Preamp drive", "Key click", "Organ's volume"},
         {"Horn's slow speed", "Horn's fast speed", "Drum's slow speed", "Drum's fast speed"},
         {"Horn's spin-up time", "Horn's slow-down time", "Horn's slow speed", "Horn's fast speed"},
         {"Drum's spin-up time", "Drum's slow-down time", "Drum's slow speed", "Drum's fast speed"},
-        {"Amp's drive", "Key pressure opens swell", "Swell with no pressure", "Organ's volume"}};
+        {"Amp's drive", "Key pressure opens swell", "Swell with no pressure", "Organ's volume"},
+        {"Key thuds, all presets", "Floor hum, all presets", "Rotor noise, all presets", "Drawbar clunks, all"},
+        {"This organ's quirks", 0, 0, 0}};
     static char t[32];
     if (k == EN_SELECT && ui.page != PG_OLES)
         return "Organ's volume";
@@ -393,7 +418,7 @@ static const char *o_hint(uint32_t k)
              : k == EN_K3 ? "Percussion fast decay" : k == EN_K4 ? "Percussion 2nd or 3rd" : 0;
     if (ui.page == PG_OLES)
         return k == EN_ALGO ? "Leslie slow, stop, fast" : k == EN_SELECT || k == EN_PRESET ? (k == EN_SELECT ? "Organ's volume" : "Pick the preset")
-             : k >= EN_K1 && ui.oles < 5u ? LES[ui.oles][k - EN_K1] : 0;
+             : k >= EN_K1 && ui.oles < NOLES ? LES[ui.oles][k - EN_K1] : 0;
     return 0;
 }
 
@@ -502,7 +527,7 @@ static void o_button(uint32_t k)
         ui.oles = 0;
         sect_open(PG_OLES, k);
     } else if (k == B_LFO) {                 /* (LFO again: its views round) */
-        ui.oles = (uint8_t)((ui.oles + 1u) % 5u);
+        ui.oles = (uint8_t)((ui.oles + 1u) % NOLES);
         ui.redraw = 1;
         app_say("LESLIE", OLES_V[ui.oles]);
     }
@@ -1168,6 +1193,34 @@ static void o_amp(void)                      /* Leslie-122H-Amp.webp: the chassi
         }
     }
 }
+static void o_mojo(void)                     /* NOISES and MOJO: the organ's insides in the dark, the generator's
+                                              * long box, a plate along its front with the four knobs' print */
+{
+    char t[16];
+    uint32_t i;
+    cv_rect(0, 66, 240, TALL_H - 66, RGB(6, 6, 6));
+    cv_rect(20, 80, 200, 30, RGB(46, 40, 34));    /* the generator: its box, its lid's edge, its shaft's line */
+    cv_rect(20, 80, 200, 2, RGB(90, 80, 66));
+    cv_rect(28, 94, 184, 2, RGB(120, 110, 90));
+    for (i = 0; i < 12u; i++)                    /* (its wheels' covers) */
+        cv_rect(30 + (int32_t)i * 15, 86, 8, 18, RGB(70, 62, 52));
+    cv_rect(20, 124, 200, 28, RGB(156, 156, 146));   /* the plate */
+    cv_rect(20, 151, 200, 2, RGB(70, 70, 66));
+    for (i = 0; i < 4u; i++) {
+        const int32_t cx = 46 + 50 * (int32_t)i;
+        static const char *const NL[4] = {"THUDS", "HUM", "ROTOR", "CLUNKS"};
+        const char *l = ui.oles == 5u ? NL[i] : i ? "" : "MOJO";
+        t[0] = 0;
+        if (ui.oles == 5u)
+            int_text(set.b3_noise[i], t);
+        else if (!i)
+            int_text((int32_t)opatch.mojo * 100 / 127, t), text_cat(t, "%");
+        print_c(cx, 128, l, RGB(30, 30, 30));
+        print_c(cx, 138, t, knob_lit(EN_K1 + i) ? P_CYAN : RGB(30, 30, 30));
+        if (*l)
+            tag(cx, 134, EN_K1 + i);
+    }
+}
 static void oles_draw(void)
 {
     oh_head("LESLIE", OLES_V[ui.oles][0] == 'H' ? "HORN" : OLES_V[ui.oles][0] == 'L' ? "LOW" : ui.oles ? OLES_V[ui.oles]
@@ -1178,6 +1231,8 @@ static void oles_draw(void)
         o_rotors();
     else if (ui.oles == 4u)
         o_amp();
+    else if (ui.oles >= 5u)
+        o_mojo();
     else
         o_controls(ui.oles == 3u);
 }
