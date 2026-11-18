@@ -196,8 +196,8 @@ static void rmi_block(void)
     }
 }
 
-/* the instrument's next sample at level 1 (rmi_job's: on the second core when there is one, so it touches nothing
- * the first core's render does: its room send and the FX bus's wake are the render's, from its sample and *woke) */
+/* the instrument's next sample at level 1 (rmi_job's: it touches nothing else of the render's, so it could run on
+ * either core: its room send and the FX bus's wake are the render's, from its sample and *woke) */
 static inline float rmi_next(uint32_t *woke)
 {
     float s = 0.0f, lute = 0.0f;
@@ -263,8 +263,8 @@ static inline float rmi_next(uint32_t *woke)
     return s;
 }
 
-/* a block of the instrument (the render's job, from after rmi_block: on the second core while the first renders the
- * bass and the drums, else on the first before them), into rmi_buf at level 1 */
+/* a block of the instrument (the render's, after rmi_block: on the first core, while the second makes the organ's and
+ * the FX bus's), into rmi_buf at level 1 */
 static float rmi_buf[APP_BLOCK] PLAT_POOL;
 static volatile uint32_t rmi_woke;           /* a voice sounded in it (the FX bus woken for it) */
 static void rmi_job(uint32_t n)

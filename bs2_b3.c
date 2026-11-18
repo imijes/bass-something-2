@@ -22,6 +22,7 @@
 #include "plat.h"
 #include "fastmath.h"
 #include "bs2_b3.h"
+#include "bs2_prof.h"
 #if BS2_B3                                   /* (off: nothing of it built) */
 #define B3_RATE 44100.0f
 #ifdef PLAT_HOST
@@ -394,6 +395,7 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
 {
     float bus[B3_CH], dbus[B3_CH], pbus[B3_CH];
     uint32_t i, k;
+    PROF2_AT(pt);
     b3_step();
     for (i = 0; i < B3_CH; i++)
         bus[i] = dbus[i] = pbus[i] = 0.0f;
@@ -425,6 +427,7 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
         b3.g[w] = g, b3.d[w] = d, b3.pg[w] = pg;
     }
     b3.t += B3_CH;
+    PROF2_ADD(0, pt);
     b3.quiet = b3.nact ? 0u : b3.quiet + B3_CH;
     for (k = 0; k < B3_NCL; k++)             /* the key clicks: noise, high passed by amt */
         if (b3.cl[k].e > 1e-4f)
@@ -474,6 +477,7 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
     } else
         for (i = 0; i < B3_CH; i++)
             bus[i] *= 0.125f;
+    PROF2_ADD(1, pt);
     {                                        /* the preamp, the crossover, the rotors heard by two microphones */
         static const float SWING[2] = {19.0f, 6.0f}, REF[2] = {137.0f, 295.0f},
                            AT[3] = {-0.125f, 0.125f, 0.25f};   /* (the microphones 45 degrees either side of the
@@ -541,6 +545,7 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
             orr[i] = out[1] * B3_LEVEL;
         }
     }
+    PROF2_ADD(2, pt);
 }
 
 /* the organ's block, after the RMI's: its middle (left and right's mean) into mid, its sides (half their difference,

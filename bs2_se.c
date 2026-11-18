@@ -276,15 +276,18 @@ FX_IN float se_next(float x)
         se.peak = (uint16_t)(0.15f * BS2_RATE);
     else if (se.peak)
         se.peak--;
+    PROF2_AT(pt);
     if (heads && (on || se.quiet < SE_LEN))
         out = se_tape_next(x, heads);
     else
         se.m = se.d = se_target(), se.dv = 0.0f;   /* the tape asleep (or stopped): the motor where it's set */
+    PROF2_ADD(3, pt);
     if (se.mode >= 4u) {
         se_sp.idle = on ? 0u : se_sp.idle + (se_sp.idle < SE_SP_IDLE);
         if (se_sp.idle < SE_SP_IDLE)
             out += se_spring_next(x) * (SE_SP_GAIN * se.reverb * se.reverb);
     }
+    PROF2_ADD(4, pt);
 #ifdef PLAT_HOST
     se_out_max = fm_maxf(se_out_max, fm_fabsf(out));
 #endif

@@ -707,14 +707,10 @@ static int store_save(uint32_t obj, const void *src, uint32_t len);   /* plat_st
 #include "bs2_rmi.c"                      /* the RMI 368X, the third instrument (rmi_note, rmi_next) */
 #include "bs2_b3.h"                       /* the organ's engine (bs2_b3.c, BS2_B3 there): a unit of its own at -O2, its hot
                                               * code in the second core's RAM; its presets and pages: bs2_organ.c */
-#ifndef PROF_TIMING
-#define PROF_TIMING 0                        /* 1: each part of the render's share of a block, % (now/most), said every
-                                              * 2 s (tools/fm1_remote.py listen): the first core's before the job (P), beside
-                                              * it (B), waiting for it (W), after it (F); the second core's RMI (R), organ
-                                              * (O), FX bus (X) */
-#endif
+#include "bs2_prof.h"                     /* PROF_TIMING: the render timed in parts */
 #if PROF_TIMING
-static uint32_t prof_sum[12], prof_pk[12], prof_nb;   /* (and the first core's B in parts: the bass's modulation
+volatile uint32_t prof2[6];
+static uint32_t prof_sum[18], prof_pk[18], prof_nb;   /* (and the first core's B in parts: the bass's modulation
                                               * step (c), its oscillators and mixer (o), its filter (l), the rest of its
                                               * chain (a), the drums and the mix after it (d)) */
 #define PROF_V(k) do { const uint32_t t_ = plat_ticks24(); pv[k] += (t_ - pt) & 0xFFFFFFu, pt = t_; } while (0)
@@ -1599,7 +1595,9 @@ static inline int16_t usb_s16(float s)       /* a sample, the master's scale, as
 {
     return (int16_t)fm_clampf(s * (1.0f / 256.0f), -32768.0f, 32767.0f);
 }
-/* the second core's job: the RMI's block, then the FX bus's returns for the last block's sends (fx_job) */
+/* the second core's job: the organ's block, then the FX bus's returns for the last block's sends (fx_job); the RMI's
+ * block on the first, beside it (rmi_job: the lighter on average, and its peaks under the first's own time, not
+ * waited for) */
 static volatile uint32_t c2_ticks;           /* how long it took (plat_ticks24's): the second core's load */
 #if BS2_B3
 static float b3_mid[APP_BLOCK] PLAT_POOL, b3_side[APP_BLOCK] PLAT_POOL;   /* the organ's block: its middle, its
@@ -1609,17 +1607,8 @@ static volatile uint32_t b3_on;              /* it sounded in the last block (so
 static void c2_job(uint32_t n)
 {
     const uint32_t t0 = plat_ticks24();
-    rmi_job(n);
-#if PROF_TIMING
-    prof_c2[0] = plat_ticks24();
-#endif
 #if BS2_B3
-    {
-        const uint32_t on = PLAT_FAR(b3_job)(b3_mid, b3_side, n);   /* (in RAM: through a far pointer) */
-        b3_on = on;
-        if (on)
-            rmi_woke = 1;                    /* (the FX bus woken: its room) */
-    }
+    b3_on = PLAT_FAR(b3_job)(b3_mid, b3_side, n);   /* (in RAM: through a far pointer) */
 #endif
 #if PROF_TIMING
     prof_c2[1] = plat_ticks24();
@@ -1627,9 +1616,7 @@ static void c2_job(uint32_t n)
     PLAT_FAR(fx_job)();                      /* (in RAM: through a far pointer) */
     c2_ticks = plat_ticks24() - t0;
 #if PROF_TIMING
-    prof_c2[2] = plat_ticks24(), prof_c2[1] = (prof_c2[1] - prof_c2[0]) & 0xFFFFFFu,
-    prof_c2[2] = (prof_c2[2] - prof_c2[0]) & 0xFFFFFFu, prof_c2[0] = (prof_c2[0] - t0) & 0xFFFFFFu;
-    prof_c2[2] -= prof_c2[1];
+    prof_c2[2] = (plat_ticks24() - prof_c2[1]) & 0xFFFFFFu, prof_c2[1] = (prof_c2[1] - t0) & 0xFFFFFFu;
 #endif
 }
 /* the overload's guard: the second core's job past OVL_HI of a block, or the first core's render so far (its
@@ -1805,9 +1792,16 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 #if PROF_TIMING
     const uint32_t t_job = plat_ticks24();
 #endif
-    if (!(plat_cpu2_on() && plat_cpu2_run(c2_job, n)))   /* the RMI's block and the FX bus's: the second core's while
-                                              * the bass and the drums are made here, else first, here */
+    if (!(plat_cpu2_on() && plat_cpu2_run(c2_job, n)))   /* the organ's block and the FX bus's: the second core's
+                                              * while the RMI, the bass and the drums are made here, else first, here */
         c2_job(n), c2 = 0;
+#if PROF_TIMING
+    const uint32_t t_rmi = plat_ticks24();
+#endif
+    rmi_job(n);                              /* (the RMI's block, beside the second core's) */
+#if PROF_TIMING
+    prof_c2[0] = (plat_ticks24() - t_rmi) & 0xFFFFFFu;
+#endif
     g0 = gain_now;
     dq_block();
     if (!afx_on)
@@ -1970,7 +1964,11 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         const float ov = RMI_MIX * 0.3f * (float)(127u - set.b3vol_off) * (1.0f / 127.0f)
                          * (opatch.vol_soft ? 0.5f : 1.0f);   /* (the organ's volume; its VOLUME tab SOFT: 6 dB down) */
 #endif
+#if BS2_B3
+        const uint32_t woke = rmi_woke || b3_on;   /* (the RMI or the organ sounded: the FX bus woken, its room) */
+#else
         const uint32_t woke = rmi_woke;
+#endif
         uint32_t ur = 0;                     /* the USB audio's own channels (fm1.toml usb_audio_channels): the bass, the
                                               * drums, the piano, the echo's return, the organ's left and right, after
                                               * MASTER as the master's; NULL while no computer records */
@@ -2026,6 +2024,8 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         prof_add(4, prof_c2[0], n), prof_add(5, prof_c2[1], n), prof_add(6, prof_c2[2], n);
         for (uint32_t k = 0; k < 5u; k++)
             prof_add(7u + k, pv[k], n);
+        for (uint32_t k = 0; k < 6u; k++)
+            prof_add(12u + k, prof2[k], n), prof2[k] = 0;
         prof_nb++;
     }
 #endif
@@ -6425,12 +6425,12 @@ static void input(void)
                                               * second's, "c o l a d" B's, each now/most % of a block */
         static uint32_t at;
         if (plat_ms() - at >= 2000u && prof_nb) {
-            static const char K[12] = {'P', 'B', 'W', 'F', 'R', 'O', 'X', 'c', 'v', 'l', 'a', 'd'};
-            static const uint8_t LN[12] = {0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3};   /* (each line 23 characters at most) */
-            char t[4][24], *q;
+            static const char K[18] = {'P', 'B', 'W', 'F', 'R', 'O', 'X', 'c', 'v', 'l', 'a', 'd', 'g', 's', 'L', 't', 'p', 'r'};
+            static const uint8_t LN[18] = {0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 4, 4, 4, 5, 5, 5};   /* (each line 23 characters at most) */
+            char t[6][24], *q;
             uint32_t k;
             at = plat_ms();
-            for (k = 0; k < 12u; k++) {
+            for (k = 0; k < 18u; k++) {
                 const int first = !k || LN[k] != LN[k - 1u];
                 q = t[LN[k]] + (first ? 0 : __builtin_strlen(t[LN[k]]));
                 if (first)
@@ -6445,6 +6445,7 @@ static void input(void)
             prof_nb = 0;
             app_say(t[0], t[1]);
             app_say(t[2], t[3]);
+            app_say(t[4], t[5]);
         }
     }
 #endif

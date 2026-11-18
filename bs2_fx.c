@@ -21,6 +21,7 @@ FM_AI float fm_tanhf(float x);
 #include "fastmath.h"
 #include "app.h"
 #include "bs2_fx.h"
+#include "bs2_prof.h"
 #ifdef PLAT_HOST
 #define FX_HOT
 #else
@@ -131,7 +132,12 @@ FX_HOT float fx_next(float x, float s, float g, float *echo)
     if (fx.idle >= FX_IDLE)
         return e;
     fx.idle++;
-    return e + fx_room_next(x);
+    {
+        PROF2_AT(pt);
+        const float r = fx_room_next(x);
+        PROF2_ADD(5, pt);
+        return e + r;
+    }
 }
 
 /* the last block's sends into the ring's returns (the render's job, after the RMI's block: the second core's when there
