@@ -76,9 +76,9 @@
 #define B3_THUD 0.078f                        /* the thud's strike at its full */
 #define B3_HUM 0.0072f                       /* the hum's level, the hiss's */
 #define B3_HISS 0.0024f
-#define B3_WIND_FREE 0.36f                    /* and each microphone's own, round the cabinet */
+#define B3_WIND_FREE 0.018f                   /* and each microphone's own, round the cabinet */
 #define B3_WIND_AIR 0.15f                    /* its air: a one pole's over the rumble's four, falling past 900 Hz */
-#define B3_WIND_HORN 0.03f                   /* the wind on the horn's path (its middle, 200 Hz-2 kHz): it turns
+#define B3_WIND_HORN 0.0015f                  /* the wind on the horn's path (its middle, 200 Hz-2 kHz): it turns
                                               * with the horn, its Doppler, its mouths, its walls */
 #define B3_WHIRR 0.014f                       /* the rotor's whirr, to the rumble's noise */
 #define B3_MOUTHS 0.0f                       /* its swell as the horn's mouths pass */
@@ -103,14 +103,29 @@ static float b3_hm[2][B3_NW] PLAT_POOL;
 static const int8_t B3_XT[9] = {-52, -52, -52, -52, -52, -52, -65, -50, -52};
 static float b3_xt[9];                       /* it as gains (b3_init's) */
 /* MOJO: this organ's quirks (its own, from its story). A B-3 off the road: a generator rebuild left two tonewheels a
- * little off their centres, the A1 and the E2, their fields reaching the pickups near them, so they bleed into the
+ * little off their centres, the A2 and the E3, their fields reaching the pickups near them, so they bleed into the
  * keys a fourth, a fifth or an octave from them; and a tired harness lets a wheel or two more whisper in on about a
  * third of the keys, no two manuals alike. No tech ever found it all; the players asked them not to. Each key's (both
  * manuals'): up to four wheels and their levels under its loudest drawn bar, made once (b3_init) from the organ's
- * serial; heard while a bar is drawn, by MOJO */
+ * serial; heard while a bar is drawn, by MOJO. Its other quirks, each a CHARACTER alone or several together: busbar
+ * contacts gone dull (a drawbar on a key in four weak, its click scratchier), a tired power supply (the hum up, the
+ * level sagging under a big chord), a tired Leslie motor (slower, lazier, never quite steady), its valves run warm
+ * (more drive, more even harmonics) */
 #define B3_MJ_N 4u
 static uint8_t b3_mj_w[2][B3_NK][B3_MJ_N];  /* the wheels (B3_NW: none) */
 static float b3_mj_g[2][B3_NK][B3_MJ_N];    /* their levels */
+static uint8_t b3_mj_cb[2][B3_NK];          /* each key's dull contact: its drawbar (9: none), its loss at full */
+static float b3_mj_cd[2][B3_NK];
+enum { MJ_WHEELS, MJ_CONTACTS, MJ_SAG, MJ_MOTOR, MJ_WARM, MJ_N };
+static const struct {
+    const char *name;
+    uint8_t q[MJ_N];                         /* each quirk's part, % */
+} B3_CHAR[B3_NCHAR] = {
+    {"LOOSE WHEELS", {100, 0, 0, 0, 0}}, {"DIRTY CONTACTS", {0, 100, 0, 0, 0}}, {"HUM + SAG", {0, 0, 100, 0, 0}},
+    {"TIRED MOTOR", {0, 0, 0, 100, 0}},  {"TUBE WARMTH", {0, 0, 0, 0, 100}},     {"ROAD CASE", {80, 60, 30, 50, 40}},
+    {"CHURCH", {30, 20, 10, 30, 80}},    {"JUKE JOINT", {60, 50, 100, 40, 100}}, {"BARN FIND", {100, 100, 70, 100, 50}},
+};
+const char *b3_mojo_name(uint32_t c) { return B3_CHAR[c < B3_NCHAR ? c : 0u].name; }
 static void b3_mojo_init(void)
 {
     uint32_t m, k, n, rng = 0x1963B3u;       /* (its serial) */
@@ -121,10 +136,13 @@ static void b3_mojo_init(void)
             n = 0;
             for (uint32_t i = 0; i < B3_MJ_N; i++)
                 b3_mj_w[m][k][i] = B3_NW, b3_mj_g[m][k][i] = 0.0f;
-            if (pc == 9u || pc == 2u || pc == 4u)   /* the loose A1 (wheel 9): A, D, E keys */
-                b3_mj_w[m][k][n] = 9u, b3_mj_g[m][k][n++] = 0.08f * mid;   /* (-22 dB mid keyboard) */
-            if (pc == 4u || pc == 9u || pc == 11u)  /* the loose E2 (wheel 16): E, A, B keys */
-                b3_mj_w[m][k][n] = 16u, b3_mj_g[m][k][n++] = 0.063f * mid;
+            if (pc == 9u || pc == 2u || pc == 4u)   /* the loose A2 (wheel 21): A, D, E keys */
+                b3_mj_w[m][k][n] = 21u, b3_mj_g[m][k][n++] = 0.08f * mid;   /* (-22 dB mid keyboard) */
+            if (pc == 4u || pc == 9u || pc == 11u)  /* the loose E3 (wheel 28): E, A, B keys */
+                b3_mj_w[m][k][n] = 28u, b3_mj_g[m][k][n++] = 0.063f * mid;
+            rng = rng * 1664525u + 1013904223u;   /* (a key in four a dull contact: a drawbar, a third to all lost) */
+            b3_mj_cb[m][k] = (rng >> 24) < 64u ? (uint8_t)((rng >> 8) % 9u) : 9u;
+            b3_mj_cd[m][k] = 0.35f + 0.65f * (float)((rng >> 16) & 255u) * (1.0f / 255.0f);
             for (uint32_t i = 0; i < 2u && n < B3_MJ_N; i++) {   /* the harness: a third of the keys a wheel, an eighth
                                               * two */
                 static const int8_t OFF[8] = {-17, -12, -7, -5, 5, 7, 12, 19};
@@ -173,7 +191,8 @@ static struct {
                                               * high pass's two */
     float eq[3][4];                          /* the cabinet's voicing (B3_EQ): the horn's lift and its top's fall, the
                                               * drum's hump */
-    float mojo;                              /* MOJO, 0..1 (b3_set's) */
+    float mojo, mq[MJ_N];                    /* MOJO, 0..1 (b3_set's); each quirk's part of it, its CHARACTER's */
+    float mo_ph;                             /* the tired motor's wander: its phase */
     float n_thud, n_floor, n_rotor, n_mech;  /* the noises' levels, 0..1 (b3_noise's) */
     float th_in, th1, th2;                   /* the thud: its strike to come, its resonator */
     float mc_e, mc1, mc2;                    /* the clunk: its burst's level, its band pass */
@@ -342,9 +361,13 @@ void b3_note(uint32_t code, uint32_t vel)   /* a key (its code, b3_key's; vel 0:
         b3.th_in += b3.n_thud * B3_THUD * (vel ? 1.0f : 0.8f)
                     * (0.7f + 0.6f * (float)(b3.nrng >> 8) * (1.0f / 16777216.0f));
     }
-    c = b3.cl_next++ % B3_NCL;               /* the contacts' click: at make, softer at break */
-    b3.cl[c].e = (float)b3.click * (vel ? 1.0f : 0.4f) * (1.0f / 127.0f);
-    b3.cl[c].k = vel ? 0.9897f : 0.9972f;    /* (2.2 ms, 8 ms to 1/e) */
+    c = b3.cl_next++ % B3_NCL;               /* the contacts' click: at make, softer at break (a dull contact's
+                                              * louder, scratchier, longer) */
+    {
+        const float dc = b3_mj_cb[lower != 0u][k] < 9u ? b3.mq[MJ_CONTACTS] : 0.0f;
+        b3.cl[c].e = ((float)b3.click * (1.0f / 127.0f) + 0.5f * dc) * (vel ? 1.0f : 0.4f);
+        b3.cl[c].k = (vel ? 0.9897f : 0.9972f) + 0.0075f * dc * (vel ? 1.0f : 0.3f);   /* (2.2 ms, 8 ms to 1/e) */
+    }
     b3.cl[c].amt = 0.25f + 0.6f * (float)k / (float)B3_NK;   /* (its band: higher for a higher key) */
 }
 
@@ -363,9 +386,12 @@ void b3_set(const b3_patch_t *p)             /* a preset's sound (the organ's, a
     b3.perc_soft = p->perc_soft != 0u, b3.perc_fast = p->perc_fast != 0u;
     b3.scan = p->vib_on || p->vib_lower ? (uint8_t)(1u + (p->vib > 5u ? 5u : p->vib)) : 0u;   /* (off, V1 V2 V3, C1
                                               * C2 C3) */
-    b3.drive = (float)p->drive * (1.0f / 127.0f);
     b3.click = p->click;
     b3.mojo = (float)p->mojo * (1.0f / 127.0f);
+    for (b = 0; b < MJ_N; b++)
+        b3.mq[b] = b3.mojo * (float)B3_CHAR[p->mchar < B3_NCHAR ? p->mchar : 0u].q[b] * 0.01f;
+    b3.drive = (float)p->drive * (1.0f / 127.0f) + 0.25f * b3.mq[MJ_WARM];   /* (the warm valves: more drive) */
+    b3.drive = b3.drive > 1.0f ? 1.0f : b3.drive;
     {                                        /* (a drawbar or a tab moved: its clunk) */
         uint32_t m2, b2, ch = 0;
         const uint8_t sw = (uint8_t)(b3.perc_on | b3.perc_3rd << 1 | b3.perc_soft << 2 | b3.perc_fast << 3
@@ -418,12 +444,22 @@ void b3_cap(uint32_t n)                      /* the wheels it may sound at most 
         b3.cap = (uint8_t)n, b3.dirty = 1;
 }
 
+B3_IN float b3_spin(float s)                /* the rotors' noise at a speed (1: fast): chorale 7 dB under tremolo,
+                                              * none stopped */
+{
+    return s * 3.8f < 0.35f + 0.65f * s ? s * 3.8f : 0.35f + 0.65f * s;
+}
+B3_IN float b3_tri(float a)                 /* a triangle at a turn's fraction (0..2: wrapped), -1..1 */
+{
+    a -= a >= 1.0f ? 1.0f : 0.0f;
+    return 4.0f * (a < 0.5f ? a : 1.0f - a) - 1.0f;
+}
 static B3_HOT void b3_step(void)             /* a modulation step: each wheel's level to its target over B3_CH; the
                                               * targets again only when a key or a setting changed (dirty) or the
                                               * percussion falls */
 {
     static float tg[B3_NT], td[B3_NT], tp[B3_NT];
-    float pl;
+    float pl, load = 0.0f;                   /* (the keys' loudest bars, summed: the tired supply's sag) */
     uint32_t k, b, w, m;
     const int perc = b3.perc_on && b3.perc > 1e-4f;
     b3.perc *= b3.perc_k;                    /* (the percussion's fall, a step at a time) */
@@ -451,9 +487,10 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
                 float top = 0.0f;            /* (the key's loudest drawn bar: the crosstalk under it) */
                 for (b = 0; b < 9u; b++)
                     top = lv[b] * b3_tap[b][k] > top ? lv[b] * b3_tap[b][k] : top;
-                if (top > 0.0f && b3.mojo > 0.0f)   /* (MOJO: its quirks' wheels under it) */
+                if (top > 0.0f && b3.mq[MJ_WHEELS] > 0.0f)   /* (MOJO: its quirks' wheels under it) */
                     for (b = 0; b < B3_MJ_N && b3_mj_w[m][k][b] < B3_NW; b++)
-                        t[b3_mj_w[m][k][b]] += b3_mj_g[m][k][b] * top * b3.mojo;
+                        t[b3_mj_w[m][k][b]] += b3_mj_g[m][k][b] * top * b3.mq[MJ_WHEELS];
+                load += top;
                 for (b = 0; b < 9u; b++)
                     if (lv[b] <= 0.0f) {
                         if (top > 0.0f && b >= 5u)   /* (the crosstalk: an undrawn bar, while one is drawn; the 2'
@@ -462,7 +499,8 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
                     } else {
                         w = b3_wheel((int32_t)(B3_K0 + k) + B3_BAR[b] + (!b && k < 12u ? 12 : 0));   /* (the 16'
                                               * folded back on the bottom octave) */
-                        const float v = lv[b] * b3_tap[b][k];
+                        const float v = lv[b] * b3_tap[b][k]
+                                        * (b == b3_mj_cb[m][k] ? 1.0f - b3.mq[MJ_CONTACTS] * b3_mj_cd[m][k] : 1.0f);
                         t[w] += v;
                         if (w + 12u < B3_NW)  /* (its 2nd on the octave's wheel: a B-3's octaves exact, 2:1) */
                             t[w + 12u] += v * b3_hm[0][w];
@@ -501,6 +539,11 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
                     tg[w] = td[w] = 0.0f;
         }
     }
+    if (b3.mq[MJ_SAG] > 0.0f && load > 1.0f) {   /* (the tired supply: the level sagging under a big chord) */
+        const float sg = 1.0f / (1.0f + 0.04f * b3.mq[MJ_SAG] * (load - 1.0f));
+        for (w = 0; w < B3_NT; w++)
+            tg[w] *= sg, td[w] *= sg, tp[w] *= sg;
+    }
     b3.nact = 0;
     for (w = 0; w < B3_NT; w++) {
         b3.dg[w] = (tg[w] - b3.g[w]) * (1.0f / B3_CH);
@@ -512,9 +555,13 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
     if (perc)                                /* (the percussion falling: its targets again next step) */
         b3.dirty = 1;
 rotors:
+    b3.mo_ph += 0.23f * (float)B3_CH / B3_RATE;   /* (the tired motor: slower, lazier, wandering) */
+    b3.mo_ph -= b3.mo_ph >= 1.0f ? 1.0f : 0.0f;
     for (b = 0; b < 2u; b++) {               /* the rotors: chorale or tremolo, the brake; each its own run */
-        const float to = b3.brake ? 0.0f : b3.fast ? b3.tre[b] : b3.cho[b];
-        const float tau = to > b3.hz[b] ? b3.up[b] : b3.down[b];
+        const float mt = b3.mq[MJ_MOTOR],
+                    to = b3.brake ? 0.0f : (b3.fast ? b3.tre[b] : b3.cho[b])
+                                           * (1.0f - mt * (0.08f - 0.03f * b3_tri(b3.mo_ph + 0.37f * (float)b))),
+                    tau = (to > b3.hz[b] ? b3.up[b] : b3.down[b]) * (1.0f + 1.2f * mt);
         b3.hz[b] += (to - b3.hz[b]) * ((float)B3_CH / (tau * B3_RATE));
     }
 }
@@ -606,7 +653,7 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
     }
     b3.t += B3_CH;
     PROF2_ADD(0, pt);
-    const float hwind = b3.n_rotor * B3_WIND_HORN * b3.hz[0] * b3.hz[0] * (1.0f / 46.0f);
+    const float hwind = b3.n_rotor * B3_WIND_HORN * b3_spin(b3.hz[0] * (1.0f / 6.8f));
     if (hwind > 1e-6f)                       /* (the horn's wind heard: the chain kept up, no notes or not) */
         b3.quiet = 0;
     b3.quiet = b3.nact ? 0u : b3.quiet + B3_CH;
@@ -669,7 +716,8 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
                            HRD[2][3] = {{137.0f, 211.0f, 0.0f}, {149.0f, 0.0f, 311.0f}},
                            HRG[3] = {B3_HORN_REF, B3_HORN_REF2, B3_HORN_REF2};
         const float hr = B3_PRE_HR + (1.0f - B3_PRE_HR) * b3.drive,   /* (the clip's headroom: DRIVE 0 nearly clean) */
-                    g = (1.0f + 6.0f * b3.drive) * hr, bias = 0.28f * b3.drive, tb = b3_clip(bias),
+                    g = (1.0f + 6.0f * b3.drive) * hr, bias = 0.28f * b3.drive + 0.12f * b3.mq[MJ_WARM],
+                    tb = b3_clip(bias),
                     og = 1.0f / ((0.5f + 0.5f * g / hr) * hr);
         float c[2][5], dc[2][5];
         uint32_t r, j;
@@ -799,8 +847,8 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
 /* the floor's hum and hiss, into the block's middle (after the chain: heard asleep too, as the organ's on) */
 B3_IN void b3_noises(float *mid, float *side, uint32_t n)
 {
-    const float hum = b3.n_floor * B3_HUM, hiss = b3.n_floor * B3_HISS,
-                wa = b3.n_rotor * B3_WIND_FREE * (b3.hz[0] * b3.hz[0] + b3.hz[1] * b3.hz[1]) * (1.0f / 92.0f);
+    const float hum = (b3.n_floor + 1.5f * b3.mq[MJ_SAG]) * B3_HUM, hiss = b3.n_floor * B3_HISS,
+                wa = b3.n_rotor * B3_WIND_FREE * b3_spin((b3.hz[0] + b3.hz[1]) * (1.0f / 13.4f));
     uint32_t i, m;
     if (hum <= 0.0f && wa <= 1e-7f)
         return;

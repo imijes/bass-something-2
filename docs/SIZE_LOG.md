@@ -253,3 +253,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-17 | 3992940+ | B3: preamp headroom at DRIVE 0, horn beaming; host room_send | 517,252 | +32 | 64,312 | 78,112 | +0 | 20,192 | 297,180 |
 | 2026-11-17 | d078d75+ | B3: Leslie walls, exact 3rds, half-rate drum, organ room send 0.15 | 518,336 | +1,084 | 63,228 | 77,152 | -960 | 21,152 | 297,180 |
 | 2026-11-17 | 004c668+ | B3: noise layers (thuds, hum, rotor parked, clunks), MOJO (loose wheels, wiring), LESLIE NOISES and MOJO views, organ room send 0 | 525,236 | +6,900 | 56,328 | 79,756 | +2,604 | 18,548 | 297,192 |
+| 2026-11-18 | d136245+ | MOJO characters: dirty contacts, hum + sag, tired motor, tube warmth, 4 combos; loose wheels A2/E3 | 526,948 | +1,712 | 54,616 | 80,412 | +656 | 17,892 | 297,288 |

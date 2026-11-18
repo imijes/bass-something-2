@@ -11537,6 +11537,8 @@ int app_expect(const char *what, int *got)
         *got = set.b3_noise[what[6] - '0'];
     else if (!strcmp(what, "omojo"))          /* (MOJO, the preset's) */
         *got = opatch.mojo;
+    else if (!strcmp(what, "omchar"))         /* (its CHARACTER) */
+        *got = opatch.mchar;
     else if (!strncmp(what, "oles", 4) && what[4] >= '0' && what[4] <= '7')   /* (the preset's Leslie trimmers) */
         *got = opatch.les[what[4] - '0'];
     else if (!strcmp(what, "ofast"))

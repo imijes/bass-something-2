@@ -23,10 +23,12 @@
  *   off (held: its other preset key, A# or B);
  *   REC, PLAY and SEQ (held: cleared) its part of the pattern, as the piano's.
  * Its MIDI: notes on its channel (b3_chan), its CCs on its CC channel (organ_cc) */
-#define ORG_MAGIC 0x33334F42u                /* "BO33" (the Leslie's settings in each preset) */
+#define ORG_MAGIC 0x34334F42u                /* "BO34" (MOJO's character in each preset) */
+#define ORG_MAGIC_3 0x33334F42u              /* "BO33": the Leslie's settings in each preset */
 #define ORG_MAGIC_2 0x32334F42u              /* "BO32": the two manuals, the Leslie's in the settings */
 #define ORG_MAGIC_1 0x31334F42u              /* "BO31": one */
 #define ORG_P2 __builtin_offsetof(b3_patch_t, les)   /* (a BO32 preset's size) */
+#define ORG_P3 __builtin_offsetof(b3_patch_t, mchar) /* (a BO33's) */
 _Static_assert(__builtin_offsetof(b3_patch_t, ua) == 20, "a bank from before the lower manual: its presets 20 bytes");
 typedef struct {
     uint32_t magic;
@@ -102,18 +104,22 @@ static void organ_load(void)                 /* (app_init: its bank, else the fa
 {
     uint32_t s;
     enum { OLD_P = 20, OLD_SIZE = 4 + ONSLOT * (OLD_P + PNAME_N),   /* (a bank from before the lower manual; from */
-           OLD_SIZE2 = 4 + ONSLOT * (ORG_P2 + PNAME_N) };          /* before the Leslie's were each preset's) */
+           OLD_SIZE2 = 4 + ONSLOT * (ORG_P2 + PNAME_N),            /* before the Leslie's were each preset's; */
+           OLD_SIZE3 = 4 + ONSLOT * (ORG_P3 + PNAME_N) };          /* before MOJO's character) */
     const int n = plat_store_load(OBJ_ORGAN, &obank, sizeof obank);
     const uint32_t op = n == OLD_SIZE && obank.magic == ORG_MAGIC_1 ? OLD_P
-                      : n == OLD_SIZE2 && obank.magic == ORG_MAGIC_2 ? ORG_P2 : 0u;
+                      : n == OLD_SIZE2 && obank.magic == ORG_MAGIC_2 ? ORG_P2
+                      : n == OLD_SIZE3 && obank.magic == ORG_MAGIC_3 ? ORG_P3 : 0u;
     if (op) {                                /* (its names to their place, then its presets, the last first) */
         uint8_t *const o = (uint8_t *)&obank + 4;
         memmove(obank.name, o + ONSLOT * op, ONSLOT * PNAME_N);
         for (s = ONSLOT; s-- > 0;) {
             memmove(&obank.p[s], o + s * op, op);
+            __builtin_memset((uint8_t *)&obank.p[s] + op, 0, sizeof obank.p[s] - op);
             if (op == OLD_P)
                 organ_manuals(&obank.p[s]);
-            organ_leslie(&obank.p[s]);
+            if (op < ORG_P3)
+                organ_leslie(&obank.p[s]);
         }
         obank.magic = ORG_MAGIC;
     } else if (n != (int)sizeof obank || obank.magic != ORG_MAGIC) {
@@ -352,6 +358,10 @@ static int o_turn(uint32_t k, int32_t e)
                 int_text((int32_t)opatch.mojo * 100 / 127, t);
                 text_cat(t, "%");
                 app_say("MOJO", t);
+            } else if (k == EN_K2) {         /* its CHARACTER: a quirk alone, or several */
+                opatch.mchar = (uint8_t)clamp((int32_t)opatch.mchar + (e > 0 ? 1 : -1), 0, B3_NCHAR - 1);
+                organ_changed();
+                app_say("CHARACTER", b3_mojo_name(opatch.mchar));
             }
         } else if (ui.oles == 4u && k == EN_K2) {   /* KEY SWELL, its rest (the preset's) */
             opatch.swell = e > 0;
@@ -391,7 +401,7 @@ static const char *o_hint(uint32_t k)
         {"Drum's spin-up time", "Drum's slow-down time", "Drum's slow speed", "Drum's fast speed"},
         {"Amp's drive", "Key pressure opens swell", "Swell with no pressure", "Organ's volume"},
         {"Key thuds, all presets", "Floor hum, all presets", "Rotor noise, all presets", "Drawbar clunks, all"},
-        {"This organ's quirks", 0, 0, 0}};
+        {"This organ's quirks", "Which quirks: one or a mix", 0, 0}};
     static char t[32];
     if (k == EN_SELECT && ui.page != PG_OLES)
         return "Organ's volume";
@@ -1209,14 +1219,17 @@ static void o_mojo(void)                     /* NOISES and MOJO: the organ's ins
     for (i = 0; i < 4u; i++) {
         const int32_t cx = 46 + 50 * (int32_t)i;
         static const char *const NL[4] = {"THUDS", "HUM", "ROTOR", "CLUNKS"};
-        const char *l = ui.oles == 5u ? NL[i] : i ? "" : "MOJO";
+        const char *l = ui.oles == 5u ? NL[i] : i > 1u ? "" : i ? "CHARACTER" : "MOJO";
         t[0] = 0;
         if (ui.oles == 5u)
             int_text(set.b3_noise[i], t);
         else if (!i)
             int_text((int32_t)opatch.mojo * 100 / 127, t), text_cat(t, "%");
         print_c(cx, 128, l, RGB(30, 30, 30));
-        print_c(cx, 138, t, knob_lit(EN_K1 + i) ? P_CYAN : RGB(30, 30, 30));
+        if (ui.oles == 6u && i == 1u)        /* (its name long: over K3's empty place) */
+            print_c(cx + 25, 138, b3_mojo_name(opatch.mchar), knob_lit(EN_K2) ? P_CYAN : RGB(30, 30, 30));
+        else
+            print_c(cx, 138, t, knob_lit(EN_K1 + i) ? P_CYAN : RGB(30, 30, 30));
         if (*l)
             tag(cx, 134, EN_K1 + i);
     }

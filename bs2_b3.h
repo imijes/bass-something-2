@@ -20,6 +20,7 @@ typedef struct {                             /* an organ preset's sound (app.c's
     uint8_t les[8];                          /* the Leslie's trimmers (b3_rotor's), 0..127 (64: the 122's) */
     uint8_t speed, swell, swell_rest, mojo;  /* the Leslie's speed (0 slow, 1 the brake, 2 fast); KEY SWELL, its rest;
                                               * MOJO, this organ's quirks, 0..127 (0: as from the factory; was spare) */
+    uint8_t mchar, mspare[2];                /* MOJO's character (b3_mojo_name's), spare */
 } b3_patch_t;
 void b3_init(void);
 uint32_t b3_key(uint32_t lower, uint32_t note);   /* a note's key code on a manual (b3_note's) */
@@ -27,6 +28,8 @@ uint32_t b3_unkey(uint32_t code, uint32_t *lower);   /* its note again, its manu
 void b3_note(uint32_t code, uint32_t vel);
 uint32_t b3_down(void);                     /* a key held */   /* vel 0: up; 128 and over: every key up */
 void b3_set(const b3_patch_t *p);            /* a preset's sound */
+#define B3_NCHAR 9u                          /* MOJO's characters */
+const char *b3_mojo_name(uint32_t c);       /* a character's name */
 void b3_leslie(uint32_t fast, uint32_t brake);   /* the Leslie: chorale or tremolo, the brake (live) */
 void b3_rotor(const uint8_t t[8]);         /* the Leslie's trimmers, 0..127 (64: the 122's), the horn's then the drum's:
                                               * RISE TIME, FALL TIME, SLOW SPEED, FAST SPEED (live) */
