@@ -1525,6 +1525,8 @@ static float mix_pre[APP_BLOCK] PLAT_POOL, mix_send[APP_BLOCK] PLAT_POOL;   /* a
 /* the Space Echo's knobs (the settings' bytes) onto it, a block at a time, and its sends' gains (each squared, as a
  * fader's); TEMPO SYNC: REPEAT RATE picks a note, an 8th to a 32nd (slow to fast), head 1 its time at the tempo,
  * halved or doubled into the RE-201's 60..175 ms */
+#define B3_ROOM_SEND 0.15f                   /* the organ's send into the room (its Leslie's own walls already round
+                                              * it; the RMI's RMI_SEND): till the MASTERING pages' aux sends */
 #ifdef PLAT_HOST
 static float room_test = 1.0f;               /* (the host's room_send) */
 #else
@@ -1987,7 +1989,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             const float r = rmi_buf[i] * rv * (g0 + dg * (float)i), o = 0.0f;
 #endif
             float s, e;
-            s = mix_pre[i] + r + o + fx_take(i, mix_send[i] + (r + o) * RMI_SEND * room_test, mix_se[i] + r * se_send_g[2] + o * se_send_g[3], &e);
+            s = mix_pre[i] + r + o + fx_take(i, mix_send[i] + (r * RMI_SEND + o * B3_ROOM_SEND) * room_test, mix_se[i] + r * se_send_g[2] + o * se_send_g[3], &e);
 #if BS2_B3
             {                                /* (the organ's sides: its Leslie in stereo, the speaker's sum the middle) */
                 const float sd = b3_side[i] * ov * gi;

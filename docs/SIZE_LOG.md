@@ -251,3 +251,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-17 | 5342cdc+ | RMI's block in RAM (rmi_job) | 515,708 | -148 | 65,856 | 76,928 | +0 | 21,376 | 297,180 |
 | 2026-11-17 | fb98170+ | B3: Leslie crossover, voicing, speeds; top wheels' harmonics; busbar crosstalk; 16' bottom | 517,220 | +1,512 | 64,344 | 78,112 | +1,184 | 20,192 | 297,180 |
 | 2026-11-17 | 3992940+ | B3: preamp headroom at DRIVE 0, horn beaming; host room_send | 517,252 | +32 | 64,312 | 78,112 | +0 | 20,192 | 297,180 |
+| 2026-11-17 | d078d75+ | B3: Leslie walls, exact 3rds, half-rate drum, organ room send 0.15 | 518,336 | +1,084 | 63,228 | 77,152 | -960 | 21,152 | 297,180 |
