@@ -2949,7 +2949,7 @@ static const param_t PARAMS[NPAGES][NE] = {
                   [EN_K3] = {"AT OUT", SF(at_out), 0, 1, OFF_ON}},
     /* the global settings by what they are about: the clock (the tempo on the display), the sound coming out, how the
      * controls answer; the settings on K3 and K4 (ENC_MAP) */
-    [PG_GCLK] = {[EN_K3] = {"SEND CLK", SF(clk_out), 0, 1, OFF_ON}, [EN_K4] = {"SYNC", SF(clock), 0, NCLK - 1, CLK_NAME}},   /* (K1, the tempo: the patch's, knob_param) */
+    [PG_GCLK] = {[EN_K3] = {"SEND CLK", SF(clk_out), 0, 1, OFF_ON}, [EN_K4] = {"SYNC", SF(clock), 0, NCLK - 1, CLK_NAME}},   /* (K2, the tempo: the patch's, knob_param) */
     [PG_GAUD] = {[EN_K1] = {"SPEAKER", SF(spk), 0, NSPK - 1, SPK_NAME}, [EN_K2] = {"TUNE", SF(tune), -50, 50, 0}},
     [PG_GCTL] = {[EN_K1] = {"VELOCITY", SF(vcurve), 0, NVC - 1, VC_NAME}, [EN_K2] = {"KNOBS", SF(knobs), 0, NKN - 1, KN_NAME},
                  [EN_K3] = {"LOCAL", SF(local), 0, 1, OFF_ON}, [EN_K4] = {"ROUTE", SF(route), 0, NROUTE - 1, ROUTE_NAME}},
@@ -3480,7 +3480,7 @@ static const param_t *knob_param(uint32_t k)
         return k == EN_ALGO ? &MO_LANE_P[mom.mfor] : &MO_P[k];
     if (ui.page == PG_FX && k == EN_K4)
         return &MIX_SRC[ui.mix_src];
-    if (ui.page == PG_GCLK && k == EN_K1)    /* (the tempo: ARP's knob, the patch's: knob_turn, knob_text) */
+    if (ui.page == PG_GCLK && k == EN_K2)    /* (the tempo: ARP's knob, the patch's: knob_turn, knob_text) */
         return &PARAMS[PG_ARP][EN_K1];
     if (ui.page == PG_OSC && ui.osc_sel)
         return &OSC2_P[k];
@@ -3838,10 +3838,11 @@ static int knob_turn(uint32_t k, int32_t e)
         app_say(ui.page == PG_RSEL ? "PIANO VOLUME" : "BASS VOLUME", t);
         return 0;
     }
-    if (ui.page == PG_GCLK && k == EN_K1) {  /* the tempo, as on ARP: the patch's, MIDI clock's while it leads */
+    if (ui.page == PG_GCLK && k == EN_K2) {  /* the tempo (K2: the knobs right to left), as on ARP: the patch's, MIDI
+                                              * clock's while it leads */
         int r;
         ui.page = PG_ARP;
-        r = knob_turn(k, e);
+        r = knob_turn(EN_K1, e);
         ui.page = PG_GCLK;
         return r;
     }
@@ -4130,9 +4131,9 @@ static void knob_text(uint32_t k, char *t)
         text_cat(t, CHAN_NAME[l_ch(set.b3_lchan)]);
         return;
     }
-    if (ui.page == PG_GCLK && k == EN_K1) {  /* (the tempo, as on ARP) */
+    if (ui.page == PG_GCLK && k == EN_K2) {  /* (the tempo, as on ARP) */
         ui.page = PG_ARP;
-        knob_text(k, t);
+        knob_text(EN_K1, t);
         ui.page = PG_GCLK;
         return;
     }
@@ -4851,7 +4852,7 @@ static const char *const HINT[NPAGES][NE] = {
     [PG_GCC] = {[EN_K1] = "Bass CC channel", "Drums' CC channel", "Piano's CC channel", "Organ's CC channel"},
     [PG_GCONN] = {[EN_PRESET] = "Bluetooth distance turns it", [EN_K1] = "A USB MIDI device, no computer",
                   "Bluetooth MIDI", "Pressure out as MIDI"},
-    [PG_GCLK] = {[EN_K1] = "Speed, BPM", [EN_K3] = "Send MIDI clock", "Clock to follow"},
+    [PG_GCLK] = {[EN_K2] = "Speed, BPM", [EN_K3] = "Send MIDI clock", "Clock to follow"},
     [PG_GAUD] = {[EN_K1] = "The speaker's sound, or off", "Master tune"},
     [PG_GCTL] = {[EN_K1] = "Touch curve", "Knob speed-up", "Keys play the synth", "Notes piano to bass, or back"},
     [PG_NAME] = {[EN_K1] = "Which letter", "Change it", "Clear to the end"},
@@ -7012,7 +7013,7 @@ static void zoom_blow(uint32_t x16, uint32_t y16, uint32_t step)
 static const char *const ENC_NAME[NE] = {"SELECT", "ALGO", "PRESET", "K1", "K2", "K3", "K4"};
 static struct {
     int16_t x, y;
-    uint8_t btn, lit;
+    uint8_t btn, lit, low;                   /* (low: its hint under it, even near the foot) */
     const char *s, *h;                       /* (h: its hint, Hints on, lit) */
     char v[16];                              /* (lit: its value) */
 } tags[NTAGS] PLAT_POOL;
@@ -7045,12 +7046,17 @@ static void tag_v(int32_t cx, int32_t cy, uint32_t k, const char *v)   /* encode
         knob_text(k, tags[ntags].v);
     tags[ntags].x = (int16_t)cx;
     tags[ntags].y = (int16_t)cy;
-    tags[ntags].btn = 0;
+    tags[ntags].btn = tags[ntags].low = 0;
     tags[ntags].lit = (uint8_t)lit;
     tags[ntags].h = lit && set.hints ? hint_of(k) : 0;
     tags[ntags++].s = ENC_NAME[enc_physical(k)];
 }
 static void tag(int32_t cx, int32_t cy, uint32_t k) { tag_v(cx, cy, k, 0); }   /* encoder k */
+static void tag_low(void)                    /* the last tag's hint under it, near the foot too (what's over it kept) */
+{
+    if (ntags)
+        tags[ntags - 1u].low = 1;
+}
 static void tag_note(const char *h)          /* the last tag's hint under it while the map shows (Hints on) */
 {
     if (ui.map_until && ntags && set.hints)
@@ -7076,7 +7082,8 @@ static void tags_draw(void)
         int32_t w, x, y = tags[i].y - 7;
         if (!s) {                            /* (no value of its own: the organ's, drawn on its panel) the hint alone */
             if (!ui.map_until && tags[i].lit && tags[i].h)
-                hint_pill(tags[i].x, tags[i].y + 10 < pan_h - 24 ? tags[i].y + 10 : tags[i].y - 26, tags[i].h);
+                hint_pill(tags[i].x, tags[i].low || tags[i].y + 10 < pan_h - 24 ? tags[i].y + 10 : tags[i].y - 26,
+                          tags[i].h);
             continue;
         }
         w = text_w(&FONT_XS, s) + 6;
@@ -8414,7 +8421,7 @@ static void glo_conn_draw(void)
     print_switch(208, GLO_ROW, EN_K3, "Off", "On", "AT Out");
 }
 /* GLOBAL CLOCK: the tempo on the display (MIDI clock's, measured, while it leads; dashes while it is awaited), what the
- * clock is doing; the Tempo under it (K1), Send Clk (K3) and Sync (K4) */
+ * clock is doing; the Tempo under it (K2), Send Clk (K3) and Sync (K4) */
 static void glo_clock_draw(void)
 {
     char t[4];
@@ -8429,8 +8436,8 @@ static void glo_clock_draw(void)
     info(120, 40, 52, "Clock", ext_clock() ? "MIDI in" : set.clk_out ? "Sending" : "Internal",
          ext_clock() || set.clk_out ? P_CYAN : P_SILK);
     bs2_knob(34, GLO_ROW, 14, clamp(arp_tempo() ? arp_tempo() : (int32_t)patch.tempo, 40, 240) - 40, 200,
-             (knob_lit(EN_K1) ? KF_LIT : 0u) | (ext_clock() ? KF_DIM : 0u));
-    tag(34, GLO_ROW, EN_K1);
+             (knob_lit(EN_K2) ? KF_LIT : 0u) | (ext_clock() ? KF_DIM : 0u));
+    tag(34, GLO_ROW, EN_K2);
     print_c(34, GLO_ROW + 18, "Tempo", P_SILK);
     print_switch(150, GLO_ROW, EN_K3, "Off", "On", "Send Clk");
     print_knob(208, GLO_ROW, 14, knob_param(EN_K4), EN_K4, 1, "Sync", 0);

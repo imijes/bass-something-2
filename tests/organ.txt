@@ -223,23 +223,23 @@ tap LFO
 wait 30
 said LESLIE MOJO
 # MOJO: this organ's quirks, the preset's
-turn K1 10
+turn K3 10
 wait 30
 said MOJO 7%
 expect omojo 10
 # its CHARACTER: one quirk, or a mix
-turn K2 1
+turn K4 1
 wait 30
 said CHARACTER DIRTY CONTACTS
 expect omchar 1
-turn K2 20
+turn K4 20
 wait 30
 said CHARACTER BARN FIND
 expect omchar 8
-turn K2 -20
+turn K4 -20
 wait 30
 expect omchar 0
-turn K1 -10
+turn K3 -10
 wait 30
 tap LFO
 wait 30

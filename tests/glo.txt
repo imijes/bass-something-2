@@ -232,13 +232,13 @@ said AFTER TOUCH OUT OFF
 tap GLO
 wait 30
 expect page 18
-# CLOCK's TEMPO (K1): the patch's, as ARP's K1 sets it
+# CLOCK's TEMPO (K2: the knobs right to left): the patch's, as ARP's K1 sets it
 expect tempo 120
-spin K1 10
+spin K2 10
 wait 30
 expect tempo 130
 said TEMPO 130
-spin K1 -10
+spin K2 -10
 wait 30
 expect tempo 120
 spin K3 -1

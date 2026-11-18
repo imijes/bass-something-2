@@ -351,14 +351,15 @@ static int o_turn(uint32_t k, int32_t e)
             int_text(*v, t);
             ui.redraw = 1;
             app_say(ONOISE[k - EN_K1], t);
-        } else if (ui.oles == 6u) {          /* MOJO: this organ's quirks (the preset's) */
-            if (k == EN_K1) {
+        } else if (ui.oles == 6u) {          /* MOJO: this organ's quirks (the preset's; K3 and K4: the knobs right to
+                                              * left) */
+            if (k == EN_K3) {
                 opatch.mojo = (uint8_t)clamp((int32_t)opatch.mojo + knob_wide(k, e), 0, 127);
                 organ_changed();
                 int_text((int32_t)opatch.mojo * 100 / 127, t);
                 text_cat(t, "%");
                 app_say("MOJO", t);
-            } else if (k == EN_K2) {         /* its CHARACTER: a quirk alone, or several */
+            } else if (k == EN_K4) {         /* its CHARACTER: a quirk alone, or several */
                 opatch.mchar = (uint8_t)clamp((int32_t)opatch.mchar + (e > 0 ? 1 : -1), 0, B3_NCHAR - 1);
                 organ_changed();
                 app_say("CHARACTER", b3_mojo_name(opatch.mchar));
@@ -401,7 +402,7 @@ static const char *o_hint(uint32_t k)
         {"Drum's spin-up time", "Drum's slow-down time", "Drum's slow speed", "Drum's fast speed"},
         {"Amp's drive", "Key pressure opens swell", "Swell with no pressure", "Organ's volume"},
         {"Key thuds, all presets", "Floor hum, all presets", "Rotor noise, all presets", "Drawbar clunks, all"},
-        {"This organ's quirks", "Which quirks: one or a mix", 0, 0}};
+        {0, 0, "This organ's quirks", "Which quirks: one or a mix"}};
     static char t[32];
     if (k == EN_SELECT && ui.page != PG_OLES)
         return "Organ's volume";
@@ -1216,22 +1217,23 @@ static void o_mojo(void)                     /* NOISES and MOJO: the organ's ins
         cv_rect(30 + (int32_t)i * 15, 86, 8, 18, RGB(70, 62, 52));
     cv_rect(20, 124, 200, 28, RGB(156, 156, 146));   /* the plate */
     cv_rect(20, 151, 200, 2, RGB(70, 70, 66));
-    for (i = 0; i < 4u; i++) {
+    if (ui.oles == 6u) {                     /* MOJO: its two in the plate's middle, CHARACTER's name over it */
+        int_text((int32_t)opatch.mojo * 100 / 127, t), text_cat(t, "%");
+        print_c(80, 128, "MOJO", RGB(30, 30, 30));
+        print_c(80, 138, t, knob_lit(EN_K3) ? P_CYAN : RGB(30, 30, 30));
+        tag(80, 134, EN_K3), tag_low();
+        print_c(160, 128, "CHARACTER", RGB(30, 30, 30));
+        print_c(160, 113, b3_mojo_name(opatch.mchar), knob_lit(EN_K4) ? P_CYAN : RGB(156, 156, 146));
+        tag(160, 134, EN_K4), tag_low();
+        return;
+    }
+    for (i = 0; i < 4u; i++) {               /* NOISES: its four */
         const int32_t cx = 46 + 50 * (int32_t)i;
         static const char *const NL[4] = {"THUDS", "HUM", "ROTOR", "CLUNKS"};
-        const char *l = ui.oles == 5u ? NL[i] : i > 1u ? "" : i ? "CHARACTER" : "MOJO";
-        t[0] = 0;
-        if (ui.oles == 5u)
-            int_text(set.b3_noise[i], t);
-        else if (!i)
-            int_text((int32_t)opatch.mojo * 100 / 127, t), text_cat(t, "%");
-        print_c(cx, 128, l, RGB(30, 30, 30));
-        if (ui.oles == 6u && i == 1u)        /* (its name long: over K3's empty place) */
-            print_c(cx + 25, 138, b3_mojo_name(opatch.mchar), knob_lit(EN_K2) ? P_CYAN : RGB(30, 30, 30));
-        else
-            print_c(cx, 138, t, knob_lit(EN_K1 + i) ? P_CYAN : RGB(30, 30, 30));
-        if (*l)
-            tag(cx, 134, EN_K1 + i);
+        int_text(set.b3_noise[i], t);
+        print_c(cx, 128, NL[i], RGB(30, 30, 30));
+        print_c(cx, 138, t, knob_lit(EN_K1 + i) ? P_CYAN : RGB(30, 30, 30));
+        tag(cx, 134, EN_K1 + i);
     }
 }
 static void oles_draw(void)
