@@ -242,7 +242,71 @@ static float rel_time(uint32_t v) { return env_curve(v, 0.002f, 0.012377f, 0.076
 
 /* a step of an envelope: each stage moves on from the level it is at, so a retrigger or an early release
  * does not jump (no click) */
-static inline float adsr_step(env_t *v, const adsr_t *e)
+#define VOICE_IN inline __attribute__((always_inline))   /* (the bass voice's helpers: inlined into voice_run,
+                                              * the RAM code, even at -Oz) */
+/* the fast maths the bass voice's RAM code uses (voice_run), as fastmath.h's, always inline: the platform's copies are
+ * kept out of line at -Oz, in the flash, where RAM code may not call */
+static VOICE_IN float vm_fabsf(float x) { fm_bits_t b; b.f = x; b.u &= 0x7FFFFFFFu; return b.f; }
+static VOICE_IN float vm_minf(float a, float b) { return a < b ? a : b; }
+static VOICE_IN float vm_floorf(float x)
+{
+    const int32_t i = (int32_t)x;
+    const float f = (float)i;
+    return f > x ? f - 1.0f : f;
+}
+static VOICE_IN float vm_exp2f(float x)       /* fm_exp2f's */
+{
+    fm_bits_t b;
+    float fl, f, p;
+    int32_t n;
+    if (x < -126.0f)
+        return 0.0f;
+    if (x > 127.0f)
+        x = 127.0f;
+    fl = vm_floorf(x + 0.5f);
+    n = (int32_t)fl, f = x - fl;
+    if (n < -126)
+        return 0.0f;
+    p = 1.534580891e-04f;
+    p = p * f + 1.339993158e-03f;
+    p = p * f + 9.618488972e-03f;
+    p = p * f + 5.550328776e-02f;
+    p = p * f + 2.402264689e-01f;
+    p = p * f + 6.931472057e-01f;
+    p = p * f + 1.0f;
+    b.f = p;
+    b.i += n << 23;
+    return b.f;
+}
+static VOICE_IN float vm_tanhf(float x)       /* fm_tanhf's */
+{
+    float a = vm_fabsf(x), e, r;
+    if (a < 0.0004f)
+        return x;
+    if (a < 0.5f) {
+        float z = x * x;
+        return x * (1.0f + z * (-0.333333333f + z * (0.133333333f + z * (-0.0539682540f + z * (0.0218694885f +
+                    z * (-0.00886323552f + z * 0.00359212803f))))));
+    }
+    if (a > 9.0f)
+        return x > 0.0f ? 1.0f : -1.0f;
+    e = vm_exp2f(2.0f * FM_LOG2E * a);
+    r = 1.0f - 2.0f / (e + 1.0f);
+    return x > 0.0f ? r : -r;
+}
+static VOICE_IN float vm_sin_turns(float ph)  /* fm_sin_turns's */
+{
+    const float x = (ph - vm_floorf(ph + 0.5f)) * FM_TWO_PI, x2 = x * x;
+    float p = 1.345176048e-10f;
+    p = p * x2 - 2.467706523e-08f;
+    p = p * x2 + 2.752946668e-06f;
+    p = p * x2 - 1.984015614e-04f;
+    p = p * x2 + 8.333310417e-03f;
+    p = p * x2 - 1.666666459e-01f;
+    p = p * x2 + 9.999999946e-01f;
+    return p * x;
+}
+static VOICE_IN float adsr_step(env_t *v, const adsr_t *e)
 {
     switch (v->stage) {
     case ENV_ATTACK:
@@ -346,7 +410,7 @@ static void lfo_note(lfo_t *l, uint32_t keysync, uint32_t delay)   /* a note (no
 }
 
 /* the step's residual at a wrap (PolyBLEP): t the phase since it, dt the step, both in turns */
-static inline float blep(float t, float dt, float inv_dt)
+static VOICE_IN float blep(float t, float dt, float inv_dt)
 {
     if (t < dt) {
         t *= inv_dt;
@@ -359,7 +423,7 @@ static inline float blep(float t, float dt, float inv_dt)
     return 0.0f;
 }
 /* the corner's residual (PolyBLAMP, the step's integrated): a slope's change, rounded over a sample either side */
-static inline float blamp(float t, float dt, float inv_dt)
+static VOICE_IN float blamp(float t, float dt, float inv_dt)
 {
     if (t < dt) {
         t = 1.0f - t * inv_dt;
@@ -371,32 +435,32 @@ static inline float blamp(float t, float dt, float inv_dt)
     }
     return 0.0f;
 }
-static inline float wrap1(float h) { return h >= 1.0f ? h - 1.0f : h; }
+static VOICE_IN float wrap1(float h) { return h >= 1.0f ? h - 1.0f : h; }
 /* -1..1, band-limited (the sine has nothing to band-limit); pw the pulse's width 0..1 (the square's 0.5), its DC
  * taken off */
-static inline float osc(float ph, float dt, float inv_dt, uint32_t wave, float pw)
+static VOICE_IN float osc(float ph, float dt, float inv_dt, uint32_t wave, float pw)
 {
     switch (wave) {
     case WAVE_SAW:
         return 2.0f * ph - 1.0f - blep(ph, dt, inv_dt);
     case WAVE_SINE:
-        return fm_sin_turns(ph);
+        return vm_sin_turns(ph);
     case WAVE_TRI:                           /* its corners at 0 (the slope -4 to +4 a turn) and a half (back) */
-        return 1.0f - 4.0f * fm_fabsf(ph - 0.5f) + 4.0f * dt * (blamp(ph, dt, inv_dt) - blamp(wrap1(ph + 0.5f), dt, inv_dt));
+        return 1.0f - 4.0f * vm_fabsf(ph - 0.5f) + 4.0f * dt * (blamp(ph, dt, inv_dt) - blamp(wrap1(ph + 0.5f), dt, inv_dt));
     default:                                 /* SQUARE, PULSE: up at 0, down at pw */
         return (ph < pw ? 1.0f : -1.0f) + 1.0f - 2.0f * pw + blep(ph, dt, inv_dt)
                - blep(wrap1(ph + 1.0f - pw), dt, inv_dt);
     }
 }
-static inline float osc_naive(float ph, uint32_t wave, float pw)   /* the same, not band-limited (sync's steps) */
+static VOICE_IN float osc_naive(float ph, uint32_t wave, float pw)   /* the same, not band-limited (sync's steps) */
 {
     switch (wave) {
     case WAVE_SAW:
         return 2.0f * ph - 1.0f;
     case WAVE_SINE:
-        return fm_sin_turns(ph);
+        return vm_sin_turns(ph);
     case WAVE_TRI:
-        return 1.0f - 4.0f * fm_fabsf(ph - 0.5f);
+        return 1.0f - 4.0f * vm_fabsf(ph - 0.5f);
     default:
         return ph < pw ? 1.0f : -1.0f;
     }
@@ -406,7 +470,7 @@ static inline float osc_naive(float ph, uint32_t wave, float pw)   /* the same, 
  * band-limited on both sides (PolyBLEP: the side before it on *prev, the sample held back for that). osc() took
  * the restart for a wrap of its own (a full step: saw -2, the pulses +2, none for the others); the step is from
  * where it was instead */
-static inline float osc_sync(float *ph, float *prev, float t, float dt, float inv_dt, uint32_t wave, float pw)
+static VOICE_IN float osc_sync(float *ph, float *prev, float t, float dt, float inv_dt, uint32_t wave, float pw)
 {
     float pr = *ph - t * dt, d, o, full; /* where it was at the restart */
     if (pr < 0.0f)
@@ -435,8 +499,15 @@ typedef struct {
     float P, c1, c2;                         /* G4 G3 G2 G1, G4 G3 G2, G4 G3 */
     float Gh, a;                             /* the feedback high pass: its G, and 1 - G (Classic: 0 and 1) */
     float k, pre, gin, post, bias, bias0;    /* resonance, drive, make-up in and out, tanh(bias) */
+    float ka, kpa, kpa_r;                    /* the loop's k a, k P a and 1 / (1 + k P a): the step's (fcoef_loop) */
     uint32_t mode;                           /* FLT_* */
 } fcoef_t;
+static VOICE_IN void fcoef_loop(fcoef_t *c)    /* the loop's gains from k, a and P (not every sample: a division) */
+{
+    c->ka = c->k * c->a;
+    c->kpa = c->ka * c->P;
+    c->kpa_r = 1.0f / (1.0f + c->kpa);
+}
 
 static const char *const FLT_NAME[NFLT] = {"LP24", "LP12", "BP24", "BP12", "HP24", "HP12", "ACID"};
 static patch_t patch;
@@ -505,32 +576,37 @@ static void filter_coefs(fcoef_t *c, const patch_t *p, float cutoff)   /* each m
     c->bias = acid ? 0.1f : 0.0f;
     c->bias0 = fm_tanhf(c->bias);
     c->mode = p->filter;
+    fcoef_loop(c);
 }
 
 /* Osc Filter Mod, the Bass Station II's: the cutoff moved at audio rate by oscillator 2, each stage's g scaled by m (2
  * to the octaves it moves) and the loop's products made again; the rest as the step's (c) */
-static inline void fcoef_fm(fcoef_t *d, const fcoef_t *c, float m)
+static VOICE_IN void fcoef_fm(fcoef_t *d, const fcoef_t *c, float m)
 {
     uint32_t i;
     for (i = 0; i < 4u; i++) {
-        float g = fm_minf(c->g[i] * m, 6.31f);   /* (held under 0.45 of the rate: tan's there) */
+        float g = vm_minf(c->g[i] * m, 6.31f);   /* (held under 0.45 of the rate: tan's there) */
         d->G[i] = g / (1.0f + g);
         d->om[i] = 1.0f - d->G[i];
     }
     d->c2 = d->G[3] * d->G[2];
     d->c1 = d->c2 * d->G[1];
     d->P = d->c1 * d->G[0];
+    fcoef_loop(d);
 }
 
-static inline float lncosh(float x)          /* ln(cosh x): tanh's antiderivative, without overflow */
+static VOICE_IN float lncosh(float x)          /* ln(cosh x): tanh's antiderivative, without overflow: |x| - ln 2 +
+                                              * ln(1 + y), y = e^-2|x| (0..1), that a polynomial (within 3e-7; its
+                                              * constant left off: ADAA takes differences), no log, no divide */
 {
-    float a = fm_fabsf(x);
-    return a + fm_logf(1.0f + fm_expf(-2.0f * a)) - FM_LN2;
+    const float a = vm_fabsf(x), y = vm_exp2f(-2.885390082f * a);
+    return a - FM_LN2 + y * (9.999702573e-01f + y * (-4.993340671e-01f + y * (3.275122344e-01f + y * (-2.239679843e-01f
+                         + y * (1.319908351e-01f + y * (-5.326809362e-02f + y * 1.024394855e-02f))))));
 }
-static inline float overdrive(adaa_t *f, float x)   /* tanh averaged over the sample (first-order ADAA) */
+static VOICE_IN float overdrive(adaa_t *f, float x)   /* tanh averaged over the sample (first-order ADAA) */
 {
     float d = x - f->x1, F = lncosh(x);
-    float y = fm_fabsf(d) > 0.01f ? (F - f->F1) / d : fm_tanhf(0.5f * (x + f->x1));   /* (close: the midpoint's) */
+    float y = vm_fabsf(d) > 0.01f ? (F - f->F1) / d : vm_tanhf(0.5f * (x + f->x1));   /* (close: the midpoint's) */
     f->x1 = x;
     f->F1 = F;
     return y;
@@ -541,14 +617,13 @@ static inline float overdrive(adaa_t *f, float x)   /* tanh averaged over the sa
  * stage is, so it warms with even harmonics as well (its DC: the output's coupling's) */
 #define MIX_BIAS 0.15f
 #define MIX_BIAS0 0.148885f                  /* tanh(MIX_BIAS) */
-static inline float ladder(ladder_t *f, const fcoef_t *c, float in)
+static VOICE_IN float ladder(ladder_t *f, const fcoef_t *c, float in)
 {
     float u = (overdrive(&f->drv, in * c->pre + MIX_BIAS) - MIX_BIAS0) * c->gin, x, y1, y2, y3, y4, v;
     float S = c->c1 * f->s[0] * c->om[0] + c->c2 * f->s[1] * c->om[1] + c->G[3] * f->s[2] * c->om[2]
               + f->s[3] * c->om[3];
-    float kPa = c->k * c->P * c->a;
-    y4 = (c->P * u + kPa * f->hs + S) / (1.0f + kPa);   /* the loop solved linearly, then the tanh on it */
-    x = fm_tanhf(u - c->k * c->a * (y4 - f->hs) + c->bias) - c->bias0;
+    y4 = (c->P * u + c->kpa * f->hs + S) * c->kpa_r;   /* the loop solved linearly, then the tanh on it */
+    x = vm_tanhf(u - c->ka * (y4 - f->hs) + c->bias) - c->bias0;
     v = (x - f->s[0]) * c->G[0];
     y1 = v + f->s[0];
     f->s[0] = y1 + v;
@@ -639,7 +714,10 @@ static int store_save(uint32_t obj, const void *src, uint32_t len);   /* plat_st
                                               * (O), FX bus (X) */
 #endif
 #if PROF_TIMING
-static uint32_t prof_sum[7], prof_pk[7], prof_nb;
+static uint32_t prof_sum[12], prof_pk[12], prof_nb;   /* (and the first core's B in parts: the bass's modulation
+                                              * step (c), its oscillators and mixer (o), its filter (l), the rest of its
+                                              * chain (a), the drums and the mix after it (d)) */
+#define PROF_V(k) do { const uint32_t t_ = plat_ticks24(); pv[k] += (t_ - pt) & 0xFFFFFFu, pt = t_; } while (0)
 static volatile uint32_t prof_c2[3];         /* (the job's parts' ticks, the second core's: read after it) */
 static void prof_add(uint32_t k, uint32_t ticks, uint32_t n)
 {
@@ -1428,6 +1506,7 @@ static float sag_gain(void)                  /* a modulation step: the gain the 
 #define DT_MIX 0.85f                         /* the drums', over the bass's: their old 4 x 0.3, 3 dB down; 11 dB under the
                                               * bass's level now, as the user set them by ear */
 #define RMI_MIX 1.4f                         /* the RMI's: a note's peak about the bass's (a chord over it), at full volumes */
+#define BS2_SLEEP 44100u                     /* the bass's voice asleep after its amplifier has been closed this long */
 #define OUT_FS 8300000.0f                    /* the output's full scale, as MASTER's gain has it */
 #define OUT_KNEE (0.7f * OUT_FS)
 /* the last thing out: drums on the bass near full MASTER rounded into full scale, not cut there; under the knee nothing */
@@ -1591,6 +1670,86 @@ static void ovl_step(float p2, float p0, uint32_t n)   /* the render's, each blo
 #endif
     }
 }
+/* a step's samples of the bass's voice (the render's): its chain, the oscillators to the VCA limiter, into out
+ * (before the scope and the volumes). In RAM (the first core's audio path, out of the flash cache's way: the chain
+ * cost the same from the flash however small its code), all it calls inlined into it (flatten) */
+typedef struct {
+    float inc, inv, inc2, inv2, incs, invs, pw1, pw2, ring, l1, l2, ls, noise, le, ofd, dg, dm, sg, lim_th;
+    uint32_t wave, wave2, subw, sync, need1, need2, awake, ofm, dist, lim;
+    const int32_t *ext;                      /* Ext's samples at the step's first (NULL: none) */
+    const fcoef_t *fc;                       /* the filter's for the step; Osc Filter Mod's, made each sample */
+    fcoef_t *fm;
+    const adsr_t *aenv;
+    uint32_t rng;                            /* the noise's (back in it after) */
+} vstep_t;
+static PLAT_RAM_CODE __attribute__((flatten)) void voice_run(float *out, uint32_t m, vstep_t *k)
+{
+    const float inc = k->inc, inv = k->inv, inc2 = k->inc2, incs = k->incs;
+    uint32_t j, rng = k->rng;
+    for (j = 0; j < m; j++) {
+        float s, o1, o2;
+        uint32_t wrap = (voice.phase += inc) >= 1.0f;
+        vel_now += (voice.vel - vel_now) * 0.004f;
+        if (wrap)
+            voice.phase -= 1.0f;
+        if ((voice.phase2 += inc2) >= 1.0f)
+            voice.phase2 -= 1.0f;
+        if ((voice.phase_sub += incs) >= 1.0f)
+            voice.phase_sub -= 1.0f;
+        if (!k->awake) {
+            rng = rng * 1664525u + 1013904223u;   /* (the noise's on, as if heard; sync's restarts too) */
+            if (wrap && k->sync)
+                voice.phase2 = voice.phase * inv * inc2;
+            out[j] = 0.0f;
+            continue;
+        }
+        o1 = k->need1 ? osc(voice.phase, inc, inv, k->wave, k->pw1) : 0.0f;
+        if (wrap && k->sync)                /* hard sync: 1's wrap restarts 2 */
+            o2 = k->need2 ? osc_sync(&voice.phase2, &voice.o2, voice.phase * inv, inc2, k->inv2, k->wave2, k->pw2)
+                       : (voice.phase2 = voice.phase * inv * inc2, 0.0f);
+        else
+            o2 = k->need2 ? osc(voice.phase2, inc2, k->inv2, k->wave2, k->pw2) : 0.0f;
+        rng = rng * 1664525u + 1013904223u;
+        /* the mixer: 1 + 2 at their levels faded to their ring modulation (twice: as loud), the sub (its narrow
+         * pulse a quarter), the noise and Ext (full scale as loud as an oscillator); 1 and 2 a sample late */
+        s = 0.4f * ((1.0f - k->ring) * (k->l1 * voice.o1 + k->l2 * voice.o2) + 2.0f * k->ring * voice.o1 * voice.o2
+                    + (k->ls != 0.0f ? k->ls * osc(voice.phase_sub, incs, k->invs, k->subw, 0.25f) : 0.0f)
+                    + k->noise * (float)(int32_t)rng * (1.0f / 2147483648.0f)
+                    + (k->ext ? k->le * (float)(k->ext[2u * j] + k->ext[2u * j + 1u]) : 0.0f));
+        voice.o1 = o1;
+        voice.o2 = o2;
+        if (k->ofm) {                 /* Osc Filter Mod: oscillator 2 (as it is, before its level) on the cutoff,
+                                              * up to 3 octaves either way (the guide gives no scale) */
+            fcoef_fm(k->fm, k->fc, vm_exp2f(k->ofd * o2));
+            s = ladder(&voice.flt, k->fm, s);
+        } else
+            s = ladder(&voice.flt, k->fc, s);
+        /* the output's coupling (a one-pole high pass at 5 Hz): what DC the filter passes (the ring's, a tanh's
+         * on an uneven wave) settles while the voice runs between notes, so the amplifier's gate is no step */
+        voice.dc_y = s - voice.dc_x + DC_POLE * voice.dc_y;
+        voice.dc_x = s;
+        s = voice.dc_y;
+        /* the distortion before the VCA, the Bass Station II's: its character the same as the envelope fades */
+        if (k->dist)
+            s = overdrive(&voice.dist, s * k->dg) * k->dm;
+        else                                 /* (off: from 0 when it comes on, no step) */
+            voice.dist.x1 = voice.dist.F1 = 0.0f;
+        s *= adsr_step(&voice.amp, k->aenv) * vel_now;
+        voice.sag_f += (vm_fabsf(s) - voice.sag_f) * (vm_fabsf(s) > voice.sag_f ? 0.01f : 0.0003f);
+        voice.sag_g += (k->sg - voice.sag_g) * 0.02f;
+        s *= voice.sag_g;
+        if (k->lim) {                 /* the VCA limiter: over its threshold (0 to -24 dB under full), the level
+                                              * held to it; the level followed at once up, over about 50 ms down */
+            float a = vm_fabsf(s);
+            voice.lim_e = a > voice.lim_e ? a : voice.lim_e * 0.99955f;
+            if (voice.lim_e > k->lim_th)
+                s *= k->lim_th / voice.lim_e;
+        }
+    out[j] = s;
+    }
+    k->rng = rng;
+}
+
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
     const uint32_t t_in = plat_ticks24();    /* (the overload's guard: the first core's time in the render) */
@@ -1601,6 +1760,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     static afx_t ax;                         /* AFX: the last key's (read at a block's start), or none */
     uint32_t i, j, m, wave, wave2 = patch.wave2, sync = patch.sync;
     int32_t note, cut;
+    float vout[CTRL_N];                      /* (a step's of the bass's voice: voice_run's) */
     float mod[NDEST], lv[NLFO], ring = (float)patch.ring / 127.0f, noise;
     float l1 = (float)patch.lvl1 / 127.0f, l2 = (float)patch.lvl2 / 127.0f, ls = (float)patch.lvl_sub / 127.0f;
     float gl = glide_coef(patch.glide), dc = env_coef(1.2f, CTRL_RATE), sg;
@@ -1616,6 +1776,9 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     const int32_t *ext = plat_usb_audio_in();
     float le = (float)patch.lvl_ext * (0.5f / 127.0f / 8388608.0f);
     const float bass_vol = (float)(127u - set.bvol_off) * (1.0f / 127.0f);   /* (the bass's own Volume, for the block) */
+    const float lim_th = fm_exp2f(-(float)patch.lim * (4.0f / 127.0f));   /* (the VCA limiter's threshold, the block's) */
+    const int need1 = l1 != 0.0f || ring != 0.0f,   /* (an oscillator not heard not made: its level 0, no ring, no */
+              need2 = l2 != 0.0f || ring != 0.0f || patch.ofm;   /* Osc Filter Mod) */
     adsr_t menv, aenv;
     fcoef_t fc, fm;
 #ifdef PLAT_HOST
@@ -1664,7 +1827,13 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         voice.flt.s[i] = fm_flush(voice.flt.s[i]);
     voice.flt.hs = fm_flush(voice.flt.hs);
     voice.dc_y = fm_flush(voice.dc_y);
+#if PROF_TIMING
+    uint32_t pv[5] = {0, 0, 0, 0, 0}, pt = 0;
+#endif
     for (i = 0; i < n; i += m) {             /* a modulation step, then its samples */
+#if PROF_TIMING
+        pt = plat_ticks24();
+#endif
         float inc = 0.0f, inc2 = 0.0f, inv, inv2, incs, invs, e, pw1, pw2, kt;
         m = n - i < CTRL_N ? n - i : CTRL_N;
         eng_run(m);
@@ -1733,58 +1902,29 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         pitch_now = (int32_t)(100.0f * voice.pitch);
         sag_now = (int32_t)(1000.0f * sg);
 #endif
+        static uint32_t closed;              /* (samples the amplifier has been closed) */
+        closed = voice.amp.stage == ENV_IDLE ? closed + (closed < BS2_SLEEP ? m : 0u) : 0u;
+        const int awake = closed < BS2_SLEEP;   /* (asleep: the amplifier closed a second, its level exactly 0, so the
+                                              * chain's output is silence: not made; the phases, the steps, MASTER's and
+                                              * the velocity's slews run on. A second: notes played on keep the filter
+                                              * as it was, only the first after a rest finds it settled where it was) */
+#if PROF_TIMING
+        PROF_V(0);
+#endif
+        {
+            const vstep_t k0 = {inc, inv, inc2, inv2, incs, invs, pw1, pw2, ring, l1, l2, ls, noise, le, ofd, dg, dm, sg,
+                                lim_th, wave, wave2, subw, sync, (uint32_t)need1, (uint32_t)need2, (uint32_t)awake,
+                                patch.ofm, patch.dist, patch.lim, ext ? ext + 2u * i : 0, &fc, &fm, &aenv, rng};
+            vstep_t k = k0;
+            PLAT_FAR(voice_run)(vout, m, &k);
+            rng = k.rng;
+        }
+#if PROF_TIMING
+        PROF_V(1);
+#endif
         for (j = 0; j < m; j++) {
-            float s, o1, o2;
-            uint32_t wrap = (voice.phase += inc) >= 1.0f;
+            float s = vout[j];
             gain_now += (gain - gain_now) * 0.004f;                  /* ~5 ms: turning MASTER does not click */
-            vel_now += (voice.vel - vel_now) * 0.004f;
-            if (wrap)
-                voice.phase -= 1.0f;
-            if ((voice.phase2 += inc2) >= 1.0f)
-                voice.phase2 -= 1.0f;
-            if ((voice.phase_sub += incs) >= 1.0f)
-                voice.phase_sub -= 1.0f;
-            o1 = osc(voice.phase, inc, inv, wave, pw1);
-            if (wrap && sync)                /* hard sync: 1's wrap restarts 2 */
-                o2 = osc_sync(&voice.phase2, &voice.o2, voice.phase * inv, inc2, inv2, wave2, pw2);
-            else
-                o2 = osc(voice.phase2, inc2, inv2, wave2, pw2);
-            rng = rng * 1664525u + 1013904223u;
-            /* the mixer: 1 + 2 at their levels faded to their ring modulation (twice: as loud), the sub (its narrow
-             * pulse a quarter), the noise and Ext (full scale as loud as an oscillator); 1 and 2 a sample late */
-            s = 0.4f * ((1.0f - ring) * (l1 * voice.o1 + l2 * voice.o2) + 2.0f * ring * voice.o1 * voice.o2
-                        + ls * osc(voice.phase_sub, incs, invs, subw, 0.25f)
-                        + noise * (float)(int32_t)rng * (1.0f / 2147483648.0f)
-                        + (ext ? le * (float)(ext[2u * (i + j)] + ext[2u * (i + j) + 1u]) : 0.0f));
-            voice.o1 = o1;
-            voice.o2 = o2;
-            if (patch.ofm) {                 /* Osc Filter Mod: oscillator 2 (as it is, before its level) on the cutoff,
-                                              * up to 3 octaves either way (the guide gives no scale) */
-                fcoef_fm(&fm, &fc, fm_exp2f(ofd * o2));
-                s = ladder(&voice.flt, &fm, s);
-            } else
-                s = ladder(&voice.flt, &fc, s);
-            /* the output's coupling (a one-pole high pass at 5 Hz): what DC the filter passes (the ring's, a tanh's
-             * on an uneven wave) settles while the voice runs between notes, so the amplifier's gate is no step */
-            voice.dc_y = s - voice.dc_x + DC_POLE * voice.dc_y;
-            voice.dc_x = s;
-            s = voice.dc_y;
-            /* the distortion before the VCA, the Bass Station II's: its character the same as the envelope fades */
-            if (patch.dist)
-                s = overdrive(&voice.dist, s * dg) * dm;
-            else                             /* (off: from 0 when it comes on, no step) */
-                voice.dist.x1 = voice.dist.F1 = 0.0f;
-            s *= adsr_step(&voice.amp, &aenv) * vel_now;
-            voice.sag_f += (fm_fabsf(s) - voice.sag_f) * (fm_fabsf(s) > voice.sag_f ? 0.01f : 0.0003f);
-            voice.sag_g += (sg - voice.sag_g) * 0.02f;
-            s *= voice.sag_g;
-            if (patch.lim) {                 /* the VCA limiter: over its threshold (0 to -24 dB under full), the level
-                                              * held to it; the level followed at once up, over about 50 ms down */
-                float a = fm_fabsf(s), th = fm_exp2f(-(float)patch.lim * (4.0f / 127.0f));
-                voice.lim_e = a > voice.lim_e ? a : voice.lim_e * 0.99955f;
-                if (voice.lim_e > th)
-                    s *= th / voice.lim_e;
-            }
             if (!(++scope_ph & 3u))          /* (HOME's scope: every 4th, before the volume) */
                 scope_buf[scope_w++ & (SCOPE_N - 1u)] = (int8_t)fm_clampf(s * 100.0f, -127.0f, 127.0f);
             s *= BASS_MIX * gain_now * bass_vol;   /* (MASTER: the FM-1's knob, over every instrument; the bass's own Volume) */
@@ -1804,6 +1944,9 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             mix_pre[i + j] = s;              /* (the RMI's yet to come: the sample and its room sends kept till then) */
             mix_send[i + j] = fx.room;
             fx.room = 0.0f;
+#if PROF_TIMING
+            PROF_V(4);
+#endif
         }
     }
 #if PROF_TIMING
@@ -1881,6 +2024,8 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         prof_add(0, (t_job - t_in) & 0xFFFFFFu, n), prof_add(1, (t_wait - t_job) & 0xFFFFFFu, n);
         prof_add(2, (t_back - t_wait) & 0xFFFFFFu, n), prof_add(3, (t_end - t_back) & 0xFFFFFFu, n);
         prof_add(4, prof_c2[0], n), prof_add(5, prof_c2[1], n), prof_add(6, prof_c2[2], n);
+        for (uint32_t k = 0; k < 5u; k++)
+            prof_add(7u + k, pv[k], n);
         prof_nb++;
     }
 #endif
@@ -6277,16 +6422,18 @@ static void input(void)
     }
 #if PROF_TIMING
     {                                        /* the render's parts, every 2 s: "P B W F" the first core's, "R O X" the
-                                              * second's, each now/most % of a block */
+                                              * second's, "c o l a d" B's, each now/most % of a block */
         static uint32_t at;
         if (plat_ms() - at >= 2000u && prof_nb) {
-            static const char K[7] = {'P', 'B', 'W', 'F', 'R', 'O', 'X'};
-            char t[2][48], *q;
+            static const char K[12] = {'P', 'B', 'W', 'F', 'R', 'O', 'X', 'c', 'v', 'l', 'a', 'd'};
+            static const uint8_t LN[12] = {0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3};   /* (each line 23 characters at most) */
+            char t[4][24], *q;
             uint32_t k;
             at = plat_ms();
-            for (k = 0; k < 7u; k++) {
-                q = t[k >= 4u] + (k == 0u || k == 4u ? 0 : __builtin_strlen(t[k >= 4u]));
-                if (k == 0u || k == 4u)
+            for (k = 0; k < 12u; k++) {
+                const int first = !k || LN[k] != LN[k - 1u];
+                q = t[LN[k]] + (first ? 0 : __builtin_strlen(t[LN[k]]));
+                if (first)
                     *q = 0;
                 q[0] = K[k], q[1] = 0;
                 int_text((int32_t)(prof_sum[k] / prof_nb), q + 1);
@@ -6297,6 +6444,7 @@ static void input(void)
             }
             prof_nb = 0;
             app_say(t[0], t[1]);
+            app_say(t[2], t[3]);
         }
     }
 #endif

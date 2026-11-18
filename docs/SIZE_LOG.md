@@ -246,3 +246,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-17 | 77105aa+ | motion: organ CANCEL lane, 64 bars, 4096 moves | 506,044 | +160 | 75,520 | 76,924 | +0 | 21,380 | 294,256 |
 | 2026-11-17 | 16bb1f9+ | B3 match: 16' fold, taper, wheel harmonics | 506,960 | +916 | 74,604 | 76,924 | +0 | 21,380 | 297,180 |
 | 2026-11-17 | 16bb1f9+ | FX bus + Space Echo: own -O2 unit, hot code in RAM; PROF_TIMING (off) | 510,932 | +3,972 | 70,632 | 76,928 | +4 | 21,376 | 297,180 |
+| 2026-11-17 | 9b60162+ | bass voice: asleep after 1 s closed, exact savings, its sample chain in RAM (voice_run) | 515,728 | +4,796 | 65,836 | 76,928 | +0 | 21,376 | 297,180 |
