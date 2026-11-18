@@ -626,14 +626,27 @@ static uint32_t l_ch(uint32_t v) { return v == 0u ? 5u : v == 5u ? 0u : v; }   /
 static uint32_t o_ch(uint32_t v) { return v == 0u ? 4u : v == 4u ? 0u : v; }   /* the organ's channels as stored
                                               * (b3_chan, b3_cc_chan: 0 and 4 swapped, 0 its default 4) both ways */
 static int store_save(uint32_t obj, const void *src, uint32_t len);   /* plat_store_save, told if it is in silence */
-#include "bs2_se.c"                       /* the Space Echo, on the FX bus */
-#include "bs2_fx.c"                       /* the FX bus: one room every instrument sends into (fx_room_send, fx_take) */
+#include "bs2_fx.h"                       /* the FX bus and its Space Echo (bs2_fx.c, bs2_se.c: a unit of their own at -O2):
+                                              * one room every instrument sends into (fx_room_send, fx_take), the echo */
 #include "bs2_drum.c"                     /* Drum Something: the drum voices (dt_hit, dt_note, dt_next) */
 #include "bs2_rmi.c"                      /* the RMI 368X, the third instrument (rmi_note, rmi_next) */
 #include "bs2_b3.h"                       /* the organ's engine (bs2_b3.c, BS2_B3 there): a unit of its own at -O2, its hot
                                               * code in the second core's RAM; its presets and pages: bs2_organ.c */
-#ifndef B3_TIMING
-#define B3_TIMING 0                          /* 1: the organ's and the RMI's share of the second core said every 2 s */
+#ifndef PROF_TIMING
+#define PROF_TIMING 0                        /* 1: each part of the render's share of a block, % (now/most), said every
+                                              * 2 s (tools/fm1_remote.py listen): the first core's before the job (P), beside
+                                              * it (B), waiting for it (W), after it (F); the second core's RMI (R), organ
+                                              * (O), FX bus (X) */
+#endif
+#if PROF_TIMING
+static uint32_t prof_sum[7], prof_pk[7], prof_nb;
+static volatile uint32_t prof_c2[3];         /* (the job's parts' ticks, the second core's: read after it) */
+static void prof_add(uint32_t k, uint32_t ticks, uint32_t n)
+{
+    const uint32_t p = ticks * 100u / (n * PLAT_TICKS_PER_US * 1000000u / 44100u);
+    prof_sum[k] += p;
+    prof_pk[k] = p > prof_pk[k] ? p : prof_pk[k];
+}
 #endif
 static void organ_cc(uint32_t c, uint32_t v);   /* (bs2_organ.c) */
 static volatile uint8_t o_swell = 127;      /* the organ's swell pedal now, 0..127 (organ_block's: MIDI's and the keys') */
@@ -1513,35 +1526,32 @@ static volatile uint32_t c2_ticks;           /* how long it took (plat_ticks24's
 static float b3_mid[APP_BLOCK] PLAT_POOL, b3_side[APP_BLOCK] PLAT_POOL;   /* the organ's block: its middle, its
                                               * stereo sides (its Leslie's two microphones: left plus, right minus) */
 static volatile uint32_t b3_on;              /* it sounded in the last block (sounding()) */
-#if B3_TIMING
-static volatile uint32_t b3_pk[2], b3_sum[2], b3_nb;   /* its timing: the RMI's and the organ's share of a block, %
-                                              * (the most, the sum over b3_nb blocks: said every 2 s) */
-#endif
 #endif
 static void c2_job(uint32_t n)
 {
     const uint32_t t0 = plat_ticks24();
     rmi_job(n);
+#if PROF_TIMING
+    prof_c2[0] = plat_ticks24();
+#endif
 #if BS2_B3
     {
         const uint32_t on = PLAT_FAR(b3_job)(b3_mid, b3_side, n);   /* (in RAM: through a far pointer) */
         b3_on = on;
         if (on)
             rmi_woke = 1;                    /* (the FX bus woken: its room) */
-#if B3_TIMING
-        {
-            const uint32_t t2 = plat_ticks24(), blk = n * PLAT_TICKS_PER_US * 1000000u / 44100u;
-            if (on) {
-                const uint32_t p1 = ((t2 - t0) & 0xFFFFFFu) * 100u / blk;
-                b3_pk[1] = p1 > b3_pk[1] ? p1 : b3_pk[1];
-                b3_sum[1] += p1, b3_nb++;
-            }
-        }
-#endif
     }
 #endif
-    fx_job();
+#if PROF_TIMING
+    prof_c2[1] = plat_ticks24();
+#endif
+    PLAT_FAR(fx_job)();                      /* (in RAM: through a far pointer) */
     c2_ticks = plat_ticks24() - t0;
+#if PROF_TIMING
+    prof_c2[2] = plat_ticks24(), prof_c2[1] = (prof_c2[1] - prof_c2[0]) & 0xFFFFFFu,
+    prof_c2[2] = (prof_c2[2] - prof_c2[0]) & 0xFFFFFFu, prof_c2[0] = (prof_c2[0] - t0) & 0xFFFFFFu;
+    prof_c2[2] -= prof_c2[1];
+#endif
 }
 /* the overload's guard: the second core's job past OVL_HI of a block, or the first core's render so far (its
  * own work and its wait for the second's) past OVL_HI0 (lower: the first has more to do around the render; not
@@ -1628,6 +1638,9 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     rmi_block();
 #if BS2_B3
     organ_block();                           /* (the organ's sound and its Leslie's speed, before its job) */
+#endif
+#if PROF_TIMING
+    const uint32_t t_job = plat_ticks24();
 #endif
     if (!(plat_cpu2_on() && plat_cpu2_run(c2_job, n)))   /* the RMI's block and the FX bus's: the second core's while
                                               * the bass and the drums are made here, else first, here */
@@ -1793,8 +1806,14 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             fx.room = 0.0f;
         }
     }
+#if PROF_TIMING
+    const uint32_t t_wait = plat_ticks24();
+#endif
     if (c2 && plat_cpu2_wait() != 0)         /* (given up: the job dropped, so here) */
         c2_job(n), c2 = 0;
+#if PROF_TIMING
+    const uint32_t t_back = plat_ticks24();
+#endif
     cpu2_q12 = c2 ? (cpu2_q12 * 15u + (uint32_t)((float)c2_ticks * 4096.0f * BS2_RATE
                                              / ((float)n * (float)PLAT_TICKS_PER_US * 1e6f)) + 8u) / 16u
                   : 0u;                      /* (the second core's load, smoothed as the platform's: about 16 blocks) */
@@ -1856,6 +1875,15 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         }
         fx_kept(n, g0, dg, woke);
     }
+#if PROF_TIMING
+    {
+        const uint32_t t_end = plat_ticks24();
+        prof_add(0, (t_job - t_in) & 0xFFFFFFu, n), prof_add(1, (t_wait - t_job) & 0xFFFFFFu, n);
+        prof_add(2, (t_back - t_wait) & 0xFFFFFFu, n), prof_add(3, (t_end - t_back) & 0xFFFFFFu, n);
+        prof_add(4, prof_c2[0], n), prof_add(5, prof_c2[1], n), prof_add(6, prof_c2[2], n);
+        prof_nb++;
+    }
+#endif
 #ifdef PLAT_HOST
     {
         static float ds, da;                 /* the sums, leaking a block's 3 % */
@@ -4203,7 +4231,7 @@ static void save(void)                       /* the settings, and the sound into
 static uint8_t hushed;                       /* quiet_step's: 1 when silent QUIET_MS */
 static int sounding(void)                    /* anything playing or ringing out */
 {
-    uint32_t i, drums = dq.run || fx.idle < FX_IDLE || se_ringing();   /* (the drums too: a write under them is a
+    uint32_t i, drums = dq.run || fx_awake() || se_ringing();   /* (the drums too: a write under them is a
                                               * dropout; the RMI's notes; the room's tail and the Space Echo's, its
                                               * runaway as long as it rings) */
     for (i = 0; i < NDTCH; i++)
@@ -6247,19 +6275,28 @@ static void input(void)
         ovl_said = 0;
         app_say("OVERLOAD", "VOICES CUT");
     }
-#if BS2_B3 && B3_TIMING
-    {                                        /* the organ's timing, every 2 s while it plays: "ORGAN now/most", % of a
-                                              * block on the second core (its job's, the RMI's in it) */
+#if PROF_TIMING
+    {                                        /* the render's parts, every 2 s: "P B W F" the first core's, "R O X" the
+                                              * second's, each now/most % of a block */
         static uint32_t at;
-        if (plat_ms() - at >= 2000u && b3_nb) {
-            char t[24];
+        if (plat_ms() - at >= 2000u && prof_nb) {
+            static const char K[7] = {'P', 'B', 'W', 'F', 'R', 'O', 'X'};
+            char t[2][48], *q;
+            uint32_t k;
             at = plat_ms();
-            t[0] = 0;
-            int_text((int32_t)(b3_sum[1] / b3_nb), t);
-            text_cat(t, "/");
-            int_text((int32_t)b3_pk[1], t + __builtin_strlen(t));
-            b3_sum[1] = b3_pk[1] = b3_nb = 0;
-            app_say("ORGAN", t);
+            for (k = 0; k < 7u; k++) {
+                q = t[k >= 4u] + (k == 0u || k == 4u ? 0 : __builtin_strlen(t[k >= 4u]));
+                if (k == 0u || k == 4u)
+                    *q = 0;
+                q[0] = K[k], q[1] = 0;
+                int_text((int32_t)(prof_sum[k] / prof_nb), q + 1);
+                text_cat(q, "/");
+                int_text((int32_t)prof_pk[k], q + __builtin_strlen(q));
+                text_cat(q, " ");
+                prof_sum[k] = prof_pk[k] = 0;
+            }
+            prof_nb = 0;
+            app_say(t[0], t[1]);
         }
     }
 #endif
@@ -11556,6 +11593,11 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     if (!strcmp(cmd, "dt_gain")) {           /* dt_gain X: the drums' output times X (tools/dt_compare.py's: its
                                               * renders well above the host's 16-bit files' floor) */
         dt_test_gain = (float)atof(a);
+        return 1;
+    }
+    if (!strcmp(cmd, "b3_direct")) {         /* b3_direct 1: the organ's preamp out, no Leslie (tools/b3_compare.py's) */
+        extern uint8_t b3_test_direct;
+        b3_test_direct = (uint8_t)atoi(a);
         return 1;
     }
     if (!strcmp(cmd, "drum")) {              /* drum NAME STEP [A]: a hit at tuning step STEP (1..16), full volume,

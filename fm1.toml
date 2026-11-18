@@ -8,7 +8,7 @@ cpu2 = true                    # the second core: the RMI's block (bs2_rmi.c rmi
 cpu2_fallback = true           # one core after a failure of it, not a restart
 unity_opt = "z"                # -Oz, not -Os: 28.9 KB less flash; the audio a little slower too (the heavy case,
                                # drums + arp + piano + echo: CPU0 peak 62 -> 67, CPU1 20 -> 20, 2026-11-09)
-o2 = ["bs2_b3.c"]              # separate units compiled at -O2 (an app's DSP): the B3 prototype's
+o2 = ["bs2_b3.c", "bs2_fx.c"]              # separate units compiled at -O2 (an app's DSP): the B3 prototype's
 o2_cflags = ["-fno-builtin"]   # (its RAM code calls nothing in the flash: no loop made a memset)
 words = "words.tsv"
 ble = true                     # Bluetooth MIDI (--no-ble builds without it)

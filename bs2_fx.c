@@ -4,15 +4,36 @@
  * instruments. Each instrument's send shows as its own mod; the effect behind it is the one here. Today: the room, and
  * the Space Echo (bs2_se.c). The bus runs a block late, on the second core when there is one (fx_job, beside the
  * RMI's block): see fxq. */
+#include <stdint.h>
+#include "plat.h"
+/* (the fast maths the RAM code uses, made always inline here: else -O2 may leave one in the flash, out of the RAM
+ * code's reach) */
+#define FM_AI static inline __attribute__((always_inline))
+FM_AI float fm_fabsf(float x);
+FM_AI float fm_maxf(float a, float b);
+FM_AI float fm_clampf(float x, float lo, float hi);
+FM_AI float fm_flush(float x);
+FM_AI float fm_floorf(float x);
+FM_AI float fm_exp2_nf(int32_t n, float f);
+FM_AI float fm_exp2f(float x);
+FM_AI float fm_expf(float x);
+FM_AI float fm_tanhf(float x);
+#include "fastmath.h"
+#include "app.h"
+#include "bs2_fx.h"
+#ifdef PLAT_HOST
+#define FX_HOT
+#else
+#define FX_HOT __attribute__((section(".c1_text")))   /* (RAM, as the organ's: off the shared cache's misses; it calls
+                                              * only what is inlined into it) */
+#endif
+#define FX_IN static inline __attribute__((always_inline))
+#include "bs2_se.c"                          /* the Space Echo */
 
 /* The room: a drum's tail is mostly the space it was played in (the 400's own samples had theirs in them), and a
  * resonator ringing on sounds a synth's. So the voices' modes ring short and a small room makes the tail, in real
  * time (not ROM time: the same room at every tuning). Two allpasses smear the hit, then four delay lines (23..41 ms)
  * fed back through a Hadamard mix, each with its walls' low pass; their sum is the room's sound. */
-#define FX_ROOM_RT 0.45f                     /* the room's reverberation time (-60 dB), s */
-#define FX_ROOM_DAMP 0.85f                   /* its walls' damping: a one-pole low pass's step in its loop */
-#define FX_ROOM_IN 0.06f                     /* the room's input low pass, a one-pole's step (darker in, no tin) */
-#define FX_ROOM_WET 0.6f                     /* its level out */
 #define FX_NRL 4u                            /* the delay lines */
 #define FX_NAP 4u                            /* the allpasses smearing the hit (four: two left a tin can's ring) */
 static const uint16_t FX_RL[FX_NRL + FX_NAP] = {1031, 1327, 1523, 1801, 142, 107, 379, 277};   /* lines, allpasses */
@@ -28,29 +49,14 @@ static struct {
 } fx_room PLAT_POOL;
 
 #define FX_IDLE (fx_room.idle)
-static struct {
-    float room;                              /* this sample's sends into the room, summed (the first core's: the drums') */
-    uint32_t idle;                           /* samples since an instrument last woke the bus (it stops once quiet: the
-                                              * bus's, fx_job's) */
-} fx PLAT_POOL;
-static volatile uint32_t fx_woke;            /* an instrument woke the bus in this block (the first core's: fx_wake) */
+fx_t fx PLAT_POOL;
+volatile uint32_t fx_woke;
 
-/* The bus a block late: the render's second half (the first core, after the job is back) keeps the block's sends here;
- * the next block's job (fx_job: the second core's, beside the bass and the drums) makes their returns into the ring,
- * which that block's second half takes. 5.8 ms more before the echo and the room, unheard on either. Neither core
- * touches a side while the other has it: the sends written after a job, read by the next; the ring the same */
-#define FX_RET (2u * APP_BLOCK)              /* the returns' ring (a block's, as the device renders: room for a host's) */
-static struct {
-    float room[APP_BLOCK], se[APP_BLOCK];    /* a block's sends into the room and the Space Echo */
-    float g0, dg;                            /* MASTER across it */
-    uint32_t n, wake;                        /* its samples (0: taken); an instrument woke the bus in it */
-    float ret[FX_RET], echo[FX_RET];         /* the returns; the echo's alone (the USB audio's own channel) */
-    uint32_t rw, rr;                         /* the ring's written (the job's), read (the render's) */
-} fxq PLAT_POOL;
+fxq_t fxq PLAT_POOL;
 
 /* DRUM ROOM: its time (s), its walls' and input's low passes' steps, its level out (the main loop's: a float each, read
  * whole by the audio interrupt) */
-static void fx_room_set(float rt, float damp, float in_k, float wet)
+void fx_room_set(float rt, float damp, float in_k, float wet)
 {
     uint32_t i;
     if (rt != fx_room.rt) {
@@ -62,7 +68,7 @@ static void fx_room_set(float rt, float damp, float in_k, float wet)
     fx_room.damp = damp, fx_room.in_k = in_k, fx_room.wet = wet;
 }
 
-static void fx_init(void)
+void fx_init(void)
 {
     uint32_t i;
     uint16_t at = 0;
@@ -78,17 +84,13 @@ static void fx_init(void)
     se_init();
 }
 
-/* an instrument playing (audio interrupt, the first core's): the bus on until its tails are out (from fx_job's next) */
-static inline void fx_wake(void) { fx_woke = 1; }
-/* an instrument's send into the room, after its level (audio interrupt) */
-static inline void fx_room_send(float x) { fx.room += x; }
 
 /* a ring's sample now, and the ring on a sample */
-static inline float *fx_ring_at(fx_ring_t *r) { return &fx_room.buf[r->at + r->i]; }
-static inline void fx_ring_on(fx_ring_t *r) { r->i = (uint16_t)(r->i + 1u >= r->len ? 0u : r->i + 1u); }
+FX_IN float *fx_ring_at(fx_ring_t *r) { return &fx_room.buf[r->at + r->i]; }
+FX_IN void fx_ring_on(fx_ring_t *r) { r->i = (uint16_t)(r->i + 1u >= r->len ? 0u : r->i + 1u); }
 
 /* the room's next sample, from x (audio interrupt) */
-static inline float fx_room_next(float x)
+FX_IN float fx_room_next(float x)
 {
     float y[FX_NRL], h0, h1, h2, h3, out = 0.0f;
     uint32_t k;
@@ -116,13 +118,13 @@ static inline float fx_room_next(float x)
     return out * (0.25f * fx_room.wet);
 }
 
-static float se_own = 1.0f;                  /* the echo's own volume (SELECT on its pages: se_apply), on its return */
+float se_own = 1.0f;                  /* the echo's own volume (SELECT on its pages: se_apply), on its return */
 /* the effects' returns, a sample (fx_job's), from x into the room and s into the Space Echo: the room left alone while
  * the bus sleeps (the echo sleeps on its own: its tail can outlast the bus's). g: MASTER's gain then; *echo the echo's
  * alone. The echo works before MASTER, in a 16-bit sample's units as at full MASTER: its sends (after MASTER) undone
  * into them, its return under MASTER again, so the tape saturates the same at any MASTER and MASTER turns down a
  * runaway too */
-static inline float fx_next(float x, float s, float g, float *echo)
+FX_HOT float fx_next(float x, float s, float g, float *echo)
 {
     const float k = fm_maxf(g, 1.0f) * (1.0f / 32767.0f), e = se_next((s + SE_TRY * x) / k) * k * se_own;
     *echo = e;
@@ -134,7 +136,7 @@ static inline float fx_next(float x, float s, float g, float *echo)
 
 /* the last block's sends into the ring's returns (the render's job, after the RMI's block: the second core's when there
  * is one) */
-static void fx_job(void)
+FX_HOT void fx_job(void)
 {
     const uint32_t n = fxq.n;
     uint32_t i;
@@ -146,23 +148,7 @@ static void fx_job(void)
                                            &fxq.echo[fxq.rw % FX_RET]);
 }
 
-/* the render's second half, a sample: the returns' next (0 before the first), *echo the echo's alone; x into the room
- * and s into the Space Echo kept as sample i of the block for the next job */
-static inline float fx_take(uint32_t i, float x, float s, float *echo)
+int fx_awake(void)                           /* the room still sounding (the main loop's: a flash write waits) */
 {
-    float r = 0.0f;
-    *echo = 0.0f;
-    if (fxq.rr != fxq.rw) {
-        r = fxq.ret[fxq.rr % FX_RET], *echo = fxq.echo[fxq.rr % FX_RET];
-        fxq.rr++;
-    }
-    fxq.room[i] = x, fxq.se[i] = s;
-    return r;
-}
-/* and after its last sample: n of them kept, MASTER across them (from g0 by dg a sample) */
-static inline void fx_kept(uint32_t n, float g0, float dg, uint32_t woke)
-{
-    fxq.g0 = g0, fxq.dg = dg, fxq.wake = woke || fx_woke;
-    fx_woke = 0;
-    fxq.n = n;
+    return fx.idle < FX_IDLE;
 }

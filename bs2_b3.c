@@ -3,11 +3,11 @@
  * keys (b3_note), the Leslie's speed and the expression live; made on the second core after the RMI's block (b3_job),
  * a unit of its own at -O2. Our own code, from how the organ works:
  *   the generator: 91 wheels always turning (C1 = 32.7 Hz up, equal tempered), a phase each, never reset; a wheel's
- *     wave a sine with a little 2nd and 3rd (its pickup's), the top wheels pure; only the wheels sounding are made
+ *     wave a sine, its 2nd and 3rd on the wheels above (B3_HARM); only the wheels sounding are made
  *   the manual: 61 keys (C2..C7), 9 drawbars a key, each bar the wheel nearest its harmonic (16' 5 1/3' 8' 4' 2 2/3'
  *     2' 1 3/5' 1 1/3' 1': -12 +7 0 +12 +19 +24 +28 +31 +36 semitones), folded back by octaves at the generator's
- *     ends; a step of a drawbar about 3 dB; two keys on one wheel add, as on the busbar; leakage: a wheel's
- *     neighbours a little (B3_LEAK)
+ *     ends (the 16' on the bottom octave too), its level by the key (the taper, B3_TAPER); a step of a drawbar
+ *     about 3 dB; two keys on one wheel add, as on the busbar; leakage: a wheel's neighbours a little (B3_LEAK)
  *   the key contacts: the gains ramped over a modulation step (B3_CH samples), a click of filtered noise at make
  *     and, softer, at break
  *   percussion: the 2nd (4') or 3rd (2 2/3') of the keys struck when none was held (single trigger), its own decay
@@ -45,6 +45,17 @@
 #define B3_LES_N 1024u                       /* a rotor's line (a power of 2): its swing and its reflections */
 #define B3_LEVEL 2.0f                        /* into the RMI's buffer (its level 1) */
 static const int8_t B3_BAR[9] = {-12, 7, 0, 12, 19, 24, 28, 31, 36};
+/* the manual's taper: each drawbar's level at C2 C3 C4 C5 C6 C7, half dB to the 8' at C4 (between, in a line); the
+ * upper bars louder on the low keys, all falling to the top, as a B-3's resistors and wheels give it */
+static const int8_t B3_TAPER[9][6] = {
+    {5, -2, 5, 9, 2, -3}, {4, 2, 2, -18, -8, -10}, {-3, -7, 3, -7, -7, -7}, {-2, 0, -6, -18, -30, -33},
+    {21, 10, -19, -17, -32, -42}, {20, 0, -16, -23, -29, -37}, {10, -9, -17, -21, -35, -40},
+    {2, -17, -17, -22, -36, -40}, {-13, -15, -24, -25, -40, -42}};
+static float b3_tap[9][B3_NK] PLAT_POOL;     /* it for each key (b3_init's), a gain */
+/* a wheel's own 2nd and 3rd harmonics (its tooth's shape, its pickup's), dB to it at C2 C3 .. C8, the low wheels
+ * the richest: made on the wheels an octave up (2:1 on a B-3's gears) and an octave and a fifth (3:1 within 2 cents) */
+static const int8_t B3_HARM[2][7] = {{-14, -23, -32, -43, -42, -34, -32}, {-40, -43, -46, -50, -53, -65, -57}};
+static float b3_hm[2][B3_NW] PLAT_POOL;      /* it for each wheel (b3_init's), a gain (0: under -60 dB) */
 static float b3_wave[2][B3_TB + 1u] PLAT_POOL;   /* the low wheels' (a little 2nd and 3rd), the high wheels' (sine) */
 static float b3_scan[B3_SCAN_N] PLAT_POOL;
 static float b3_les[2][B3_LES_N] PLAT_POOL;      /* the horn's line, the drum's */
@@ -86,6 +97,9 @@ static struct {
     uint32_t quiet;                          /* samples its input has been silent (past the lines: the chain skipped) */
 } b3;
 static float b3_lp_b[3], b3_lp_a[2];     /* the crossover's Butterworth, 800 Hz */
+#ifdef PLAT_HOST
+uint8_t b3_test_direct;                      /* (the host's b3_direct: the preamp's out, no Leslie, tools/b3_compare.py's) */
+#endif
 
 static void b3_levels(void)                  /* the drawbars' levels (3 dB a step; percussion on: the 1' bar off), the
                                               * percussion's fall a step: from the settings, here, not on the second core */
@@ -116,6 +130,21 @@ void b3_init(void)
         b3_lp_b[0] = b3_lp_b[2] = (1.0f - c) * 0.5f / a0, b3_lp_b[1] = (1.0f - c) / a0;
         b3_lp_a[0] = -2.0f * c / a0, b3_lp_a[1] = (1.0f - al) / a0;
     }
+    for (w = 0; w < 9u; w++)
+        for (i = 0; i < B3_NK; i++) {
+            const uint32_t j = i / 12u < 4u ? i / 12u : 4u;
+            const float f = (float)(i - 12u * j) * (1.0f / 12.0f),
+                        h = (float)B3_TAPER[w][j] + ((float)B3_TAPER[w][j + 1u] - (float)B3_TAPER[w][j]) * f;
+            b3_tap[w][i] = fm_exp2f(h * (0.5f / 6.0206f));
+        }
+    for (w = 0; w < 2u; w++)
+        for (i = 0; i < B3_NW; i++) {
+            const int32_t n = (int32_t)(i + B3_W0) - 36;
+            const uint32_t j = n <= 0 ? 0u : (uint32_t)n / 12u < 6u ? (uint32_t)n / 12u : 5u;
+            const float f = n <= 0 ? 0.0f : n >= 72 ? 1.0f : (float)(n - 12 * (int32_t)j) * (1.0f / 12.0f),
+                        h = (float)B3_HARM[w][j] + ((float)B3_HARM[w][j + 1u] - (float)B3_HARM[w][j]) * f;
+            b3_hm[w][i] = h < -60.0f ? 0.0f : fm_exp2f(h * (1.0f / 6.0206f));
+        }
     b3.bar[0][0] = b3.bar[0][1] = b3.bar[0][2] = 8;   /* 888000000, the jazz organ's */
     b3.vib[0] = 1;
     b3.perc_on = 1, b3.perc_3rd = 1, b3.perc_fast = 1, b3.scan = 6, b3.click = 64;
@@ -270,8 +299,14 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
             if (b3_held(k + 64u * m))
                 for (b = 0; b < 9u; b++)
                     if (lv[b] > 0.0f) {
-                        w = b3_wheel((int32_t)(B3_K0 + k) + B3_BAR[b]);
-                        t[w] += lv[b];
+                        w = b3_wheel((int32_t)(B3_K0 + k) + B3_BAR[b] + (!b && k < 12u ? 12 : 0));   /* (the 16'
+                                              * folded back on the bottom octave) */
+                        const float v = lv[b] * b3_tap[b][k];
+                        t[w] += v;
+                        if (w + 12u < B3_NW)
+                            t[w + 12u] += v * b3_hm[0][w];
+                        if (w + 19u < B3_NW)
+                            t[w + 19u] += v * b3_hm[1][w];
                         if (B3_LEAK > 0.0f && w)
                             t[w - 1u] += lv[b] * B3_LEAK;
                         if (B3_LEAK > 0.0f && w + 1u < B3_NW)
@@ -474,6 +509,12 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
             b3.hp_y = 0.996f * (b3.hp_y + x - b3.hp_x);   /* (the input transformer: a high pass) */
             b3.hp_x = x;
             y = (b3_clip(g * b3.hp_y + bias) - tb) * og;
+#ifdef PLAT_HOST
+            if (b3_test_direct) {
+                ol[i] = orr[i] = y * B3_LEVEL;
+                continue;
+            }
+#endif
             lo = b3_bq(b3_bq(y, b3.xo[0], b3_lp_b, b3_lp_a), b3.xo[1], b3_lp_b, b3_lp_a);
             hi = y - lo;                     /* (the horn's: the rest, so the two add back to the whole) */
             b3_les[0][b3.lw & (B3_LES_N - 1u)] = hi;
