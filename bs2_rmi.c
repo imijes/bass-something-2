@@ -53,7 +53,7 @@ static void rmi_init(void)
         rmi.v[i].key = RMI_NK;
 }
 
-static uint32_t rmi_band(uint32_t k) { return k * RMI_NB / 72u; }   /* key k's half-octave band (F1's 0) */
+static VOICE_IN uint32_t rmi_band(uint32_t k) { return k * RMI_NB / 72u; }   /* key k's half-octave band (F1's 0) */
 
 /* key k's level at t samples, from its envelope (rmi_key_t): its body, then its slope (RMI_FADE of it); 0 dB its
  * loudest */
@@ -198,7 +198,7 @@ static void rmi_block(void)
 
 /* the instrument's next sample at level 1 (rmi_job's: it touches nothing else of the render's, so it could run on
  * either core: its room send and the FX bus's wake are the render's, from its sample and *woke) */
-static inline float rmi_next(uint32_t *woke)
+static VOICE_IN float rmi_next(uint32_t *woke)
 {
     float s = 0.0f, lute = 0.0f;
     uint32_t i;
@@ -223,7 +223,7 @@ static inline float rmi_next(uint32_t *woke)
             const float p = (float)(v->ph >> 8) * ((float)n * (1.0f / 16777216.0f));
             const uint32_t j = (uint32_t)p, j1 = (j + 1u) & (n - 1u);
             const float f = p - (float)j;
-            const float w = fm_clampf(((float)v->t * (1.0f / BS2_RATE) - 0.01f * (float)RMI_K_HARPSI[v->key].peak)
+            const float w = vm_clampf(((float)v->t * (1.0f / BS2_RATE) - 0.01f * (float)RMI_K_HARPSI[v->key].peak)
                                       * (1.0f / RMI_XF), 0.0f, 1.0f);
             const int8_t *d0 = RMI_HARPSI[b].d[0], *d1 = RMI_HARPSI[b].d[1];
             const float a = (float)d0[j & (n - 1u)] * (1.0f - f) + (float)d0[j1] * f;
@@ -264,10 +264,10 @@ static inline float rmi_next(uint32_t *woke)
 }
 
 /* a block of the instrument (the render's, after rmi_block: on the first core, while the second makes the organ's and
- * the FX bus's), into rmi_buf at level 1 */
+ * the FX bus's), into rmi_buf at level 1. In RAM, as the bass's voice (voice_run): its tables stay in the flash */
 static float rmi_buf[APP_BLOCK] PLAT_POOL;
 static volatile uint32_t rmi_woke;           /* a voice sounded in it (the FX bus woken for it) */
-static void rmi_job(uint32_t n)
+static PLAT_RAM_CODE __attribute__((flatten)) void rmi_job(uint32_t n)
 {
     uint32_t i, w = 0;
     for (i = 0; i < n; i++)

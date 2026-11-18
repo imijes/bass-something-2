@@ -248,6 +248,7 @@ static float rel_time(uint32_t v) { return env_curve(v, 0.002f, 0.012377f, 0.076
  * kept out of line at -Oz, in the flash, where RAM code may not call */
 static VOICE_IN float vm_fabsf(float x) { fm_bits_t b; b.f = x; b.u &= 0x7FFFFFFFu; return b.f; }
 static VOICE_IN float vm_minf(float a, float b) { return a < b ? a : b; }
+static VOICE_IN float vm_clampf(float x, float lo, float hi) { return x < lo ? lo : x > hi ? hi : x; }
 static VOICE_IN float vm_floorf(float x)
 {
     const int32_t i = (int32_t)x;
@@ -1798,7 +1799,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 #if PROF_TIMING
     const uint32_t t_rmi = plat_ticks24();
 #endif
-    rmi_job(n);                              /* (the RMI's block, beside the second core's) */
+    PLAT_FAR(rmi_job)(n);                    /* (the RMI's block, beside the second core's; in RAM) */
 #if PROF_TIMING
     prof_c2[0] = (plat_ticks24() - t_rmi) & 0xFFFFFFu;
 #endif
