@@ -1,0 +1,101 @@
+# The piano's and the organ's parts with TRANSPORT off (DRUM MODS, K4): the drums stopped alone (their clock on for
+# the parts), each part's PLAY then stops that part alone, the clock once neither plays; the organ's PLAY its part's,
+# not the bass's sequence
+wait 600
+listen
+expect modesw 0
+wait 1200
+expect modesw 0
+wait 1200
+expect modesw 0
+wait 1200
+said ORGAN HOME
+tap REC
+wait 100
+said ORGAN REC PATTERN 00
+key 7 down 100
+wait 200
+key 7 up
+wait 50
+tap REC
+wait 50
+said ORGAN REC OFF
+expect pq_n 2
+expect modesw 0
+wait 1200
+expect modesw 0
+wait 1200
+expect modesw 0
+wait 1200
+expect modesw 0
+wait 1200
+said PIANO HOME
+tap REC
+wait 100
+said PIANO REC PATTERN 00
+key 9 down 100
+wait 200
+key 9 up
+wait 50
+tap REC
+wait 50
+said PIANO REC OFF
+expect pq_n 2
+expect modesw 0
+wait 1200
+expect modesw 0
+wait 1200
+expect modesw 0
+wait 1200
+expect modesw 0
+wait 1200
+said DRUM HOME
+tap FX
+wait 30
+turn K4 -1
+wait 30
+expect dtrans_off 1
+tap PLAY
+wait 100
+said DRUMS STOPPED
+expect dq_hush 1
+expect dt_run 1
+# the piano stopped: the organ's part plays on
+expect modesw 0
+wait 1200
+said PIANO HOME
+tap PLAY
+wait 100
+said PIANO PART STOPPED
+expect pq_mute 1
+expect dt_run 1
+# the organ stopped too: the clock with it (its PLAY the part's: ORGAN PART said, not the bass's sequence)
+expect modesw 0
+wait 1200
+said ORGAN HOME
+tap PLAY
+wait 100
+said ORGAN PART STOPPED
+expect dt_run 0
+# the organ's PLAY starts its part alone (the piano's muted), the piano's then joins it
+tap PLAY
+wait 100
+said ORGAN PART PLAYING
+expect dt_run 1
+expect dq_hush 1
+expect pq_mute 0
+expect modesw 0
+wait 1200
+expect modesw 0
+wait 1200
+expect modesw 0
+wait 1200
+expect modesw 0
+wait 1200
+said PIANO HOME
+expect pq_mute 1
+tap PLAY
+wait 100
+said PIANO PART PLAYING
+expect pq_mute 0
+expect dt_run 1

@@ -5190,7 +5190,8 @@ static void se_button(uint32_t k)
 }
 /* the piano's part (bs2_dseq.c's pq): REC records into the pattern playing (stopped: the drums' pattern shown, started),
  * held erases; PLAY the part on or off (stopped: the drums started), held takes the last pass back. TRANSPORT off: PLAY
- * starts the part alone (the drums' clock running, hushed) and stops it alone (the clock too, the drums hushed) */
+ * starts the part alone (the drums' clock running, hushed; the other part muted) and stops it alone (the clock too once
+ * neither part plays) */
 static uint32_t pq_target(void) { return dq.run ? dq.cur : ui.dt_pat; }
 static int pq_go(void)                       /* the drums running, for recording: 0 refused */
 {
@@ -5224,29 +5225,51 @@ static void pq_erase_hold(void)
     pq_cmd(PQC_REC, PQR_ERASE);
     app_say(pq_p ? "ORGAN ERASE" : "PIANO ERASE", "HOLD KEYS");
 }
+static int pq_sounds(uint32_t p)              /* part p playing the pattern now: on, and something in it */
+{
+    return dq.run && dq.cur < DQ_NPAT && !pq_[p].mute && pqm_[p].n[dq.cur];
+}
+static void pq_mute_part(uint32_t p, uint32_t m)   /* part p muted or not (pq_p left as it was) */
+{
+    const uint32_t was = pq_p;
+    pq_part(p);
+    pq_cmd(PQC_MUTE, m);
+    pq_part(was);
+}
 static void pq_play_tap(void)
 {
-    if (dq.run && dq.hush) {
-        dq_cmd(DQC_STOP, 0, 0);
-        app_say(pq_p ? "ORGAN PART" : "PIANO PART", "STOPPED");
+    const char *const who = pq_p ? "ORGAN PART" : "PIANO PART";
+    if (dq.run && dq.hush) {                 /* (the drums stopped, the clock on for the parts: this part alone off or on;
+                                              * the clock stopped once none plays) */
+        if (pq_sounds(pq_p)) {
+            pq_cmd(PQC_MUTE, 1);
+            if (!pq_sounds(pq_p ^ 1u))
+                dq_cmd(DQC_STOP, 0, 0);
+            app_say(who, "STOPPED");
+        } else {
+            pq_cmd(PQC_MUTE, 0);
+            app_say(who, pqm.n[dq.cur < DQ_NPAT ? dq.cur : 0] ? "PLAYING" : "EMPTY");
+        }
         return;
     }
     if (!dq.run) {
-        if (ui.dt_pat < DQ_NPAT && set.dtrans_off && pqm.n[ui.dt_pat]) {
+        if (ui.dt_pat < DQ_NPAT && set.dtrans_off && pqm.n[ui.dt_pat]) {   /* (the part alone: the other one muted,
+                                              * its own PLAY to start it) */
             pq_cmd(PQC_MUTE, 0);
+            pq_mute_part(pq_p ^ 1u, 1);
             dq_cmd(DQC_RUN, ui.dt_pat, 0);
             dq_cmd(DQC_HUSH, 1, 0);
-            app_say(pq_p ? "ORGAN PART" : "PIANO PART", "PLAYING");
+            app_say(who, "PLAYING");
         } else if (ui.dt_pat < DQ_NPAT && !set.dtrans_off && (pqm.n[ui.dt_pat] || dqm.pat[ui.dt_pat].n)) {
             pq_cmd(PQC_MUTE, 0);
             dq_cmd(DQC_RUN, ui.dt_pat, 0);
-            app_say(pq_p ? "ORGAN PART" : "PIANO PART", "PLAYING");
+            app_say(who, "PLAYING");
         } else
-            app_say(pq_p ? "ORGAN PART" : "PIANO PART", "EMPTY");
+            app_say(who, "EMPTY");
         return;
     }
     pq_cmd(PQC_MUTE, !pq.mute);
-    app_say(pq_p ? "ORGAN PART" : "PIANO PART", pq.mute ? "ON" : "OFF");
+    app_say(who, pq.mute ? "ON" : "OFF");
 }
 static void mo_del(uint32_t i)               /* the motion's move i out */
 {
@@ -6296,7 +6319,8 @@ static void input(void)
         else if (ui.rmi && k != B_HOME && k != B_REC && k != B_GLO && k != B_OCTDN && k != B_OCTUP && k != B_PLAY
                  && k != B_SEQ && !RND_PAGE(ui.page) && ui.page != PG_GDUMP)
             rmi_button(k);
-        else if (k == B_ARP || k == B_SEQ || k == B_GLO || k == B_REC || k == B_HOME || k == B_EDIT || (ui.rmi && k == B_PLAY)
+        else if (k == B_ARP || k == B_SEQ || k == B_GLO || k == B_REC || k == B_HOME || k == B_EDIT
+                 || ((ui.rmi || ui.b3) && k == B_PLAY)   /* (the piano's or the organ's part: not the bass's sequence) */
                  || (ui.b3 && k == B_SEL && ORGAN_PAGE(ui.page))) {   /* on release, or once held
                                               * HOLD_MS (hold_step) */
             ui.hold_k = (uint8_t)k;
