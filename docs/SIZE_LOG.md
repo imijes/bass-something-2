@@ -260,3 +260,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-18 | efc6660+ | B3 scanner triangle + depths; wheel 2nd shape, top 2nds, crosstalk down | 530,596 | +588 | 50,968 | 80,412 | +0 | 17,892 | 299,172 |
 | 2026-11-18 | 6ba5856+ | organ part per manual: PLAY, PLAY held, SEQ held | 531,140 | +544 | 50,424 | 80,412 | +0 | 17,892 | 299,172 |
 | 2026-11-18 | 2ed39ce+ | piano home: voice grouped at the top right | 531,236 | +96 | 50,328 | 80,412 | +0 | 17,892 | 299,172 |
+| 2026-11-18 | b08b247+ | organ CHARACTER on CC 9 | 531,252 | +16 | 50,312 | 80,412 | +0 | 17,892 | 299,172 |

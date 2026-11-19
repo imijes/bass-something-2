@@ -179,7 +179,8 @@ static void organ_changed(void)
 }
 
 /* its CCs (its CC channel): 12-20 the drawbars, 21 the percussion, 22 its THIRD, 23 SOFT, 24 FAST, 30 the vibrato,
- * 25 its knob, 26 the drive, 28 the click, 29 the width, 31 its MOJO, 7 its volume; live: 1 (the mod wheel) the
+ * 25 its knob, 26 the drive, 28 the click, 29 the width, 31 its MOJO, 9 its CHARACTER (127 spread
+ * over them), 7 its volume; live: 1 (the mod wheel) the
  * Leslie fast, 27 the brake, 11 the expression pedal; 64 and up: on */
 static void organ_cc(uint32_t c, uint32_t v)
 {
@@ -198,6 +199,8 @@ static void organ_cc(uint32_t c, uint32_t v)
         opatch.vib_on = v >= 64u;
     else if (c == 31u)
         opatch.mojo = (uint8_t)v;
+    else if (c == 9u)
+        opatch.mchar = (uint8_t)(v * B3_NCHAR / 128u);
     else if (c == 25u)
         opatch.vib = (uint8_t)(v * 6u / 128u);
     else if (c == 26u)
