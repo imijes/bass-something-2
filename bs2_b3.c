@@ -235,6 +235,8 @@ static struct {
     uint8_t dirty;                           /* a key or a setting changed: the targets again (b3_step) */
     uint8_t cap;                             /* the wheels it may sound at most (b3_cap: an overload's) */
     uint32_t quiet;                          /* samples its input has been silent (past the lines: the chain skipped) */
+    uint32_t tail;                           /* samples since a note, a click or a clunk: its ring, the wind aside
+                                              * (b3_ringing) */
 } b3;
 static float b3_eq_b[3][3], b3_eq_a[3][2];   /* the cabinet's voicing's biquads (b3_init's) */
 static float b3_eq_hg, b3_eq_tg;             /* its gains: the horn's (with the trim), the drum's (the trim) */
@@ -347,6 +349,8 @@ B3_IN uint32_t b3_wheel(int32_t n)          /* a MIDI note's nearest wheel, fold
 B3_IN uint32_t b3_bit(const uint32_t *m, uint32_t k) { return m[k >> 5] >> (k & 31u) & 1u; }
 B3_IN uint32_t b3_held(uint32_t k) { return b3_bit(b3.held, k); }
 
+uint32_t b3_ringing(void) { return b3.tail <= B3_LES_N + B3_SCAN_N + 4096u; }   /* (a note's ring through the Leslie;
+                                              * its rotors' wind, ROTOR NOISE, sounds on for ever: not counted) */
 uint32_t b3_down(void) { return (b3.held[0] | b3.held[1] | b3.held[2] | b3.held[3]) != 0u; }   /* (a key held: the
                                               * host's checks) */
 uint32_t b3_key(uint32_t lower, uint32_t note)   /* a note's key code on a manual: the upper's its note C2..C7 (36..96),
@@ -692,9 +696,10 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
     if (hwind > 1e-6f)                       /* (the horn's wind heard: the chain kept up, no notes or not) */
         b3.quiet = 0;
     b3.quiet = b3.nact ? 0u : b3.quiet + B3_CH;
+    b3.tail = b3.nact ? 0u : b3.tail < 0x40000000u ? b3.tail + B3_CH : b3.tail;   /* (held there: never round) */
     for (k = 0; k < B3_NCL; k++)             /* the key clicks: noise, high passed by amt */
         if (b3.cl[k].e > 1e-4f)
-            for (b3.quiet = 0, i = 0; i < B3_CH; i++) {
+            for (b3.quiet = b3.tail = 0, i = 0; i < B3_CH; i++) {
                 float n;
                 b3.rng = b3.rng * 1664525u + 1013904223u;
                 n = (float)(int32_t)b3.rng * (1.0f / 2147483648.0f) * b3.cl[k].e;
@@ -795,7 +800,7 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
                     b3.mc2 = b3.mc1, b3.mc1 = b3_flush(mc), b3.mc_e *= 0.9977f;
                     x += 0.05f * th + 0.1f * mc;
                 }
-                b3.quiet = 0;
+                b3.quiet = b3.tail = 0;
             }
             b3.sw_lo += dlo, b3.sw_hi += dhi;
             b3.hp_y = 0.996f * (b3.hp_y + x - b3.hp_x);   /* (the input transformer: a high pass) */

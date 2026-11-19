@@ -26,6 +26,7 @@ void b3_init(void);
 uint32_t b3_key(uint32_t lower, uint32_t note);   /* a note's key code on a manual (b3_note's) */
 uint32_t b3_unkey(uint32_t code, uint32_t *lower);   /* its note again, its manual */
 void b3_note(uint32_t code, uint32_t vel);
+uint32_t b3_ringing(void);                  /* a note still ringing (the wind aside) */
 uint32_t b3_down(void);                     /* a key held */   /* vel 0: up; 128 and over: every key up */
 void b3_set(const b3_patch_t *p);            /* a preset's sound */
 #define B3_NCHAR 9u                          /* MOJO's characters */

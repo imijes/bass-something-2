@@ -1976,7 +1976,8 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                          * (opatch.vol_soft ? 0.5f : 1.0f);   /* (the organ's volume; its VOLUME tab SOFT: 6 dB down) */
 #endif
 #if BS2_B3
-        const uint32_t woke = rmi_woke || b3_on;   /* (the RMI or the organ sounded: the FX bus woken, its room) */
+        const uint32_t woke = rmi_woke || (b3_on && b3_ringing());   /* (the RMI or the organ's notes sounded: the
+                                              * FX bus woken, its room; not the rotors' wind alone, for ever) */
 #else
         const uint32_t woke = rmi_woke;
 #endif
@@ -4393,6 +4394,10 @@ static int played(void);
 static int sounding(void)                    /* anything playing or ringing out (the room's tail and the Space Echo's,
                                               * its runaway as long as it rings) */
 {
+#if BS2_B3
+    if (b3_on && b3_ringing())               /* (the organ's ring through its Leslie: not its rotors' wind, for ever) */
+        return 1;
+#endif
     return played() || fx_awake() || se_ringing();
 }
 static int played(void)                      /* anything playing (sounding's, but the room's and the echo's tails) */
@@ -4403,7 +4408,7 @@ static int played(void)                      /* anything playing (sounding's, bu
     for (i = 0; i < RMI_NV; i++)
         drums |= rmi.v[i].key != RMI_NK;
 #if BS2_B3
-    drums |= ui.okeys || b3_on;              /* (the organ's keys, its Leslie's tail) */
+    drums |= ui.okeys || b3_down();          /* (the organ's keys, the FM-1's and MIDI's) */
 #endif
     return drums || ui.rkeys || eng.src != SRC_NONE || seq_auto || voice_note >= 0 || voice.amp.stage != ENV_IDLE;
 }
@@ -4614,8 +4619,23 @@ static void bank_in_step(void)               /* the main loop's (input): a bank 
 /* Backup and restore over USB (fm1-base's: device/backup.c, tools/fm1_backup.py, web/backup): everything saved. SAVE stays
  * the player's: a sound or drums changed and not saved aren't saved for it, so aren't in the backup (only what keeps itself:
  * the sequences, the GLO settings) */
-int app_backup_playing(void) { return played(); }   /* (a tail, an echo running away, plays on: a restore's flash
-                                              * writes only cut it short) */
+int app_backup_playing(void)                 /* (a tail, an echo running away, plays on: a restore's flash writes only
+                                              * cut it short); refused, what plays said on the screen */
+{
+    uint32_t i, dt_on = 0, rmi_on = 0;
+    const char *what;
+    if (!played())
+        return 0;
+    for (i = 0; i < NDTCH; i++)
+        dt_on |= dt.ch[i].drum != DT_NONE;
+    for (i = 0; i < RMI_NV; i++)
+        rmi_on |= rmi.v[i].key != RMI_NK;
+    what = dq.run ? "THE DRUMS RUN" : seq_auto ? "THE SEQ OR ARP RUNS" : dt_on ? "A DRUM RINGS" : rmi_on || ui.rkeys
+           ? "THE PIANO PLAYS" : eng.src != SRC_NONE || voice_note >= 0 ? "A BASS NOTE PLAYS"
+           : voice.amp.stage != ENV_IDLE ? "THE BASS RINGS" : "THE ORGAN PLAYS";
+    app_say("STOP FIRST", what);
+    return 1;
+}
 void app_backup_flush(void)
 {
     settings_t rec = set_kept;
@@ -6643,7 +6663,7 @@ void app_input_only(void) { input(); }
 #define P_KEYB RGB(10, 10, 10)
 /* the firmware's version as shown (the splash, GLO DISPLAY): a release's "v0.6", a development build's the last release
  * and "DEV" ("v0.6 DEV": built after it; BS2_RELEASE bumped with each release) */
-#define BS2_RELEASE "0.9.3"
+#define BS2_RELEASE "0.9.4"
 #define VERSION_TEXT (APP_VERSION[0] >= '0' && APP_VERSION[0] <= '9' ? "v" APP_VERSION : "v" BS2_RELEASE " " APP_VERSION)
 static void ui_start(void) { ui.page = PG_HOME; }   /* the first page, after the splash: HOME */
 
@@ -11562,7 +11582,11 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "dc_now"))
         *got = dc_now;
 #if BS2_B3
-    else if (!strcmp(what, "sounding"))      /* anything playing or ringing (a restore's STOP FIRST): a bit each part */
+    else if (!strcmp(what, "sounding"))      /* anything playing or ringing (the keepers wait for it) */
+        *got = sounding();
+    else if (!strcmp(what, "played"))        /* anything played (a restore's STOP FIRST) */
+        *got = played();
+    else if (!strcmp(what, "sound_parts"))   /* (what sounds: a bit each part) */
         *got = (int32_t)(dq.run | (uint32_t)fx_awake() << 1 | (uint32_t)se_ringing() << 2 | (uint32_t)(b3_on != 0u) << 3
                          | (uint32_t)(ui.okeys != 0u) << 4 | (uint32_t)(ui.rkeys != 0u) << 5 | (uint32_t)(eng.src != SRC_NONE) << 6
                          | (uint32_t)seq_auto << 7 | (uint32_t)(voice_note >= 0) << 8 | (uint32_t)(voice.amp.stage != ENV_IDLE) << 9

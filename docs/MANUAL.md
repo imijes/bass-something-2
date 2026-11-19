@@ -58,10 +58,10 @@ the screen, sound and MIDI. There's no Bluetooth or USB host there, and the app 
 doesn't start can be recovered too. For details, see felucca-bsp's `tools/fm1_rescue.sh`.
 
 At power-on the screen shows BASS SOMETHING 2 in cyan, "Inspired by the Bass Station 2" under it, and an oscilloscope whose
-wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.9.3) is in the bottom
+wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.9.4) is in the bottom
 right corner. v0.8 brought Piano Something 368X, Space Something 201, the motion recorder and PROX (`docs/RELEASE_v0.8.md`);
 v0.8.1 brought Bluetooth headphones and speakers (`docs/RELEASE_v0.8.1.md`); v0.8.2 lets the drums and the piano part stop
-apart (`docs/RELEASE_v0.8.2.md`); v0.9 brings Organ Something B3 (`docs/RELEASE_v0.9.md`); v0.9.1 fixes the screen reader's words (`docs/RELEASE_v0.9.1.md`); v0.9.2 adds velocity OFF (`docs/RELEASE_v0.9.2.md`); v0.9.3 fixes restoring and installing (`docs/RELEASE_v0.9.3.md`).
+apart (`docs/RELEASE_v0.8.2.md`); v0.9 brings Organ Something B3 (`docs/RELEASE_v0.9.md`); v0.9.1 fixes the screen reader's words (`docs/RELEASE_v0.9.1.md`); v0.9.2 adds velocity OFF (`docs/RELEASE_v0.9.2.md`); v0.9.3 fixes restoring and installing (`docs/RELEASE_v0.9.3.md`); v0.9.4 restoring with the organ's ROTOR NOISE on (`docs/RELEASE_v0.9.4.md`).
 It uses 466,928 B of the FM-1's flash, with about 115 KB free. Then the panel opens on the patch you last saved. The emulator shows the same splash when you
 switch it on.
 
@@ -1059,7 +1059,7 @@ python3 tools/fm1_backup.py restore my.bs2
 
 **Press SAVE first:** a sound or drums changed but not saved aren't in the backup. The FM-1 can play on while it backs up.
 
-**A restore replaces all of it.** Stop the drums, the sequencer and the arp first, and let go of the keys (otherwise the FM-1 says STOP FIRST; an echo or room still ringing is fine). It takes in the whole file and checks
+**A restore replaces all of it.** Stop the drums, the sequencer and the arp first, and let go of the keys (otherwise the FM-1 says STOP FIRST, and on its screen what plays; an echo or room still ringing is fine, and so is the organ's ROTOR NOISE). It takes in the whole file and checks
 it before changing anything, then asks on its screen: RESTORE FROM USB? SEL for yes, HOME for no. A cut cable, a damaged file or
 HOME changes nothing. Afterwards it comes up on HOME, as at power-on.
 
@@ -1248,7 +1248,7 @@ BS2 SysEx Dump (GLOBAL MOTION's are the motion recorder's, live only as its loop
 (10), Piano (3) and Organ (4); GLOBAL CC CHANNELS the channel each one's knobs answer MIDI CC on, on the same knobs
 (1, 10, 3 and 4). Each knob's channel is printed beneath it. A red display shows the main value where a page has one: GLOBAL CLOCK's the tempo (while MIDI clock leads, its tempo as measured over
 every two beats; dashes until then) with the clock's state beside it, GLOBAL DUMP's the patch. GLOBAL DISPLAY shows the
-firmware's version (VERSION v0.9.3). The on/off settings are slide switches.
+firmware's version (VERSION v0.9.4). The on/off settings are slide switches.
 
 On every GLO page, the right of the page's own bar shows the audio's load (for a moment after a change, what changed
 instead), for example **CPU0 34/41**. The first number is the

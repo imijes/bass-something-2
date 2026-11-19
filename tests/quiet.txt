@@ -1,0 +1,42 @@
+# What counts as playing (a restore's STOP FIRST) and as sounding (the keepers' flash writes wait for silence): the
+# organ's ROTOR NOISE, its rotors' wind for ever, is neither once its notes have rung out; a held organ key is played
+# tools/build.py bs2 --host, then from the repository's root
+#   bs2/build/host/bass-something-2_host bs2/tests/quiet.txt bs2/build/host
+wait 600
+listen
+wait 4000
+expect sounding 0
+expect played 0
+tap HOME
+wait 3000
+tap HOME
+wait 3000
+tap HOME
+wait 3000
+said ORGAN HOME
+tap LFO
+wait 1500
+tap LFO
+wait 1500
+tap LFO
+wait 1500
+tap LFO
+wait 1500
+tap LFO
+wait 1500
+tap LFO
+wait 1500
+turn K3 40
+wait 100
+expect onoise2 40
+tap HOME
+wait 2000
+key 7 down 100
+wait 300
+expect played 1
+expect sounding 1
+key 7 up
+wait 8000
+expect b3_on 1
+expect played 0
+expect sounding 0
