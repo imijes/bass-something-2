@@ -2145,8 +2145,8 @@ static void settings_defaults(settings_t *s)
     s->rmi_tabs = 1u << RT_PIANO;            /* (the RMI: PIANO down, its BASS in the middle) */
     s->rmi_bass = 64;
     s->se_rate = s->se_int = s->se_echo = s->se_rev = s->se_bass = s->se_treb = s->se_input = 64;   /* (the Space
-                                              * Echo: every knob at 5, as its manual's standard settings; mode 7, the
-                                              * three heads and the spring, settling: 10 and 11 run away at 5) */
+                                              * Echo: every knob at 5, as its manual's standard settings; mode 7 (head 3
+                                              * and the spring), settling: 10 and 11 run away at 5) */
     s->se_mode = 6;
     s->se_wow = 13;
     memset(s->se_voice, 64, sizeof s->se_voice);   /* (ECHO VOICE: as modelled) */
@@ -6643,7 +6643,7 @@ void app_input_only(void) { input(); }
 #define P_KEYB RGB(10, 10, 10)
 /* the firmware's version as shown (the splash, GLO DISPLAY): a release's "v0.6", a development build's the last release
  * and "DEV" ("v0.6 DEV": built after it; BS2_RELEASE bumped with each release) */
-#define BS2_RELEASE "0.9.2"
+#define BS2_RELEASE "0.9.3"
 #define VERSION_TEXT (APP_VERSION[0] >= '0' && APP_VERSION[0] <= '9' ? "v" APP_VERSION : "v" BS2_RELEASE " " APP_VERSION)
 static void ui_start(void) { ui.page = PG_HOME; }   /* the first page, after the splash: HOME */
 
