@@ -2,7 +2,7 @@
 # tools/build.py bs2 --host, then from the repository's root
 #   bs2/build/host/bass-something-2_host bs2/tests/secc.txt bs2/build/host
 wait 600
-expect se_mode 0
+expect se_mode 6
 expect se_rate 64
 midi B0 03 04
 midi B0 09 7F

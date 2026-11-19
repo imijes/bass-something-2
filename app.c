@@ -2145,7 +2145,9 @@ static void settings_defaults(settings_t *s)
     s->rmi_tabs = 1u << RT_PIANO;            /* (the RMI: PIANO down, its BASS in the middle) */
     s->rmi_bass = 64;
     s->se_rate = s->se_int = s->se_echo = s->se_rev = s->se_bass = s->se_treb = s->se_input = 64;   /* (the Space
-                                              * Echo: mode 1, every knob at 5, as its manual's standard settings) */
+                                              * Echo: every knob at 5, as its manual's standard settings; mode 7, the
+                                              * three heads and the spring, settling: 10 and 11 run away at 5) */
+    s->se_mode = 6;
     s->se_wow = 13;
     memset(s->se_voice, 64, sizeof s->se_voice);   /* (ECHO VOICE: as modelled) */
     memset(s->droom, 64, sizeof s->droom);   /* (DRUM ROOM: as modelled) */
@@ -4387,11 +4389,15 @@ static void save(void)                       /* the settings, and the sound into
  * only then, where the gap is not heard */
 #define QUIET_MS 500u
 static uint8_t hushed;                       /* quiet_step's: 1 when silent QUIET_MS */
-static int sounding(void)                    /* anything playing or ringing out */
+static int played(void);
+static int sounding(void)                    /* anything playing or ringing out (the room's tail and the Space Echo's,
+                                              * its runaway as long as it rings) */
 {
-    uint32_t i, drums = dq.run || fx_awake() || se_ringing();   /* (the drums too: a write under them is a
-                                              * dropout; the RMI's notes; the room's tail and the Space Echo's, its
-                                              * runaway as long as it rings) */
+    return played() || fx_awake() || se_ringing();
+}
+static int played(void)                      /* anything playing (sounding's, but the room's and the echo's tails) */
+{
+    uint32_t i, drums = dq.run;              /* (the drums too: a write under them is a dropout; the RMI's notes) */
     for (i = 0; i < NDTCH; i++)
         drums |= dt.ch[i].drum != DT_NONE;
     for (i = 0; i < RMI_NV; i++)
@@ -4608,7 +4614,8 @@ static void bank_in_step(void)               /* the main loop's (input): a bank 
 /* Backup and restore over USB (fm1-base's: device/backup.c, tools/fm1_backup.py, web/backup): everything saved. SAVE stays
  * the player's: a sound or drums changed and not saved aren't saved for it, so aren't in the backup (only what keeps itself:
  * the sequences, the GLO settings) */
-int app_backup_playing(void) { return sounding(); }
+int app_backup_playing(void) { return played(); }   /* (a tail, an echo running away, plays on: a restore's flash
+                                              * writes only cut it short) */
 void app_backup_flush(void)
 {
     settings_t rec = set_kept;
@@ -11555,6 +11562,11 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "dc_now"))
         *got = dc_now;
 #if BS2_B3
+    else if (!strcmp(what, "sounding"))      /* anything playing or ringing (a restore's STOP FIRST): a bit each part */
+        *got = (int32_t)(dq.run | (uint32_t)fx_awake() << 1 | (uint32_t)se_ringing() << 2 | (uint32_t)(b3_on != 0u) << 3
+                         | (uint32_t)(ui.okeys != 0u) << 4 | (uint32_t)(ui.rkeys != 0u) << 5 | (uint32_t)(eng.src != SRC_NONE) << 6
+                         | (uint32_t)seq_auto << 7 | (uint32_t)(voice_note >= 0) << 8 | (uint32_t)(voice.amp.stage != ENV_IDLE) << 9
+                         | (uint32_t)sounding() << 10);
     else if (!strcmp(what, "b3_on"))         /* the organ: sounding; its preset; a drawbar (obar0..obar8); not saved;
                                               * its Leslie fast; the percussion's harmonic third; the vibrato on */
         *got = (int32_t)b3_on;
