@@ -151,7 +151,7 @@ the keys' reach lights OCT-, one above lights OCT+.
 
 The keys sense how hard they're played, with no change to the FM-1. The 20 lowest keys (F3 to C5) give velocity and
 pressure; the top seven give velocity only. GLO KEYS' VELOCITY sets how the keys answer: SOFT (louder for a light
-touch), NORMAL or HARD.
+touch), NORMAL, HARD, or OFF (every key at the same velocity, 100, however it's played).
 
 ### A random sound
 
@@ -1285,7 +1285,7 @@ Holding GLO for a second opens the RND pages, for the RND Synth: see RND Synth.
 | AUDIO | SEL | Bluetooth audio: connects the device ALGO picked, or hangs up while connected. With none listed, it searches. |
 | AUDIO | K3 SPEAKER | The FM-1's speaker, which only ever plays with nothing in the headphone jack. FLAT (the default): as it is. BASS+: the bass the small speaker cannot play, heard through its harmonics. OFF: the speaker silent. Headphones and USB audio stay as they are whatever this is set to: stereo, and with none of BASS+. |
 | AUDIO | K4 TUNE | The master tune, −50 to +50 cents (0 is the default). |
-| CONTROLS | K3 VELOCITY | The keys' velocity curve: SOFT (louder for a light touch), NORMAL (the default) or HARD. |
+| KEYS | K1 VELOCITY | The keys' velocity curve: SOFT (louder for a light touch), NORMAL (the default), HARD, or OFF (every key at velocity 100). |
 | CONTROLS | K4 KNOBS (KNOB RESPONSE) | How far the knobs go as you turn them faster. FINE: always one step a click. NORMAL (the default): up to 8 steps a click on a quick spin. FAST: up to 12, and sooner. COARSE: two steps a click even turned slowly, up to 16. Only the knobs with a wide range (levels, Frequency, Tune, Tempo, the LFOs' speeds and so on); switches and short lists always move one position a click. Drum Something 400's pattern and song numbers and its tempo move one a click when turned slowly, at any of these. |
 | DISPLAY | PRESET KNOB ZOOM | AUTO (the default): as you turn an encoder, the panel zooms in on its control (twice the size) and back out a second after you stop; on HOME, a MIDI CC dives in, one camera move: the small panel zooms in on the control's section until it fills the screen, becomes that section's own page and zooms on in to the control, stays while the CCs come, then pulls the same way back out to HOME (a turn of your own while that page is up keeps you there). OFF: no zoom. |
 | DISPLAY | K3 HINTS | ON (the default): as you turn a knob, a few words on what it does show under its value; as you press a button, over the keys (a section's button: the page its next tap opens). OFF: none. See The screen. |

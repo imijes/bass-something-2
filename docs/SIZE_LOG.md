@@ -262,3 +262,4 @@ What each change costs on the FM-1, from the device build (`tools/build.py bs2`)
 | 2026-11-18 | 2ed39ce+ | piano home: voice grouped at the top right | 531,236 | +96 | 50,328 | 80,412 | +0 | 17,892 | 299,172 |
 | 2026-11-18 | b08b247+ | organ CHARACTER on CC 9 | 531,252 | +16 | 50,312 | 80,412 | +0 | 17,892 | 299,172 |
 | 2026-11-18 | 5ca2d6e+ | v0.9.1: screen reader words url | 531,252 | +0 | 50,312 | 80,412 | +0 | 17,892 | 299,172 |
+| 2026-11-18 | 6ae87d6+ | GLO KEYS velocity OFF | 531,268 | +16 | 50,296 | 80,412 | +0 | 17,892 | 299,172 |

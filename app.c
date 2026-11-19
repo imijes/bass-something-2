@@ -147,7 +147,7 @@ static uint32_t ms_stamp(void) { return (plat_ms() - 1u) | 1u; }
 #define SET_V13_SIZE offsetof(settings_t, b3_noise)  /* the record before the organ's noises */
 enum { CH_OFF = 0, CH_ALL = 17 };
 enum { CLK_AUTO, CLK_INT, CLK_EXT, NCLK };   /* MIDI clock followed when it comes; never; always (none: stopped) */
-enum { VC_SOFT, VC_NORMAL, VC_HARD, NVC };
+enum { VC_SOFT, VC_NORMAL, VC_HARD, VC_OFF, NVC };   /* (OFF last: a stored setting keeps its curve) */
 enum { KN_FINE, KN_NORMAL, KN_FAST, KN_COARSE, NKN };   /* the knobs' response: one step a click, to big strides */
 /* (the app's big zero-initialised state is PLAT_POOL: out of the 96 KB of .data and .bss, which is short) */
 static settings_t set PLAT_POOL;
@@ -2864,7 +2864,7 @@ void app_speaker(int32_t *lr, uint32_t n, int jack)
     static spk_t z PLAT_POOL;
     spk_process(&z, lr, n, set.spk, jack);
 }
-static const char *const VC_NAME[NVC] = {"SOFT", "NORMAL", "HARD"};
+static const char *const VC_NAME[NVC] = {"SOFT", "NORMAL", "HARD", "OFF"};
 static const char *const KN_NAME[NKN] = {"FINE", "NORMAL", "FAST", "COARSE"};
 static const char *const ARP_NAME[NARPM] = {"UP", "DOWN", "UP/DN", "UP/DN2", "PLAYED", "RANDOM", "PLAY", "REC"};
 typedef struct {
@@ -4692,8 +4692,11 @@ int app_sysex(const uint8_t *p, uint32_t n)  /* main loop: 1 = this app's */
     return 1;
 }
 
-static uint32_t vel_curve(uint32_t v)        /* GLO CONTROLS' VELOCITY: a key's 1..127, softer (more for less) or harder */
+static uint32_t vel_curve(uint32_t v)        /* GLO KEYS' VELOCITY: a key's 1..127, softer (more for less) or harder; OFF
+                                              * every key at 100 */
 {
+    if (set.vcurve == VC_OFF)
+        return 100u;
     if (set.vcurve == VC_SOFT)
         return (uint32_t)(fm_sqrtf((float)v * 127.0f) + 0.5f);
     if (set.vcurve == VC_HARD)
