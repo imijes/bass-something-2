@@ -7012,7 +7012,7 @@ static void zoom_blow(uint32_t x16, uint32_t y16, uint32_t step)
 #define NTAGS 16
 static const char *const ENC_NAME[NE] = {"SELECT", "ALGO", "PRESET", "K1", "K2", "K3", "K4"};
 static struct {
-    int16_t x, y;
+    int16_t x, y, hy;                        /* (hy: its hint's y, if not 0: a mod knob's, over its label) */
     uint8_t btn, lit, low;                   /* (low: its hint under it, even near the foot) */
     const char *s, *h;                       /* (h: its hint, Hints on, lit) */
     char v[16];                              /* (lit: its value) */
@@ -7047,6 +7047,7 @@ static void tag_v(int32_t cx, int32_t cy, uint32_t k, const char *v)   /* encode
     tags[ntags].x = (int16_t)cx;
     tags[ntags].y = (int16_t)cy;
     tags[ntags].btn = tags[ntags].low = 0;
+    tags[ntags].hy = 0;
     tags[ntags].lit = (uint8_t)lit;
     tags[ntags].h = lit && set.hints ? hint_of(k) : 0;
     tags[ntags++].s = ENC_NAME[enc_physical(k)];
@@ -7082,7 +7083,7 @@ static void tags_draw(void)
         int32_t w, x, y = tags[i].y - 7;
         if (!s) {                            /* (no value of its own: the organ's, drawn on its panel) the hint alone */
             if (!ui.map_until && tags[i].lit && tags[i].h)
-                hint_pill(tags[i].x, tags[i].low || tags[i].y + 10 < pan_h - 24 ? tags[i].y + 10 : tags[i].y - 26,
+                hint_pill(tags[i].x, tags[i].hy ? tags[i].hy : tags[i].low || tags[i].y + 10 < pan_h - 24 ? tags[i].y + 10 : tags[i].y - 26,
                           tags[i].h);
             continue;
         }
@@ -7092,7 +7093,7 @@ static void tags_draw(void)
         cv_rect(x, y, w, 15, tags[i].btn ? P_SILK : P_CYAN);
         cv_text(x + 3, y, &FONT_XS, s, RGB(0, 0, 0));
         if (tags[i].h)                       /* its hint under it (over it, near the foot): the map's, tag_note's */
-            hint_pill(tags[i].x, y + 17 + 15 < pan_h - 6 ? y + 18 : y - 18, tags[i].h);
+            hint_pill(tags[i].x, tags[i].hy ? tags[i].hy : y + 17 + 15 < pan_h - 6 ? y + 18 : y - 18, tags[i].h);
     }
 }
 static void panel_bg(void)                   /* one grey, 24: a 20-to-30 gradient banded on the 565 panel (green's steps
@@ -7328,6 +7329,19 @@ static void dymo(int32_t cx, int32_t y, const char *s, uint16_t c)   /* a strip 
     cv_rect(x, y, w, 1, grey(60));
     cv_text(x + 5, y, &FONT_T, s, c);
 }
+/* a mod's knob on its plate, as every instrument's mods are laid: its label's tape over it, the knob at cx, ky (r its
+ * skirt), its value printed under it; turning, its value popped up over it, its hint over its label */
+static void mod_knob(int32_t cx, int32_t ky, int32_t r, int32_t v, int32_t span, uint32_t f, uint32_t k, const char *lbl,
+                     const char *val)
+{
+    const int32_t ly = ky - r - 19, w = text_w(pr_font, val);
+    bs2_knob(cx, ky, r, v, span, KF_PLATE | f | (knob_lit(k) ? KF_LIT : 0u));
+    dymo(cx, ly, lbl, RGB(235, 235, 235));
+    print_c(clamp(cx, 14 + w / 2, 226 - w / 2), ky + r + 6, val, grey(36));
+    tag_v(cx, ky, k, val);
+    if (ntags && tags[ntags - 1u].x == cx && tags[ntags - 1u].y == ky)   /* (its tag's, if it's shown) */
+        tags[ntags - 1u].hy = (int16_t)ly;
+}
 static void screw(int32_t cx, int32_t cy)    /* a pan head, its cross */
 {
     disc(cx + 1, cy + 1, 4, grey(80));
@@ -7385,13 +7399,9 @@ static void mod_draw(void)
     for (i = 0; i < n; i++) {                /* its knobs, K1 on: each one's tape, its setting printed under it */
         const param_t *q = knob_param(EN_K1 + i);
         int32_t cx = 10 + 220 * (2 * (int32_t)i + 1) / (2 * (int32_t)n);
-        uint32_t lit = knob_lit(EN_K1 + i);
-        bs2_knob(cx, 76, n > 2u ? 16 : 20, param_get(q, page_rec(ui.page)) - q->lo, q->hi - q->lo,
-                 KF_PLATE | (lit ? KF_LIT : 0u) | (q->lo < 0 ? KF_BIP : 0u));
-        tag(cx, 76, EN_K1 + i);
-        dymo(cx, 101, LBL[env][i], RGB(235, 235, 235));
         knob_text(EN_K1 + i, t);
-        print_c(cx, 117, t, grey(36));
+        mod_knob(cx, 86, n > 2u ? 16 : 20, param_get(q, page_rec(ui.page)) - q->lo, q->hi - q->lo, q->lo < 0 ? KF_BIP : 0u,
+                 EN_K1 + i, LBL[env][i], t);
     }
 }
 /* PATCH NAME (SEL on the MASTER: the patch's mod, as the Bass Station II has no way to name one): the name's 16
@@ -7445,11 +7455,8 @@ static void name_draw(void)
         const int32_t cx = 10 + 220 * (2 * (int32_t)i + 1) / 6;
         const int32_t v = i == 0u ? ui.name_at : i == 1u ? (int32_t)name_ch(nm[ui.name_at]) : 0;
         const int32_t span = i == 0u ? PNAME_N - 1 : i == 1u ? (int32_t)NNAME_CH - 1 : 1;
-        bs2_knob(cx, 96, 14, v, span, KF_PLATE | (knob_lit(EN_K1 + i) ? KF_LIT : 0u));
-        tag(cx, 96, EN_K1 + i);
-        dymo(cx, 117, LBL[i], RGB(235, 235, 235));
         knob_text(EN_K1 + i, t);
-        print_c(cx, 131, t, grey(36));
+        mod_knob(cx, 104, 14, v, span, 0u, EN_K1 + i, LBL[i], t);
     }
 }
 /* The RMI's pages, after its photos: one strip over its keys, brushed silver in bands, the BASS slider at its left,
@@ -7982,11 +7989,8 @@ static void droom_draw(void)
     dymo(120, 30, "DRUM ROOM", RGB(235, 235, 235));
     for (i = 0; i < 4u; i++) {
         const int32_t cx = 10 + 220 * (2 * (int32_t)i + 1) / 8;
-        bs2_knob(cx, 76, 16, set.droom[i], 127, KF_PLATE | (knob_lit(EN_K1 + i) ? KF_LIT : 0u));
-        tag(cx, 76, EN_K1 + i);
-        dymo(cx, 101, DR_NAME[i], RGB(235, 235, 235));
         dr_text(EN_K1 + i, t);
-        print_c(cx, 117, t, grey(36));
+        mod_knob(cx, 86, 16, set.droom[i], 127, 0u, EN_K1 + i, DR_NAME[i], t);
     }
 }
 static void svoice_draw(void)
@@ -8562,12 +8566,9 @@ static void glo_motion_draw(void)
     for (i = 0; i < 3u; i++) {
         const param_t *q = knob_param(EN_K1 + i);
         const int32_t cx = 10 + 220 * (2 * (int32_t)i + 3) / 8;
-        bs2_knob(cx, 92, 13, param_get(q, &mom) - q->lo, q->hi - q->lo, KF_PLATE | (knob_lit(EN_K1 + i) ? KF_LIT : 0u));
-        tag(cx, 92, EN_K1 + i);
-        dymo(cx, 108, q->name, RGB(235, 235, 235));
         t[0] = 0;
         knob_text(EN_K1 + i, t);
-        print_c(cx, 124, t, grey(36));
+        mod_knob(cx, 113, 13, param_get(q, &mom) - q->lo, q->hi - q->lo, 0u, EN_K1 + i, q->name, t);
     }
 }
 /* GLOBAL DUMP: the patch on the display; SEL sends it, FX all 128, as the Bass Station II's SysEx (two buttons, as
@@ -10270,14 +10271,8 @@ static void dmod_draw(void)
 {
     plate("DRUM SOMETHING");
     dymo(120, 30, "DRUM MODS", RGB(235, 235, 235));
-    bs2_knob(70, 76, 20, set.dswing_lock != 0u, 1, KF_PLATE | (knob_lit(EN_K3) ? KF_LIT : 0u));
-    tag(70, 76, EN_K3);
-    dymo(70, 101, "SWING LOCK", RGB(235, 235, 235));
-    print_c(70, 117, OFF_ON[set.dswing_lock != 0u], grey(36));
-    bs2_knob(170, 76, 20, !set.dtrans_off, 1, KF_PLATE | (knob_lit(EN_K4) ? KF_LIT : 0u));
-    tag(170, 76, EN_K4);
-    dymo(170, 101, "TRANSPORT", RGB(235, 235, 235));
-    print_c(170, 117, OFF_ON[!set.dtrans_off], grey(36));
+    mod_knob(70, 86, 20, set.dswing_lock != 0u, 1, 0u, EN_K3, "SWING LOCK", OFF_ON[set.dswing_lock != 0u]);
+    mod_knob(170, 86, 20, !set.dtrans_off, 1, 0u, EN_K4, "TRANSPORT", OFF_ON[!set.dtrans_off]);
 }
 static void zoom_dt_cc(uint32_t cc)          /* a drum's CC (dt_cc): its channel's page, its knob */
 {

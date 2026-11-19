@@ -1353,40 +1353,34 @@ static void o_amp(void)                      /* Leslie-122H-Amp.webp: the chassi
         }
     }
 }
-static void o_mojo(void)                     /* NOISES and MOJO: the organ's insides in the dark, the generator's
-                                              * long box, a plate along its front with the four knobs' print */
+static void o_mojo(void)                     /* NOISES and MOJO: a mod's plate, as DRUM ROOM's (each instrument's mods
+                                              * the same steel): NOISES its four knobs; MOJO its two, K3 and K4 (the
+                                              * knobs right to left), CHARACTER's name under its own */
 {
-    char t[16];
+    char t[20];
     uint32_t i;
-    cv_rect(0, 66, 240, TALL_H - 66, RGB(6, 6, 6));
-    cv_rect(20, 80, 200, 30, RGB(46, 40, 34));    /* the generator: its box, its lid's edge, its shaft's line */
-    cv_rect(20, 80, 200, 2, RGB(90, 80, 66));
-    cv_rect(28, 94, 184, 2, RGB(120, 110, 90));
-    for (i = 0; i < 12u; i++)                    /* (its wheels' covers) */
-        cv_rect(30 + (int32_t)i * 15, 86, 8, 18, RGB(70, 62, 52));
-    cv_rect(20, 124, 200, 28, RGB(156, 156, 146));   /* the plate */
-    cv_rect(20, 151, 200, 2, RGB(70, 70, 66));
-    if (ui.oles == 6u) {                     /* MOJO: its two in the plate's middle, CHARACTER's name over it */
-        int_text((int32_t)opatch.mojo * 100 / 127, t), text_cat(t, "%");
-        print_c(80, 128, "MOJO", RGB(30, 30, 30));
-        print_c(80, 138, t, knob_lit(EN_K3) ? P_CYAN : RGB(30, 30, 30));
-        tag(80, 134, EN_K3), tag_low();
-        print_c(160, 128, "CHARACTER", RGB(30, 30, 30));
-        print_c(160, 113, b3_mojo_name(opatch.mchar), knob_lit(EN_K4) ? P_CYAN : RGB(156, 156, 146));
-        tag(160, 134, EN_K4), tag_low();
-        return;
-    }
-    for (i = 0; i < 4u; i++) {               /* NOISES: its four */
-        const int32_t cx = 46 + 50 * (int32_t)i;
-        static const char *const NL[4] = {"THUDS", "HUM", "ROTOR", "CLUNKS"};
-        int_text(set.b3_noise[i], t);
-        print_c(cx, 128, NL[i], RGB(30, 30, 30));
-        print_c(cx, 138, t, knob_lit(EN_K1 + i) ? P_CYAN : RGB(30, 30, 30));
-        tag(cx, 134, EN_K1 + i);
+    plate("ORGAN SOMETHING");
+    dymo(120, 30, ui.oles == 6u ? "ORGAN MOJO" : "ORGAN NOISES", RGB(235, 235, 235));
+    for (i = ui.oles == 6u ? 2u : 0u; i < 4u; i++) {
+        static const char *const NL[4] = {"THUDS", "HUM", "ROTOR", "CLUNKS"}, *const ML[4] = {"", "", "MOJO", "CHARACTER"};
+        const int32_t cx = ui.oles == 6u ? 10 + 220 * (2 * (int32_t)i - 3) / 4   /* (MOJO's two across the plate) */
+                                         : 10 + 220 * (2 * (int32_t)i + 1) / 8;
+        t[0] = 0;
+        if (ui.oles != 6u)
+            int_text(set.b3_noise[i], t), mod_knob(cx, 86, 16, set.b3_noise[i], 127, 0u, EN_K1 + i, NL[i], t);
+        else if (i == 2u)
+            int_text((int32_t)opatch.mojo * 100 / 127, t), text_cat(t, "%"),
+                mod_knob(cx, 86, 16, opatch.mojo, 127, 0u, EN_K3, ML[i], t);
+        else
+            text_cat(t, b3_mojo_name(opatch.mchar)), mod_knob(cx, 86, 16, opatch.mchar, B3_NCHAR - 1u, 0u, EN_K4, ML[i], t);
     }
 }
 static void oles_draw(void)
 {
+    if (ui.oles >= 5u) {                     /* (NOISES, MOJO: a mod's plate, its own head) */
+        o_mojo();
+        return;
+    }
     oh_head("LESLIE", OLES_V[ui.oles][0] == 'H' ? "HORN" : OLES_V[ui.oles][0] == 'L' ? "LOW" : ui.oles ? OLES_V[ui.oles]
                                                                                                       : "122");
     if (ui.oles == 0u)
@@ -1395,8 +1389,6 @@ static void oles_draw(void)
         o_rotors();
     else if (ui.oles == 4u)
         o_amp();
-    else if (ui.oles >= 5u)
-        o_mojo();
     else
         o_controls(ui.oles == 3u);
 }
