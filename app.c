@@ -7723,20 +7723,38 @@ static void rhome_draw(void)
 {
     char vc[32];
     int32_t y, x;
-    rmi_voice_text(vc);
     cv_rect(0, 0, 240, TALL_H, P_BG);
     cv_text(10, 12, &FONT_B, "PIANO", P_SILK);   /* the name; under its line the voice and its toggles (no display:
                                               * the 368X has none) */
     cv_text(cv_text(10, 30, &FONT_B, "SOMETHING", P_SILK) + 5, 30, &FONT_B, "368X", P_BAR);
     cv_rect(10, 49, 116, 2, P_BAR);
-    cv_text(10, 54, &FONT_XS, vc, P_CYAN);   /* (ORGAN MODE and ACCENTER on the line under: all of it is too wide) */
-    x = 10;
-    if (set.rmi_organ)
-        x = cv_text(x, 67, &FONT_T, "ORGAN MODE", P_SILK) + 8;
-    if (set.rmi_accent)
-        cv_text(x, 67, &FONT_T, "ACCENTER", P_SILK);
-    tag_at(10 + text_w(&FONT_XS, "SEL: PIANO PRESETS") / 2, 58, "SEL: PIANO PRESETS", 1);   /* (the toggles up
+    {                                        /* (as SPACE's mode: the voice at the top right, a line each kind down:
+                                              * the pianos, the harpsichords and the lute, ORGAN MODE, ACCENTER) */
+        static const uint8_t G0[2] = {0, 2}, G1[2] = {2, NRT};
+        static const char *const PP[NRT] = {"PIANO", "PP", "HARPSI", "PP", "LUTE"};
+        uint32_t g, i;
+        y = 6;
+        for (g = 0; g < 2u; g++) {
+            vc[0] = 0;
+            for (i = G0[g]; i < G1[g]; i++)
+                if (set.rmi_tabs >> i & 1u) {
+                    if (vc[0])
+                        text_cat(vc, " + ");
+                    text_cat(vc, i == 1u || i == 3u ? (set.rmi_tabs >> (i - 1u) & 1u ? PP[i] : RT_NAME[i]) : PP[i]);
+                }
+            if (vc[0])
+                cv_text(232 - text_w(&FONT_XS, vc), y, &FONT_XS, vc, P_CYAN), y += 12;
+        }
+        if (y == 6)
+            cv_text(232 - text_w(&FONT_XS, "NO TONE"), y, &FONT_XS, "NO TONE", P_CYAN), y += 12;
+        y += 2;
+        if (set.rmi_organ)
+            cv_text(232 - text_w(&FONT_T, "ORGAN MODE"), y, &FONT_T, "ORGAN MODE", P_SILK), y += 9;
+        if (set.rmi_accent)
+            cv_text(232 - text_w(&FONT_T, "ACCENTER"), y, &FONT_T, "ACCENTER", P_SILK);
+        tag_at(232 - text_w(&FONT_XS, "SEL: PIANO PRESETS") / 2, 10, "SEL: PIANO PRESETS", 1);   /* (the toggles up
                                               * close; PRESET's own tag on the panel) */
+    }
     rbar_paint();
     for (y = RFY(194); y < TALL_H; y++) {    /* the case: its lid's sides angled in, black; the silver strip in it, its
                                               * grooves; the black under it, the keys' line, the rail over the keys */
