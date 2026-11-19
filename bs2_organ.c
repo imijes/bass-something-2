@@ -900,14 +900,25 @@ static uint16_t o_rgb(int32_t r, int32_t g, int32_t b)
     return RGB(clamp(r, 0, 255), clamp(g, 0, 255), clamp(b, 0, 255));
 }
 static void o_grain(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, int32_t g, int32_t b, uint32_t seed)
-{                                            /* veneer, its grain lying along: each row a shade of its own, a streak */
-    int32_t i;
+{                                            /* veneer, its grain lying along: each row a shade of its own, a streak;
+                                              * its figure, darker bands and a lighter, drifting as the rows go down
+                                              * (as the walnut's in the photos) */
+    int32_t i, j;
     for (i = 0; i < h; i++) {
         const uint32_t z = ((uint32_t)(y + i) + seed * 977u) * 2654435761u;
         const int32_t d = ((int32_t)(z >> 28) - 8) * 2;
         cv_rect(x, y + i, w, 1, o_rgb(r + d, g + d * 6 / 10, b + d / 3));
         if (((z >> 9) & 3u) == 0u && w > 8)
             cv_rect(x + (int32_t)((z >> 13) % (uint32_t)(w / 2)), y + i, w / 3, 1, o_rgb(r - 16, g - 12, b - 6));
+        if (w > 16)
+            for (j = 0; j < 3; j++) {        /* (the figure: three bands, each its own drift) */
+                const float t = (float)(y + i) * (0.05f + 0.02f * (float)j) + (float)(seed + 5u * (uint32_t)j);
+                const int32_t c = x + (int32_t)((float)w * (0.2f + 0.3f * (float)j + 0.12f * fm_sinf(t))),
+                              l = w / 7 + (int32_t)((z >> (16 + j)) & 7u), k = j == 1 ? 8 : -13;
+                const int32_t x0 = clamp(c - l / 2, x, x + w), x1 = clamp(c + l / 2, x, x + w);
+                if (x1 > x0)
+                    cv_rect(x0, y + i, x1 - x0, 1, o_rgb(r + d + k, g + d * 6 / 10 + k * 7 / 10, b + d / 3 + k / 3));
+            }
     }
 }
 static void o_ell(int32_t cx, int32_t cy, int32_t rx, int32_t ry, uint16_t c)   /* filled */
@@ -919,13 +930,15 @@ static void o_ell(int32_t cx, int32_t cy, int32_t rx, int32_t ry, uint16_t c)   
             cv_rect(cx - w, cy + dy, 2 * w + 1, 1, c);
     }
 }
-static void o_louvre(int32_t x, int32_t y, int32_t w)   /* a louvre's slot, routed: its shadow, its lit lower lip */
+static void o_louvre(int32_t x, int32_t y, int32_t w)   /* a louvre's slot, routed, its ends round: its upper
+                                              * edge's shadow, the dark inside, its lit lower lip */
 {
-    cv_rect(x + 2, y, w - 4, 1, RGB(48, 18, 8));
-    cv_rect(x, y + 1, w, 2, RGB(78, 30, 16));
-    cv_rect(x + 1, y + 3, w - 2, 1, RGB(96, 40, 20));
-    cv_rect(x + 2, y + 4, w - 4, 1, RGB(214, 140, 80));
-    cv_rect(x + 1, y + 1, 3, 1, RGB(150, 84, 50));
+    cv_rect(x + 2, y, w - 4, 1, RGB(60, 26, 12));
+    cv_rect(x + 1, y + 1, w - 2, 1, RGB(34, 14, 6));
+    cv_rect(x, y + 2, w, 1, RGB(46, 20, 9));
+    cv_rect(x + 1, y + 3, w - 2, 1, RGB(92, 42, 20));
+    cv_rect(x + 2, y + 4, w - 4, 1, RGB(222, 156, 98));
+    cv_rect(x + 3, y + 1, w / 3, 1, RGB(70, 34, 18));   /* (its inside's top, a glint) */
 }
 static void o_seen(int32_t cx, int32_t y, int32_t w, float a, int32_t r, int sides)
 {                                            /* a rotor seen through a louvre: its mouth (the horn's two) as it passes
@@ -941,14 +954,31 @@ static void o_seen(int32_t cx, int32_t y, int32_t w, float a, int32_t r, int sid
         }
     }
 }
-static void o_lamp(int32_t cx, int32_t cy, int on, uint16_t lit, uint16_t glow, uint16_t off)
+static void o_ring(int32_t cx, int32_t cy, int32_t r, int32_t g)   /* a glossy black bezel of radius r: its rim lit
+                                              * at the top left, a glint at the bottom right (Leslie-122H-Controls) */
 {
+    int32_t i, x, y;
+    disc(cx + 1, cy + 1, r, P_KSHADOW);
+    disc(cx, cy, r, RGB(12, 12, 12));
+    for (i = 0; i < 8 * r; i++) {
+        const float a = (float)i * (2.0f * FM_PI) / (float)(8 * r);
+        const float c = fm_cosf(a + FM_PI / 4.0f);   /* (1 at the top left, -1 at the bottom right) */
+        pt_at(cx, cy, r - 1, a, &x, &y);
+        cv_pset(x, y, grey(c > 0.0f ? 20 + (int32_t)(c * c * (float)g) : 20 + (int32_t)(c * c * (float)g / 3)));
+    }
+}
+static void o_lamp(int32_t cx, int32_t cy, int on, uint16_t lit, uint16_t glow, uint16_t off)
+{                                            /* a lamp: its dome in a black bezel, lit glowing past it; unlit its glass
+                                              * dark, a glint on it */
     if (on)
-        disc(cx, cy, 5, glow);
-    disc(cx, cy, 3, P_KSHADOW);
-    disc(cx, cy, 2, on ? lit : off);
-    if (on)
-        cv_pset(cx - 1, cy - 1, RGB(255, 250, 230));
+        disc(cx, cy, 7, glow);
+    o_ring(cx, cy, 5, on ? 150 : 110);
+    disc(cx, cy, 3, on ? lit : off);
+    if (on) {
+        disc(cx, cy, 1, RGB(255, 250, 230));
+        cv_pset(cx - 2, cy - 2, RGB(255, 255, 245));
+    } else
+        cv_pset(cx - 1, cy - 2, RGB(170, 166, 160));
 }
 static void o_lamps(int32_t x, int32_t y, int32_t dx, uint16_t ink, int beside)   /* SLOW STOP FAST, the speed's
                                               * lamps, their names under them or beside */
@@ -960,7 +990,7 @@ static void o_lamps(int32_t x, int32_t y, int32_t dx, uint16_t ink, int beside) 
     if (beside) {
         uint32_t i;
         for (i = 0; i < 3u; i++)
-            cv_text(x + (int32_t)i * dx + 6, y - 4, &FONT_XS, OSPD[i], ink);
+            cv_text(x + (int32_t)i * dx + 8, y - 4, &FONT_XS, OSPD[i], ink);
     } else {
         print_c(x, y + 6, "SLOW", ink);
         print_c(x + dx, y + 6, "STOP", ink);
@@ -981,11 +1011,14 @@ static void o_cabinet(void)                  /* the cabinet from the front, a li
     cv_rect(16, 69, 72, 1, RGB(214, 140, 84));
     cv_rect(17, 73, 70, 1, RGB(96, 44, 20));
     o_grain(88, 68, 14, 5, 128, 58, 28, 5);
-    o_grain(22, 74, 62, 76, 184, 104, 50, 11);   /* the front, its stiles; the side, darker, turned away */
-    cv_rect(22, 74, 1, 76, RGB(214, 144, 84));
-    cv_rect(83, 74, 1, 76, RGB(110, 50, 22));
-    o_grain(84, 74, 14, 76, 140, 62, 30, 13);
-    cv_rect(97, 74, 1, 76, RGB(96, 42, 20));
+    o_grain(22, 74, 62, 76, 170, 94, 48, 11);   /* the front, its stiles; the side, darker, turned away */
+    cv_rect(22, 74, 1, 76, RGB(222, 156, 96));   /* (its corners round: a post's light, its shade) */
+    cv_rect(23, 74, 1, 76, RGB(194, 120, 66));
+    cv_rect(82, 74, 1, 76, RGB(132, 66, 32));
+    cv_rect(83, 74, 1, 76, RGB(206, 136, 80));
+    o_grain(84, 74, 14, 76, 126, 62, 32, 13);
+    cv_rect(84, 74, 1, 76, RGB(150, 82, 42));
+    cv_rect(97, 74, 1, 76, RGB(80, 36, 18));
     o_grain(18, 150, 68, 8, 156, 78, 36, 17);   /* the plinth */
     cv_rect(18, 150, 68, 1, RGB(206, 130, 72));
     o_grain(86, 151, 14, 7, 120, 54, 26, 19);
@@ -1024,21 +1057,29 @@ static void o_arm(int32_t cx, int32_t cy, float a, int32_t l)   /* a horn's arm 
         disc(cx + (int32_t)(c * (float)l * t), cy + (int32_t)(s * (float)l * 0.34f * t) - 1, 3 + (int32_t)(5.0f * t * t),
              RGB(16, 16, 18));
     }
-    for (i = 3; i <= 10; i++)                /* (its sheen along the top) */
-        cv_pset(cx + (int32_t)(c * (float)l * (float)i / 12.0f), cy + (int32_t)(s * (float)l * 0.34f * (float)i / 12.0f) - 3
-                    - i / 4, RGB(84, 84, 90));
+    for (i = 3; i <= 11; i++) {              /* (its gloss along the top, the light's streak on it) */
+        const int32_t x = cx + (int32_t)(c * (float)l * (float)i / 12.0f), y = cy + (int32_t)(s * (float)l * 0.34f * (float)i / 12.0f);
+        cv_pset(x, y - 3 - i / 4, RGB(96, 96, 104));
+        cv_pset(x, y - 2 - i / 4, RGB(52, 52, 58));
+        if (i > 5 && i < 10)
+            cv_pset(x, y - 4 - i / 4, RGB(176, 176, 184));
+    }
     if (s > 0.15f) {
         o_ell(ex, ey - 1, 2 + (int32_t)(7.0f * s), 8, RGB(74, 74, 78));
         o_ell(ex, ey - 1, 1 + (int32_t)(6.0f * s), 6, RGB(4, 4, 4));
     } else
         o_ell(ex, ey - 1, 3, 8, RGB(40, 40, 44));
 }
-static void o_wing(int32_t cx, int32_t cy)   /* a wing nut on its stud */
+static void o_wing(int32_t cx, int32_t cy)   /* a wing nut on its stud, its washer: bright steel, its wings lit */
 {
-    cv_rect(cx - 4, cy - 2, 3, 2, RGB(214, 214, 214));
-    cv_rect(cx + 2, cy - 2, 3, 2, RGB(214, 214, 214));
-    cv_rect(cx - 1, cy - 1, 3, 3, RGB(170, 170, 170));
-    cv_rect(cx, cy + 2, 1, 2, RGB(120, 120, 120));
+    o_ell(cx, cy + 3, 4, 1, RGB(200, 200, 204));
+    cv_rect(cx - 4, cy - 3, 3, 3, RGB(196, 196, 200));
+    cv_rect(cx + 2, cy - 3, 3, 3, RGB(150, 150, 156));
+    cv_rect(cx - 4, cy - 3, 3, 1, RGB(250, 250, 252));
+    cv_rect(cx + 2, cy - 3, 3, 1, RGB(220, 220, 224));
+    cv_rect(cx - 1, cy - 1, 3, 3, RGB(176, 176, 180));
+    cv_pset(cx - 1, cy - 1, RGB(255, 255, 255));
+    cv_rect(cx, cy + 2, 1, 1, RGB(110, 110, 110));
 }
 static void o_rotors(void)                   /* Leslie-122H-Rotor-and-Tension-Pulleys.webp: the horn's shelf, the horn
                                               * turning on its pulley, the motor's brass pulley, the idler and its
@@ -1053,7 +1094,8 @@ static void o_rotors(void)                   /* Leslie-122H-Rotor-and-Tension-Pu
     o_grain(0, 66, 240, 5, 206, 132, 70, 23);   /* the shelf over it, the back, the motor board, its edge */
     cv_rect(0, 70, 240, 1, RGB(120, 66, 30));
     o_grain(0, 71, 240, 14, 70, 42, 26, 29);
-    o_grain(0, 85, 240, 24, 104, 66, 40, 31);
+    for (i = 0; i < 24; i++)                 /* (the motor board: hardboard, smooth, lighter to its front) */
+        cv_rect(0, 85 + i, 240, 1, o_rgb(98 + i * 5 / 4, 64 + i * 5 / 6, 42 + i / 2));
     o_ell(hx, 104, 18, 4, RGB(46, 30, 20));  /* (the rotor's hole in the board) */
     o_grain(0, 109, 240, 6, 212, 140, 76, 37);
     cv_rect(0, 109, 240, 1, RGB(236, 176, 110));
@@ -1070,10 +1112,12 @@ static void o_rotors(void)                   /* Leslie-122H-Rotor-and-Tension-Pu
         o_ell(50, 101, 3, 1, RGB(90, 70, 36));
         cv_pset(50 + (int32_t)(fm_cosf(2.0f * FM_PI * m) * 5.0f), 101 + (int32_t)(fm_sinf(2.0f * FM_PI * m) * 2.0f),
                 RGB(255, 236, 170));
-        cv_rect(76, 100, 18, 5, RGB(150, 150, 154));   /* the idler's bracket, its wing nut; the spring, its wire */
+        cv_rect(76, 100, 18, 5, RGB(150, 150, 154));
+        cv_rect(76, 100, 18, 1, RGB(206, 206, 210));
+        cv_rect(76, 104, 18, 1, RGB(96, 96, 100));   /* the idler's bracket, its wing nut; the spring, its wire */
         o_wing(84, 98);
-        for (i = 0; i < 5; i++)
-            cv_rect(108, 98 + 2 * i, 6, 1, i & 1 ? RGB(110, 110, 110) : RGB(210, 210, 210));
+        for (i = 0; i < 10; i++)             /* (its coils) */
+            cv_rect(107 + (i & 1), 98 + i, 7, 1, i & 1 ? RGB(96, 96, 100) : RGB(222, 222, 226));
         o_wing(111, 96);
         cv_line(70, 107, 108, 106, RGB(190, 190, 190));
         cv_line(114, 106, hx + 18, 103, RGB(190, 190, 190));
@@ -1082,6 +1126,7 @@ static void o_rotors(void)                   /* Leslie-122H-Rotor-and-Tension-Pu
     }
     o_ell(hx, 103, 14, 3, RGB(12, 12, 12));  /* the horn's pulley, its bolts going round */
     o_ell(hx, 101, 12, 2, RGB(30, 30, 32));
+    cv_rect(hx - 10, 99, 20, 1, RGB(70, 70, 76));   /* (its rim's gloss) */
     cv_pset(hx + (int32_t)(fm_cosf(2.0f * FM_PI * ha) * 9.0f), 101 + (int32_t)(fm_sinf(2.0f * FM_PI * ha) * 2.0f),
             RGB(200, 200, 200));
     cv_rect(hx - 1, hy, 3, 7, RGB(20, 20, 20));
@@ -1132,17 +1177,25 @@ static void o_rotors(void)                   /* Leslie-122H-Rotor-and-Tension-Pu
         cv_text(236 - text_w(&FONT_T, t), i ? 150 : 74, &FONT_T, t, P_CYAN);
     }
 }
-static void o_trimmer(int32_t cx, int32_t cy, uint32_t v, uint32_t f)   /* a trimmer's knurled knob in its bezel */
+static void o_trimmer(int32_t cx, int32_t cy, uint32_t v, uint32_t f)   /* a trimmer (Leslie-122H-Controls): sunk
+                                              * in its glossy black bezel, its flat face grey and grained, a fine line */
 {
+    const int32_t d = f & KF_DIM ? 2 : 1, g = 60 / d;
     int32_t i, x, y;
-    disc(cx, cy, 8, RGB(14, 14, 14));
-    disc(cx, cy, 7, RGB(70, 68, 66));
-    disc(cx, cy, 6, RGB(26, 26, 26));
-    for (i = 0; i < 12; i++) {
-        pt_at(cx, cy, 5, (float)i * (FM_PI / 6.0f), &x, &y);
-        cv_pset(x, y, RGB(62, 62, 62));
+    o_ring(cx, cy, 8, 170 / d);
+    disc(cx, cy, 6, RGB(4, 4, 4));           /* (its well) */
+    disc(cx, cy, 5, grey(g));                /* (its face; its rim's top left lit, its grain) */
+    for (i = 0; i < 24; i++) {
+        pt_at(cx, cy, 5, (float)i * (FM_PI / 12.0f), &x, &y);
+        cv_pset(x, y, grey(i >= 15 && i <= 21 ? g + 30 / d : g - 18 / d));
     }
-    pt_at(cx, cy, 5, ((float)v / 127.0f - 0.5f) * (FM_PI * 5.0f / 3.0f), &x, &y);
+    for (i = 0; i < 26; i++) {
+        const uint32_t z = (uint32_t)(i + 1) * 2654435761u ^ (uint32_t)cx * 40503u;
+        x = cx - 3 + (int32_t)(z % 7u), y = cy - 3 + (int32_t)((z >> 9) % 7u);
+        if ((x - cx) * (x - cx) + (y - cy) * (y - cy) < 17)
+            cv_pset(x, y, grey(z >> 31 ? g + 12 / d : g - 14 / d));
+    }
+    pt_at(cx, cy, 4, ((float)v / 127.0f - 0.5f) * (FM_PI * 5.0f / 3.0f), &x, &y);
     cv_line(cx, cy, x, y, f & KF_LIT ? P_CYAN : f & KF_DIM ? RGB(120, 120, 120) : RGB(236, 236, 236));
 }
 static void o_rule(int32_t y, const char *s)  /* a heading between two lines, as the panel's printed */
@@ -1184,27 +1237,44 @@ static void o_controls(int low)              /* Leslie-122H-Controls.webp: the p
             cv_text(cx + 10, cy - 3, &FONT_XS, t, on ? P_CYAN : P_DIM);
         }
     }
-    o_lamps((240 - 2 * 44 - 6 - text_w(&FONT_XS, "FAST") + 5) / 2, 150, 44, RGB(230, 230, 226), 1);   /* centred */
+    o_lamps((240 - 2 * 44 - 8 - text_w(&FONT_XS, "FAST") + 6) / 2, 150, 44, RGB(230, 230, 226), 1);   /* centred */
 }
 static void o_tube(int32_t cx, int32_t top, int32_t w, int32_t h, float blue, float plate)
-{                                            /* a valve: its heater's steady orange, its plates dull red as they heat
-                                              * (red-plating), the blue-violet glow on its glass as the signal swings */
-    const int32_t r = w / 2, base = top + h, my = top + r + (h - r) / 2;
+{                                            /* a valve (Leslie-122H-Amp): its glass dark and clear, a sheen down each
+                                              * side, its top silvered by the getter, its tip; inside, its plates grey
+                                              * (dull red as they heat: red-plating), its heater's steady orange, the
+                                              * blue-violet glow on its glass as the signal swings; the big ones' red
+                                              * ring and brass base */
+    const int32_t r = w / 2, big = w > 14, base = top + h, bh = big ? 9 : 3, gb = base - bh, my = top + r + (gb - top - r) / 2;
     int32_t i;
-    disc(cx, top + r, r, RGB(58, 54, 50));
-    cv_rect(cx - r, top + r, w, h - r - 6, RGB(58, 54, 50));
-    cv_rect(cx - r / 2, top + r - 2, r, 3, RGB(176, 176, 180));   /* (the getter's silver) */
-    cv_rect(cx - r + 3, top + r + 3, w - 6, h - r - 14, o_rgb(34 + (int32_t)(150.0f * plate), 32 + (int32_t)(20.0f * plate),
-                                                            30 + (int32_t)(8.0f * plate)));   /* the plates */
+    disc(cx, top + r, r, RGB(40, 38, 36));   /* (the glass) */
+    cv_rect(cx - r, top + r, w, gb - top - r, RGB(40, 38, 36));
+    for (i = 0; i < r; i++)                  /* (its top silvered, darker to its middle) */
+        cv_rect(cx - chord(r, r - i), top + i, 2 * chord(r, r - i) + 1, 1, grey(110 + 60 * i / r));
+    cv_rect(cx - 1, top - 2, 3, 2, grey(150));   /* (its tip) */
+    cv_rect(cx - r + 3, top + r + 3, w - 6, gb - top - r - 8, o_rgb(70 + (int32_t)(140.0f * plate), 68 + (int32_t)(10.0f * plate),
+                                                                   66 - (int32_t)(20.0f * plate)));   /* the plates */
+    for (i = cx - r + 5; i < cx + r - 4; i += 4)   /* (their seams) */
+        cv_rect(i, top + r + 4, 1, gb - top - r - 10, RGB(30, 28, 26));
     if (blue > 0.02f)                        /* (the glass's glow: at the plates' edges, inside the glass) */
         for (i = 0; i < 2; i++)
-            cv_rect(i ? cx + r - 3 : cx - r + 1, top + r + 4, 2, h - r - 16,
+            cv_rect(i ? cx + r - 3 : cx - r + 1, top + r + 2, 2, gb - top - r - 6,
                     o_rgb(58 + (int32_t)(60.0f * blue), 54 + (int32_t)(70.0f * blue), 50 + (int32_t)(205.0f * blue)));
-    cv_rect(cx - r + 4, my - 4, w - 8, 4, RGB(255, 120, 40));   /* the heater, through the mica: steady */
-    cv_rect(cx - 1, my - 3, 2, 2, RGB(255, 210, 140));
-    cv_rect(cx - r, base - 9, w, 2, RGB(200, 40, 30));   /* (its red ring) */
-    cv_rect(cx - r + 1, top + r, 1, h - r - 8, RGB(130, 124, 116));   /* (the glass's sheen) */
-    cv_rect(cx - r + 1, base - 6, w - 2, 6, w > 14 ? RGB(150, 128, 92) : RGB(40, 36, 32));   /* its base */
+    cv_rect(cx - r + 4, my - 2, w - 8, 3, RGB(255, 120, 40));   /* the heater, through the mica: steady */
+    cv_rect(cx - 1, my - 1, 2, 1, RGB(255, 220, 160));
+    if (big)
+        for (i = 0; i < 3; i++)              /* (the heater's glints up the plates, as the photo's) */
+            cv_pset(cx - r + 5 + i * (w - 10) / 2, top + r + 6 + i * 3, RGB(255, 96, 40));
+    cv_rect(cx - r + 1, top + r - 2, 1, gb - top - r, RGB(170, 166, 158));   /* (the glass's sheen, each side) */
+    cv_rect(cx + r - 2, top + r, 1, gb - top - r - 2, RGB(96, 92, 88));
+    if (big) {
+        cv_rect(cx - r, gb - 4, w, 3, RGB(200, 40, 30));   /* (its red ring) */
+        cv_rect(cx - r, gb - 4, w, 1, RGB(250, 90, 70));
+        for (i = 0; i < bh; i++)             /* its base, brass, lit from the left */
+            cv_rect(cx - r + 1, gb + i, w - 2, 1, i == 1 ? RGB(240, 214, 150) : o_rgb(184 - 6 * i, 150 - 6 * i, 96 - 4 * i));
+        cv_rect(cx + r - 5, gb, 3, bh, RGB(110, 84, 50));
+    } else
+        cv_rect(cx - r + 1, gb, w - 2, bh, RGB(26, 24, 22));   /* (its socket) */
 }
 static void o_amp(void)                      /* Leslie-122H-Amp.webp: the chassis in the dark, its two big valves and
                                               * two small, the transformer, the wires; the valves as they'd be: the
@@ -1215,32 +1285,59 @@ static void o_amp(void)                      /* Leslie-122H-Amp.webp: the chassi
     const float d = (float)opatch.drive / 127.0f, lv = fm_minf(1.0f, b3_level() * 3.0f);
     const float to_b = lv * (0.35f + 0.65f * d), to_p = lv * d * d;
     char t[16];
+    int32_t i;
     blue += (to_b - blue) * (to_b > blue ? 0.6f : 0.25f);   /* (the glow follows at once; the plates' heat slow) */
     plate += (to_p - plate) * (to_p > plate ? 0.03f : 0.015f);
     cv_rect(0, 66, 240, TALL_H - 66, RGB(6, 6, 6));
-    cv_rect(36, 112, 200, 12, RGB(110, 110, 102));   /* the chassis: its top, its face */
-    cv_rect(36, 112, 200, 1, RGB(150, 150, 140));
-    cv_rect(36, 124, 200, 28, RGB(156, 156, 146));
-    cv_rect(36, 151, 200, 2, RGB(70, 70, 66));
-    cv_rect(14, 82, 22, 71, RGB(178, 176, 158));   /* (its end, bent up; its screws) */
-    cv_rect(35, 82, 1, 71, RGB(90, 90, 82));
-    screw(25, 98);
-    screw(25, 142);
+    {                                        /* the chassis, brushed aluminium lit from the left: its top, its face */
+        int32_t x;
+        for (x = 36; x < 236; x += 4) {
+            const int32_t g = 150 - (x - 36) * 50 / 200;
+            cv_rect(x, 112, 4, 12, RGB(g - 30, g - 30, g - 38));
+            cv_rect(x, 124, 4, 27, RGB(g + 20, g + 20, g + 12));
+        }
+        for (i = 0; i < 9; i++)              /* (its brushing) */
+            cv_rect(36 + (i * 53) % 120, 126 + i * 3, 60 + (i * 31) % 70, 1, RGB(168 - i * 4, 168 - i * 4, 160 - i * 4));
+        cv_rect(36, 112, 200, 1, RGB(170, 170, 160));
+        cv_rect(36, 124, 200, 1, RGB(210, 210, 200));
+        cv_rect(36, 151, 200, 2, RGB(50, 50, 48));
+        cv_rect(226, 145, 3, 3, RGB(20, 20, 20));   /* (a hole in it) */
+    }
+    for (i = 0; i < 71; i++)                 /* its end, bent up, brassy in the light; its screws, black */
+        cv_rect(14, 82 + (int32_t)i, 22, 1, RGB(184 - i / 2, 172 - i / 2, 120 - i / 3));
+    cv_rect(14, 82, 22, 1, RGB(220, 210, 160));
+    cv_rect(35, 82, 1, 71, RGB(80, 76, 56));
+    disc(25, 98, 3, RGB(20, 20, 20));
+    disc(25, 142, 3, RGB(20, 20, 20));
+    cv_pset(24, 97, grey(110));
+    cv_pset(24, 141, grey(110));
     o_tube(96, 70, 26, 48, blue, plate);
     o_tube(134, 70, 26, 48, blue, plate);
     o_tube(62, 88, 12, 30, blue * 0.3f, 0.0f);
     o_tube(114, 92, 12, 28, blue * 0.3f, 0.0f);
-    cv_rect(160, 96, 30, 22, RGB(120, 120, 116));   /* the transformer, its coil */
-    cv_rect(166, 100, 18, 14, RGB(226, 200, 96));
-    cv_rect(160, 96, 30, 2, RGB(170, 170, 166));
-    cv_line(190, 100, 228, 74, RGB(200, 40, 40));   /* the wires */
-    cv_line(190, 104, 230, 80, RGB(60, 80, 200));
-    cv_line(190, 108, 232, 86, RGB(220, 220, 220));
-    cv_line(188, 98, 214, 72, RGB(40, 150, 70));
+    cv_rect(158, 94, 34, 24, RGB(96, 98, 96));   /* the transformer: its laminations' frame, its coil, its label */
+    for (i = 0; i < 6; i++)
+        cv_rect(158, 96 + 4 * (int32_t)i, 34, 1, RGB(70, 72, 70));
+    cv_rect(158, 94, 34, 1, RGB(160, 162, 160));
+    cv_rect(165, 99, 20, 16, RGB(222, 196, 86));
+    cv_rect(165, 99, 20, 1, RGB(250, 232, 140));
+    cv_rect(184, 99, 1, 16, RGB(160, 136, 50));
+    cv_rect(168, 91, 14, 4, RGB(220, 220, 210));
+    for (i = 0; i < 26; i++) {               /* the wires, twisted in pairs, to their strip */
+        const int32_t x = 192 + i * 3 / 2, y = 102 - i, o = (i / 2) & 1;
+        cv_rect(x, y + o, 2, 1, RGB(40, 150, 70));
+        cv_rect(x, y + 1 - o, 2, 1, RGB(230, 230, 230));
+        cv_rect(x + 4, y + 6 + o, 2, 1, RGB(210, 40, 40));
+        cv_rect(x + 4, y + 7 - o, 2, 1, RGB(60, 80, 210));
+    }
+    cv_rect(228, 70, 10, 16, RGB(220, 216, 200));   /* (the strip) */
+    cv_rect(230, 72, 6, 2, RGB(40, 40, 40));
+    cv_rect(230, 78, 6, 2, RGB(40, 40, 40));
     {                                        /* its face's print: DRIVE, KEY SWELL, its REST, VOLUME */
         static const char *const LBL[4] = {"DRIVE", "KEY SWELL", "REST", "VOLUME"};
-        uint32_t i;
-        for (i = 0; i < 4u; i++) {
+        uint32_t j;
+        for (j = 0; j < 4u; j++) {
+            const uint32_t i = j;
             const int32_t cx = 66 + 46 * (int32_t)i;
             if (i == 0u)
                 int_text(opatch.drive, t);
@@ -1250,7 +1347,7 @@ static void o_amp(void)                      /* Leslie-122H-Amp.webp: the chassi
                 int_text((int32_t)opatch.swell_rest * 100 / 127, t), text_cat(t, "%");
             else
                 int_text(127 - (int32_t)set.b3vol_off, t);
-            print_c(cx, 128, LBL[i], RGB(30, 30, 30));
+            print_c(cx, 128, LBL[i], RGB(24, 24, 24));
             print_c(cx, 138, t, knob_lit(EN_K1 + i) ? P_CYAN : RGB(30, 30, 30));
             tag(cx, 134, EN_K1 + i);
         }
