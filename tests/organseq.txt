@@ -32,7 +32,7 @@ press SEQ
 wait 1100
 release SEQ
 wait 50
-said ORGAN PART CLEARED
+said UPPER MANUAL CLEARED
 expect pq_n 0
 # the piano's part: empty still
 tap REC

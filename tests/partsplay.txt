@@ -69,21 +69,22 @@ wait 100
 said PIANO PART STOPPED
 expect pq_mute 1
 expect dt_run 1
-# the organ stopped too: the clock with it (its PLAY the part's: ORGAN PART said, not the bass's sequence)
+# the organ stopped too: the clock with it (its PLAY the part's: UPPER MANUAL said, not the bass's sequence)
 expect modesw 0
 wait 1200
 said ORGAN HOME
 tap PLAY
 wait 100
-said ORGAN PART STOPPED
+said UPPER MANUAL STOPPED
 expect dt_run 0
-# the organ's PLAY starts its part alone (the piano's muted), the piano's then joins it
+# the organ's PLAY starts its part alone (the piano's muted), the manual played's notes (the lower's muted), the
+# piano's then joins it
 tap PLAY
 wait 100
-said ORGAN PART PLAYING
+said UPPER MANUAL PLAYING
 expect dt_run 1
 expect dq_hush 1
-expect pq_mute 0
+expect pq_mute 2
 expect modesw 0
 wait 1200
 expect modesw 0

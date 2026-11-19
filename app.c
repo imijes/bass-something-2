@@ -5005,7 +5005,7 @@ static const char *btn_hint(uint32_t k)      /* button k's, pressed on this page
                : k == B_ENV ? (ui.page == PG_OTABS ? "ENV tap: Percussion on/off" : "ENV tap: Percussion panel")
                : k == B_LFO ? (ui.page == PG_OLES ? "LFO tap: Next Leslie view" : "LFO tap: Leslie panel")
                : k == B_REC ? "REC tap: Record organ, hold: Erase"
-               : k == B_PLAY ? "PLAY tap: Organ part on/off, hold: Undo" : k == B_SEQ ? "SEQ hold: Clear the organ part"
+               : k == B_PLAY ? "PLAY tap: This manual's part on/off, hold: Undo" : k == B_SEQ ? "SEQ hold: Clear this manual's part"
                : k == B_SAVE ? "Save: PRESET picks where" : k == B_HOME ? "Organ Home" : 0;
     if (own && k != B_REC && ui.se && (SE_PAGE(ui.page) || ui.page < PG_HOME))   /* (the Space Echo's: its panels,
                                               * se_button) */
@@ -5226,9 +5226,20 @@ static void pq_erase_hold(void)
     pq_cmd(PQC_REC, PQR_ERASE);
     app_say(pq_p ? "ORGAN ERASE" : "PIANO ERASE", "HOLD KEYS");
 }
-static int pq_sounds(uint32_t p)              /* part p playing the pattern now: on, and something in it */
+static int pq_live(uint32_t p, uint32_t g, uint32_t m)   /* part p's notes in pattern g that the mute bits m let play */
 {
-    return dq.run && dq.cur < DQ_NPAT && !pq_[p].mute && pqm_[p].n[dq.cur];
+    const uint32_t was = pq_p;
+    uint32_t i;
+    int r = 0;
+    pq_part(p);
+    for (i = 0; g < DQ_NPAT && i < pqm.n[g] && !r; i++)
+        r = !(pqm.ev[pqm.start[g] + i] & PQ_PED) && !(m & pq_mbit(pqm.ev[pqm.start[g] + i]));
+    pq_part(was);
+    return r;
+}
+static int pq_sounds(uint32_t p)              /* part p playing the pattern now: something in it not muted */
+{
+    return dq.run && pq_live(p, dq.cur, pq_[p].mute);
 }
 static void pq_mute_part(uint32_t p, uint32_t m)   /* part p muted or not (pq_p left as it was) */
 {
@@ -5237,40 +5248,46 @@ static void pq_mute_part(uint32_t p, uint32_t m)   /* part p muted or not (pq_p 
     pq_cmd(PQC_MUTE, m);
     pq_part(was);
 }
-static void pq_play_tap(void)
+static void pq_both_manuals(void)            /* the drums' transport: the organ's part both manuals, unless it's off */
 {
-    const char *const who = pq_p ? "ORGAN PART" : "PIANO PART";
+    if (pq_[1].mute != pq_full(1))
+        pq_mute_part(1, 0);
+}
+static void pq_play_tap(void)                /* (the organ's: the manual played's notes alone, the other's left as they are) */
+{
+    const char *const who = !pq_p ? "PIANO PART" : ui.olower ? "LOWER MANUAL" : "UPPER MANUAL";
+    const uint32_t mine = pq_p ? 1u << ui.olower : 1u, full = pq_full(pq_p), m = pq.mute, g = dq.cur;
     if (dq.run && dq.hush) {                 /* (the drums stopped, the clock on for the parts: this part alone off or on;
                                               * the clock stopped once none plays) */
-        if (pq_sounds(pq_p)) {
-            pq_cmd(PQC_MUTE, 1);
-            if (!pq_sounds(pq_p ^ 1u))
+        if (pq_live(pq_p, g, m | (full & ~mine))) {
+            pq_cmd(PQC_MUTE, m | mine);
+            if (!pq_live(pq_p, g, m | mine) && !pq_sounds(pq_p ^ 1u))
                 dq_cmd(DQC_STOP, 0, 0);
             app_say(who, "STOPPED");
         } else {
-            pq_cmd(PQC_MUTE, 0);
-            app_say(who, pqm.n[dq.cur < DQ_NPAT ? dq.cur : 0] ? "PLAYING" : "EMPTY");
+            pq_cmd(PQC_MUTE, m & ~mine);
+            app_say(who, pq_live(pq_p, g < DQ_NPAT ? g : 0u, full & ~mine) ? "PLAYING" : "EMPTY");
         }
         return;
     }
     if (!dq.run) {
-        if (ui.dt_pat < DQ_NPAT && set.dtrans_off && pqm.n[ui.dt_pat]) {   /* (the part alone: the other one muted,
-                                              * its own PLAY to start it) */
-            pq_cmd(PQC_MUTE, 0);
-            pq_mute_part(pq_p ^ 1u, 1);
+        if (ui.dt_pat < DQ_NPAT && set.dtrans_off && pq_live(pq_p, ui.dt_pat, full & ~mine)) {   /* (the part alone: the
+                                              * other one muted, its own PLAY to start it) */
+            pq_cmd(PQC_MUTE, full & ~mine);
+            pq_mute_part(pq_p ^ 1u, pq_full(pq_p ^ 1u));
             dq_cmd(DQC_RUN, ui.dt_pat, 0);
             dq_cmd(DQC_HUSH, 1, 0);
             app_say(who, "PLAYING");
         } else if (ui.dt_pat < DQ_NPAT && !set.dtrans_off && (pqm.n[ui.dt_pat] || dqm.pat[ui.dt_pat].n)) {
-            pq_cmd(PQC_MUTE, 0);
+            pq_cmd(PQC_MUTE, full & ~mine);
             dq_cmd(DQC_RUN, ui.dt_pat, 0);
             app_say(who, "PLAYING");
         } else
             app_say(who, "EMPTY");
         return;
     }
-    pq_cmd(PQC_MUTE, !pq.mute);
-    app_say(who, pq.mute ? "ON" : "OFF");
+    pq_cmd(PQC_MUTE, m ^ mine);
+    app_say(who, m & mine ? "ON" : "OFF");
 }
 static void mo_del(uint32_t i)               /* the motion's move i out */
 {
@@ -6008,8 +6025,7 @@ static void dt_button(uint32_t k)
         if (dq.run && dq.hush) {
             dq_cmd(DQC_HUSH, 0, 0);
             app_say("DRUMS", "PLAYING");
-        } else if (dq.run && set.dtrans_off && dq.cur < DQ_NPAT && ((!pq_[0].mute && pqm_[0].n[dq.cur])
-                                                                   || (!pq_[1].mute && pqm_[1].n[dq.cur]))) {
+        } else if (dq.run && set.dtrans_off && (pq_sounds(0) || pq_sounds(1))) {
             dq_cmd(DQC_HUSH, 1, 0);
             app_say("DRUMS", "STOPPED");
         } else if (dq.run)
@@ -6021,11 +6037,13 @@ static void dt_button(uint32_t k)
                 dt_refuse("That song is empty");
             else {
                 ui.dt_fn = DTF_SONG;
+                pq_both_manuals();
                 dq_cmd(DQC_SONG, ui.dt_song, 0);
             }
         } else if (ui.dt_pat < DQ_NPAT && (dq.rec || dqm.pat[ui.dt_pat].n || pq_n(ui.dt_pat))) {
             if (f > DTF_SWING && f < DTF_ROLL)
                 ui.dt_fn = DTF_PAT;
+            pq_both_manuals();
             dq_cmd(DQC_RUN, ui.dt_pat, 0);
         }
         break;
@@ -6124,12 +6142,13 @@ static void hold_step(uint32_t btn)
             pq_erase_hold();
         else if (ui.hold_k == B_SEQ && (ui.rmi || ui.b3)) {   /* (the piano's or the organ's: the pattern's part, whole) */
             if (pq_target() < DQ_NPAT) {
-                pq_cmd(PQC_CLEAR, pq_target());
-                app_say(pq_p ? "ORGAN PART" : "PIANO PART", "CLEARED");
+                pq_cmd(PQC_CLEAR, pq_target() | (pq_p ? 1u << ui.olower : 0u) << 8);   /* (the organ's: the manual
+                                              * played's notes alone) */
+                app_say(!pq_p ? "PIANO PART" : ui.olower ? "LOWER MANUAL" : "UPPER MANUAL", "CLEARED");
             }
         } else if (ui.hold_k == B_PLAY) {      /* (the piano's or the organ's: its last pass taken back) */
-            pq_cmd(PQC_UNDO, 0);
-            app_say(pq_p ? "ORGAN" : "PIANO", "LAST PASS UNDONE");
+            pq_cmd(PQC_UNDO, pq_p ? 1u << ui.olower : 0u);   /* (the organ's: the manual played's notes alone) */
+            app_say(!pq_p ? "PIANO" : ui.olower ? "LOWER MANUAL" : "UPPER MANUAL", "LAST PASS UNDONE");
         }
         else if (ui.hold_k == B_REC)         /* (the drums' alone: the synth's REC acts on release) */
             ;
@@ -6575,7 +6594,8 @@ static void input(void)
     if (ui.b3)                               /* (the organ's: SAVE while not saved, ARP its Leslie fast, FX its
                                               * percussion, EDIT its vibrato) */
         leds_out(btn | (organ_dirty() ? 1u << B_SAVE : 0u) | (uint32_t)ui.ofast << B_ARP | organ_lights()
-                 | (uint32_t)(dq.run && !pq.mute) << B_PLAY | (uint32_t)(pq.rec != 0u) << B_REC, keys | lit);   /* (its
+                 | (uint32_t)(dq.run && !(pq.mute >> ui.olower & 1u)) << B_PLAY | (uint32_t)(pq.rec != 0u) << B_REC,
+                 keys | lit);                /* (its
                                               * part's PLAY and REC, as the piano's) */
     else if (ui.rmi && !ui.drum)             /* (the piano's part: PLAY lit as it plays, REC as it records) */
         leds_out(btn | (dq.dirty ? 1u << B_SAVE : 0u) | (uint32_t)(dq.run && !pq.mute) << B_PLAY

@@ -137,6 +137,17 @@ static uint32_t pq_n(uint32_t g) { return (uint32_t)pqm_[0].n[g] + pqm_[1].n[g];
 static int pq_recording(void) { return pq_[0].rec || pq_[1].rec; }
 enum { PQC_REC, PQC_MUTE, PQC_UNDO, PQC_CLEAR };
 static void pq_cmd(uint32_t op, uint32_t a) { fifo_put(&pqq, op | a << 8); }
+static uint32_t pq_full(uint32_t p) { return p ? 3u : 1u; }   /* pq.mute, part p silent: the piano's 1, the organ's a bit
+                                              * each manual's (1 the upper, 2 the lower: its PLAY the manual played's) */
+static uint32_t pq_kbit(uint32_t k)          /* the mute bits a key answers to (the organ's: its manual's) */
+{
+    uint32_t lower = 0;
+    if (!pq_p)
+        return 3u;
+    b3_unkey(k, &lower);
+    return 1u << lower;
+}
+static uint32_t pq_mbit(uint32_t e) { return e & PQ_PED ? 3u : pq_kbit(PQ_K(e)); }   /* (an event's) */
 static fifo_t dqq;                           /* main loop -> audio: op | a << 8 | b << 16 */
 enum { DQC_RUN, DQC_STOP, DQC_CUE, DQC_HIT, DQC_EKEY, DQC_ERASE, DQC_COPY, DQC_SONG, DQC_SCUE, DQC_ROLL, DQC_ROLLOFF,
        DQC_HUSH };
@@ -573,19 +584,20 @@ static void pq_sound(uint32_t k, uint32_t v)   /* a note on its instrument: the 
 #endif
     rmi_route(k, v);
 }
-static void pq_hush(void)                    /* what it sounds let go */
+static void pq_hush_m(uint32_t m)            /* what it sounds let go, of the mute bits m (the organ's: those manuals) */
 {
     uint32_t k;
     for (k = 0; k < 128u; k++)
-        if (pq.sound[k >> 5] >> (k & 31u) & 1u) {
+        if ((pq.sound[k >> 5] >> (k & 31u) & 1u) && (pq_kbit(k) & m)) {
             pq_sound(k, 0);
             pq_out(0x80u, k, 0);
+            pq.sound[k >> 5] &= ~(1u << (k & 31u));
         }
-    pq.sound[0] = pq.sound[1] = pq.sound[2] = pq.sound[3] = 0;
     if (pq.ped && !pq_p)
         rmi_cc(64, 0);
     pq.ped = 0;
 }
+static void pq_hush(void) { pq_hush_m(3u); }   /* (all it sounds) */
 static void pq_play(uint32_t e)
 {
     const uint32_t k = PQ_K(e), b = 1u << (k & 31u);
@@ -620,13 +632,14 @@ static void pq_erase_at(uint32_t g, uint32_t i)   /* a note erased (its key held
         }
     }
 }
-static void pq_undo(void)                    /* the last pass with notes taken back */
+static void pq_undo(uint32_t m)              /* the last pass with notes taken back (the organ's: of the manuals of the
+                                              * mute bits m) */
 {
     uint32_t g, i;
-    pq_hush();
+    pq_hush_m(m);
     for (g = 0; g < DQ_NPAT; g++)
         for (i = 0; i < pqm.n[g];)
-            if (pqm.ev[pqm.start[g] + i] & PQ_NEW)
+            if ((pqm.ev[pqm.start[g] + i] & PQ_NEW) && (pq_mbit(pqm.ev[pqm.start[g] + i]) & m))
                 pq_del(g, i);
             else
                 i++;
@@ -653,20 +666,29 @@ static void pq_block1(void)
             pq.rec = (uint8_t)(c >> 8);
             pq.any = 0;
             break;
-        case PQC_MUTE:
+        case PQC_MUTE:                       /* (what's newly muted let go) */
+            if ((c >> 8) & ~(uint32_t)pq.mute)
+                pq_hush_m((c >> 8) & ~(uint32_t)pq.mute);
             pq.mute = (uint8_t)(c >> 8);
-            if (pq.mute)
-                pq_hush();
             break;
         case PQC_UNDO:
-            pq_undo();
+            pq_undo(c >> 8 ? c >> 8 : 3u);
             break;
-        case PQC_CLEAR:                      /* (a pattern's part, whole: SEQ held) */
-            if ((c >> 8) < DQ_NPAT) {
+        case PQC_CLEAR:                      /* (a pattern's part, whole: SEQ held; the organ's, the manual's of the mute
+                                              * bits given) */
+            if ((c >> 8 & 0xFFu) < DQ_NPAT) {
+                const uint32_t g = c >> 8 & 0xFFu, m = c >> 16 ? c >> 16 : 3u;
                 uint32_t k;
-                if ((c >> 8) == pq.pat)
-                    pq_hush();
-                pq_clear(c >> 8);
+                if (g == pq.pat)
+                    pq_hush_m(m);
+                if (m == 3u)
+                    pq_clear(g);
+                else
+                    for (k = 0; k < pqm.n[g];)
+                        if (pq_mbit(pqm.ev[pqm.start[g] + k]) & m)
+                            pq_del(g, k);
+                        else
+                            k++;
                 for (k = 0; k < 128u; k++)
                     pq.on_t[k] = pq.skip[k] = -1;
             }
@@ -686,7 +708,7 @@ static void pq_block1(void)
         if (pq.pat < DQ_NPAT)
             while (pq.idx < pqm.n[pq.pat]) {
                 const uint32_t e = pqm.ev[pqm.start[pq.pat] + pq.idx++];
-                if (!pq.mute)
+                if (!(pq.mute & pq_mbit(e)))
                     pq_play(e);
             }
         if (pq.pat != dq.cur) {
@@ -710,7 +732,7 @@ static void pq_block1(void)
                 continue;
             }
             pq.idx++;
-            if (!pq.mute)
+            if (!(pq.mute & pq_mbit(e)))
                 pq_play(e);
         }
     }

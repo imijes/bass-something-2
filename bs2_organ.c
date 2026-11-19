@@ -21,7 +21,8 @@
  *   LFO); held, the other manual. ARP the Leslie chorale or tremolo (held: the brake), FX ORGAN VIBRATO, ENV ORGAN
  *   PERCUSSION (again there: its main switch), LFO ORGAN LESLIE (again: its next view), EDIT the manual's vibrato on or
  *   off (held: its other preset key, A# or B);
- *   REC, PLAY and SEQ (held: cleared) its part of the pattern, as the piano's.
+ *   REC, PLAY and SEQ (held: cleared) its part of the pattern, as the piano's (PLAY, PLAY held and SEQ held: the manual played's notes alone;
+ *   the drums' PLAY both manuals).
  * Its MIDI: notes on its channel (b3_chan), its CCs on its CC channel (organ_cc) */
 #define ORG_MAGIC 0x34334F42u                /* "BO34" (MOJO's character in each preset) */
 #define ORG_MAGIC_3 0x33334F42u              /* "BO33": the Leslie's settings in each preset */
