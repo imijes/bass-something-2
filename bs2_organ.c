@@ -44,6 +44,7 @@ static const char *const OBAR[9] = {"16'", "5 1/3'", "8'", "4'", "2 2/3'", "2'",
 static const char *const OVIB[6] = {"V1", "V2", "V3", "C1", "C2", "C3"};
 #define O_VPOS(v) ((v) < 3u ? 2u * (v) : 2u * ((v) - 3u) + 1u)   /* (its knob's position, V1 C1 V2 C2 V3 C3 round it) */
 #define O_VAT(p) ((p) & 1u ? 3u + (p) / 2u : (p) / 2u)            /* (the setting at position p) */
+#define O_VANG(p) ((1.0f + 2.0f * (float)(p)) * (FM_PI / 6.0f))     /* (position p's way: V1 at 4 o'clock, clockwise) */
 
 /* the factory's: a classic registration each, named (drawbars as an organist writes them, 16' first), the rest INIT */
 static const struct {
@@ -285,8 +286,9 @@ static int o_turn(uint32_t k, int32_t e)
             o_flag(&opatch.vib_lower, e, "VIBRATO LOWER", "OFF", "ON");
         else if (k == EN_K3)
             o_flag(&opatch.vib_on, e, "VIBRATO UPPER", "OFF", "ON");
-        else if (k == EN_K4) {               /* (round its positions, V1 C1 V2 C2 V3 C3) */
-            opatch.vib = (uint8_t)O_VAT((uint32_t)clamp((int32_t)O_VPOS(opatch.vib) + (e > 0 ? 1 : -1), 0, 5));
+        else if (k == EN_K4) {               /* (round its positions, V1 C1 V2 C2 V3 C3, all the way round as the
+                                              * B-3's: C3 on to V1) */
+            opatch.vib = (uint8_t)O_VAT((O_VPOS(opatch.vib) + (e > 0 ? 1u : 5u)) % 6u);
             organ_changed();
             app_say("VIBRATO CHORUS", OVIB[opatch.vib]);
         }
@@ -594,9 +596,28 @@ static void oh_rect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c) { cv
 static void oh_tab(int32_t cx, int on, const char *top, const char *bot, const char *n1, const char *n2, uint32_t k)
 {                                            /* a cheek's rocker tab, its middle at cx: its top pressed (on) or its
                                               * bottom; up close its print (top, bottom, its name over it) and its tag */
-    oh_rect(cx - 4, OH_CHEEK + 6, 9, 16, RGB(10, 10, 10));
-    oh_rect(cx - 4, OH_CHEEK + 6 + (on ? 3 : 0), 9, 13, on ? RGB(200, 196, 184) : RGB(237, 235, 222));
-    oh_rect(cx - 4, OH_CHEEK + 6 + (on ? 3 : 0), 9, 1, on ? grey(120) : RGB(255, 255, 255));
+    const int32_t x0 = OZX(cx - 4), w = 9 * oz, ty = OZY(OH_CHEEK + 6 + (on ? 3 : 0)), th = 13 * oz,
+                  lip = (on ? 3 : 1) * oz, rad = oz < 2 ? 1 : oz, mid = th / 2;
+    int32_t r;
+    oh_rect(cx - 4, OH_CHEEK + 6, 9, 16, RGB(10, 10, 10));   /* its well */
+    for (r = 0; r < th; r++) {               /* its ivory face, a rocker (b3-front-closeup): the pressed half tipped
+                                              * away, in shade, the raised half lit, its outer end glossy; the
+                                              * corners round, the sides a shade darker, the right's darkest */
+        const int32_t e = r < rad ? rad - r : r >= th - rad ? r - (th - rad) + 1 : 0,
+                      down = on ? r < mid : r >= mid, d = down ? (on ? mid - r : r - mid) : 0,
+                      f = down ? 86 - 10 * d / (mid ? mid : 1) : 100 - (on ? 0 : 3 * r / th);
+        const int32_t gl = !down && (on ? r == th - 2 * oz : r == oz);   /* (its gloss) */
+        cv_rect(x0 + e, ty + r, w - 2 * e, 1, gl ? RGB(255, 254, 246) : RGB(237 * f / 100, 235 * f / 100, 222 * f / 100));
+        if (w - 2 * e > 2) {
+            cv_pset(x0 + e, ty + r, RGB(214 * f / 100, 211 * f / 100, 196 * f / 100));
+            cv_pset(x0 + w - 1 - e, ty + r, RGB(176 * f / 100, 172 * f / 100, 158 * f / 100));
+        }
+    }
+    cv_rect(x0 + 1, ty + mid, w - 2, 1, RGB(170, 166, 152));   /* (its pivot's crease) */
+    for (r = 0; r < lip; r++) {              /* its front's edge under it, in shadow to its foot */
+        const int32_t g = 150 - 90 * r / (lip > 1 ? lip - 1 : 1);
+        cv_rect(x0 + 1, ty + th + r, w - 2, 1, RGB(g, g - 2, g - 10));
+    }
     if (oz >= 3) {                           /* (the cheeks' pages alone: DRAWBARS shows none of their print) */
         const int32_t x = OZX(cx), y = OZY(OH_CHEEK + 6 + (on ? 3 : 0));
         cv_rect(x - 13, on ? y + 1 : y + 13 * oz - 10, 26, 9, P_CYAN);   /* (its setting: its word lit) */
@@ -675,13 +696,13 @@ static void oh_head(const char *line2, const char *cyan)   /* the HOMEs' head: t
         text_cat(mk, OMAN[ui.olower]);
         text_cat(mk, " ");
         text_cat(mk, o_key_name());
-        x = cv_text(10, 56, &FONT_T, mk, P_CYAN);
+        x = cv_text(10, 8 + SEG_SH + 16, &FONT_T, mk, P_CYAN);   /* (on VOLUME's line) */
         text_cat(st, ui.obrake ? "  LESLIE BRAKE" : ui.ofast ? "  LESLIE FAST" : "  LESLIE SLOW");
         text_cat(st, "  ");
         text_cat(st, (ui.olower ? opatch.vib_lower : opatch.vib_on) ? OVIB[opatch.vib] : "VIB OFF");
         if (opatch.perc_on && (opatch.ub & 3u))
             text_cat(st, opatch.perc_3rd ? "  PERC 3RD" : "  PERC 2ND");
-        cv_text(x, 56, &FONT_T, st, P_SILK);
+        cv_text(x, 8 + SEG_SH + 16, &FONT_T, st, P_SILK);
     }
 }
 #define OH_SET(i) (9 + 57 * ((int32_t)(i) & 1) + 120 * ((int32_t)(i) >> 1))   /* a set's first bar on HOME: the upper
@@ -730,25 +751,56 @@ static void oh_face(int dim0, int dim1, const uint8_t *keys)   /* the console at
     }
     }
     oh_rect(0, OH_CHEEK - 2, 240, OH_ROLL - OH_CHEEK + 2, RGB(16, 14, 12));   /* the cheeks' row, the name board */
-    disc(OZX(O_KNOB_X), OZY(OH_CHEEK + 12), 6 * oz, RGB(30, 28, 26));   /* the vibrato's knob, its pointer V1..C3 */
-    {
-        const float a = (0.75f + 0.3f * (float)O_VPOS(opatch.vib)) * FM_PI;
-        cv_line(OZX(O_KNOB_X), OZY(OH_CHEEK + 12), OZX(O_KNOB_X) + (int32_t)(fm_cosf(a) * 6.0f * (float)oz),
-                OZY(OH_CHEEK + 12) + (int32_t)(fm_sinf(a) * 6.0f * (float)oz), RGB(236, 232, 220));
+    if (oz > 1) {                            /* (up close: its black flecked, as the photo's) */
+        uint32_t n, h = 0x9E3779B9u;
+        const int32_t y0 = OZY(OH_CHEEK - 2), hh = (OH_ROLL - OH_CHEEK + 2) * oz;
+        for (n = 0; n < 900u; n++) {
+            int32_t x, y;
+            h = h * 1664525u + 1013904223u;
+            x = OZX(0) + (int32_t)((h >> 8) % (uint32_t)(240 * oz)), y = y0 + (int32_t)((h >> 20) % (uint32_t)hh);
+            if (x >= 0 && x < 240)
+                cv_pset(x, y, n & 1u ? RGB(52, 48, 44) : RGB(34, 31, 28));
+        }
     }
-    if (oz >= 3) {                           /* (up close: the knob's print round it, its tag) */
+    {                                        /* the vibrato's knob, from above (b3-top): a black square plate, its
+                                              * print V1 C1 V2 C2 V3 C3 at 4, 6, 8, 10, 12 and 2 o'clock; the knob
+                                              * black, glossy, its own print on its top, a white tick at its rim */
+        const int32_t kx = OZX(O_KNOB_X), ky = OZY(OH_CHEEK + 12), kr = 6 * oz;
+        const float a = O_VANG(O_VPOS(opatch.vib));
+        oh_rect(O_KNOB_X - 10, OH_CHEEK + 2, 21, 21, RGB(22, 21, 20));   /* (the plate, its edge lit at the top) */
+        oh_rect(O_KNOB_X - 10, OH_CHEEK + 2, 21, 1, RGB(44, 42, 40));
+        oh_rect(O_KNOB_X - 10, OH_CHEEK + 22, 21, 1, RGB(8, 8, 8));
+        disc(kx + oz, ky + oz + 1, kr, P_KSHADOW);
+        disc(kx, ky, kr, RGB(6, 6, 6));      /* (its rim) */
+        if (oz > 1) {
+            shade_disc(kx, ky, kr - oz / 2 - 1, 22, 30);   /* (its top) */
+            disc(kx - kr / 2, ky - kr / 2, oz / 2 + 1, grey(110));   /* (its gloss) */
+            cv_pset(kx - kr / 2, ky - kr / 2, grey(220));
+        } else
+            disc(kx, ky, kr - 1, RGB(30, 28, 26));
+        cv_line(kx + (int32_t)(fm_cosf(a) * (float)kr * 0.6f), ky + (int32_t)(fm_sinf(a) * (float)kr * 0.6f),
+                kx + (int32_t)(fm_cosf(a) * (float)(kr - 1)), ky + (int32_t)(fm_sinf(a) * (float)(kr - 1)), RGB(240, 238, 228));
+        if (oz > 2) {                        /* (its tick a stripe up close) */
+            const int32_t px = fm_sinf(a) > 0.7f || fm_sinf(a) < -0.7f, py = !px;   /* (beside it, across its way) */
+            cv_line(kx + (int32_t)(fm_cosf(a) * (float)kr * 0.6f) + px, ky + (int32_t)(fm_sinf(a) * (float)kr * 0.6f) + py,
+                    kx + (int32_t)(fm_cosf(a) * (float)(kr - 1)) + px, ky + (int32_t)(fm_sinf(a) * (float)(kr - 1)) + py,
+                    RGB(240, 238, 228));
+        }
+    }
+    if (oz >= 3) {                           /* (up close: the plate's print round it, the knob's on it, its tag) */
         static const char *const VC[6] = {"V1", "C1", "V2", "C2", "V3", "C3"};
         uint32_t i;
         for (i = 0; i < 6u; i++) {
-            const float a = (0.75f + 0.3f * (float)i) * FM_PI;
+            const float a = O_VANG(i);
             const uint32_t v = O_VAT(i);
-            se_lbl(OZX(O_KNOB_X) + (int32_t)(fm_cosf(a) * 9.0f * (float)oz), OZY(OH_CHEEK + 12) + (int32_t)(fm_sinf(a) * 9.0f * (float)oz) - 2,
+            se_lbl(OZX(O_KNOB_X) + (int32_t)(fm_cosf(a) * 8.4f * (float)oz), OZY(OH_CHEEK + 12) + (int32_t)(fm_sinf(a) * 8.4f * (float)oz) - 2,
                    VC[i], v == opatch.vib ? P_CYAN : O_IVORY);
         }
-        se_lbl(OZX(O_KNOB_X), OZY(OH_CHEEK + 12) - 9 * oz - 14, "VIBRATO", O_GOLD);
-        se_lbl(OZX(O_KNOB_X), OZY(OH_CHEEK + 12) - 9 * oz - 7, "AND CHORUS", O_GOLD);
+        se_lbl(OZX(O_KNOB_X), OZY(OH_CHEEK + 12) - 9, "VIBRATO", O_IVORY);
+        se_lbl(OZX(O_KNOB_X), OZY(OH_CHEEK + 12) - 2, "AND", O_IVORY);
+        se_lbl(OZX(O_KNOB_X), OZY(OH_CHEEK + 12) + 5, "CHORUS", O_IVORY);
         if (OZX(O_KNOB_X) >= 0 && OZX(O_KNOB_X) < 240)   /* (on the page: not the right cheek's) */
-            tag(OZX(O_KNOB_X), OZY(OH_CHEEK + 12), EN_K4);
+            tag(OZX(O_KNOB_X), OZY(OH_CHEEK + 24), EN_K4);
     }
     oh_tab(7, !opatch.vol_soft, "NORMAL", "SOFT", "VOLUME", 0, EN_K1);
     oh_tab(21, !opatch.vib_lower, "OFF", "ON", "VIBRATO", "LOWER", EN_K2);
@@ -1132,7 +1184,7 @@ static void o_controls(int low)              /* Leslie-122H-Controls.webp: the p
             cv_text(cx + 10, cy - 3, &FONT_XS, t, on ? P_CYAN : P_DIM);
         }
     }
-    o_lamps(24, 150, 44, RGB(230, 230, 226), 1);
+    o_lamps((240 - 2 * 44 - 6 - text_w(&FONT_XS, "FAST") + 5) / 2, 150, 44, RGB(230, 230, 226), 1);   /* centred */
 }
 static void o_tube(int32_t cx, int32_t top, int32_t w, int32_t h, float blue, float plate)
 {                                            /* a valve: its heater's steady orange, its plates dull red as they heat

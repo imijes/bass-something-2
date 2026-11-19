@@ -137,6 +137,8 @@ said VIBRATO LOWER ON
 turn K4 -1
 wait 30
 said VIBRATO CHORUS V3
+wait 2500
+shot organ-vib.png
 tap ENV
 wait 600
 expect page 53
