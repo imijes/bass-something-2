@@ -1,6 +1,6 @@
 # Bass Something 2 v0.9
 
-A fourth instrument, Organ Something B3: a tonewheel organ after the Hammond B-3 with its Leslie 122, made the way the
+A fourth instrument, Organ Something B3: a tonewheel organ inspired by the Hammond B-3 with its Leslie 122, made the way the
 organ makes it and tuned against a reference B-3 note by note. The full guide is `docs/MANUAL.md` (Organ Something B3).
 
 ## Organ Something B3

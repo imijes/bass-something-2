@@ -7,7 +7,7 @@ arp rhythms with its 32-step sequencer (four sequences) and 128 named patches, a
 shows on the FM-1's screen as a small Bass Station II front panel. MIDI comes in over USB, Bluetooth and TRS, and
 goes out over USB and Bluetooth, and the sound can play through Bluetooth headphones or a speaker.
 
-A second instrument plays beside the synth: [Drum Something 400](#s6), 13 drums with their own sequencer and songs. A third, [Piano Something 368X](#rmi), is an electric piano; a fourth, [Organ Something B3](#organ), a tonewheel organ with its Leslie; and [Space Something 201](#echo) is a tape echo and spring reverb that all four can send into.
+A second instrument plays beside the synth: [Drum Something 400](#s6), 13 drums with their own sequencer and songs. A third, [Piano Something 368X](#piano-something-368x), is an electric piano; a fourth, [Organ Something B3](#organ-something-b3), a tonewheel organ with its Leslie; and [Space Something 201](#space-something-201) is a tape echo and spring reverb that all four can send into.
 
 It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of its patches as seeds with their locks
 (type, key, tracks), sends them back, and mixes its four tracks (see [RND Synth](#s9)).
@@ -35,6 +35,8 @@ It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of 
 11. The screen reader
 12. Troubleshooting
 13. Credits
+
+The other instruments, in section 6: [Piano Something 368X](#piano-something-368x) · [Organ Something B3](#organ-something-b3) · [Space Something 201](#space-something-201)
 
 ---
 
@@ -555,7 +557,7 @@ contains no samples of the original.
 
 ![Drum Something 400's HOME page: the panel, with two red displays above the keypad and the drums' buttons along the bottom](img/screen-drum-home.png "HOME, tapped on HOME")
 
-Tap HOME on HOME to go round the instruments: Bass Something 2, Drum Something 400, Piano Something 368X (see [Piano Something 368X](#rmi)), Space Something 201 (see [Space Something 201](#echo)), and back. From any other page, hold it for a second. In Drum Something 400, every button
+Tap HOME on HOME to go round the instruments: Bass Something 2, Drum Something 400, Piano Something 368X (see [Piano Something 368X](#piano-something-368x)), Space Something 201 (see [Space Something 201](#space-something-201)), and back. From any other page, hold it for a second. In Drum Something 400, every button
 does a drum job, listed below, and the keys play the drums.
 
 ### Its keys and channels
@@ -712,10 +714,9 @@ The roll works over MIDI too, by CC on the drums' CC channel (not by a note): CC
 
 ---
 
-<a id="rmi"></a>
 ### Piano Something 368X
 
-The third instrument, Piano Something 368X, is after the RMI Electra-piano 368X, the 1970s electronic piano with
+The third instrument, Piano Something 368X, is inspired by the RMI Electra-piano 368X, the 1970s electronic piano with
 its seven stop toggles: a piano, a harpsichord and a lute, each from its own tone generator per key, polyphonic (eight
 notes at once here). Tap HOME on Drum Something 400's HOME to reach it. Its HOME has its name, the tone toggles down (with ORGAN MODE and
 ACCENTER when down) and its stop strip down on the keys (the FM-1's keys are its keyboard); between them its notes as they
@@ -776,12 +777,11 @@ Its sound is synthesised, each key's tone and decay modelled on recordings of a 
 Drum Something 400 uses. LUTE is the harpsichord's tone through the 368X's lute filter (a low pass about 1.3 kHz),
 its level set by ear, as is how much softer a PP toggle is: the recordings can't measure those.
 
-<a id="organ"></a>
 ### Organ Something B3
 
 ![ORGAN HOME: a drawbar turned, the camera diving in on it and back](img/screen-organ-home.gif)
 
-The fourth instrument, Organ Something B3, is a tonewheel organ after the Hammond B-3 with its Leslie 122 speaker. Tap
+The fourth instrument, Organ Something B3, is a tonewheel organ inspired by the Hammond B-3 with its Leslie 122 speaker. Tap
 HOME on Piano Something 368X's HOME to reach it; the FM-1's keys then play the organ. It's an instrument of its own: its
 own volume (SELECT), its own send into the Space Echo (ECHO MODS' ORGAN SEND), its own MIDI channels, its own USB
 audio channels, and its own part of each drum pattern. Its sound is made the way the organ makes it, nothing sampled,
@@ -873,10 +873,9 @@ If the FM-1 runs short of time, for example the bass, the piano, the organ and t
 once, it thins the organ's quietest tonewheels and the piano's oldest notes first, and says OVERLOAD VOICES CUT,
 rather than crackle.
 
-<a id="echo"></a>
 ### Space Something 201
 
-Space Something 201 is a tape echo and spring reverb after the Roland RE-201 Space Echo, the 1974 tape loop with
+Space Something 201 is a tape echo and spring reverb inspired by the Roland RE-201 Space Echo, the 1974 tape loop with
 three playback heads and a three-spring reverb tank. It isn't an instrument: the synth, the drums and the electric piano
 each send into it, and it plays back on the master. Tap HOME on Organ Something B3's HOME to reach it; the keys go
 on playing the electric piano there. Its HOME has its name, the mode (which heads, and the spring) and the whole front
@@ -938,7 +937,7 @@ the knob as it turns.
 **ECHO VOICE** (SEL after ECHO TAPE) voices the model to taste; every value at 64 (x1.00) is the sound as modelled.
 
 Its knobs keep themselves with the GLO settings, so SAVE has nothing to do here, and MIDI CCs set them too (see
-[Control changes](#cc)). Its sound is modelled on measurements of a software RE-201, AudioThing's Outer Space 2, and
+[Control changes](#control-changes)). Its sound is modelled on measurements of a software RE-201, AudioThing's Outer Space 2, and
 on Roland's own service notes and owner's manual.
 
 ## 7. Patches and saving
@@ -1295,7 +1294,6 @@ Holding GLO for a second opens the RND pages, for the RND Synth: see RND Synth.
 | DUMP | FX (All 32) | Sends all 32 patches as a Bass Station II bank (SysEx), which loads back into the same patches. See SysEx. |
 | RND (GLO held) | | The RND Synth's patches, locks and tracks. See RND Synth. |
 
-<a id="cc"></a>
 ### Control changes
 
 With CC CHAN set, a controller or a Bass Station II editor can turn the sound's knobs over MIDI. The FM-1 uses the
