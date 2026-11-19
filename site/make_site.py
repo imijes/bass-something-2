@@ -41,12 +41,12 @@ FOOTER = ('<footer>\n  <p class="small">Bass Something 2 by John Brown (<a href=
 # each page's title and summary, as a shared link shows them (fm1-base's are put together from fm1.toml's tagline and
 # read oddly): <title>, the description, and Open Graph's (the front page's screenshot as the picture)
 URL = "https://imijes.github.io/bass-something-2/"
+TAG = "DAWless-in-a-box, inspired by my buddy's setup: Bass Station 2, Drumtraks, Electra-piano, B3 Organ, Space Echo, and acts as a Cyma Forma RND synth companion"   # (fm1.toml's tagline)
 WHAT = ("a monosynth inspired by the legendary Novation Bass Station II, built for the M-VAVE FM-1, with a drum "
-        "machine, an electric piano and a tape echo beside it. It's also a companion for Cyma Forma's RND Synth "
-        "(seeds, locks and a track mixer), and it runs on an iPhone or iPad in RemoteFM1")
+        "machine, an electric piano, a tonewheel organ with its Leslie and a tape echo beside it. It's also a companion "
+        "for Cyma Forma's RND Synth (seeds, locks and a track mixer), and it runs on an iPhone or iPad in RemoteFM1")
 META = {
-    "": ("Bass Something 2: a monosynth inspired by the legendary Novation Bass Station II, built for the M-VAVE FM-1",
-         f"Bass Something 2 is {WHAT}."),
+    "": (f"Bass Something 2: {TAG}", f"Bass Something 2 is {WHAT}."),
     "install/": ("Install · Bass Something 2", "Install Bass Something 2 on the M-VAVE FM-1 from Chrome or Edge, over USB."),
     "backup/": ("Backup · Bass Something 2", "Back up everything Bass Something 2 has saved on the M-VAVE FM-1, and put it back, from Chrome or Edge, over USB."),
     "manual/": ("Manual · Bass Something 2", "The manual for Bass Something 2, a monosynth inspired by the legendary Novation "

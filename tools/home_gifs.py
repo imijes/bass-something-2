@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The five HOME pages as animated GIFs for the manual and the site (bs2/docs/img/screen-*-home.gif): a few seconds on
+"""The five HOME pages as animated GIFs (and screen-tour.gif: HOME round them all, for the site's top) for the manual and the site (bs2/docs/img/screen-*-home.gif): a few seconds on
 HOME, then a knob turned (or a button tapped) and the camera's dive in, held, and back out to HOME, where the loop
 starts again. Each from the host simulator, a shot every FRAME_MS. From the repository's root, after
 tools/build.py bs2 --host:
@@ -46,24 +46,40 @@ GIFS = [
      chord(CHORD1, 300, 2000) + turns("K2", 2600, 8, -1, 120) + turns("K2", 3800, 8, 1, 120)
      + [(5800, ["tap HOME"])] + chord(CHORD2, 7000, 1500)),            # a chord, the 8' drawbar in and out (the dive,
                                                                         # the Hints off: GLO DISPLAY's K3), HOME again
+    ("screen-tour.gif", 0, ["tap GLO"] * 7 + ["wait 30", "turn K3 -1", "wait 30", "tap HOME"], 15000,
+     [(2200 + i * 2600, ["tap HOME"]) for i in range(5)]),             # HOME round the five, the Hints off: the site's top
+    ("screen-walk.gif", 3, ["tap GLO"] * 7 + ["wait 30", "turn K3 -1", "wait 30", "tap HOME"], 15000,
+     chord(CHORD1, 300, 3000) + turns("K2", 1200, 8, -1, 120)            # the organ: a chord, the 8' drawbar's dive,
+     + [(3600, ["tap LFO"]), (5000, ["tap LFO"])]                        # the Leslie (CABINET, ROTORS),
+     + chord(CHORD2, 5200, 4300) + [(6200, ["tap ARP"]), (8300, ["tap ARP"])]   # tremolo and back, a chord held,
+     + [(9800, ["tap FX"])] + turns("K4", 10900, 5, 1, 250)               # the vibrato knob round,
+     + [(13000, ["tap HOME"])] + chord(CHORD3, 13600, 1200)),            # HOME again: the site's top, beside the tour
+    ("screen-rnd.gif", 0, ["tap GLO"] * 7 + ["wait 30", "turn PRESET 1", "turn K3 -1", "wait 30", "tap HOME"], 16000,
+     [(1200, ["press GLO"]), (2250, ["release GLO"]),                  # the RND companion (Knob Zoom off): GLO held, its splash,
+      (4200, ["sysex_in bs2/tests/syx/rnd14_dump.syx"]), (5200, ["tap SAVE"])]   # a patch from the RND kept,
+     + turns("PRESET", 6600, 3, 1, 300) + turns("PRESET", 7700, 3, -1, 300)     # the seed slots,
+     + [(8800, ["tap GLO"]), (10600, ["tap GLO"])]                         # PATCH's locks, TRACKS' mixer,
+     + turns("K1", 11400, 6, -2, 120) + turns("K3", 12400, 6, 2, 120)
+     + [(14400, ["tap HOME"])]),                                           # and HOME: the site's, after the echo
     ("screen-echo-home.gif", 4, [], 7000,
      turns("K1", 2500, 10, 3) + turns("K1", 3500, 10, -3)),             # REPEAT RATE up and back
 ]
 
 
 def make(name, taps, prep, length, events, out_dir):
+    frame_ms = FRAME_MS * 2 if name == "screen-walk.gif" else FRAME_MS   # (the walk's half the frames: its size)
     with tempfile.TemporaryDirectory() as tmp:
         lines = ["bank_init", "wait 900"]
         for _ in range(taps):
             lines += ["tap HOME", "wait 3000"]
         lines += prep + ["wait 3000"]
         due = sorted(events, key=lambda e: e[0])
-        frames = length // FRAME_MS
+        frames = length // frame_ms
         for i in range(frames):
-            t = i * FRAME_MS
+            t = i * frame_ms
             while due and due[0][0] <= t:
                 lines += due.pop(0)[1]
-            lines += [f"shot f{i:04d}.png", f"wait {FRAME_MS}"]
+            lines += [f"shot f{i:04d}.png", f"wait {frame_ms}"]
         script = os.path.join(tmp, "gif.txt")
         with open(script, "w") as f:
             f.write("\n".join(lines) + "\n")
@@ -71,7 +87,7 @@ def make(name, taps, prep, length, events, out_dir):
         ims = [Image.open(os.path.join(tmp, f"f{i:04d}.png")).convert("RGB") for i in range(frames)]
         pal = [im.quantize(colors=128, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE) for im in ims]
         path = os.path.join(out_dir, name)
-        pal[0].save(path, save_all=True, append_images=pal[1:], duration=FRAME_MS, loop=0, optimize=True,
+        pal[0].save(path, save_all=True, append_images=pal[1:], duration=frame_ms, loop=0, optimize=True,
                     disposal=1)
         print(f"{path}: {frames} frames, {os.path.getsize(path) // 1024} KB")
 
