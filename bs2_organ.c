@@ -627,7 +627,7 @@ static void oh_tab(int32_t cx, int on, const char *top, const char *bot, const c
         if (n2)
             se_lbl(x, OZY(OH_CHEEK + 6) - 7, n2, O_GOLD);
         if (x >= 0 && x < 240)              /* (the other cheek's, off the page: not tagged over this one's) */
-            tag(x, OZY(OH_CHEEK + 13), k);
+            tag(x, OZY(OH_CHEEK + 22) - 10, k), tag_low();   /* (its hint under the cheek, off its print) */
     }
 }
 static void oh_bar(int32_t cx, uint32_t v, uint32_t col, int dim, const char *ft, uint32_t k)
@@ -800,7 +800,7 @@ static void oh_face(int dim0, int dim1, const uint8_t *keys)   /* the console at
         se_lbl(OZX(O_KNOB_X), OZY(OH_CHEEK + 12) - 2, "AND", O_IVORY);
         se_lbl(OZX(O_KNOB_X), OZY(OH_CHEEK + 12) + 5, "CHORUS", O_IVORY);
         if (OZX(O_KNOB_X) >= 0 && OZX(O_KNOB_X) < 240)   /* (on the page: not the right cheek's) */
-            tag(OZX(O_KNOB_X), OZY(OH_CHEEK + 24), EN_K4);
+            tag(OZX(O_KNOB_X), OZY(OH_CHEEK + 22) - 10, EN_K4), tag_low();   /* (its hint under the knob, as the tabs') */
     }
     oh_tab(7, !opatch.vol_soft, "NORMAL", "SOFT", "VOLUME", 0, EN_K1);
     oh_tab(21, !opatch.vib_lower, "OFF", "ON", "VIBRATO", "LOWER", EN_K2);
