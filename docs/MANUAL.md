@@ -17,6 +17,7 @@ It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of 
 ![Piano Something 368X's HOME page, animated: chords played, their notes ringing as bars over the RMI Electra-piano's front panel; then ORGAN MODE turned on and off, the camera diving into the tone tablets and back out](img/screen-piano-home.gif "Piano Something 368X")
 ![Organ Something B3's HOME page, animated: a chord played on the B-3 console with its drawbars; then the 8' drawbar turned, the camera diving into it and back out to HOME](img/screen-organ-home.gif "Organ Something B3")
 ![Space Something 201's HOME page, animated: its name and mode above the whole RE-201 front panel; then REPEAT RATE turned, the camera diving into the knob and back out](img/screen-echo-home.gif "Space Something 201")
+![The RND Synth Companion, animated: GLO held, its splash; then an RND Synth patch arriving by SysEx and kept with SAVE, and its PRESET, PATCH and TRACKS pages](img/screen-rnd.gif "RND Synth Companion")
 
 ---
 
