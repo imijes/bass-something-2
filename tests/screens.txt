@@ -4,8 +4,9 @@
 # (each page change waits out the controls' map: tags_draw)
 bank_init
 wait 900
-# Knob Zoom off for the shots (GLO DISPLAY's PRESET): the whole panel, as the manual shows it, while a knob turns;
+# Knob Zoom off for the shots (GLO DISPLAY's PRESET: GLO seven times): the whole panel, as the manual shows it, while a knob turns;
 # Hints off (K3, on by default) so none covers a control, till screen-hint.png's
+tap GLO
 tap GLO
 tap GLO
 tap GLO
@@ -197,6 +198,9 @@ turn PRESET 1
 wait 30
 tap GLO
 wait 1500
+shot screen-glo-motion.png
+tap GLO
+wait 1500
 shot screen-glo-dump.png
 press GLO
 wait 1050
@@ -221,7 +225,8 @@ shot screen-rnd-tracks.png
 tap FX
 wait 200
 shot screen-map.png
-# Hints: on (GLO DISPLAY's K3: GLO six times), the FILTERS' Frequency turned: its value, its hint under it
+# Hints: on (GLO DISPLAY's K3: GLO seven times), the FILTERS' Frequency turned: its value, its hint under it
+tap GLO
 tap GLO
 tap GLO
 tap GLO
@@ -237,6 +242,7 @@ turn K4 -3
 wait 50
 shot screen-hint.png
 # Drum Something's (section 6): the Hints off again, for the panels; its HOME, a Channel page, its lists, its mods, GLOBAL DRUMS
+tap GLO
 tap GLO
 tap GLO
 tap GLO
@@ -291,6 +297,20 @@ key 11 up
 key 14 up
 key 19 up
 key 23 up
+wait 2000
+tap HOME
+wait 3000
+# the organ's HOME: a chord held, the console's drawbars and its keys down
+key 0 down 127
+key 7 down 127
+key 11 down 120
+key 14 down 120
+wait 400
+shot screen-organ-home.png
+key 0 up
+key 7 up
+key 11 up
+key 14 up
 wait 2000
 tap HOME
 wait 3000

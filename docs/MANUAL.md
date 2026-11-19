@@ -7,7 +7,7 @@ arp rhythms with its 32-step sequencer (four sequences) and 128 named patches, a
 shows on the FM-1's screen as a small Bass Station II front panel. MIDI comes in over USB, Bluetooth and TRS, and
 goes out over USB and Bluetooth, and the sound can play through Bluetooth headphones or a speaker.
 
-A second instrument plays beside the synth: [Drum Something 400](#s6), 13 drums with their own sequencer and songs. A third, [Piano Something 368X](#rmi), is an electric piano, and [Space Something 201](#echo) is a tape echo and spring reverb that all three can send into.
+A second instrument plays beside the synth: [Drum Something 400](#s6), 13 drums with their own sequencer and songs. A third, [Piano Something 368X](#rmi), is an electric piano; a fourth, [Organ Something B3](#organ), a tonewheel organ with its Leslie; and [Space Something 201](#echo) is a tape echo and spring reverb that all four can send into.
 
 It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of its patches as seeds with their locks
 (type, key, tracks), sends them back, and mixes its four tracks (see [RND Synth](#s9)).
@@ -15,6 +15,7 @@ It's also a companion for Cyma Forma's RND Synth (firmware 1.4): it keeps 32 of 
 ![Bass Something 2's HOME page, animated: the name, the red P01 display and the whole Bass Station II panel; then FREQUENCY turned, the camera diving into the filter's knob and back out to HOME](img/screen-bass-home.gif "Bass Something 2 playing")
 ![Drum Something 400's HOME page, animated: the panel with its two red displays; then SEQ tapped, the patterns' page, and HOME again](img/screen-drum-home.gif "Drum Something 400")
 ![Piano Something 368X's HOME page, animated: chords played, their notes ringing as bars over the RMI Electra-piano's front panel; then ORGAN MODE turned on and off, the camera diving into the tone tablets and back out](img/screen-piano-home.gif "Piano Something 368X")
+![Organ Something B3's HOME page, animated: a chord played on the B-3 console with its drawbars; then the 8' drawbar turned, the camera diving into it and back out to HOME](img/screen-organ-home.gif "Organ Something B3")
 ![Space Something 201's HOME page, animated: its name and mode above the whole RE-201 front panel; then REPEAT RATE turned, the camera diving into the knob and back out](img/screen-echo-home.gif "Space Something 201")
 
 ---
@@ -55,10 +56,10 @@ the screen, sound and MIDI. There's no Bluetooth or USB host there, and the app 
 doesn't start can be recovered too. For details, see felucca-bsp's `tools/fm1_rescue.sh`.
 
 At power-on the screen shows BASS SOMETHING 2 in cyan, "Inspired by the Bass Station 2" under it, and an oscilloscope whose
-wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.8.2) is in the bottom
+wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.9) is in the bottom
 right corner. v0.8 brought Piano Something 368X, Space Something 201, the motion recorder and PROX (`docs/RELEASE_v0.8.md`);
 v0.8.1 brought Bluetooth headphones and speakers (`docs/RELEASE_v0.8.1.md`); v0.8.2 lets the drums and the piano part stop
-apart (`docs/RELEASE_v0.8.2.md`).
+apart (`docs/RELEASE_v0.8.2.md`); v0.9 brings Organ Something B3 (`docs/RELEASE_v0.9.md`).
 It uses 466,928 B of the FM-1's flash, with about 115 KB free. Then the panel opens on the patch you last saved. The emulator shows the same splash when you
 switch it on.
 
@@ -90,7 +91,7 @@ GLOBAL KEYS' KNOBS sets how much they speed up, from FINE to COARSE.
 
 | Button | Page | Again |
 | --- | --- | --- |
-| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash). On HOME, a tap goes round the instruments and Space Something, the camera panning down to the next one's panel: Bass Something 2, Drum Something 400, Piano Something 368X, Space Something 201, and back. From any other page, a hold switches at once | |
+| HOME | HOME: the whole Bass Station II panel, as the sound is set (the page after the splash). On HOME, a tap goes round the instruments and Space Something, the camera panning down to the next one's panel: Bass Something 2, Drum Something 400, Piano Something 368X, Organ Something B3, Space Something 201, and back. Held a second: the KEYBOARD LOCK, the keys (and the roll of lit keys in the footer) kept on the instrument they play now whatever mode you go to, LOCK and its name in the footer; held again lets go | |
 | SEL | MASTER: the patch, picked, saved and sent | |
 | ENV | ENVELOPES: Env Select (PRESET) and the four faders | TRIGGERING; then the group's mods (velocity, retriggering, fixed sustain) |
 | LFO | PORTA and LFOS: the glide, both LFOs' waves and knobs, the Delay/Speed switch | the group's mods (keysync, Speed/Sync, slew) |
@@ -197,6 +198,8 @@ pattern it began on in time for its top. Its cues wait while a song runs, or in 
   a clock); a loop playing, a short flash at each bar and a double one at the loop's top. The bottom right of the
   screen says MOTION REC and the bar so far in red, MOTION WAIT, or MOTION and the bar playing of the loop's bars
   (MOTION 3/5) in cyan.
+
+![GLOBAL MOTION: the motion recorder's mods](img/screen-glo-motion.png "GLO, after DISPLAY: MOTION")
 
 **Motion mods (GLOBAL MOTION, GLO after DISPLAY).** A plate of the recorder's extras. Like the loop, they're live only:
 switching off puts them back to AUTO, 1X, OFF and ALL.
@@ -353,9 +356,10 @@ Each group has its mods as its last page, a press of its button after the others
 | LFO | | K3 · SPEED/SYNC | Speed: its knob sets its speed. Sync: its knob sets a sync value instead, the LFO following the tempo. |
 | LFO | | K4 · SLEW | 0 to 127: its edges softened, a square gliding from one level to the next (at the top, over about 2 s). |
 | FX | | K4 · LIMITER | 0 (off) to 127: the Bass Station II's VCA limiter. The output's level held to a threshold that comes down as it goes up (to 24 dB under full), so a loud, resonant sound is kept in check: more compressed, and quieter. |
-| FX | AFTERTOUCH (fifth) | K2 · FILTER | How far the keys' pressure moves the filter's frequency, −63 to +63 (below 0, it closes). At +63 full pressure opens it by half its range. Starts at +10, as on a Bass Station II's Init Patch. |
-| FX | | K3 · LFO1 PITCH | How far pressure brings in LFO 1 on both oscillators' pitch (a vibrato at LFO 1's speed), on top of the patch's own LFO 1 depth: fine near 0, an octave at ±63. |
-| FX | | K4 · LFO2 SPEED | How far pressure speeds LFO 2 up (or, below 0, slows it), up to 2 octaves of speed at ±63. |
+| FX | AFTERTOUCH (fifth) | K1 · FILTER | How far the keys' pressure moves the filter's frequency, −63 to +63 (below 0, it closes). At +63 full pressure opens it by half its range. Starts at +10, as on a Bass Station II's Init Patch. |
+| FX | | K2 · LFO1 PITCH | How far pressure brings in LFO 1 on both oscillators' pitch (a vibrato at LFO 1's speed), on top of the patch's own LFO 1 depth: fine near 0, an octave at ±63. |
+| FX | | K3 · LFO2 SPEED | How far pressure speeds LFO 2 up (or, below 0, slows it), up to 2 octaves of speed at ±63. |
+| FX | | K4 · KEYS FROM | Whose keys' pressure moves it: BASS, BASS+PIANO, BASS+ORGAN or ALL. |
 | FX | WHEELS (sixth) | PRESET · BEND | The pitch bend's range, −24 to +24 semitones (below 0, reversed), as the title shows. Starts at 12, as on a Bass Station II. |
 | FX | | K1 · FILTER | How far the mod wheel moves the filter's frequency, −63 to +63. |
 | FX | | K2 · LFO1 PITCH | How far the mod wheel brings in LFO 1 on both pitches (vibrato): fine near 0, an octave at ±63. Starts at +10, as on a Bass Station II's Init Patch. |
@@ -775,61 +779,83 @@ its level set by ear, as is how much softer a PP toggle is: the recordings can't
 <a id="organ"></a>
 ### Organ Something B3
 
-The fourth instrument, Organ Something B3, is a tonewheel organ after the Hammond B-3 with its Leslie speaker. Tap HOME
-on Piano Something 368X's HOME to reach it; the FM-1's keys then play the organ. It's an instrument of its own: its
+![ORGAN HOME: a drawbar turned, the camera diving in on it and back](img/screen-organ-home.gif)
+
+The fourth instrument, Organ Something B3, is a tonewheel organ after the Hammond B-3 with its Leslie 122 speaker. Tap
+HOME on Piano Something 368X's HOME to reach it; the FM-1's keys then play the organ. It's an instrument of its own: its
 own volume (SELECT), its own send into the Space Echo (ECHO MODS' ORGAN SEND), its own MIDI channels, its own USB
-audio channels, and its own part of each drum pattern, recorded and played as the piano's (REC records it, PLAY turns it
-off and on, REC held erases the keys you hold, PLAY held takes the last pass back). Its sound is made the way the organ
-makes it, nothing sampled:
+audio channels, and its own part of each drum pattern. Its sound is made the way the organ makes it, nothing sampled,
+and tuned against a reference B-3 recorded note by note:
 
-- **The tonewheels:** 91 wheels always turning, each a pure tone with a little of its pickup's colour. A key
-  plays the wheels nine drawbars pick for it, each the nearest wheel to its harmonic, folded back at the top and
+- **The tonewheels:** 91 wheels, each a near-pure tone with its own pickup's colour, its 2nd harmonic and the faint
+  crosstalk of the wheels beside it. A key plays the wheels nine drawbars pick for it, folded back at the top and
   bottom of the generator as the real wiring does. Two keys on one wheel add, as they do on the organ.
-- **The key click:** a short burst of noise as each key makes and breaks contact.
+- **The key click:** a short burst as each key's contacts make and break.
 - **Percussion:** the B-3's single trigger: the 2nd or 3rd harmonic strikes and dies away when a key is played with
-  none held, and stays silent through legato playing. While it's on, the 1' drawbar is silent, as on the organ.
-- **Vibrato and chorus:** the scanner, V1 to V3 (the pitch swept) and C1 to C3 (swept and dry together).
-- **The preamp's drive:** from clean to growling.
+  none held, and stays silent through legato playing. It plays on the upper manual's B set only, as on the organ, and
+  while it's on the 1' drawbar is silent.
+- **Vibrato and chorus:** the scanner, V1 to V3 (the pitch swept, deeper each step) and C1 to C3 (swept and dry
+  together), each manual's vibrato on or off on its own.
+- **The swell pedal:** the expression pedal (CC 11), with the real pedal's taper: closed, the lows fall away more
+  than the highs. KEY SWELL lets the keys' pressure open it instead.
 - **The Leslie:** a horn and a drum rotor, split at 800 Hz, each speeding up and slowing down at its own rate:
-  chorale (slow), tremolo (fast) and the brake. Two microphones hear it in stereo, on headphones and USB; the speaker
-  plays both together.
+  chorale (slow), tremolo (fast), and the brake (stopped). Two microphones hear it in stereo, on headphones and USB;
+  the speaker plays both together.
+- **Noises and mojo:** the old organ's sounds (key thuds, hum, rotor noise, the clunk of the Leslie's switch), and its
+  quirks, from a loose wheel to a tired motor.
 
-**ORGAN HOME** shows the console from the player's seat, as a B-3 looks: the music rack with the preset's number and
-name, the Leslie's speed, the vibrato and the percussion on it; under its ledge the drawbars, all four sets and the
-pedals' two, the upper manual's second set pulled out as the sound has them (brown for the 16' and 5⅓', white for the
-octaves and unisons, black for the rest, 0 to 8); the left cheek's vibrato knob (pointing at V1 to C3) and tabs (the
-first down while the vibrato is on), the right cheek's four percussion tabs (down when on); and the upper manual, a
-second row of keys over the FM-1's own, which play as the lower. Turning a drawbar's knob here dives into ORGAN
-DRAWBARS, as the other HOMEs do, and back out after.
+**Two manuals.** The FM-1's keys play the upper manual at first; hold SEL to switch to the lower (and back). The
+manual you play is the one the pages edit and the one shown in the header (UPPER B, LOWER A#). The lower manual also
+listens on its own MIDI channel (GLOBAL MIDI CHANNELS' ALGO). Each manual has two sets of drawbars, picked as the
+B-3's preset keys pick them: A# or B. EDIT held a second switches to the manual's other key; EDIT with OCT+ plays
+A# and B together (each drawbar the more of the two), and EDIT with OCT− held is CANCEL, the manual silent while held.
+
+**ORGAN HOME** shows the console from the player's seat: the header with the preset's number and name and what plays
+(the manual and its key, the Leslie's speed, the vibrato, the percussion); under it the music rack's ledge, the
+drawbars, all four sets and the pedals' two, pulled out as the sound has them (brown for the 16' and 5⅓', white for
+the octaves and unisons, black for the rest, 0 to 8); the left cheek's vibrato knob and tabs, the right cheek's four
+percussion tabs; and the manuals, the keys you play lit. Turning a drawbar's knob here dives into ORGAN DRAWBARS, as the
+other HOMEs do, and back out after.
+
+![ORGAN HOME](img/screen-organ-home.png)
 
 | Control | What it does |
 | --- | --- |
-| SELECT | The organ's own volume, as every instrument's on SELECT (also K4 on ORGAN LESLIE). |
-| ALGO | The 16' drawbar. |
+| SELECT | The organ's own volume, as every instrument's on SELECT. |
+| ALGO | The 16' drawbar of the set the manual plays. |
 | K1 to K4 | The 5⅓', 8', 4' and 2⅔' drawbars. |
-| PRESET | The preset, here and on both ORGAN DRAWBARS views (it plays at once; changes not saved to the one you leave are lost). |
-| SEL | ORGAN DRAWBARS: the nine drawbars up close, the same controls. SEL there: its other view, K1 to K4 the 2', 1⅗', 1⅓' and 1' drawbars. SEL again goes on through the organ's pages. |
+| PRESET | The preset, here and on the organ's other pages (it plays at once; changes not saved to the one you leave are lost). |
+| SEL | ORGAN DRAWBARS: the manual's drawbars up close, the same controls. SEL there: its other view, K1 to K4 the 2', 1⅗', 1⅓' and 1' drawbars; then the other manual's two views, then ORGAN NAME (PATCH NAME for the preset) and back. Held a second, on any organ page: the other manual. |
 
-**ORGAN VIBRATO** (FX) is the console's left cheek up close, as the B-3 has it: K1
-the VOLUME tab (NORMAL, or SOFT: the organ 6 dB down), K2 VIBRATO LOWER (kept for the lower manual to come), K3
-VIBRATO UPPER (the vibrato on the keys you play), K4 the VIBRATO AND CHORUS knob round its positions, V1 C1 V2 C2 V3 C3.
-**ORGAN PERCUSSION** (ENV) is the right cheek: K1 PERCUSSION on or off, K2 its VOLUME (SOFT or NORMAL), K3 its
-DECAY (FAST or SLOW), K4 its HARMONIC SELECTOR (THIRD or SECOND). On both, SELECT is the organ's volume and PRESET its
-preset, as on HOME. SEL from HOME zooms in on the drawbars, and HOME from these pages zooms back out from their part of
-the console. **ORGAN LESLIE** (LFO): SELECT its speed, ALGO the brake, K1 its stereo WIDTH, K2 the DRIVE, K3 the key CLICK,
-K4 the organ's own VOLUME. **ORGAN NAME** (SEL again) is PATCH NAME for the organ's preset. SEL once more goes back
-to ORGAN HOME.
+**ORGAN VIBRATO** (FX) is the console's left cheek up close: K1 the VOLUME tab (NORMAL, or SOFT: the organ 6 dB down),
+K2 VIBRATO LOWER and K3 VIBRATO UPPER (each manual's vibrato on or off), K4 the VIBRATO AND CHORUS knob, round its
+positions as the real knob is laid out: V1 C1 V2 C2 V3 C3. **ORGAN PERCUSSION** (ENV) is the right cheek: K1
+PERCUSSION on or off, K2 its VOLUME (SOFT or NORMAL), K3 its DECAY (FAST or SLOW), K4 its HARMONIC SELECTOR (THIRD or
+SECOND). It flips at one click: flick it while a chord rings to flutter between them.
+
+**ORGAN LESLIE** (LFO) is the 122, its views round with LFO again; ALGO is its speed on each (SLOW, STOP, FAST):
+
+| View | K1 | K2 | K3 | K4 |
+| --- | --- | --- | --- | --- |
+| CABINET (its louvres, the rotors through them) | WIDTH (the microphones' stereo) | DRIVE (the preamp, clean to growling) | CLICK (the key click) | VOLUME (the organ's) |
+| ROTORS (turning) | The horn's slow speed | The horn's fast speed | The drum's slow speed | The drum's fast speed |
+| HORN ROTOR, LOW ROTOR (the speed control's trimmers) | RISE (its speeding up) | FALL (its slowing down) | SLOW | FAST |
+| AMP (the 122's amplifier) | DRIVE | KEY SWELL (off, or the keys' pressure working the swell) | SWELL REST (how open it sits with no pressure) | VOLUME |
+| NOISES (for every preset) | KEY THUDS | HUM | ROTOR NOISE | CLUNKS |
+| MOJO (the preset's) | | | MOJO (how much) | CHARACTER: LOOSE WHEELS, DIRTY CONTACTS, HUM + SAG, TIRED MOTOR, TUBE WARMTH, or a mix: ROAD CASE, CHURCH, JUKE JOINT, BARN FIND |
 
 The buttons play the organ live, from any of its pages:
 
 | Button | What it does |
 | --- | --- |
 | ARP | The Leslie, chorale or tremolo (ARP lit while fast). Held a second: the brake. |
-| FX | Opens ORGAN VIBRATO, as the bass's buttons open their sections (from HOME the camera dives in on the left cheek). FX again there: VIBRATO UPPER on or off (FX lit while on). |
-| ENV | Opens ORGAN PERCUSSION (from HOME, in on the right cheek). ENV again there: the percussion on or off (ENV lit while on). Its K4, the HARMONIC SELECTOR, flips at one click: flick it while a chord rings to flutter between SECOND and THIRD. |
-| LFO | Opens ORGAN LESLIE. LFO again there: chorale or tremolo, as ARP. |
-| SEQ (held) | Clears the organ's part of the pattern, whole, as the piano's. |
-| EDIT | The vibrato or chorus on or off, from any page (EDIT lit while on). |
+| FX | Opens ORGAN VIBRATO (from HOME the camera dives in on the left cheek). FX again there: VIBRATO UPPER on or off (FX lit while on). |
+| ENV | Opens ORGAN PERCUSSION (from HOME, in on the right cheek). ENV again there: the percussion on or off (ENV lit while on). |
+| LFO | Opens ORGAN LESLIE. LFO again there: its next view. |
+| EDIT | The vibrato or chorus on or off for the manual you play, from any page (EDIT lit while on). Held a second: the manual's other preset key, A# or B. |
+| REC | Records the organ's part of the pattern, as the piano's: both manuals, each note on the manual it was played on. Held: erases the keys you hold as the loop passes them. |
+| PLAY | Turns the part of the manual you play off and on, the other manual left as it is (PLAY lit while yours plays). Stopped, it starts the part with only your manual. Held a second: takes the last pass back, your manual's notes only. The drums' PLAY starts both manuals. |
+| SEQ (held) | Clears your manual's notes from the pattern's part; the other manual's stay. |
 | SAVE | As the bass's SAVE: ORGAN HOME's other view opens with the preset's number blinking; turn PRESET for another slot, then SAVE again to store the sound and its name there. Any other button lets it go. |
 
 It has 32 presets. The first twelve are classic registrations, with the drawbars as organists write them, 16' first:
@@ -837,10 +863,11 @@ JAZZ (888000000, with the 3rd's percussion), FULL ORGAN (888888888), GOSPEL (888
 (886000000), BLUES (888600000), ROCK (888000000, driven hard), SHUFFLE (838000000), FLUTE (008000000), CLARINET
 (008080800), PERC SECOND (808000000) and ORGAN LICKER (207736358). The rest start as INIT.
 
-Its MIDI is its own, on channel 4 by default (ORGAN, K4 on GLOBAL MIDI CHANNELS and GLOBAL CC CHANNELS): notes in and out, and these CCs on the same channel. 12 to 20 the nine
-drawbars, 21 the percussion, 22 its THIRD, 23 SOFT, 24 FAST, 30 the vibrato, 25 its knob, 26 the drive, 28 the click,
-29 the width, 7 the volume; live, 1 (the mod wheel) the Leslie fast, 27 the brake, 11 the expression pedal. For an
-on or off, 64 and up is on.
+Its MIDI is its own: the upper manual on channel 4 by default (ORGAN, K4 on GLOBAL MIDI CHANNELS), the lower on its own
+(ALGO there), its CCs on GLOBAL CC CHANNELS' K4: 12 to 20 the nine drawbars of the upper's sounding set, 21 the
+percussion, 22 its THIRD, 23 SOFT, 24 FAST, 30 the vibrato, 25 its knob, 26 the drive, 28 the click, 29 the width,
+31 MOJO, 9 CHARACTER (0 to 127 spread over the characters), 7 the volume; live, 1 (the mod wheel) the Leslie fast,
+27 the brake, 11 the swell pedal. For an on or off, 64 and up is on.
 
 If the FM-1 runs short of time, for example the bass, the piano, the organ and the drums all playing big chords at
 once, it thins the organ's quietest tonewheels and the piano's oldest notes first, and says OVERLOAD VOICES CUT,
@@ -1222,7 +1249,7 @@ BS2 SysEx Dump (GLOBAL MOTION's are the motion recorder's, live only as its loop
 (10), Piano (3) and Organ (4); GLOBAL CC CHANNELS the channel each one's knobs answer MIDI CC on, on the same knobs
 (1, 10, 3 and 4). Each knob's channel is printed beneath it. A red display shows the main value where a page has one: GLOBAL CLOCK's the tempo (while MIDI clock leads, its tempo as measured over
 every two beats; dashes until then) with the clock's state beside it, GLOBAL DUMP's the patch. GLOBAL DISPLAY shows the
-firmware's version (VERSION v0.8.2). The on/off settings are slide switches.
+firmware's version (VERSION v0.9). The on/off settings are slide switches.
 
 On every GLO page, the right of the page's own bar shows the audio's load (for a moment after a change, what changed
 instead), for example **CPU0 34/41**. The first number is the
@@ -1573,10 +1600,13 @@ Bass Something 2 is by **John Brown** ([@imijes](https://github.com/imijes)), un
   named (its seed and lock code, and their words), and the RND Synth's SysEx, which the RND pages follow.
 - **BIP39**'s English word list (MIT licence, [bitcoin/bips](https://github.com/bitcoin/bips/blob/master/bip-0039/english.txt)):
   the words RND SEED names patches with.
+- **Waterfall B3** by Universal Audio: the reference organ Organ Something B3's tone, percussion, scanner and Leslie were
+  measured and tuned against, from our own recordings of it (no code or samples from it).
 - Fonts: **Barlow** by The Barlow Project Authors and **Terminus** by Dimitar Toshkov Zhekov (both SIL OFL 1.1).
 
 The full list for the platform underneath is fm1-base's `CREDITS.md` and `LICENSING.md`.
 
-Novation and Bass Station are trademarks of Focusrite Audio Engineering Ltd.; M-VAVE and FM-1, Cyma Forma and RND, and
-Sequential Circuits and Drumtraks are trademarks of their owners. Bass Something 2 is not affiliated with Novation,
-M-VAVE, Cyma Forma or Sequential.
+Novation and Bass Station are trademarks of Focusrite Audio Engineering Ltd.; M-VAVE and FM-1, Cyma Forma and RND,
+Sequential Circuits and Drumtraks, RMI and Electra-piano, Roland and Space Echo, Hammond and Leslie, and Universal Audio
+and Waterfall are trademarks of their owners. Bass Something 2 is not affiliated with Novation, M-VAVE, Cyma Forma,
+Sequential, Roland, Hammond or Universal Audio.

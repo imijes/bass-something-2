@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The four HOME pages as animated GIFs for the manual and the site (bs2/docs/img/screen-*-home.gif): a few seconds on
+"""The five HOME pages as animated GIFs for the manual and the site (bs2/docs/img/screen-*-home.gif): a few seconds on
 HOME, then a knob turned (or a button tapped) and the camera's dive in, held, and back out to HOME, where the loop
 starts again. Each from the host simulator, a shot every FRAME_MS. From the repository's root, after
 tools/build.py bs2 --host:
@@ -42,7 +42,11 @@ GIFS = [
      chord(CHORD1, 300, 900) + chord(CHORD2, 1400, 900) + chord(CHORD3, 2500, 1600)
      + [(3300, ["spin K2 1"]), (4200, ["spin K2 -1"])]
      + chord(CHORD2, 5900, 700) + chord(CHORD1, 6700, 900)),            # chords, ORGAN MODE on and off, chords
-    ("screen-echo-home.gif", 3, [], 7000,
+    ("screen-organ-home.gif", 3, ["tap GLO"] * 7 + ["wait 30", "turn K3 -1", "wait 30", "tap HOME"], 9000,
+     chord(CHORD1, 300, 2000) + turns("K2", 2600, 8, -1, 120) + turns("K2", 3800, 8, 1, 120)
+     + [(5800, ["tap HOME"])] + chord(CHORD2, 7000, 1500)),            # a chord, the 8' drawbar in and out (the dive,
+                                                                        # the Hints off: GLO DISPLAY's K3), HOME again
+    ("screen-echo-home.gif", 4, [], 7000,
      turns("K1", 2500, 10, 3) + turns("K1", 3500, 10, -3)),             # REPEAT RATE up and back
 ]
 

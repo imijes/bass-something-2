@@ -8,8 +8,9 @@ Bluetooth headphones or a speaker.
 
 A second instrument plays beside the synth: Drum Something 400, a drum machine inspired by the Sequential Circuits
 Drumtraks, with 13 synthesized drums, patterns, songs and MIDI out. A third, Piano Something 368X, is an electric piano
-inspired by the RMI Electra-piano 368X, with its own sequenced part on each drum pattern. Space Something 201 is a tape
-echo and spring reverb inspired by the Roland RE-201, and all three instruments can send into it.
+inspired by the RMI Electra-piano 368X, with its own sequenced part on each drum pattern, and a fourth, Organ Something B3, a tonewheel organ inspired by the
+Hammond B-3 with its Leslie speaker, two manuals and its own part too. Space Something 201 is a tape echo and spring
+reverb inspired by the Roland RE-201, and all four instruments can send into it.
 
 It's also a companion for Cyma Forma's RND Synth (firmware 1.4): 32 seed slots with their locks, and a mixer for its
 four tracks.
@@ -17,6 +18,7 @@ four tracks.
 ![Bass Something 2's HOME page, animated: the name, the red P01 display and the whole Bass Station II panel; then FREQUENCY turned, the camera diving into the filter's knob and back out to HOME](manual/img/screen-bass-home.gif "Bass Something 2 on the FM-1's screen")
 ![Drum Something 400's HOME page, animated: the panel with its two red displays; then SEQ tapped, the patterns' page, and HOME again](manual/img/screen-drum-home.gif "Drum Something 400 on the FM-1's screen")
 ![Piano Something 368X's HOME page, animated: chords played, their notes ringing as bars over the RMI Electra-piano's front panel; then ORGAN MODE turned on and off, the camera diving into the tone tablets and back out](manual/img/screen-piano-home.gif "Piano Something 368X on the FM-1's screen")
+![Organ Something B3's HOME page, animated: a chord played on the B-3 console with its drawbars; then the 8' drawbar turned, the camera diving into it and back out to HOME](manual/img/screen-organ-home.gif "Organ Something B3 on the FM-1")
 ![Space Something 201's HOME page, animated: its name and mode above the whole RE-201 front panel; then REPEAT RATE turned, the camera diving into the knob and back out](manual/img/screen-echo-home.gif "Space Something 201 on the FM-1's screen")
 
 Version {{VERSION}}. Installing is at your own risk; the installer can put M-VAVE's own firmware back.
