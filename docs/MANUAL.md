@@ -58,10 +58,10 @@ the screen, sound and MIDI. There's no Bluetooth or USB host there, and the app 
 doesn't start can be recovered too. For details, see felucca-bsp's `tools/fm1_rescue.sh`.
 
 At power-on the screen shows BASS SOMETHING 2 in cyan, "Inspired by the Bass Station 2" under it, and an oscilloscope whose
-wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.9.1) is in the bottom
+wave morphs from sine to triangle to saw to a sweeping pulse. The firmware's version (such as v0.9.2) is in the bottom
 right corner. v0.8 brought Piano Something 368X, Space Something 201, the motion recorder and PROX (`docs/RELEASE_v0.8.md`);
 v0.8.1 brought Bluetooth headphones and speakers (`docs/RELEASE_v0.8.1.md`); v0.8.2 lets the drums and the piano part stop
-apart (`docs/RELEASE_v0.8.2.md`); v0.9 brings Organ Something B3 (`docs/RELEASE_v0.9.md`); v0.9.1 fixes the screen reader's words (`docs/RELEASE_v0.9.1.md`).
+apart (`docs/RELEASE_v0.8.2.md`); v0.9 brings Organ Something B3 (`docs/RELEASE_v0.9.md`); v0.9.1 fixes the screen reader's words (`docs/RELEASE_v0.9.1.md`); v0.9.2 adds velocity OFF (`docs/RELEASE_v0.9.2.md`).
 It uses 466,928 B of the FM-1's flash, with about 115 KB free. Then the panel opens on the patch you last saved. The emulator shows the same splash when you
 switch it on.
 
@@ -1248,7 +1248,7 @@ BS2 SysEx Dump (GLOBAL MOTION's are the motion recorder's, live only as its loop
 (10), Piano (3) and Organ (4); GLOBAL CC CHANNELS the channel each one's knobs answer MIDI CC on, on the same knobs
 (1, 10, 3 and 4). Each knob's channel is printed beneath it. A red display shows the main value where a page has one: GLOBAL CLOCK's the tempo (while MIDI clock leads, its tempo as measured over
 every two beats; dashes until then) with the clock's state beside it, GLOBAL DUMP's the patch. GLOBAL DISPLAY shows the
-firmware's version (VERSION v0.9.1). The on/off settings are slide switches.
+firmware's version (VERSION v0.9.2). The on/off settings are slide switches.
 
 On every GLO page, the right of the page's own bar shows the audio's load (for a moment after a change, what changed
 instead), for example **CPU0 34/41**. The first number is the
