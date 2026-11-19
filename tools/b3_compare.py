@@ -57,6 +57,8 @@ def takes():
     t["click"] = ("888888888", {}, stac(60, 8, 150, 350), 4500, True)
     t["vib_V1"] = ("888000000", {30: 127, 25: 0}, hold(CHORD, 4000), 5000, True)
     t["vib_C3"] = ("888000000", {30: 127, 25: 127}, hold(CHORD, 4000), 5000, True)
+    for nm, v in (("V2", 32), ("V3", 53), ("C1", 74), ("C2", 95)):   # (captured 2026-11-18, wfv: the Waterfall's
+        t["vib_" + nm] = ("888000000", {30: 127, 25: v}, hold(CHORD, 4000), 5000, True)   # CC 73 goes V1 C1 V2 C2 V3 C3)
     t["leak_chord"] = ("000000000", {}, hold(CHORD, 4000), 5000, True)
     for i in range(9):                       # each drawbar alone up the keys, a key every 3 semitones
         ev = []

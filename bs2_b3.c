@@ -12,8 +12,8 @@
  *     and, softer, at break
  *   percussion: the 2nd (4') or 3rd (2 2/3') of the keys struck when none was held (single trigger), its own decay
  *     (fast 0.115 s, slow 0.34 s to 1/e), soft -6 dB; it takes the 1' bar off while on; past the scanner
- *   the scanner vibrato and chorus: a delay of 0.9 ms swept 0.65 ms times V1/V2/V3's depth at 6.9 Hz, the chorus
- *     half dry
+ *   the scanner vibrato and chorus: a delay swept as a triangle at 6.83 Hz, 0.66, 1.28, 1.78 ms (V1 V2 V3); the
+ *     chorus 0.5, 0.8, 1.5 ms, about a third through it and the rest dry
  *   the preamp: a soft asymmetric clip (tanh round a bias), its drive
  *   the Leslie: an 800 Hz crossover (Linkwitz-Riley, two Butterworths a side), the horn above and the drum below,
  *     each turning, its path to the microphone its delay (the Doppler), its level by the way it faces (the horn's
@@ -43,6 +43,7 @@
 #define B3_LEAK 0.0f                         /* a sounding wheel's neighbours, each (0.006: about -44 dB; 0: none, as
                                               * they double the wheels made) */
 #define B3_NCL 8u                            /* key clicks at once */
+#define B3_SCAN_HZ 6.83f                     /* the scanner's turn (the reference's) */
 #define B3_SCAN_N 128u                       /* the scanner's line (a power of 2) */
 #define B3_LES_N 1024u                       /* a rotor's line (a power of 2): its swing and its reflections */
 /* the cabinet's voicing, a reference organ's Leslie measured (its response over the same chord direct: the horn and
@@ -104,7 +105,17 @@ static float b3_tap[9][B3_NK] PLAT_POOL;     /* it for each key (b3_init's), a g
 /* a wheel's own 2nd and 3rd harmonics (its tooth's shape, its pickup's), dB to it at C2 C3 .. C8, the low wheels
  * the richest: made from its sine, exactly twice and three times it (the tempered drawbars beat against them) */
 static const int8_t B3_HARM[2][7] = {{-14, -23, -32, -43, -42, -34, -32}, {-40, -43, -46, -50, -53, -65, -57}};
+/* the 2nd's finer: at each octave's C and its B (a reference organ's, key by key: it holds through an octave and drops
+ * at the next C, not a line from C to C) */
+static const int8_t B3_H2[7][2] = {{-14, -22}, {-24, -30}, {-35, -34}, {-42, -48}, {-39, -47}, {-32, -32}, {-30, -30}};
 static float b3_hm[2][B3_NW] PLAT_POOL;
+/* the generator's crosstalk down: a wheel heard, the wheels an octave, an octave and a fifth, two octaves, two and a
+ * fifth and three under it heard with it, faintly (a reference organ's, measured key by key: steady while held), dB
+ * to it at C2 .. C6; each wheel's own scatter round it (b3_init's: its own, not the reference's keys) */
+static const uint8_t B3_SUB_OFF[5] = {12u, 17u, 24u, 29u, 36u};
+static const int8_t B3_SUB[5][5] = {{-47, -47, -55, -54, -61}, {-56, -44, -49, -60, -60}, {-36, -36, -41, -40, -55},
+                                    {-38, -38, -44, -48, -66}, {-40, -40, -40, -52, -62}};
+static float b3_sub[5][B3_NW] PLAT_POOL;
 /* the busbars' crosstalk: a key down, every drawbar of its manual not drawn still heard faintly while one is (none:
  * silence, as a B-3's), dB under the key's loudest drawn bar (a reference organ's, measured: its undrawn 1 1/3' and
  * 1' 45-55 dB down, its 1 3/5' about 65); its wheels made plain (no harmonics) */
@@ -297,7 +308,17 @@ void b3_init(void)
             const uint32_t j = n <= 0 ? 0u : (uint32_t)n / 12u < 6u ? (uint32_t)n / 12u : 5u;
             const float f = n <= 0 ? 0.0f : n >= 72 ? 1.0f : (float)(n - 12 * (int32_t)j) * (1.0f / 12.0f),
                         h = (float)B3_HARM[w][j] + ((float)B3_HARM[w][j + 1u] - (float)B3_HARM[w][j]) * f;
-            b3_hm[w][i] = h < -60.0f ? 0.0f : fm_exp2f(h * (1.0f / 6.0206f));
+            const float h2 = (float)B3_H2[j][0] + ((float)B3_H2[j][1] - (float)B3_H2[j][0]) * f * (12.0f / 11.0f);
+            b3_hm[w][i] = (w ? h : h2) < -60.0f ? 0.0f : fm_exp2f((w ? h : h2) * (1.0f / 6.0206f));
+        }
+    for (w = 0; w < 5u; w++)
+        for (i = 0; i < B3_NW; i++) {
+            const int32_t n = (int32_t)(i + B3_W0) - 36;
+            const uint32_t j = n <= 0 ? 0u : (uint32_t)n / 12u < 4u ? (uint32_t)n / 12u : 3u, z = (i * 37u + w * 101u) * 2654435761u;
+            const float f = n <= 0 ? 0.0f : n >= 60 ? 1.0f : (float)(n - 12 * (int32_t)j) * (1.0f / 12.0f),
+                        h = (float)B3_SUB[w][j] + ((float)B3_SUB[w][j + 1u] - (float)B3_SUB[w][j]) * f
+                            + (float)((int32_t)(z >> 28) - 8) * 0.75f;   /* (its scatter: +-6 dB) */
+            b3_sub[w][i] = i < B3_SUB_OFF[w] || h < -54.0f ? 0.0f : fm_exp2f(h * (1.0f / 6.0206f));
         }
     b3.bar[0][0] = b3.bar[0][1] = b3.bar[0][2] = 8;   /* 888000000, the jazz organ's */
     b3.vib[0] = 1;
@@ -512,6 +533,9 @@ static B3_HOT void b3_step(void)             /* a modulation step: each wheel's 
                         t[w] += v;
                         if (w + 12u < B3_NW)  /* (its 2nd on the octave's wheel: a B-3's octaves exact, 2:1) */
                             t[w + 12u] += v * b3_hm[0][w];
+                        for (uint32_t j = 0; j < 5u; j++)   /* (the generator's crosstalk down) */
+                            if (b3_sub[j][w] > 0.0f)
+                                t[w - B3_SUB_OFF[j]] += v * b3_sub[j][w];
                         if (B3_LEAK > 0.0f && w)
                             t[w - 1u] += lv[b] * B3_LEAK;
                         if (B3_LEAK > 0.0f && w + 1u < B3_NW)
@@ -622,9 +646,11 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
         const uint32_t w = b3.act[k], ph = b3.ph[w] + b3.inc[w] * b3.t;
         const int rich = b3.g[w] + b3.d[w] + b3.dg[w] * B3_CH + b3.dd[w] * B3_CH > B3_RICH;   /* (a faint wheel, the
                                               * crosstalk's: its harmonics past hearing, not made) */
-        const float kc = b3.kc[w], h3 = rich ? b3_hm[1][w] : 0.0f;   /* (its own 2nd and 3rd: 2a^2 - 1,
-                                              * 3a - 4a^3 of its sine, exactly 2 and 3 times it, as a wheel's tooth
-                                              * gives them: the tempered drawbars beat against them, the shimmer) */
+        const float kc = b3.kc[w], h3 = rich ? b3_hm[1][w] : 0.0f,
+                    h2 = rich && w + 12u >= B3_NW ? b3_hm[0][w] : 0.0f;   /* (its own 3rd, 3a - 4a^3 of its sine,
+                                              * exactly 3 times it, as a wheel's tooth gives it: the tempered drawbars
+                                              * beat against it, the shimmer; the top wheels' 2nd too, 2a^2 - 1, no
+                                              * wheel an octave over them to carry it) */
         float a = b3_tab(b3_wave[1], ph), b = b3_tab(b3_wave[1], ph + b3.inc[w]), nx;
         float g = b3.g[w], dg = b3.dg[w], d = b3.d[w], dd = b3.dd[w], pg = b3.pg[w], dpg = b3.dpg[w];
         const int dry = d != 0.0f || dd != 0.0f;
@@ -636,7 +662,7 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
         else if (pg == 0.0f && dpg == 0.0f && !dry)
             for (i = 0; i < B3_CH; i++, g += dg) {
                 const float a2 = a * a;
-                bus[i] += g * (a + h3 * a * (3.0f - 4.0f * a2));
+                bus[i] += g * (a + h3 * a * (3.0f - 4.0f * a2) + h2 * (2.0f * a2 - 1.0f));
                 nx = kc * b - a, a = b, b = nx;
             }
         else if (pg == 0.0f && dpg == 0.0f && g == 0.0f && dg == 0.0f && !rich)
@@ -647,12 +673,12 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
         else if (pg == 0.0f && dpg == 0.0f && g == 0.0f && dg == 0.0f)
             for (i = 0; i < B3_CH; i++, d += dd) {
                 const float a2 = a * a;
-                dbus[i] += d * (a + h3 * a * (3.0f - 4.0f * a2));
+                dbus[i] += d * (a + h3 * a * (3.0f - 4.0f * a2) + h2 * (2.0f * a2 - 1.0f));
                 nx = kc * b - a, a = b, b = nx;
             }
         else
             for (i = 0; i < B3_CH; i++, g += dg, d += dd, pg += dpg) {
-                const float a2 = a * a, v = a + h3 * a * (3.0f - 4.0f * a2);
+                const float a2 = a * a, v = a + h3 * a * (3.0f - 4.0f * a2) + h2 * (2.0f * a2 - 1.0f);
                 bus[i] += g * v;
                 dbus[i] += d * v;
                 pbus[i] += pg * a;
@@ -692,15 +718,20 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
             ol[i] = orr[i] = 0.0f;
         return;
     }
-    if (b3.scan) {                           /* the scanner: V1-3 the delay alone, C1-3 half dry; its sweep's ends */
-        static const float DEPTH[3] = {0.30f, 0.55f, 0.85f};
+    if (b3.scan) {                           /* the scanner: V1-3 the delay alone, C1-3 a third through it, the rest dry; its
+                                              * sweep's ends */
+        static const float DEPTH[6] = {0.00066f, 0.00128f, 0.00178f, 0.0005f, 0.0008f, 0.0015f},   /* (V1 V2 V3: 36, 69,
+                                              * 96 cents p-p, measured; C1 C2 C3's sweeps and dry shares fitted to
+                                              * their swells) */
+                           DRY[3] = {0.6f, 0.65f, 0.7f};
         const uint32_t s = b3.scan - 1u, ch = s >= 3u;
-        const float dp = B3_RATE * 0.00065f * DEPTH[s % 3u], d0b = B3_RATE * 0.0009f;
-        float a1 = b3.sc_ph + 6.9f * B3_CH / B3_RATE, d, dd;
+        const float dp = B3_RATE * DEPTH[s], dry = ch ? DRY[s - 3u] : 0.0f, d0b = B3_RATE * 0.0001f;
+        float a1 = b3.sc_ph + B3_SCAN_HZ * B3_CH / B3_RATE, d, dd;
         if (a1 >= 1.0f)
             a1 -= 1.0f;
-        d = d0b + dp * (0.5f + 0.5f * b3_cos(b3.sc_ph));
-        dd = (d0b + dp * (0.5f + 0.5f * b3_cos(a1)) - d) * (1.0f / B3_CH);
+        d = d0b + dp * (0.5f + 0.5f * b3_tri(b3.sc_ph));     /* (its sweep across the line and back: a triangle, the pitch held up
+                                              * then down, as the reference's) */
+        dd = (d0b + dp * (0.5f + 0.5f * b3_tri(a1)) - d) * (1.0f / B3_CH);
         b3.sc_ph = a1;
         for (i = 0; i < B3_CH; i++, d += dd) {
             const uint32_t j = (uint32_t)d;
@@ -709,7 +740,7 @@ static B3_HOT void b3_chunk(float *ol, float *orr)
             b3_scan[b3.sc_w++ & (B3_SCAN_N - 1u)] = bus[i] * 0.125f;
             a = b3_scan[(b3.sc_w - 1u - j) & (B3_SCAN_N - 1u)], b = b3_scan[(b3.sc_w - 2u - j) & (B3_SCAN_N - 1u)];
             b3.sc_x += (a + (b - a) * f - b3.sc_x) * 0.75f;   /* (the line's loss: about 9.5 kHz) */
-            bus[i] = ch ? 0.5f * (bus[i] * 0.125f + b3.sc_x) : b3.sc_x;
+            bus[i] = dry * bus[i] * 0.125f + (1.0f - dry) * b3.sc_x;
         }
     } else
         for (i = 0; i < B3_CH; i++)
